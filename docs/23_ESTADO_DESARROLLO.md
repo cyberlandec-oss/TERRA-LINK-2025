@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-018 Documentos | **DONE_LOCAL** (criterios de la historia); usa auditoría ya verificada; P0-025 (lectura/export de auditoría por alcance) y P0-019 (evidencia) siguen pendientes | Ver criterios abajo |
 | P0-015 Eventos | **DONE_LOCAL** para los criterios internos de la organización (correction_of con efecto real en productor, historial autorizado, reproceso DEAD, fencing); concesiones externas y elevación siguen en P0-003 | Ver criterios abajo |
 | P0-014 KDE | **DONE_LOCAL** para catálogo y servicio de validación; 0 compuertas integradas (cada operación lo demuestra en su historia); D-33, D-34 y configuración jurídica pendientes | Ver criterios abajo |
 | P0-013 CTE | **DONE_LOCAL** (catálogo versionado y mapeo de lo existente; la integración de cada operación es criterio de su propia historia) | Ver criterios abajo |
@@ -252,6 +253,23 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
 
+### P0-018 — criterios
+
+Dependencias: P0-003 aporta la autorización dentro del tenant (verificada); de P0-025 se usa el registro de auditoría existente (`audit_logs`, verificado desde P0-002). La lectura/exportación de auditoría por alcance y la redacción (P0-025) no son necesarias para P0-018 y siguen pendientes. Concesiones externas y elevación: P0-003.
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T20-08-20-583Z`): API 215/215, web 4/4, E2E 46/46, OpenAPI 78 rutas. Revisión visual 29 entradas, 0 incidencias.
+
+| Criterio | Resultado | Evidencia (`documents.int-spec.ts` con ClamAV/S3/PostgreSQL reales; E2E) |
+| --- | --- | --- |
+| Carga y descarga autorizadas, privadas | Objeto privado, SHA-256 del servidor, bytes idénticos, descarga con permiso, alcance del titular y hash verificado; auditada | «carga autorizada…» |
+| Cuotas, tamaño, formato, MIME engañoso | Límite por archivo y cuota por organización serializada; tipo real por firma; declarado distinto → rechazo | «formatos…», «cuota…» |
+| Cuarentena y escaneo | EICAR rechazada por el escáner real sin almacenar; escáner caído → pendiente, sin descarga, revisión ni compuerta; reintento real → disponible; reintento con malware → rechazada | «muestra EICAR…», «escáner indisponible…» |
+| Vigencia y nueva versión | Versión vencida visible como «vencida» (no inaccesible); nueva versión conserva la anterior y no hereda revisión; conflicto de versión | «versiones y revisiones…» |
+| Acceso y referencias | Otra organización, titular ajeno o inexistente, técnico sin asignación → 404; datos personales sin `producer:read_identity` → metadatos sí, contenido no; entregas → 422 | «clasificación y alcance…», «referencias ajenas…» |
+| Idempotencia, almacenamiento y rollback | Reintento idéntico → réplica; mismo id con otro archivo → 409; S3 caído → nada; fallo de BD → objeto compensado; bytes alterados → no se entregan | «reintento…», «fallos de almacenamiento…» |
+| Revocación | Membresía desactivada durante la carga → rechazo y compensación; reasignación → sin acceso residual | «revocación…» |
+| Sin filtraciones | Errores y eventos sin contenido, nombres de archivo ni identidad | «sin filtraciones…» |
+
 ### Preparación de P0-012 Entregas (revisión, sin implementar)
 
 | Aspecto | Situación |
@@ -259,7 +277,7 @@ Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` 
 | Productos | Capacidad disponible (catálogo por organización, KG) |
 | CTE/KDE que usará | DELIVERY@1 (7 KDE), RECEPTION@1 (6), WEIGHING@1 (5), CLASSIFICATION@1 (5) |
 | Condiciones indefinidas (D-34) | `DELIVERY_PRODUCTION_PERIOD` → CONDITION_NOT_EVALUABLE en **toda** entrega: la compuerta bloquearía cualquier registro |
-| Referencias sin entidad | `DELIVERY_SUPPORT` (documento, P0-018) → no verificable o ausente: bloquea toda entrega (D-35); `RECEPTION_LOCATION` (centros: docs/06 `locations`), `WEIGHING_SUBJECT` (modelo de pesaje), `CLASSIFICATION_SAMPLE` (muestras) deben modelarse en P0-012 |
+| Referencias sin entidad | `DELIVERY_SUPPORT`: **verificable desde P0-018** (referencia y disponibilidad técnica); falta decidir cuándo se exige (D-35); `RECEPTION_LOCATION` (centros: docs/06 `locations`), `WEIGHING_SUBJECT` (modelo de pesaje), `CLASSIFICATION_SAMPLE` (muestras) deben modelarse en P0-012 |
 | Diferencias de modelo | `deliveries` sin parcela en docs/06 (arreglo tipado en docs/09); proveedor no productor sin entidad; sin entidad de pesaje |
 | Eventos y correcciones | DeliveryRegistered, ReceptionConfirmed, WeightRecorded, QualityDecisionRecorded; `ReceptionCorrected` definido en docs/08 (referencia al original, motivo, ajuste; bloquear si hay descendientes) — usar el mecanismo `correction_of` de P0-015 |
 | Decisiones que **bloquean** | **D-34** (condición de production_period), **D-35** (exigencia del soporte documental o P0-018), **D-33** en lo que afecta a P0-012 (si pesaje y clasificación son obligatorios antes de confirmar la recepción) |
@@ -280,7 +298,7 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 - Android/offline, integraciones, despliegue: no iniciados.
 - Logotipo oficial y verificación de licencia de Inter (UX-D01/UX-D02). Evaluación de accesibilidad completa (lector de pantalla, zoom 200 %) no realizada: solo foco por teclado y móvil comprobados.
 
-## Próxima acción: decidir D-34, D-35 y la parte de D-33 que afecta a la recepción antes de P0-012 (análisis en `sesiones/2026-10-10-p0-015-eventos.md`)
+## Próxima acción: aprobar o ajustar la propuesta D-33/D-34/D-35 (`docs/decisiones/D-33-34-35-PROPUESTA-ENTREGAS.md`) antes de las compuertas de P0-012
 
 ## Anterior: P0-006 Parcela
 

@@ -8,10 +8,10 @@ export const REQUIREMENTS = ['REQUIRED', 'CONDITIONAL', 'OPTIONAL'] as const;
 export type Requirement = (typeof REQUIREMENTS)[number];
 
 /** Entidades con verificación real en esta etapa (tenant + alcance del usuario). */
-export const VERIFIABLE_ENTITIES = ['producer', 'plot', 'plot_version', 'product', 'membership'] as const;
+export const VERIFIABLE_ENTITIES = ['producer', 'plot', 'plot_version', 'product', 'membership', 'document'] as const;
 /** Entidades del contrato aún inexistentes: la referencia se acepta como «no verificable», nunca como válida. */
 export const PENDING_ENTITIES: Record<string, string> = {
-  delivery: 'P0-012', location: 'P0-012', document: 'P0-018', sample: 'P0-012', weighable: 'P0-012', lot: 'P0-016',
+  delivery: 'P0-012', location: 'P0-012', sample: 'P0-012', weighable: 'P0-012', lot: 'P0-016',
   process_run: 'P0-016', counterparty: 'D-33', buyer: 'P0-029', shipment: 'P0-029', dd_package: 'P0-022',
 };
 

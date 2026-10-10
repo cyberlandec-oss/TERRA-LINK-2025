@@ -93,8 +93,8 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
     }
     // el administrador sí ve la parcela de P-2
     expect(item((await validate('admin-a@test.local', delivery, { ...values, DELIVERY_PLOTS: [plotOther] }).expect(200)).body, 'DELIVERY_PLOTS').result).toBe('PRESENT_VALID');
-    // documento: entidad aún inexistente → no verificable, bloquea
-    expect(item((await validate('admin-a@test.local', delivery, { ...values, DELIVERY_SUPPORT: randomUUID() }).expect(200)).body, 'DELIVERY_SUPPORT').result).toBe('PRESENT_NOT_VERIFIABLE');
+    // documento (P0-018): verificable; un id inexistente se rechaza sin revelar nada
+    expect(item((await validate('admin-a@test.local', delivery, { ...values, DELIVERY_SUPPORT: randomUUID() }).expect(200)).body, 'DELIVERY_SUPPORT')).toMatchObject({ result: 'PRESENT_INVALID', error_code: 'REFERENCE_NOT_FOUND' });
   });
 
   it('respuestas sin valores ni datos sensibles; claves desconocidas solo por nombre', async () => {

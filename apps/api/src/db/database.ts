@@ -19,6 +19,7 @@ import * as m0014 from './migrations/0014_products';
 import * as m0015 from './migrations/0015_cte_catalog';
 import * as m0016 from './migrations/0016_kde_catalog';
 import * as m0017 from './migrations/0017_event_corrections_delivery_fencing';
+import * as m0018 from './migrations/0018_documents';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -39,6 +40,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0015_cte_catalog': m0015,
   '0016_kde_catalog': m0016,
   '0017_event_corrections_delivery_fencing': m0017,
+  '0018_documents': m0018,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

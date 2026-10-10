@@ -1,4 +1,4 @@
-import { randomInt } from 'crypto';
+import { randomInt, randomUUID } from 'crypto';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import type { AddressInfo } from 'net';
@@ -311,6 +311,28 @@ async function main(): Promise<void> {
       for (const pr of DEMO_PRODUCTS) {
         if (existing.includes(pr.code)) continue;
         await call('POST', `/api/v1/organizations/${orgId}/products`, t, { ...pr, unit: 'KG', scientific_name: 'Theobroma cacao' });
+      }
+    }
+
+    // 4d) Documento DEMO (P0-018): soporte de entrega SINTÉTICO para DEMO-RV-001, subido por la API (pasa por el
+    // análisis antimalware real). Idempotente por título. No es un documento real ni evidencia aprobada.
+    if (passwords.has(coopAdmin)) {
+      const t = await tokenOf(coopAdmin);
+      const coopId = orgIds.get('coop')!;
+      const title = 'Guía de entrega DEMO-RV-001 (sintética)';
+      const docs = (await call<Array<{ title: string }>>('GET', `/api/v1/organizations/${coopId}/documents?document_type=DELIVERY_SUPPORT`, t)).data;
+      const producer = (await call<{ items: Array<{ id: string; producer_code: string }> }>('GET', `/api/v1/organizations/${coopId}/producers?status=ALL&q=DEMO-RV-001`, t)).data.items.find((x) => x.producer_code === 'DEMO-RV-001');
+      if (producer && !docs.some((d) => d.title === title)) {
+        const form = new FormData();
+        form.append('operation_id', randomUUID());
+        form.append('document_type', 'DELIVERY_SUPPORT');
+        form.append('owner_type', 'producer');
+        form.append('owner_id', producer.id);
+        form.append('title', title);
+        form.append('issuer', 'Centro de acopio (ficticio)');
+        form.append('file', new Blob([Buffer.from(['%PDF-1.4', '% Documento SINTETICO de demostracion Terra Link', '%%EOF', ''].join('\n'))], { type: 'application/pdf' }), 'guia-demo.pdf');
+        const res = await fetch(`${base}/api/v1/organizations/${coopId}/documents`, { method: 'POST', headers: { authorization: `Bearer ${t}` }, body: form });
+        if (res.status !== 201 && res.status !== 200) throw new Error(`POST documento DEMO → ${res.status}`);
       }
     }
 

@@ -25,6 +25,17 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+  # Escáner antimalware local (P0-018): ClamAV clamd por TCP (INSTREAM). Firmas en volumen propio.
+  scanner:
+    image: clamav/clamav:1.4
+    ports: ["${SCANNER_PORT:-3310}:3310"]
+    volumes: ["scanner-db:/var/lib/clamav"]
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 120s
   # S3 compatible local (VersityGW, backend posix). MinIO ya no publica imágenes en Docker Hub.
   object-storage:
     image: versity/versitygw:v1.8.0
@@ -50,6 +61,7 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:?definir en .env}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?definir en .env}
       S3_BUCKET: ${S3_BUCKET:-terra-link-private}
+      SCANNER_HOST: scanner
     depends_on:
       postgres: { condition: service_healthy }
   api:
@@ -74,6 +86,7 @@ services:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
       object-storage: { condition: service_started }
+      scanner: { condition: service_healthy }
   worker:
     profiles: [app]
     image: terra-link-api:local
@@ -106,3 +119,4 @@ services:
 volumes:
   postgres-data:
   object-data:
+  scanner-db:

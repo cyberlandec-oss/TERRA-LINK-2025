@@ -141,3 +141,10 @@ Defecto encontrado y corregido: `geometry_visible` llegaba como texto `"false"` 
 - tecnico2.cooperativa: sin acceso al historial de un productor no asignado.
 - auditor.cooperativa: ve el historial, sin botones de corrección; entregas DEAD denegadas.
 - La corrección con teclado a 390 px se verifica en E2E (`productos.spec.ts`). Capturas `eventos--*.png`. Resultado: 28 entradas, 0 incidencias.
+
+## P0-018 Documentos (2026-10-10)
+- admin.cooperativa: centro con el soporte sintético DEMO «Disponible (análisis limpio)», formulario de carga, descarga `guia-demo.pdf` y acciones de revisión.
+- tecnico1.cooperativa (390 px, teclado): ve los documentos de sus productores; puede subir, no revisar; sin desborde.
+- tecnico2.cooperativa: no ve documentos de productores ajenos.
+- productor.cooperativa: sin enlace y acceso denegado.
+- Capturas `documentos--*.png`. Resultado: 29 entradas, 0 incidencias.

@@ -115,6 +115,12 @@ Completitud, validez, consistencia, unicidad y vigencia son resultados separados
 | products | 0014 | P0-011: catálogo por ORGANIZACIÓN. `code` único por organización (mayúsculas, 2–40); `name`; `product_state` y `unit` (FK a catálogos de sistema); `scientific_name`/`variety` opcionales; ACTIVE/INACTIVE con motivo; `row_version`. Código, estado y unidad **inmutables** (trigger); sin borrado |
 | product_versions | 0014 | Historial append-only por versión (alta, edición, desactivación, activación) con instantánea y motivo |
 | gis_evaluations.comparison_scope / scope_membership_id | 0013 | Alcance efectivo de comparación de cada evaluación (ORGANIZATION o EVALUATOR_ASSIGNED) |
+| document_types | 0018 | P0-018: catálogo de sistema con los tipos que nombran las fuentes: LAND_TENURE (tenencia; PERSONAL_DATA) y DELIVERY_SUPPORT (soporte de entrega; OPERATIONAL); titulares admitidos |
+| documents | 0018 | Documento de la organización: tipo, titular (producer/plot del mismo tenant, trigger; `delivery` reservado para P0-012), título, versión vigente, `row_version`. Tipo y titular inmutables; sin borrado |
+| document_versions | 0018 | Versión inmutable: objeto privado en S3, nombre, MIME real (PDF/JPEG/PNG), tamaño, SHA-256 del servidor, emisor, emisión, vencimiento, versión previa, `operation_id`. Append-only |
+| document_version_scans | 0018 | Resultados del análisis antimalware por versión (CLEAN/INFECTED/FAILED, motor, firma, código de error). Append-only |
+| document_version_reviews | 0018 | Revisión humana por versión (ACCEPTED/REJECTED, motivo, revisor). No se hereda. Append-only |
+| document_links | 0018 | Vinculación «adjunto a» con producer/plot del mismo tenant (trigger). Las relaciones probatorias son de P0-019. Append-only |
 | domain_events.correction_of_event_id / correction_reason | 0017 | P0-015: corrección de un evento EXISTENTE de la misma organización y agregado (FK compuesta + trigger), posterior al corregido, motivo obligatorio (3–500), sin autorreferencia; un evento se corrige una vez (índice único) → cadena lineal |
 | event_deliveries.lease_token / manual_requeues | 0017 | Fencing del arrendamiento: solo el reclamo con el token vigente confirma o registra el fallo; reprocesos manuales contados. `last_error` guarda solo códigos |
 | event_delivery_attempts | 0017 | Historial append-only de intentos por entrega: DONE, DUPLICATE, FAILED, DEAD, LEASE_LOST, MANUAL_REQUEUE (actor y motivo), código de error |

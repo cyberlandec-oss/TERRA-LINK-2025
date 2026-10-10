@@ -185,3 +185,38 @@ test('P0-015 historial de eventos y corrección de una actualización de product
   await expect(page.getByRole('heading', { name: 'Entregas de eventos fallidas' })).toBeVisible();
   await ctx.close();
 });
+
+test('P0-018 documentos: carga con etapas y análisis real, disponible, descarga, revisión por versión; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  const orgId = orgUrl.split('/organizaciones/')[1];
+  await page.request.post(`${API_URL}/api/v1/organizations/${orgId}/producers`, { headers: { authorization: `Bearer ${token}` }, data: { producer_code: 'DOC-001', legal_name: 'Finca Documentos' } });
+  await page.goto(`${orgUrl}/documentos`);
+  await expect(page.getByText('Aún no hay documentos a tu alcance.')).toBeVisible();
+  await page.getByLabel('Tipo de documento').selectOption({ label: 'Soporte de entrega' });
+  await page.getByLabel('Titular').selectOption({ label: 'Productor' });
+  await page.getByLabel('Productor', { exact: true }).selectOption({ index: 1 }); // DOC-001 (orden por código)
+  await page.getByLabel('Título').fill('Guía de entrega sintética');
+  await page.getByLabel('Emisor (opcional)').fill('Centro de acopio (ficticio)');
+  await page.getByLabel('Archivo').setInputFiles({ name: 'guia.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n% archivo sintético de prueba\n%%EOF\n') });
+  await page.getByRole('button', { name: 'Subir documento' }).focus();
+  await page.keyboard.press('Enter');
+  const stages = page.getByRole('list', { name: 'Etapas de la carga' });
+  await expect(stages).toContainText('Análisis antimalware: limpio');
+  await expect(stages).toContainText('Registro: versión 1 registrada');
+  await expect(page.getByRole('table', { name: 'Documentos' })).toContainText('Disponible (análisis limpio)');
+  await page.getByRole('link', { name: 'Guía de entrega sintética' }).first().click();
+  await expect(page.getByText(/no prueban autenticidad ni validez jurídica/)).toBeVisible();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Descargar v1' }).click()]);
+  expect(dl.suggestedFilename()).toBe('guia.pdf');
+  await page.getByLabel('Motivo de la revisión').fill('Coincide con la guía física');
+  await page.getByRole('button', { name: 'Aceptar versión' }).click();
+  await expect(page.getByText('Aceptada: Coincide con la guía física')).toBeVisible();
+  await page.getByLabel('Archivo').setInputFiles({ name: 'guia-v2.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n% versión 2 sintética\n%%EOF\n') });
+  await page.getByRole('button', { name: 'Subir versión' }).click();
+  const versions = page.getByRole('list', { name: 'Versiones del documento' });
+  await expect(versions).toContainText('v2 (vigente)');
+  await expect(versions).toContainText('Sin revisar (las revisiones no se heredan entre versiones)');
+  await expect(versions).toContainText('Aceptada: Coincide con la guía física');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await ctx.close();
+});

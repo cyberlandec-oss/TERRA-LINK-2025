@@ -72,6 +72,7 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     if (operacion.length) groups.push({ title: 'Operación', items: operacion });
     const trazabilidad: NavItem[] = [];
     if (ws.can('traceability:read_catalog')) trazabilidad.push({ href: `${base}/trazabilidad/hitos`, label: 'Hitos (CTE)', match: (p) => p.startsWith(`${base}/trazabilidad/hitos`) });
+    if (ws.can('document:read')) trazabilidad.push({ href: `${base}/documentos`, label: 'Documentos', match: (p) => p.startsWith(`${base}/documentos`) });
     if (trazabilidad.length) groups.push({ title: 'Trazabilidad', items: trazabilidad });
     const admin: NavItem[] = [];
     const onboardingOnly = ws.isPlatformAdmin && !ws.activePerms;

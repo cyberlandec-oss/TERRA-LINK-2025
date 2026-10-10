@@ -157,6 +157,20 @@ export class KdeService {
         // Sin membership:read solo puede referirse a sí mismo (no se revela quién más es miembro).
         const allowed = has('membership:read') ? ids : ids.filter((id) => id === ctx.membershipId);
         rows = allowed.length ? (await sql<{ id: string; active: boolean }>`SELECT id, status = 'ACTIVE' AS active FROM memberships WHERE organization_id = ${org} AND id = ANY(${allowed})`.execute(this.db)).rows : [];
+      } else if (entity === 'document') {
+        // Verifica la REFERENCIA (existe, organización, alcance del titular) y la disponibilidad técnica
+        // (último análisis CLEAN). No aprueba el contenido: la revisión humana es aparte (P0-018).
+        if (!has('document:read')) return { found, inactive, verifiable: true };
+        const docs = (await sql<{ id: string; owner_type: string; owner_id: string; available: boolean }>`
+          SELECT d.id, d.owner_type, d.owner_id,
+                 coalesce((SELECT s.result = 'CLEAN' FROM document_version_scans s WHERE s.version_id = d.current_version_id ORDER BY s.id DESC LIMIT 1), false) AS available
+          FROM documents d WHERE d.organization_id = ${org} AND d.id = ANY(${ids})`.execute(this.db)).rows;
+        for (const d of docs) {
+          const scopeOk = d.owner_type === 'producer'
+            ? (await sql<{ n: number }>`SELECT count(*)::int AS n FROM producers pr WHERE pr.id = ${d.owner_id} AND pr.organization_id = ${org} AND ${scope('producer')}`.execute(this.db)).rows[0].n > 0
+            : (await sql<{ n: number }>`SELECT count(*)::int AS n FROM plots p JOIN producers pr ON pr.id = p.producer_id AND pr.organization_id = p.organization_id WHERE p.id = ${d.owner_id} AND p.organization_id = ${org} AND ${scope('plot')}`.execute(this.db)).rows[0].n > 0;
+          if (scopeOk) rows.push({ id: d.id, active: d.available });
+        }
       } else return { found, inactive, verifiable: false };
       for (const r of rows) { found.add(r.id); if (!r.active) inactive.add(r.id); }
       return { found, inactive, verifiable: true };

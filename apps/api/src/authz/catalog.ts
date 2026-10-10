@@ -1,6 +1,6 @@
 // Catálogo RBAC versionado (docs/07_RBAC_Y_GOBERNANZA.md). Se amplía por historia; no inferir
 // privilegios comparando nombres de rol fuera de este módulo.
-export const RBAC_CATALOG_VERSION = '2026-10-10.9';
+export const RBAC_CATALOG_VERSION = '2026-10-10.10';
 
 export type Permission =
   | 'organization:read'
@@ -39,7 +39,12 @@ export type Permission =
   // P0-013: consultar el catálogo de sistema de hitos críticos (CTE). Sin facultad de administración.
   | 'traceability:read_catalog'
   // P0-015: reprocesar manualmente entregas DEAD del outbox de la propia organización (con motivo y auditoría).
-  | 'events:reprocess';
+  | 'events:reprocess'
+  // P0-018: documentos. Consultar y subir se limitan además por el alcance del titular (productor/parcela);
+  // revisar es una facultad separada; el contenido PERSONAL_DATA exige producer:read_identity.
+  | 'document:read'
+  | 'document:upload'
+  | 'document:review';
 
 // Permisos de plataforma: solo SUPER_ADMIN (users.platform_role), nunca por membresía.
 export type PlatformPermission =
@@ -64,17 +69,17 @@ const PLOT_ALL: Permission[] = [
 // Permisos de productor: propuesta provisional derivada de S1 §9 (FIELD_TECHNICIAN producer:create/read)
 // y doc 07/14 («solo asignaciones» para el técnico). Pendiente de ratificación con el resto de la matriz.
 export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  ORG_ADMIN: ['audit:read', 'organization:read', 'organization:update', 'membership:read', 'membership:assign', ...PRODUCER_ALL, ...PLOT_ALL, 'product:read', 'traceability:read_catalog', 'product:manage', 'events:reprocess'],
-  MANAGER: [...ALL_MEMBER_READ, 'membership:read', 'producer:read', 'producer:read_identity', 'producer:create', 'producer:update', 'producer:assign', 'producer:archive', 'producer:review_duplicates', 'plot:read', 'plot:create', 'plot:update', 'plot:archive', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog'],
+  ORG_ADMIN: ['audit:read', 'organization:read', 'organization:update', 'membership:read', 'membership:assign', ...PRODUCER_ALL, ...PLOT_ALL, 'product:read', 'traceability:read_catalog', 'product:manage', 'events:reprocess', 'document:read', 'document:upload', 'document:review'],
+  MANAGER: [...ALL_MEMBER_READ, 'membership:read', 'producer:read', 'producer:read_identity', 'producer:create', 'producer:update', 'producer:assign', 'producer:archive', 'producer:review_duplicates', 'plot:read', 'plot:create', 'plot:update', 'plot:archive', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload'],
   FIELD_TECHNICIAN: [...ALL_MEMBER_READ, 'producer:read_assigned', 'producer:read_identity', 'producer:create', 'producer:update_assigned',
-    'plot:read_assigned', 'plot:create_assigned', 'plot:update_assigned', 'plot:read_geometry', 'plot:evaluate_gis_assigned', 'product:read', 'traceability:read_catalog'],
+    'plot:read_assigned', 'plot:create_assigned', 'plot:update_assigned', 'plot:read_geometry', 'plot:evaluate_gis_assigned', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload'],
   RECEPTION_OPERATOR: [...ALL_MEMBER_READ, 'product:read', 'traceability:read_catalog'],
   QUALITY_OPERATOR: [...ALL_MEMBER_READ, 'product:read', 'traceability:read_catalog'],
-  TRACEABILITY_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog'],
-  EUDR_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'producer:read_identity', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog'],
+  TRACEABILITY_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read'],
+  EUDR_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'producer:read_identity', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'document:review'],
   EXPORT_MANAGER: [...ALL_MEMBER_READ, 'product:read', 'traceability:read_catalog'],
   BUYER: [],
-  AUDITOR: [...ALL_MEMBER_READ, 'audit:read', 'producer:read', 'plot:read', 'product:read', 'traceability:read_catalog'],
+  AUDITOR: [...ALL_MEMBER_READ, 'audit:read', 'producer:read', 'plot:read', 'product:read', 'traceability:read_catalog', 'document:read'],
   PRODUCER: [],
 };
 

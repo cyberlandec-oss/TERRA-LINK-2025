@@ -98,7 +98,9 @@ export async function validateKde(defs: KdeDef[], values: Record<string, unknown
     const r = await resolve(entity, ids);
     if (!r.verifiable) return 'PRESENT_NOT_VERIFIABLE';
     if (ids.some((id) => !r.found.has(id))) return bad('REFERENCE_NOT_FOUND', 'No existe o no está disponible para ti.', 'Selecciona un registro de tu organización al que tengas acceso.');
-    if (ids.some((id) => r.inactive.has(id))) return bad('REFERENCE_INACTIVE', 'El registro está inactivo.', 'Selecciona un registro activo.');
+    if (ids.some((id) => r.inactive.has(id))) return entity === 'document'
+      ? bad('DOCUMENT_NOT_AVAILABLE', 'El documento no está disponible: su análisis antimalware está pendiente, falló o lo rechazó.', 'Espera el análisis o sube una versión válida.')
+      : bad('REFERENCE_INACTIVE', 'El registro está inactivo.', 'Selecciona un registro activo.');
     return { ok: true };
   };
   // Validez de cada valor presente (incluye valores usados por condiciones aunque pertenezcan a otro hito).

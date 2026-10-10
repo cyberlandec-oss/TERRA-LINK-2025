@@ -453,7 +453,32 @@ export interface EventDeliveryAttemptsTable {
   recorded_at: Generated<Timestamp>;
 }
 
+export interface DocumentTypesTable { code: string; label: string; allowed_owner_types: string[]; classification: 'OPERATIONAL' | 'PERSONAL_DATA'; source: string }
+export interface DocumentsTable {
+  id: string; organization_id: string; document_type: string; owner_type: string; owner_id: string; title: string;
+  current_version_id: string | null; row_version: Generated<string>; created_by: string; created_at: Generated<Timestamp>;
+}
+export interface DocumentVersionsTable {
+  id: string; organization_id: string; document_id: string; version_number: number; object_key: string; file_name: string; mime_type: string;
+  size_bytes: number; sha256: string; issuer: string | null; issued_at: string | null; expires_at: string | null; previous_version_id: string | null;
+  operation_id: string; uploaded_by: string; uploaded_at: Generated<Timestamp>;
+}
+export interface DocumentVersionScansTable {
+  id: Generated<string>; organization_id: string; version_id: string; result: 'CLEAN' | 'INFECTED' | 'FAILED'; engine: string;
+  signature: string | null; error_code: string | null; scanned_at: Generated<Timestamp>;
+}
+export interface DocumentVersionReviewsTable {
+  id: Generated<string>; organization_id: string; version_id: string; decision: 'ACCEPTED' | 'REJECTED'; reason: string; reviewer_id: string; reviewed_at: Generated<Timestamp>;
+}
+export interface DocumentLinksTable { document_id: string; organization_id: string; entity_type: string; entity_id: string; created_by: string; created_at: Generated<Timestamp> }
+
 export interface Database {
+  document_types: DocumentTypesTable;
+  documents: DocumentsTable;
+  document_versions: DocumentVersionsTable;
+  document_version_scans: DocumentVersionScansTable;
+  document_version_reviews: DocumentVersionReviewsTable;
+  document_links: DocumentLinksTable;
   event_delivery_attempts: EventDeliveryAttemptsTable;
   product_states: ProductStatesTable;
   measurement_units: MeasurementUnitsTable;

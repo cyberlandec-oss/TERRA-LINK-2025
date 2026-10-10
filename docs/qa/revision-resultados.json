@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-10T19:41:25.908Z",
+  "fecha": "2026-10-10T20:19:15.592Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -96,6 +96,7 @@
         "Posibles duplicados",
         "Productos",
         "Hitos (CTE)",
+        "Documentos",
         "Miembros e invitaciones",
         "Auditoría",
         "Entregas de eventos",
@@ -152,6 +153,7 @@
         "Posibles duplicados",
         "Productos",
         "Hitos (CTE)",
+        "Documentos",
         "Miembros e invitaciones",
         "Mis organizaciones"
       ],
@@ -205,6 +207,7 @@
         "Parcelas",
         "Productos",
         "Hitos (CTE)",
+        "Documentos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Cooperativa Río Verde",
@@ -257,6 +260,7 @@
         "Parcelas",
         "Productos",
         "Hitos (CTE)",
+        "Documentos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Cooperativa Río Verde",
@@ -358,6 +362,7 @@
         "Parcelas",
         "Productos",
         "Hitos (CTE)",
+        "Documentos",
         "Auditoría",
         "Mis organizaciones"
       ],
@@ -412,6 +417,7 @@
         "Posibles duplicados",
         "Productos",
         "Hitos (CTE)",
+        "Documentos",
         "Miembros e invitaciones",
         "Auditoría",
         "Entregas de eventos",
@@ -570,6 +576,7 @@
         "Posibles duplicados",
         "Productos",
         "Hitos (CTE)",
+        "Documentos",
         "Miembros e invitaciones",
         "Auditoría",
         "Entregas de eventos",
@@ -625,6 +632,7 @@
         "Parcelas",
         "Productos",
         "Hitos (CTE)",
+        "Documentos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -677,6 +685,7 @@
         "Parcelas",
         "Productos",
         "Hitos (CTE)",
+        "Documentos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -780,6 +789,7 @@
         "Parcelas",
         "Productos",
         "Hitos (CTE)",
+        "Documentos",
         "Auditoría",
         "Mis organizaciones"
       ],
@@ -834,6 +844,7 @@
         "Posibles duplicados",
         "Productos",
         "Hitos (CTE)",
+        "Documentos",
         "Miembros e invitaciones",
         "Auditoría",
         "Entregas de eventos",
@@ -939,6 +950,7 @@
         "Posibles duplicados",
         "Productos",
         "Hitos (CTE)",
+        "Documentos",
         "Miembros e invitaciones",
         "Mis organizaciones"
       ],
@@ -992,6 +1004,7 @@
         "Parcelas",
         "Productos",
         "Hitos (CTE)",
+        "Documentos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -1152,7 +1165,7 @@
       "tipo": "eventos",
       "casos": [
         {
-          "cuenta": "admin.cooperativa (390 px, teclado)",
+          "cuenta": "admin.cooperativa (390 px)",
           "resultado": "1 eventos en la ficha; muestra «Productor registrado»=true; sin correo ni documento=true; página DEAD accesible=true; desborde=false",
           "ok": true
         },
@@ -1169,6 +1182,32 @@
         {
           "cuenta": "auditor.cooperativa",
           "resultado": "1 eventos visibles; botones de corrección=0; entregas DEAD denegadas",
+          "ok": true
+        }
+      ],
+      "ok": true
+    },
+    {
+      "tipo": "documentos",
+      "casos": [
+        {
+          "cuenta": "admin.cooperativa",
+          "resultado": "1 documento(s); disponible=true; formulario de carga=1; descarga guia-demo.pdf; puede revisar=1",
+          "ok": true
+        },
+        {
+          "cuenta": "tecnico1.cooperativa (capturador asignado, 390 px, teclado)",
+          "resultado": "1 documento(s) de sus productores; foco tras Tab en «up-title»; botón de revisión=0; desborde=false",
+          "ok": true
+        },
+        {
+          "cuenta": "tecnico2.cooperativa (sin asignación)",
+          "resultado": "documentos de productores ajenos visibles=0",
+          "ok": true
+        },
+        {
+          "cuenta": "productor.cooperativa (sin permiso)",
+          "resultado": "enlace=0; acceso denegado=1",
           "ok": true
         }
       ],

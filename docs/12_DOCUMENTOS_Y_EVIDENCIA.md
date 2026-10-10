@@ -48,6 +48,15 @@ Enlaces apuntan a versiones concretas. Una evidencia válida puede respaldar var
 
 Objetos privados; URLs temporales, autorización antes de emitirlas y auditoría de descarga. Vistas del comprador/auditor aplican campo y recurso del grant. No servir documentos de identidad por pasaporte público. Retención y eliminación legalmente aplicable requieren política; evidencia de un expediente bajo retención no se borra por eliminar su vista actual.
 
+## Implementación P0-018 (2026-10-10)
+
+- Flujo: recibir (bytes en memoria = cuarentena) → **análisis antimalware real** (ClamAV local, servicio `scanner`, protocolo INSTREAM) → infectado: rechazo sin almacenar y auditado → tipo real por firma de bytes (PDF/JPEG/PNG; MIME declarado distinto → rechazo) → objeto privado en S3 + versión + resultado del análisis en la misma transacción. Escáner caído: la versión queda FAILED (no disponible) y se puede reintentar; un reintento que detecte malware la deja RECHAZADA.
+- Estados mostrados: recibido (versión registrada), disponible (último análisis CLEAN), pendiente/fallido/rechazado, revisado por una persona (por versión), vigente/vencido. «Vencido» no es «inaccesible». Evidencia (SUBMITTED/VERIFIED/…) y relaciones probatorias: P0-019.
+- Límites (provisionales, D-36): 10 MiB por archivo y 1 GiB por organización (configurables), cuota serializada por organización.
+- Staging y compensación reutilizados de P0-009; el barrido elimina solo objetos sin versión registrada; las versiones registradas no se borran (sin eliminación por antigüedad).
+- Eventos `DocumentUploaded` y `DocumentScanCompleted` sin nombres de archivo ni contenido; auditoría de carga, rechazo, análisis, revisión, vínculo y descarga.
+- Contrato preparado para P0-012: titular/vínculo `delivery` reservado (hoy 422 `ENTITY_TYPE_NOT_AVAILABLE`); el validador KDE ya verifica `DELIVERY_SUPPORT` (existe, tenant, alcance, disponible) sin aprobar el contenido.
+
 ## Aceptación
 
 Archivo válido y malicioso; escaneo caído; tipo MIME engañoso; subida truncada; checksum distinto; versión nueva; documento vencido; enlace a entidad ajena; intento de aprobar soporte propio si política lo impide; revocación de acceso; paquete histórico intacto tras modificación. Ver QA-09–12.
