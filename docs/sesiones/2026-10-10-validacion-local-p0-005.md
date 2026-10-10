@@ -11,7 +11,7 @@ Rama `feat/tech-001-ci-p0-002` @ `45d3cb1`, limpia. El usuario cambió el criter
 - Docs 06 (esquema implementado) y 07 (permiso de revisión); D-21 y D-22 nuevas; tabla de efecto de cada decisión.
 
 ## Verificación
-- `npm run validate` APROBADA: servicios, typecheck, lint, build, OpenAPI validado (32 rutas), API 90/90 (16 unitarias + 74 integración), web 3/3, E2E 14/14.
+- `npm run validate` APROBADA sobre el commit `85a941a` sin cambios locales (2026-10-10T05:05Z): servicios, typecheck, lint, build, OpenAPI validado (32 rutas), API 90/90 (16 unitarias + 74 integración), web 3/3, E2E 14/14.
 - `validate` con base de desarrollo como base de pruebas: código 2 sin ejecutar. Con Redis inaccesible: integración falla, código 1.
 - Mutante (comparación de tipo de documento) detectado. Validador OpenAPI rechaza referencias rotas.
 - Migraciones 0006–0007 aplicadas a la base de desarrollo: productores y usuarios conservados.
