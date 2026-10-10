@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-10T23:28:53.661Z",
+  "fecha": "2026-10-10T23:50:43.631Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -1271,7 +1271,7 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "Mostrando 25 de 354 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
+          "resultado": "Mostrando 25 de 368 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
           "ok": true
         },
         {
@@ -1303,6 +1303,21 @@
         {
           "cuenta": "recepcion.acopio (membresía en la Cooperativa, teclado)",
           "resultado": "origen faltante y periodo desconocido visibles=true; sin identidad del productor=true; revisión previa con Enter=true",
+          "ok": true
+        },
+        {
+          "cuenta": "recepcion.acopio (permisos efectivos por organización)",
+          "resultado": "organizaciones=2; rol RECEPTION_OPERATOR en Acopio y Cooperativa; mismos permisos en ambas=true; tiene reception:confirm, quality:record; no tiene quality:decide, document:read, producer:read_identity=true",
+          "ok": true
+        },
+        {
+          "cuenta": "calidad.acopio (permisos efectivos por organización)",
+          "resultado": "organizaciones=2; rol QUALITY_OPERATOR en Acopio y Cooperativa; mismos permisos en ambas=true; tiene quality:record, quality:decide; no tiene reception:confirm, delivery:create, document:read=true",
+          "ok": true
+        },
+        {
+          "cuenta": "calidad.acopio (390 px, teclado; cambio de organización)",
+          "resultado": "Acopio sin entregas=true; puede recibir=0; resultado sin decisión registrado=true; sigue «Pendiente de evaluación»=true; puede decidir=true; desborde=false",
           "ok": true
         }
       ],

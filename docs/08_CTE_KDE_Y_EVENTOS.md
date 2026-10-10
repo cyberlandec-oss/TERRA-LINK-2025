@@ -175,3 +175,7 @@ Compuertas (`kde_transition_gates` 1.1.0, append-only). BLOCKING = presente y v�
 | DOWNSTREAM_READINESS | — | — | lotes/procesamiento/inventario (P0-016/017) |
 
 Eventos emitidos (misma transacción que dominio, compuerta, outbox y auditoría): `DeliveryRegistered`, `DeliveryCorrected` (correction_of), `ReceptionConfirmed`, `ReceptionCorrected` (correction_of), `WeightRecorded` (uno por pesaje; el corregido enlaza el anterior), `QualityDecisionRecorded` (solo con decisión). El borrador y las muestras sin decisión no emiten eventos (auditoría sí). La recepción **no** crea stock: el ledger es P0-017.
+
+### Contrato de calidad (revisión P0-012, KDE 1.2.0)
+
+`CLASSIFICATION_LIMITS_VERSION` se publica como **«Referencia de límites declarada (no verificada)»**: texto escrito por quien decide; no existe catálogo publicado de parámetros ni límites, el sistema no comprueba la referencia ni contrasta mediciones. La decisión (liberar/rechazar) es humana, con responsable, y **no habilita** operaciones posteriores (`downstream_enablement = NOT_EVALUATED`). Sin parámetros, límites ni tolerancias nuevos.

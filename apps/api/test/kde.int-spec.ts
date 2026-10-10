@@ -52,9 +52,9 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
   });
   afterAll(async () => h?.close());
 
-  it('catálogo vigente 1.1.0 (P0-012): cada KDE con hito exacto, contrato, tipo, unidad, obligatoriedad, regla, responsable y fuente', async () => {
+  it('catálogo vigente 1.2.0 (P0-012 + referencia de límites declarada): cada KDE con hito exacto, contrato, tipo, unidad, obligatoriedad, regla, responsable y fuente', async () => {
     const r = (await http().get(`${base(orgA)}/kde-catalog`).set(as('trazabilidad@test.local')).expect(200)).body;
-    expect(r).toMatchObject({ scope: 'SYSTEM', current_release: { version: '1.1.0' }, flow_requirement: { status: 'PENDING', decision: 'D-33' }, legal_configuration: { status: 'NOT_ACTIVE' } });
+    expect(r).toMatchObject({ scope: 'SYSTEM', current_release: { version: '1.2.0' }, flow_requirement: { status: 'PENDING', decision: 'D-33' }, legal_configuration: { status: 'NOT_ACTIVE' } });
     const codes = r.definitions.map((d: { code: string }) => d.code);
     expect(new Set(codes).size).toBe(codes.length);
     const w = r.definitions.find((d: { code: string }) => d.code === 'DELIVERY_DECLARED_WEIGHT');
@@ -63,6 +63,7 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
     expect(w.integration.proof).toMatch(/P0-012: DELIVERY_REGISTER debe rechazar la transición/);
     const reason = r.definitions.find((d: { code: string }) => d.code === 'RECEPTION_DIFFERENCE_REASON');
     expect(reason).toMatchObject({ requirement: 'CONDITIONAL', condition: { kind: 'undefined_in_contract' } }); // 1.1.0: con parciales se evalúa al cierre (no definido)
+    expect(r.definitions.find((d: { code: string }) => d.code === 'CLASSIFICATION_LIMITS_VERSION')).toMatchObject({ name: 'Referencia de límites declarada (no verificada)', published_in: '1.2.0', requirement: 'CONDITIONAL' });
     expect(r.definitions.find((d: { code: string }) => d.code === 'DELIVERY_PRODUCTION_PERIOD')).toMatchObject({ value_type: 'HARVEST_PERIOD', requirement: 'REQUIRED', condition: null });
     expect(r.definitions.find((d: { code: string }) => d.code === 'DELIVERY_SUPPORT')).toMatchObject({ value_type: 'ENTITY_REF_LIST', validation: { entity: 'document', min_items: 1 } });
     expect(r.transition_gates.RECEPTION_CONFIRM.checks.find((c: { kde: string }) => c.kde === 'DELIVERY_SUPPORT').mode).toBe('PENDING_ALLOWED');
@@ -92,7 +93,7 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
     expect(item(r, 'DELIVERY_SUPPORT').result).toBe('REQUIRED_MISSING');
     expect(item(r, 'DELIVERY_PRODUCTION_PERIOD').result).toBe('REQUIRED_MISSING'); // 1.1.0 (D-34): requerido para completitud
     expect(r.gate).toMatchObject({ transition_allowed: false, outcome: 'INCOMPLETE' });
-    expect(r).toMatchObject({ persisted: false, cte: { reference: 'DELIVERY@2' }, kde_release: '1.1.0' });
+    expect(r).toMatchObject({ persisted: false, cte: { reference: 'DELIVERY@2' }, kde_release: '1.2.0' });
     // parcela de otro productor (fuera del alcance del técnico), de otra organización e inexistente: mismo resultado
     for (const id of [plotOther, plotB, randomUUID()]) {
       const x = (await validate('tecnico1@test.local', delivery, { ...values, DELIVERY_PLOTS: [id] }).expect(200)).body;

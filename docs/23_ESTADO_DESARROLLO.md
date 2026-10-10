@@ -22,7 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
-| P0-012 Entregas y recepción | **DONE_LOCAL** para el alcance comprobado (entrega, recepción física parcial, pesaje, soportes, calidad separada, correcciones, compuertas por transición) con decisiones de diseño MVP D-33/34/35 no validadas en campo; cierre por debajo de lo declarado, tolerancias, catálogo de límites, centros asignados e inventario (P0-017) pendientes | Ver criterios abajo |
+| P0-012 Entregas y recepción | **DONE_LOCAL limitado a los criterios demostrados** (revisión enfocada 2026-10-10: ver tabla por criterio); «diferencias con causa» NO demostrado (cierre sin política) (entrega, recepción física parcial, pesaje, soportes, calidad separada, correcciones, compuertas por transición) con decisiones de diseño MVP D-33/34/35 no validadas en campo; cierre por debajo de lo declarado, tolerancias, catálogo de límites, centros asignados e inventario (P0-017) pendientes | Ver criterios abajo |
 | P0-025 Auditoría | **DONE_LOCAL** (criterios de la historia sobre los módulos existentes); auditoría de riesgo, entregas, procesamiento, expediente y concesiones pendiente de sus historias; formato de exportación provisional (D-38) | Ver criterios abajo |
 | P0-019 Evidencias | **DONE_LOCAL** (criterios de la historia); afirmaciones de lote, análisis ambiental y mitigación esperan sus entidades; uso en riesgo/expediente es P0-020/P0-022 | Ver criterios abajo |
 | P0-018 Documentos | **DONE_LOCAL** (criterios de la historia); usa auditoría ya verificada; P0-025 y P0-019 ya cerradas en local | Ver criterios abajo |
@@ -255,6 +255,27 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 | **Concesiones externas y elevación** | **Pendientes en P0-003** | — |
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
+
+### P0-012 — revisión enfocada por criterio original (2026-10-10)
+
+Criterio de aceptación del backlog: «entrega declarada, peso recibido, recepción parcial/completa, diferencias con causa, vínculos válidos y quality básica; confirmar repetido no crea doble stock». No se eliminó ningún requisito.
+
+| Criterio original | Estado | Evidencia | Pendiente real |
+| --- | --- | --- | --- |
+| Entrega declarada | DEMOSTRADO | `deliveries.int-spec.ts` «compuertas KDE reales…», «periodo de cosecha…»; E2E P0-012 | — |
+| Peso recibido | DEMOSTRADO | «entrega y recepción sin documento…» (pesaje con método, KG, fecha y responsable de la sesión) | — |
+| Recepción parcial / completa | DEMOSTRADO (parcial, «recibida por lo declarado», exceso señalado) | «recepciones parciales…», «total recibido… correcciones» | Cierre explícito de la entrega: sin operación (política pendiente); no existe ruta de cierre (404 probado) |
+| Diferencias con causa | **NO DEMOSTRADO** | La diferencia se informa como «no evaluada» (KDE 1.1.0 condición no definida) | Requiere política de cierre y tolerancias (D-33, no aprobada) |
+| Vínculos válidos | DEMOSTRADO | Ajenos/inexistentes 404; parcela de otro productor; centro de otra organización; documento de otro titular o tipo | — |
+| Quality básica | DEMOSTRADO como **decisión humana registrada** | «calidad…»: muestra durante/después, pendiente, liberar/rechazar con responsable | Catálogo publicado de parámetros/límites: no existe; la referencia de límites es **declarada, no verificada** (KDE 1.2.0) |
+| Confirmar repetido no crea doble stock | DEMOSTRADO como «no duplica recepción ni cantidad» | «reintentos…», «total recibido…» (correcciones concurrentes 201/409, rollback) | No hay stock ni ledger (P0-017): ninguna cantidad es inventario disponible |
+
+Comprobaciones de esta revisión (pruebas añadidas):
+- **Contrato de calidad**: la respuesta expone `limits_reference.status = DECLARED_UNVERIFIED`, `limits_verification = NOT_AVAILABLE` y `downstream_enablement = NOT_EVALUATED`; el evento lleva `limits_reference_status` y `limits_catalog = NOT_AVAILABLE`. Tres estados distintos: recepción física, decisión de calidad, habilitación posterior (no evaluada).
+- **Perfiles por transición**: periodo desconocido + sin soporte + calidad pendiente → recepción permitida y pendientes visibles; la completitud enumera exactamente lo que falta (`DELIVERY_PLOTS:REQUIRED_MISSING`, `DELIVERY_PRODUCTION_PERIOD:DECLARED_UNKNOWN`, `DELIVERY_SUPPORT:REQUIRED_MISSING`) y solo es completa con todos los datos de entrega, recepción y pesaje.
+- **Cantidades**: total = suma de la cantidad vigente de cada recepción (última corrección o la original); ejemplo probado 100→90/91→95 + 50 = 145, con originales y pesajes conservados; lista y detalle coinciden (defecto corregido: la lista devolvía `145.000000`). Exceso: se registra como «Recibido supera lo declarado», sin tolerancia ni ajuste de la declaración.
+
+Validación de esta revisión: ver sesión `docs/sesiones/2026-10-10-p0-012-revision.md`.
 
 ### P0-012 — criterios
 

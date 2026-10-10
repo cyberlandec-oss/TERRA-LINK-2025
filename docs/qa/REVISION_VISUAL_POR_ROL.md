@@ -174,3 +174,13 @@ Resultado global de la revisión: 31 entradas, 0 incidencias.
 | recepcion.acopio (membresía en la Cooperativa, teclado) | ENT-2026-00002: origen faltante y periodo desconocido visibles; sin identidad del productor; revisión previa con Enter (no se confirmó sobre datos DEMO) | `entregas--recepcion-revision.png` |
 
 Resultado global: 32 entradas, 0 incidencias.
+
+### P0-012 — revisión enfocada (2026-10-10)
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| recepcion.acopio (permisos por organización) | 2 organizaciones; RECEPTION_OPERATOR en Acopio y Cooperativa con los mismos permisos; tiene `reception:confirm`, `quality:record`; no tiene `quality:decide`, `document:read`, `producer:read_identity` | — |
+| calidad.acopio (permisos por organización) | 2 organizaciones; QUALITY_OPERATOR en ambas con los mismos permisos; tiene `quality:record`, `quality:decide`; no tiene `reception:confirm`, `delivery:create`, `document:read` | — |
+| calidad.acopio (390 px, teclado, cambio de organización) | En el Acopio no hay entregas; en la Cooperativa registra un resultado **sin decisión** sobre DEMO-M-001 (una sola vez); la recepción sigue «Pendiente de evaluación»; no puede recibir; ve la opción de decidir | `entregas--calidad-390.png` |
+
+Las segundas membresías existen **solo para la revisión DEMO** dentro de la Cooperativa: no son concesiones entre organizaciones ni prueban entregas entre empresas. Resultado global: 32 entradas, 0 incidencias.

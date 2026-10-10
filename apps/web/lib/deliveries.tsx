@@ -5,13 +5,14 @@ export interface HarvestPeriod { precision: 'DAY' | 'MONTH' | 'UNKNOWN'; start: 
 export interface GateItem { code: string; name: string; result: string; error_code: string | null; message: string }
 export interface Gate { transition: string; release: string; allowed: boolean; blocking: GateItem[]; pending: GateItem[]; not_evaluated: Array<{ code: string | null; name: string | null; note: string }> }
 export interface StoredGate { transition: string; release_version?: string; release?: string; allowed: boolean; result?: { blocking: GateItem[]; pending: GateItem[]; not_evaluated: Gate['not_evaluated'] }; blocking?: GateItem[]; pending?: GateItem[]; not_evaluated?: Gate['not_evaluated'] }
-export interface QualityResult { id: string; method: string; decision: 'PENDING' | 'RELEASED' | 'REJECTED'; limits_version: string | null; decision_reason: string | null; recorded_at: string; recorded_by: string; measurements: Array<{ parameter: string; value: string; unit: string }> }
+export interface QualityResult { id: string; method: string; decision: 'PENDING' | 'RELEASED' | 'REJECTED'; limits_reference: { value: string; status: 'DECLARED_UNVERIFIED'; note: string } | null; decision_reason: string | null; recorded_at: string; recorded_by: string; measurements: Array<{ parameter: string; value: string; unit: string }> }
 export interface Reception {
   id: string; received_at: string; location: { code: string; name: string }; receiver: string; quantity_received: Qty; original_quantity: Qty; version: number; notes: string | null;
   weighings: Array<{ id: string; method: string; quantity: Qty; weighed_on: string; corrects_weighing_id: string | null; responsible: string; recorded_at: string }>;
   adjustments: Array<{ number: number; previous_quantity: string; new_quantity: string; reason: string; at: string; by: string }>;
   confirmation_gate: (StoredGate & { pending: GateItem[]; not_evaluated: Gate['not_evaluated'] }) | null;
-  quality: { status: 'PENDING_EVALUATION' | 'RELEASED' | 'REJECTED'; status_label: string; note: string; samples: Array<{ id: string; moment: 'DURING_RECEPTION' | 'AFTER_WEIGHING'; sample_reference: string | null; sampled_at: string; sampled_by: string; results: QualityResult[] }> };
+  downstream_enablement: { status: string; note: string };
+  quality: { status: 'PENDING_EVALUATION' | 'RELEASED' | 'REJECTED'; status_label: string; note: string; limits_verification: string; samples: Array<{ id: string; moment: 'DURING_RECEPTION' | 'AFTER_WEIGHING'; sample_reference: string | null; sampled_at: string; sampled_by: string; results: QualityResult[] }> };
 }
 export interface Delivery {
   id: string; delivery_code: string; status: 'DRAFT' | 'REGISTERED'; row_version: number;

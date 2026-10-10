@@ -5923,7 +5923,8 @@
             ]
           },
           "limits_version": {
-            "type": "string"
+            "type": "string",
+            "description": "Referencia de límites DECLARADA por quien decide (texto). No existe catálogo publicado: el sistema no la verifica."
           },
           "decision_reason": {
             "type": "string"
@@ -6080,7 +6081,8 @@
             ]
           },
           "limits_version": {
-            "type": "string"
+            "type": "string",
+            "description": "Referencia de límites DECLARADA por quien decide (texto). No existe catálogo publicado: el sistema no la verifica."
           },
           "decision_reason": {
             "type": "string"

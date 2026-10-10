@@ -197,7 +197,16 @@ describeDb('P0-012 entregas, recepción física, soportes y calidad', () => {
     expect((await result('calidad@test.local', { decision: 'RELEASED' }).expect(422)).body.error.details.map((x: { field: string }) => x.field)).toContain('CLASSIFICATION_LIMITS_VERSION');
     expect((await result('calidad@test.local', { decision: 'REJECTED' }).expect(422)).body.error.code).toBe('REASON_REQUIRED');
     const released = (await result('calidad@test.local', { decision: 'RELEASED', limits_version: 'LIM-2026-1 (declarada)', measurements: [{ parameter: 'MOISTURE', value: '7.0', unit: '%' }] }).expect(201)).body.delivery;
-    expect(released.receptions[0].quality).toMatchObject({ status: 'RELEASED', status_label: 'Calidad liberada', note: expect.stringMatching(/no liberación jurídica/) });
+    expect(released.receptions[0].quality).toMatchObject({ status: 'RELEASED', status_label: 'Calidad liberada por decisión humana (límites declarados, no verificados)', limits_verification: 'NOT_AVAILABLE', note: expect.stringMatching(/No es liberación jurídica/) });
+    // la referencia escrita es DECLARADA y no verificada; la decisión no habilita operaciones posteriores
+    const res = released.receptions[0].quality.samples[0].results.find((x: { decision: string }) => x.decision === 'RELEASED');
+    expect(res).toMatchObject({ limits_reference: { value: 'LIM-2026-1 (declarada)', status: 'DECLARED_UNVERIFIED' }, recorded_by: 'Persona quality_operator' });
+    expect(res.limits_version).toBeUndefined();
+    expect(released.receptions[0].downstream_enablement).toMatchObject({ status: 'NOT_EVALUATED' });
+    expect(released.gates.downstream).toMatchObject({ blocking: [], pending: [] });
+    expect(released.gates.downstream.not_evaluated).toHaveLength(1);
+    const evp = await h.db.selectFrom('domain_events').select('payload').where('event_type', '=', 'QualityDecisionRecorded').where('organization_id', '=', orgA).executeTakeFirstOrThrow();
+    expect(evp.payload).toMatchObject({ limits_reference_status: 'DECLARED_UNVERIFIED', limits_catalog: 'NOT_AVAILABLE' });
     expect(released.receptions[0].quantity_received.value).toBe('200'); // calidad no cambia el peso recibido
     // después del pesaje, en otra recepción: muestra posterior sin decisión
     const r2 = (await receive('recepcion@test.local', d.id, '50').expect(201)).body.reception_id;
@@ -305,5 +314,65 @@ describeDb('P0-012 entregas, recepción física, soportes y calidad', () => {
     const audit = (await http().get(`${base(orgA)}/audit-logs?entity_type=delivery&entity_id=${d.id}`).set(as('auditor@test.local')).expect(200)).body;
     expect(audit.items.map((a: { action: string }) => a.action)).toEqual(expect.arrayContaining(['delivery.draft_create', 'delivery.register']));
     expect(JSON.stringify(audit)).not.toContain('Finca Entregas');
+  });
+
+  it('perfiles por transición: desconocido, sin soporte y calidad pendiente permiten la recepción; la completitud enumera exactamente lo que falta y solo es completa con todo', async () => {
+    const pending = await registered({ harvest_period: { precision: 'UNKNOWN' }, origins: [] });
+    const rec = (await receive('recepcion@test.local', pending.id, '100').expect(201)).body.delivery;
+    expect(rec.receptions[0].quality.status).toBe('PENDING_EVALUATION');
+    expect(rec.receptions[0].confirmation_gate.pending.map((p: { code: string }) => p.code).sort()).toEqual(['DELIVERY_PLOTS', 'DELIVERY_PRODUCTION_PERIOD', 'DELIVERY_SUPPORT']);
+    const comp = rec.gates.completeness;
+    expect(comp.allowed).toBe(false);
+    expect(comp.blocking.map((b: { code: string; result: string }) => `${b.code}:${b.result}`).sort()).toEqual(['DELIVERY_PLOTS:REQUIRED_MISSING', 'DELIVERY_PRODUCTION_PERIOD:DECLARED_UNKNOWN', 'DELIVERY_SUPPORT:REQUIRED_MISSING']);
+    expect(comp.pending).toEqual([]); // la completitud no deja nada «permitido»: o está o falta
+    expect(comp.not_evaluated.map((n: { code: string }) => n.code)).toEqual(['RECEPTION_DIFFERENCE_REASON']);
+    // con todos los datos presentes y válidos (y una recepción), la completitud es completa — y sigue sin ser conformidad
+    const full2 = await registered({ harvest_period: { precision: 'MONTH', start: '2026-08', end: '2026-09' } });
+    const doc = await upload('admin-a@test.local', p1);
+    await http().post(`${base(orgA)}/deliveries/${full2.id}/supports`).set(as('admin-a@test.local')).send({ operation_id: randomUUID(), document_version_id: doc.versions[0].id, support_kind: 'DELIVERY_NOTE' }).expect(201);
+    const before = (await get('admin-a@test.local', full2.id).expect(200)).body;
+    expect(before.gates.completeness.blocking.map((b: { code: string }) => b.code).sort()).toEqual(['RECEPTION_DELIVERY', 'RECEPTION_LOCATION', 'RECEPTION_RECEIVED_WEIGHT', 'RECEPTION_RECEIVER', 'RECEPTION_TIME', 'WEIGHING_DATE', 'WEIGHING_METHOD', 'WEIGHING_RESPONSIBLE', 'WEIGHING_SUBJECT', 'WEIGHING_VALUE']);
+    const after = (await receive('recepcion@test.local', full2.id, '500').expect(201)).body.delivery;
+    expect(after.gates.completeness).toMatchObject({ allowed: true, blocking: [], pending: [] });
+    expect(after.disclaimer).toMatch(/cumplimiento EUDR/);
+    expect(after.gates.reception_preview.transition).toBe('RECEPTION_CONFIRM');
+    expect(after.gates.registration.transition).toBe('DELIVERY_REGISTER');
+  });
+
+  it('total recibido con varias recepciones y correcciones: originales conservados; correcciones concurrentes sin duplicar; sin cierre ni inventario', async () => {
+    const d = await registered({ quantity_declared: '200' });
+    const r1 = (await receive('recepcion@test.local', d.id, '100').expect(201)).body.reception_id;
+    const r2 = (await receive('recepcion@test.local', d.id, '50').expect(201)).body.reception_id;
+    const corr = (rid: string, q: string, v: number) => http().post(`${base(orgA)}/deliveries/${d.id}/receptions/${rid}/corrections`).set(as('recepcion@test.local'))
+      .send({ operation_id: randomUUID(), expected_version: v, reason: `Repesaje a ${q}`, weighing: weighing(q) });
+    const [a, b] = await Promise.all([corr(r1, '90', 1), corr(r1, '91', 1)]);
+    expect([a.status, b.status].sort()).toEqual([201, 409]);
+    expect((await h.db.selectFrom('reception_adjustments').select(sql<number>`count(*)::int`.as('n')).where('reception_id', '=', r1).executeTakeFirstOrThrow()).n).toBe(1);
+    const won = a.status === 201 ? '90' : '91';
+    await corr(r1, '95', 2).expect(201);
+    const v = (await get('admin-a@test.local', d.id).expect(200)).body;
+    const rec1 = v.receptions.find((x: { id: string }) => x.id === r1);
+    expect(rec1).toMatchObject({ quantity_received: { value: '95' }, original_quantity: { value: '100' }, version: 3 });
+    expect(rec1.adjustments.map((x: { previous_quantity: string; new_quantity: string }) => `${x.previous_quantity}→${x.new_quantity}`)).toEqual([`100→${won}`, `${won}→95`]);
+    expect(rec1.weighings).toHaveLength(3);
+    // total = suma de la cantidad vigente de cada recepción (95 + 50), igual en lista y detalle
+    expect(v.totals).toMatchObject({ declared: { value: '200' }, received: { value: '145' }, reception_status: 'PARTIAL', closure: { status: 'NOT_DEFINED' } });
+    const row = (await http().get(`${base(orgA)}/deliveries?q=${d.delivery_code}`).set(as('admin-a@test.local')).expect(200)).body[0];
+    expect(row.received.value).toBe('145');
+    expect(v.receptions.find((x: { id: string }) => x.id === r2).quantity_received.value).toBe('50');
+    // rollback de una corrección: ni ajuste, ni pesaje, ni evento
+    const counts = async () => (await sql<{ a: number; w: number; e: number }>`SELECT (SELECT count(*)::int FROM reception_adjustments) a, (SELECT count(*)::int FROM weighings) w, (SELECT count(*)::int FROM domain_events) e`.execute(h.db)).rows[0];
+    const c0 = await counts();
+    jest.spyOn(AuditService.prototype, 'record').mockRejectedValueOnce(new Error('fallo forzado'));
+    await corr(r2, '49', 1).expect(500);
+    expect(await counts()).toEqual(c0);
+    // superar lo declarado: se registra y se señala; la declaración no se ajusta y no hay tolerancia
+    const over = (await receive('recepcion@test.local', d.id, '80').expect(201)).body.delivery;
+    expect(over.totals).toMatchObject({ received: { value: '225' }, reception_status: 'ABOVE_DECLARED' });
+    expect(over.quantity_declared.value).toBe('200');
+    // no existe operación de cierre (política pendiente) ni efecto de inventario
+    await http().post(`${base(orgA)}/deliveries/${d.id}/close`).set(as('admin-a@test.local')).send({}).expect(404);
+    expect(over.inventory_effect.status).toBe('NOT_IMPLEMENTED');
+    expect(JSON.stringify(over)).not.toMatch(/available_quantity|stock_balance/);
   });
 });

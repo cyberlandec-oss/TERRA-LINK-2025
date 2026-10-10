@@ -211,13 +211,14 @@ function ReceptionCard({ n, r, d, base, onDone }: { n: number; r: Reception; d: 
             <p>Muestra {s.sample_reference ?? '(sin referencia)'} · tomada {MOMENT[s.moment]} · {s.sampled_by}</p>
             {s.results.length === 0 && <p className="muted">Sin resultados: pendiente de evaluación.</p>}
             <ul className="plain">{s.results.map((q) => (
-              <li key={q.id}>{q.decision === 'PENDING' ? 'Resultado sin decisión' : q.decision === 'RELEASED' ? `Liberada (límites: ${q.limits_version})` : `Rechazada: ${q.decision_reason}`} · {q.method}
+              <li key={q.id}>{q.decision === 'PENDING' ? 'Resultado sin decisión' : q.decision === 'RELEASED' ? `Liberada por decisión humana · referencia de límites declarada «${q.limits_reference?.value}» (no verificada)` : `Rechazada: ${q.decision_reason}`} · {q.method}
                 {q.measurements.length > 0 && ` · ${q.measurements.map((m) => `${PARAM[m.parameter] ?? m.parameter} ${m.value} ${m.unit}`).join(', ')}`} · {q.recorded_by}</li>
             ))}</ul>
             {(d.actions.record_quality || d.actions.decide_quality) && <QualityResultForm base={`${base}/receptions/${r.id}/quality-samples/${s.id}/results`} canDecide={d.actions.decide_quality} onDone={onDone} id={s.id} />}
           </div>
         ))}
         <p className="field-help">{r.quality.note}</p>
+        <p className="muted">Operaciones posteriores: no habilitadas ni evaluadas. {r.downstream_enablement.note}</p>
         {d.actions.record_quality && <AddSample base={`${base}/receptions/${r.id}/quality-samples`} onDone={onDone} id={r.id} />}
       </div>
       {d.actions.correct_reception && <CorrectReception base={`${base}/receptions/${r.id}/corrections`} version={r.version} onDone={onDone} id={r.id} />}
@@ -258,7 +259,7 @@ function QualityResultForm({ base, canDecide, id, onDone }: { base: string; canD
         {canDecide && <option value="RELEASED">Liberar calidad</option>}
         {canDecide && <option value="REJECTED">Rechazar calidad</option>}
       </select>
-      {f.decision === 'RELEASED' && <><label htmlFor={`ql-${id}`}>Versión de límites aplicada</label><input id={`ql-${id}`} required maxLength={80} value={f.limits} onChange={(e) => setF({ ...f, limits: e.target.value })} /><p className="field-help">No hay catálogo de límites en el sistema: se registra la versión que declaras; un valor medido no implica «aprobado».</p></>}
+      {f.decision === 'RELEASED' && <><label htmlFor={`ql-${id}`}>Referencia de límites declarada</label><input id={`ql-${id}`} required maxLength={80} value={f.limits} onChange={(e) => setF({ ...f, limits: e.target.value })} /><p className="field-help">No hay catálogo publicado de límites: se registra como referencia declarada, no verificada por el sistema; un valor medido no implica «aprobado» y la decisión no habilita operaciones posteriores.</p></>}
       {f.decision === 'REJECTED' && <><label htmlFor={`qr-${id}`}>Motivo del rechazo</label><input id={`qr-${id}`} required minLength={3} maxLength={500} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></>}
       {s.feedback}
       <div className="actions"><button type="submit" className="secondary" disabled={s.busy}>Guardar resultado</button></div>

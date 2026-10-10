@@ -83,7 +83,7 @@ class QualityResultFieldsDto {
   @ApiProperty() @IsString() @Length(1, 120) method!: string;
   @ApiPropertyOptional({ type: [MeasurementDto] }) @IsOptional() @IsArray() @ArrayMaxSize(3) @ValidateNested({ each: true }) @Type(() => MeasurementDto) measurements?: MeasurementDto[];
   @ApiPropertyOptional({ enum: ['PENDING', 'RELEASED', 'REJECTED'] }) @IsOptional() @IsIn(['PENDING', 'RELEASED', 'REJECTED']) decision?: 'PENDING' | 'RELEASED' | 'REJECTED';
-  @ApiPropertyOptional() @IsOptional() @IsString() @Length(1, 80) limits_version?: string;
+  @ApiPropertyOptional({ description: 'Referencia de límites DECLARADA por quien decide (texto). No existe catálogo publicado: el sistema no la verifica.' }) @IsOptional() @IsString() @Length(1, 80) limits_version?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @Length(3, 500) decision_reason?: string;
 }
 class SampleDto {
@@ -575,7 +575,7 @@ export class DeliveriesService {
       await this.storeGate(trx, ctx, userId, 'quality_result', rid, g);
       const n = (await trx.selectFrom('domain_events').select(sql<number>`count(*)::int`.as('n')).where('organization_id', '=', ctx.organizationId).where('aggregate_type', '=', 'QUALITY_SAMPLE').where('aggregate_id', '=', sampleId).executeTakeFirstOrThrow()).n;
       await this.record(trx, ctx, userId, d, { type: 'QualityDecisionRecorded', aggregateType: 'QUALITY_SAMPLE', aggregateId: sampleId, version: n + 1,
-        payload: { sample_id: sampleId, result_id: rid, decision, method: dto.method.trim(), limits_version: dto.limits_version?.trim() || null, measurements: (dto.measurements ?? []).map((m) => ({ parameter: m.parameter, value: m.value, unit: m.unit.trim() })) } },
+        payload: { sample_id: sampleId, result_id: rid, decision, method: dto.method.trim(), limits_version: dto.limits_version?.trim() || null, limits_reference_status: dto.limits_version ? 'DECLARED_UNVERIFIED' : null, limits_catalog: 'NOT_AVAILABLE', measurements: (dto.measurements ?? []).map((m) => ({ parameter: m.parameter, value: m.value, unit: m.unit.trim() })) } },
       'quality.decision', { sample_id: sampleId, result_id: rid, decision, limits_version: dto.limits_version?.trim() || null }, requestId);
     } else {
       await this.record(trx, ctx, userId, d, null, 'quality.result_record', { sample_id: sampleId, result_id: rid, decision }, requestId);
@@ -726,12 +726,13 @@ export class DeliveriesService {
         ${q.q ? sql`AND (d.delivery_code ILIKE ${'%' + q.q + '%'} OR pr.producer_code ILIKE ${'%' + q.q + '%'})` : sql``}
       ORDER BY d.created_at DESC LIMIT 200`.execute(this.db);
     const items = rows.rows.map((r) => {
-      const declared = r.corrected_quantity ?? r.quantity_declared;
-      const reception = this.receptionStatus(declared, r.received, r.receptions);
+      const declared = dec(r.corrected_quantity ?? r.quantity_declared);
+      const received = dec(r.received);
+      const reception = this.receptionStatus(declared, received, r.receptions);
       return {
         id: r.id, delivery_code: r.delivery_code, status: r.status, delivery_date: r.corrected_date ?? r.delivery_date,
         producer: { id: r.producer_id, code: r.producer_code, name: identity ? (r.legal_name ?? `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim()) || null : null },
-        product: r.product_name, quantity_declared: declared ? { value: declared, unit: r.unit } : null, received: r.received ? { value: r.received, unit: 'KG' } : null,
+        product: r.product_name, quantity_declared: declared ? { value: declared, unit: r.unit } : null, received: received ? { value: received, unit: 'KG' } : null,
         receptions: r.receptions, reception_status: reception, reception_status_label: RECEPTION_LABEL[reception], harvest_precision: r.harvest_precision,
       };
     });
@@ -813,7 +814,8 @@ export class DeliveriesService {
         const views = [];
         for (const q of results) {
           const ms = await db.selectFrom('quality_measurements').select(['parameter', 'value', 'unit']).where('result_id', '=', q.id).orderBy('parameter').execute();
-          views.push({ id: q.id, method: q.method, decision: q.decision, limits_version: q.limits_version, decision_reason: q.decision_reason, recorded_at: q.recorded_at,
+          views.push({ id: q.id, method: q.method, decision: q.decision, decision_reason: q.decision_reason, recorded_at: q.recorded_at,
+            limits_reference: q.limits_version ? { value: q.limits_version, status: 'DECLARED_UNVERIFIED', note: 'Referencia escrita por quien decide. No hay catálogo publicado de límites: el sistema no la comprobó.' } : null,
             recorded_by: `${q.first_name ?? ''} ${q.last_name ?? ''}`.trim() || 'Miembro', measurements: ms.map((m) => ({ parameter: m.parameter, value: dec(m.value)!, unit: m.unit })) });
           if (q.decision !== 'PENDING' && (!latest || new Date(q.recorded_at as unknown as string) >= latest.at)) latest = { decision: q.decision, at: new Date(q.recorded_at as unknown as string) };
         }
@@ -827,8 +829,12 @@ export class DeliveriesService {
         adjustments: adjustments.map((a) => ({ number: a.adjustment_number, previous_quantity: dec(a.previous_quantity)!, new_quantity: dec(a.new_quantity)!, reason: a.reason, at: a.created_at,
           by: `${a.first_name ?? ''} ${a.last_name ?? ''}`.trim() || 'Miembro', corrected_event_id: a.corrected_event_id, correction_event_id: a.correction_event_id })),
         confirmation_gate: gate ? { transition: gate.transition, release: gate.release_version, allowed: gate.allowed, ...(gate.result as object), evaluated_at: gate.evaluated_at } : null,
-        quality: { status: latest ? latest.decision : 'PENDING_EVALUATION', status_label: latest ? (latest.decision === 'RELEASED' ? 'Calidad liberada' : 'Calidad rechazada') : 'Pendiente de evaluación', samples: sampleViews,
-          note: 'Estado de calidad separado de la recepción física. «Liberada» es una decisión de calidad, no liberación jurídica ni conformidad.' },
+        quality: { status: latest ? latest.decision : 'PENDING_EVALUATION',
+          status_label: latest ? (latest.decision === 'RELEASED' ? 'Calidad liberada por decisión humana (límites declarados, no verificados)' : 'Calidad rechazada por decisión humana') : 'Pendiente de evaluación',
+          limits_verification: 'NOT_AVAILABLE', samples: sampleViews,
+          note: 'Estado de calidad separado de la recepción física. La decisión es humana y queda con su responsable; sin catálogo de límites el sistema no verificó límites. No es liberación jurídica ni conformidad.' },
+        // Tres estados distintos: recepción física (registrada), decisión de calidad (arriba) y habilitación posterior (aquí).
+        downstream_enablement: { status: 'NOT_EVALUATED', note: 'Ninguna operación posterior (lote, procesamiento, inventario) existe ni se habilita por esta recepción o su decisión de calidad; sin catálogo de límites no se habilitará por un texto (P0-016/P0-017).' },
       });
     }
     const declared = e.quantity_declared;
@@ -887,7 +893,7 @@ export class DeliveriesService {
       ReceptionConfirmed: ['quantity_received', 'unit', 'received_at', 'pending_kde'],
       ReceptionCorrected: ['previous_quantity', 'new_quantity', 'unit'],
       WeightRecorded: ['method', 'quantity', 'unit', 'weighed_on', 'corrects_weighing_id'],
-      QualityDecisionRecorded: ['decision', 'method', 'limits_version'],
+      QualityDecisionRecorded: ['decision', 'method', 'limits_version', 'limits_reference_status'],
     };
     const weighings = receptionIds.length ? (await db.selectFrom('weighings').select('id').where('reception_id', 'in', receptionIds).execute()).map((w) => w.id) : [];
     const samples = receptionIds.length ? (await db.selectFrom('quality_samples').select('id').where('reception_id', 'in', receptionIds).execute()).map((s) => s.id) : [];
