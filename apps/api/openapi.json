@@ -760,6 +760,352 @@
           "users"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/producers": {
+      "post": {
+        "operationId": "ProducersController_create",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProducerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "producers"
+        ]
+      },
+      "get": {
+        "operationId": "ProducersController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "producers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/producers/summary": {
+      "get": {
+        "operationId": "ProducersController_summary",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "producers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/producers/{id}": {
+      "get": {
+        "operationId": "ProducersController_get",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "producers"
+        ]
+      },
+      "patch": {
+        "operationId": "ProducersController_update",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProducerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "producers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/producers/{id}/history": {
+      "get": {
+        "operationId": "ProducersController_history",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "producers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/producers/{id}/assignment": {
+      "put": {
+        "operationId": "ProducersController_assign",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "producers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/producers/{id}/archive": {
+      "post": {
+        "operationId": "ProducersController_archive",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "producers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/producers/{id}/activate": {
+      "post": {
+        "operationId": "ProducersController_activate",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "producers"
+        ]
+      }
     }
   },
   "info": {
@@ -977,6 +1323,140 @@
         },
         "required": [
           "token"
+        ]
+      },
+      "CreateProducerDto": {
+        "type": "object",
+        "properties": {
+          "first_name": {
+            "type": "object"
+          },
+          "last_name": {
+            "type": "object"
+          },
+          "legal_name": {
+            "type": "object",
+            "description": "Razón social (alternativa a nombre y apellido)"
+          },
+          "document_type": {
+            "type": "object"
+          },
+          "document_number": {
+            "type": "object"
+          },
+          "phone": {
+            "type": "object"
+          },
+          "address": {
+            "type": "object"
+          },
+          "community": {
+            "type": "object"
+          },
+          "province": {
+            "type": "object"
+          },
+          "canton": {
+            "type": "object"
+          },
+          "parish": {
+            "type": "object"
+          },
+          "producer_code": {
+            "type": "string",
+            "example": "PRD-0001"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "ACTIVE"
+            ],
+            "default": "ACTIVE"
+          },
+          "assigned_membership_id": {
+            "type": "string",
+            "description": "Membresía responsable (misma organización)"
+          }
+        },
+        "required": [
+          "producer_code"
+        ]
+      },
+      "UpdateProducerDto": {
+        "type": "object",
+        "properties": {
+          "first_name": {
+            "type": "object"
+          },
+          "last_name": {
+            "type": "object"
+          },
+          "legal_name": {
+            "type": "object",
+            "description": "Razón social (alternativa a nombre y apellido)"
+          },
+          "document_type": {
+            "type": "object"
+          },
+          "document_number": {
+            "type": "object"
+          },
+          "phone": {
+            "type": "object"
+          },
+          "address": {
+            "type": "object"
+          },
+          "community": {
+            "type": "object"
+          },
+          "province": {
+            "type": "object"
+          },
+          "canton": {
+            "type": "object"
+          },
+          "parish": {
+            "type": "object"
+          },
+          "expected_version": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "expected_version"
+        ]
+      },
+      "AssignDto": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "number"
+          },
+          "membership_id": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "expected_version",
+          "membership_id"
+        ]
+      },
+      "StatusDto": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_version",
+          "reason"
         ]
       }
     }

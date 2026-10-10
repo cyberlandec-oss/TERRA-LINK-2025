@@ -25,18 +25,19 @@ No imprimir ni versionar `.env` (está en `.gitignore`).
 | --- | --- | --- | --- |
 | Servicios locales | `npm run infra:up` (`docker compose up -d --wait`) | Levanta `postgres` (PostGIS 16-3.4, host:5440, crea `terra_link` y `terra_link_test`), `redis` (6379) y `object-storage` (VersityGW, 9000). Volúmenes `postgres-data` y `object-data` | 3 servicios healthy |
 | Detener servicios | `npm run infra:down` | No borra volúmenes | — |
-| Migrar dev | `npm run db:migrate` | Compila la API y aplica migraciones a `DATABASE_URL` | `0001`–`0003_organization_types` aplicadas |
+| Migrar dev | `npm run db:migrate` | Compila la API y aplica migraciones a `DATABASE_URL` | `0001`–`0005_producers` aplicadas |
 | Seed dev | `npm run seed:dev -w apps/api` | Crea el SUPER_ADMIN desde `SEED_ADMIN_*`; idempotente | Creado |
 | API: typecheck | `npm run typecheck -w apps/api` | — | 0 errores |
 | API: lint | `npm run lint -w apps/api` | — | 0 problemas |
-| API: pruebas | `npm test -w apps/api` | Requiere `infra:up`, `TEST_DATABASE_URL` (debe terminar en `_test`; **recrea el esquema `public` de esa base**) y `REDIS_URL` (prefijo de claves único por corrida). Sin ellas, la integración queda *skipped* | 6 suites, **51/51** (11 unitarias + 40 integración PostgreSQL/Redis reales) |
-| API: arrancar | `npm run dev:api` (compila + `node dist/main.js`, puerto 4000) | Swagger en `/api/docs` | live/ready 200; login OK |
-| OpenAPI | `npm run openapi -w apps/api` → `apps/api/openapi.json` | Generado desde los controladores | OpenAPI 3.0.0, 23 rutas |
+| API: pruebas | `npm test -w apps/api` | Requiere `infra:up`, `TEST_DATABASE_URL` (debe terminar en `_test`; **recrea el esquema `public` de esa base**) y `REDIS_URL` (prefijo de claves único por corrida). Sin ellas, la integración queda *skipped* | 9 suites, **75/75** (11 unitarias + 64 integración PostgreSQL/Redis reales) |
+| API: arrancar | `npm run dev:api` (compila + `node dist/main.js`, puerto 4000) | Swagger en `/api/docs`. `/health/ready` devuelve `checks` por dependencia (database, schema, redis) y 503 si alguna falla | live/ready 200; login OK |
+| OpenAPI | `npm run openapi -w apps/api` → `apps/api/openapi.json` | Generado desde los controladores | OpenAPI 3.0.0, 30 rutas |
 | Web: typecheck / lint / test | `npm run typecheck -w apps/web`, `npm run lint -w apps/web`, `npm test -w apps/web` | — | OK; vitest 3/3 |
 | Web: build | `npm run build -w apps/web` | — | 5 rutas compiladas |
+| Worker del outbox | `npm run worker -w apps/api` | Procesa `event_deliveries`; variables `OUTBOX_POLL_MS`, `OUTBOX_MAX_ATTEMPTS`, `OUTBOX_LEASE_SECONDS` | Arranca y procesa (ver contenedores) |
 | Todo (raíz) | `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` | API + web | OK |
 | Navegadores E2E (una vez) | `npm run install-browsers -w e2e` | Descarga Chromium (~120 MB) | OK |
-| E2E en navegador | `npm run build -w apps/api && npm run test:e2e` | Crea o recrea `terra_link_e2e`, migra, siembra un SUPER_ADMIN con contraseña aleatoria, levanta API :4100 y web :3100 (compila la web con esa URL) | **8/8** en Chromium (~26 s + build) |
+| E2E en navegador | `npm run build -w apps/api && npm run test:e2e` | Crea o recrea `terra_link_e2e`, migra, siembra un SUPER_ADMIN con contraseña aleatoria, levanta API :4100 y web :3100 (compila la web con esa URL) | **13/13** en Chromium (~41 s + build; 2 corridas seguidas verdes). Una corrida previa falló por un `reload` lento (4,2 min en total, intermitente) |
 | Web: arrancar | `npm run dev:web` (dev) o `npm run start -w apps/web` (tras build), puerto 3000 | API en `NEXT_PUBLIC_API_URL` | Páginas 200; CORS solo `WEB_ORIGIN` |
 
 ## Contenedores de la aplicación (opcional)
@@ -44,7 +45,8 @@ No imprimir ni versionar `.env` (está en `.gitignore`).
 | Acción | Comando | Efecto | Resultado 2026-10-10 |
 | --- | --- | --- | --- |
 | Construir y arrancar | `docker compose --profile app up -d --build --wait` | Imágenes `terra-link-api:local` (431 MB) y `terra-link-web:local` (412 MB), multietapa sobre `node:24-bookworm-slim`, `npm ci` desde el lockfile, usuario `node`, `HEALTHCHECK`. Orden: `migrate` (una vez, sobre `terra_link`) → `api` (:4000) → `web` (:3000, compilada con `NEXT_PUBLIC_API_URL`). Reutiliza los volúmenes y el PostgreSQL en 5440 | migrate aplicó solo `0003` (datos previos conservados); api y web healthy; ready 200; web 200; login OK; sin secretos en `docker history` |
-| Detener solo la app | `docker compose --profile app rm -sf api web migrate` | Conserva infraestructura y volúmenes | — |
+| Con dos workers | `docker compose --profile app up -d --build --wait --scale worker=2` | Añade el servicio `worker` (sin healthcheck HTTP, `restart: unless-stopped`) | 3 productores creados vía API → 6 entregas `DONE` (2 consumidores), proyección `ACTIVE: 3`, sin duplicados |
+| Detener solo la app | `docker compose --profile app rm -sf api web migrate worker` | Conserva infraestructura y volúmenes | — |
 
 Las variables (`JWT_SECRET`, credenciales de PostgreSQL) se leen de `.env` al ejecutar; `.dockerignore` excluye `.env*` y nunca se copian a las imágenes. Puertos configurables con `API_HOST_PORT` y `WEB_HOST_PORT`. No arrancar a la vez que `dev:api`/`dev:web` en los mismos puertos.
 

@@ -31,7 +31,7 @@ El correo transaccional resuelve la entrega y puede apoyar la verificación; OID
 
 - **Riesgo:** con 20 fallos por cuenta en 15 minutos desde cualquier origen, un tercero puede bloquear temporalmente una cuenta.
 - **Recuperación:** el bloqueo dura como máximo la ventana (900 s) y desaparece solo. No hay desbloqueo manual ni bloqueo permanente. El titular puede entrar desde otro origen mientras el contador cuenta+origen de ese origen no esté al límite y el de cuenta tampoco.
-- **Si Redis falla:** el login responde error 500 `INTERNAL_ERROR` (fail-closed) y `/health/ready` devuelve 503. No se omite el límite. Verificado a mano el 2026-10-10: con Redis detenido, ready 503 y login 500; al restaurarlo, ready 200 y login normal. Sin prueba automatizada.
+- **Si Redis falla:** el login responde **503 `LOGIN_TEMPORARILY_UNAVAILABLE`** con `Retry-After: 30` y mensaje recuperable, sin detalles internos y sin evaluar la contraseña ni emitir sesión (fail-closed). `/health/ready` devuelve 503 con `checks.redis = "unavailable"`. Al recuperarse Redis, la misma instancia vuelve a funcionar sin reinicio. Prueba automatizada: `apps/api/test/redis-outage.int-spec.ts` (proxy TCP controlable). Códigos distintos: 401 credenciales, 429 exceso de intentos, 503 indisponibilidad.
 - **Estado:** valores provisionales, sin validar para producción.
 
 ## Pendiente para aceptar

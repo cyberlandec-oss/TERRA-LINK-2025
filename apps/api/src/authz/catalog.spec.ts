@@ -25,7 +25,7 @@ describe('catálogo RBAC', () => {
   });
 
   it('une permisos de varios roles sin duplicados y desconoce roles no catalogados', () => {
-    expect(permissionsForRoles(['MANAGER', 'AUDITOR', 'INVENTED'])).toEqual(['audit:read', 'membership:read', 'organization:read']);
+    expect(permissionsForRoles(['TRACEABILITY_MANAGER', 'AUDITOR', 'INVENTED'])).toEqual(['audit:read', 'organization:read', 'producer:read']);
   });
 
   it('anti-escalamiento: solo se conceden roles cuyos permisos posee el actor', () => {
@@ -38,5 +38,16 @@ describe('catálogo RBAC', () => {
     expect(canGrantRole(admin, 'INVENTED')).toBe(false);
     expect(assignableRoles(admin)).toContain('ORG_ADMIN');
     expect(assignableRoles(manager)).toEqual([]);
+  });
+
+  it('productor: el técnico solo trabaja con asignados; AUDITOR lee sin identidad', () => {
+    const tech = permissionsForRoles(['FIELD_TECHNICIAN']);
+    expect(tech).toEqual(expect.arrayContaining(['producer:read_assigned', 'producer:update_assigned', 'producer:create']));
+    expect(tech).not.toContain('producer:read');
+    expect(tech).not.toContain('producer:archive');
+    const auditor = permissionsForRoles(['AUDITOR']);
+    expect(auditor).toContain('producer:read');
+    expect(auditor).not.toContain('producer:read_identity');
+    expect(permissionsForRoles(['BUYER', 'PRODUCER']).filter((p) => p.startsWith('producer:'))).toEqual([]);
   });
 });

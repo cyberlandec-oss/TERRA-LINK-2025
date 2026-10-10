@@ -5,9 +5,9 @@ import {
   MiddlewareConsumer,
   Module,
   NestModule,
+  Res,
   OnApplicationShutdown,
   Injectable,
-  ServiceUnavailableException,
   type DynamicModule,
 } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
@@ -26,6 +26,9 @@ import { AuthorizationService } from './authz/authorization.service';
 import { PLATFORM_PERMISSIONS, RBAC_CATALOG_VERSION, ROLE_PERMISSIONS } from './authz/catalog';
 import { CatalogController, OrganizationsController, OrganizationsService } from './organizations/organizations';
 import { InvitationsController, MembersController, MembersService, UsersController } from './members/members';
+import { EVENT_STORE, EventStore } from './events/events';
+import { ProducersController, ProducersService } from './producers/producers';
+import { PRODUCTION_CONSUMERS } from './events/consumers';
 import { LOGIN_RATE_LIMITER, LoginRateLimiter, REDIS, RedisAttemptStore } from './auth/login-rate-limit';
 
 @ApiTags('health')
@@ -42,20 +45,30 @@ class HealthController {
     return { status: 'ok' };
   }
 
-  // Readiness: base accesible y esquema en la última migración conocida por este build.
+  // Readiness: estado por dependencia (sin detalles internos). 503 si alguna no está lista.
   @Public()
   @Get('ready')
-  async ready() {
+  async ready(@Res({ passthrough: true }) res: Response) {
+    const checks: Record<'database' | 'schema' | 'redis', 'ok' | 'unavailable'> = {
+      database: 'unavailable', schema: 'unavailable', redis: 'unavailable',
+    };
+    let migration: string | null = null;
     try {
-      const row = await sql<{ name: string }>`
-        SELECT name FROM kysely_migration ORDER BY name DESC LIMIT 1`.execute(this.db);
-      const current = row.rows[0]?.name ?? null;
-      if (current !== LATEST_MIGRATION) throw new Error('schema');
-      if ((await this.redis.ping()) !== 'PONG') throw new Error('redis');
-      return { status: 'ok', migration: current };
+      const row = await sql<{ name: string }>`SELECT name FROM kysely_migration ORDER BY name DESC LIMIT 1`.execute(this.db);
+      checks.database = 'ok';
+      migration = row.rows[0]?.name ?? null;
+      if (migration === LATEST_MIGRATION) checks.schema = 'ok';
     } catch {
-      throw new ServiceUnavailableException('Base de datos, esquema o Redis no disponibles');
+      /* base no disponible */
     }
+    try {
+      if ((await this.redis.ping()) === 'PONG') checks.redis = 'ok';
+    } catch {
+      /* redis no disponible */
+    }
+    const ok = Object.values(checks).every((c) => c === 'ok');
+    if (!ok) res.status(503);
+    return { status: ok ? 'ok' : 'unavailable', checks, migration };
   }
 }
 
@@ -138,7 +151,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
-        MembersController, InvitationsController, UsersController,
+        MembersController, InvitationsController, UsersController, ProducersController,
       ],
       providers: [
         { provide: APP_CONFIG, useValue: config },
@@ -146,7 +159,7 @@ export class AppModule implements NestModule {
         {
           provide: REDIS,
           // Fail-closed: si Redis no responde, el login devuelve error en vez de omitir el límite.
-          useFactory: () => new Redis(config.redisUrl, { maxRetriesPerRequest: 1, connectTimeout: 2000 }),
+          useFactory: () => new Redis(config.redisUrl, { maxRetriesPerRequest: 1, connectTimeout: 2000, commandTimeout: 1500 }),
         },
         {
           provide: LOGIN_RATE_LIMITER,
@@ -154,7 +167,9 @@ export class AppModule implements NestModule {
           useFactory: (redis: Redis) => new LoginRateLimiter(new RedisAttemptStore(redis, config.redisKeyPrefix), config.loginRateLimit),
         },
         RedisLifecycle,
+        { provide: EVENT_STORE, useValue: new EventStore(PRODUCTION_CONSUMERS) },
         MembersService,
+        ProducersService,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },
         AuditService,

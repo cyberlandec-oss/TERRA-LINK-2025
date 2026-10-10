@@ -43,6 +43,7 @@ Monorepo npm (`apps/api` NestJS + Kysely, `apps/web` Next.js). Comandos verifica
 - `npm run typecheck` · `npm run lint` · `npm test` (la integración recrea el esquema de la base `*_test`) · `npm run build`
 - `npm run dev:api` (4000, Swagger `/api/docs`) · `npm run dev:web` (3000)
 - `docker compose --profile app up -d --build --wait` (API y web en contenedores; `rm -sf api web migrate` para detenerlos)
+- Worker del outbox: `npm run worker -w apps/api` (o servicio `worker` del perfil `app`)
 - `npm run test:e2e` (Playwright; requiere `npm run build -w apps/api` e `infra:up`; usa base `terra_link_e2e` y puertos 4100/3100)
 No ejecutes migraciones sobre producción, reinicios destructivos, borrado de volúmenes ni envíos regulatorios como parte de una tarea local.
 Trabaja en una rama de tarea; conserva cambios ajenos y solicita el dato o autorización faltante solo si bloquea una acción concreta.

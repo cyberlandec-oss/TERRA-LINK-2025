@@ -4,12 +4,16 @@ import type { Database } from './schema';
 import * as m0001 from './migrations/0001_identity_organizations';
 import * as m0002 from './migrations/0002_invitations_sessions';
 import * as m0003 from './migrations/0003_organization_types';
+import * as m0004 from './migrations/0004_domain_events_outbox';
+import * as m0005 from './migrations/0005_producers';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
   '0001_identity_organizations': m0001,
   '0002_invitations_sessions': m0002,
   '0003_organization_types': m0003,
+  '0004_domain_events_outbox': m0004,
+  '0005_producers': m0005,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

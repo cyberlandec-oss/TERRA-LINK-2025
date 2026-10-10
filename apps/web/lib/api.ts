@@ -7,6 +7,7 @@ export interface ApiErrorBody {
   code: string;
   message: string;
   request_id: string | null;
+  details?: Array<{ field?: string; reason: string }>;
 }
 
 export class ApiError extends Error {
@@ -167,6 +168,16 @@ export function recoveryHint(err: ApiError): string {
       return 'Esta acción necesita una política de elevación auditada que aún no existe.';
     case 'ORGANIZATION_TYPE_UNKNOWN':
       return 'Elige un tipo de la lista.';
+    case 'PRODUCER_CODE_TAKEN':
+      return 'Usa otro código o busca el productor existente.';
+    case 'PRODUCER_INACTIVE':
+      return 'Reactiva el productor para editarlo.';
+    case 'ASSIGNEE_NOT_FOUND':
+    case 'ASSIGNEE_INACTIVE':
+    case 'ASSIGNEE_WITHOUT_ACCESS':
+      return 'Elige un miembro activo con acceso a productores.';
+    case 'LOGIN_TEMPORARILY_UNAVAILABLE':
+      return 'Espera un momento y vuelve a intentarlo.';
     case 'NO_CHANGE':
       return 'No hay cambios que guardar.';
     default:

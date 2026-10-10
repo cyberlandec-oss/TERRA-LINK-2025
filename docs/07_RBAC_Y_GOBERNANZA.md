@@ -110,3 +110,21 @@ No hay bypass global: sin membresía, SUPER_ADMIN recibe `ELEVATION_REQUIRED` (4
 - Las referencias del cuerpo no conceden tenant (`organization_id` extra → 400). Una membresía de otra org por la ruta propia → 404. La FK compuesta `role_assignments → memberships(organization_id, id)` impide asignaciones cruzadas en BD.
 - Listados y errores no incluyen nombres, correos ni identificadores de otra organización.
 - El tipo comercial de organización (D-18) no interviene en la autorización.
+
+### Productores (catálogo `2026-10-10.2`, P0-004, propuesta provisional)
+
+| Rol | read | read_assigned | read_identity | create | update | update_assigned | assign | archive |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| ORG_ADMIN | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
+| MANAGER | ✔ | | ✔ | ✔ | ✔ | | ✔ | ✔ |
+| FIELD_TECHNICIAN | | ✔ | ✔ | ✔ | | ✔ | | |
+| TRACEABILITY_MANAGER | ✔ | | | | | | | |
+| EUDR_MANAGER | ✔ | | ✔ | | | | | |
+| AUDITOR | ✔ | | | | | | | |
+| RECEPTION_OPERATOR, QUALITY_OPERATOR, EXPORT_MANAGER, BUYER, PRODUCER | | | | | | | | |
+
+Origen: S1 §9 (FIELD_TECHNICIAN `producer:create/read`) y doc 07/14 («solo asignaciones» para el técnico). `update` corresponde a `update_draft/correct` de la tabla conceptual; `archive` cubre baja, reactivación y activación de borradores. RECEPTION_OPERATOR podrá necesitar lectura al implementar entregas (P0-012): se decidirá allí.
+
+- `read_assigned` / `update_assigned`: solo productores con `assigned_membership_id` = membresía del usuario. Lo que registra un técnico sin `producer:read` queda asignado a él.
+- `read_identity`: documento, teléfono y dirección (respuesta, historial y búsqueda exacta por documento). Sin él, esos campos no se devuelven.
+- Responsable asignado: membresía ACTIVA de la misma organización y con acceso a productores (422 si no). FK compuesta en BD.

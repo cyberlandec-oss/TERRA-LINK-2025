@@ -59,6 +59,19 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
+  worker:
+    profiles: [app]
+    image: terra-link-api:local
+    command: ["node", "dist/worker-main.js"]
+    # La imagen de la API comprueba /health/live, que el worker no sirve; se reinicia si el proceso cae.
+    healthcheck: { disable: true }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      OUTBOX_POLL_MS: ${OUTBOX_POLL_MS:-1000}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    # Se puede escalar (`--scale worker=2`): el reclamo usa FOR UPDATE SKIP LOCKED.
   web:
     profiles: [app]
     build:

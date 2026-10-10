@@ -5,6 +5,7 @@
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/main.js",
     "start": "node --env-file-if-exists=../../.env dist/main.js",
+    "worker": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/worker-main.js",
     "migrate": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/db/migrate-cli.js",
     "seed:dev": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/db/seed-dev.js",
     "openapi": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/openapi-export.js",

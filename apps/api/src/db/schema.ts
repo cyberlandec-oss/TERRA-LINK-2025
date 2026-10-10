@@ -108,7 +108,105 @@ export interface OrganizationTypesTable {
   sort_order: number;
 }
 
+export interface DomainEventsTable {
+  event_id: string;
+  organization_id: string;
+  event_type: string;
+  schema_version: number;
+  aggregate_type: string;
+  aggregate_id: string;
+  aggregate_version: string;
+  actor_id: string | null;
+  occurred_at: Timestamp;
+  recorded_at: Timestamp;
+  correlation_id: string | null;
+  causation_id: string | null;
+  operation_id: string | null;
+  payload: unknown;
+}
+
+export interface EventDeliveriesTable {
+  event_id: string;
+  consumer: string;
+  status: 'PENDING' | 'PROCESSING' | 'FAILED' | 'DONE' | 'DEAD';
+  attempts: Generated<number>;
+  next_attempt_at: Timestamp;
+  locked_by: string | null;
+  locked_until: Timestamp | null;
+  last_error: string | null;
+  delivered_at: Timestamp | null;
+  created_at: Timestamp;
+}
+
+export interface ConsumerReceiptsTable {
+  consumer: string;
+  event_id: string;
+  processed_at: Timestamp;
+}
+
+export interface OrganizationEventStatsTable {
+  organization_id: string;
+  event_type: string;
+  event_count: string;
+  last_event_at: Timestamp;
+}
+
+export type ProducerStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE';
+
+export interface ProducersTable {
+  id: Generated<string>;
+  organization_id: string;
+  producer_code: string;
+  first_name: string | null;
+  last_name: string | null;
+  legal_name: string | null;
+  document_type: string | null;
+  document_number: string | null;
+  phone: string | null;
+  address: string | null;
+  community: string | null;
+  province: string | null;
+  canton: string | null;
+  parish: string | null;
+  status: ProducerStatus;
+  assigned_membership_id: string | null;
+  row_version: Generated<string>;
+  created_at: Timestamp;
+  created_by: string;
+  updated_at: Timestamp;
+  updated_by: string;
+  deleted_at: Timestamp | null;
+  deleted_by: string | null;
+  deletion_reason: string | null;
+}
+
+export interface ProducerVersionsTable {
+  id: Generated<string>;
+  organization_id: string;
+  producer_id: string;
+  version: string;
+  change_type: string;
+  changed_fields: string[];
+  snapshot: unknown;
+  reason: string | null;
+  changed_by: string;
+  changed_at: Timestamp;
+}
+
+export interface ProducerStatusCountsTable {
+  organization_id: string;
+  status: ProducerStatus;
+  producer_count: string;
+}
+
 export interface Database {
+  producers: ProducersTable;
+  producer_versions: ProducerVersionsTable;
+  producer_status_counts: ProducerStatusCountsTable;
+  domain_events: DomainEventsTable;
+  event_deliveries: EventDeliveriesTable;
+  consumer_receipts: ConsumerReceiptsTable;
+  organization_event_stats: OrganizationEventStatsTable;
   organization_types: OrganizationTypesTable;
   invitations: InvitationsTable;
   users: UsersTable;

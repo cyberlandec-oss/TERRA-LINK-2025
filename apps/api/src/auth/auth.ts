@@ -6,6 +6,7 @@ import {
   HttpCode,
   Inject,
   Injectable,
+  Logger,
   Post,
   Req,
   Res,
@@ -112,6 +113,22 @@ class LoginDto {
 @ApiTags('auth')
 @Controller('api/v1/auth')
 export class AuthController {
+  private readonly logger = new Logger('AuthController');
+
+  /**
+   * Sin almacén de intentos no se puede aplicar el límite: se rechaza el login (fail-closed) con 503
+   * controlado y recuperable, sin detalles internos. Distinto de 401 (credenciales) y 429 (exceso).
+   */
+  private async guardRateLimit<T>(op: () => Promise<T>, res: Response): Promise<T> {
+    try {
+      return await op();
+    } catch (err) {
+      this.logger.error(`almacén de intentos no disponible: ${err instanceof Error ? err.name : 'error'}`);
+      res.setHeader('Retry-After', '30');
+      throw new AppError(503, 'LOGIN_TEMPORARILY_UNAVAILABLE', 'El inicio de sesión no está disponible temporalmente. Intenta de nuevo en unos minutos.');
+    }
+  }
+
   constructor(
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     @Inject(DB) private readonly db: Kysely<Database>,
@@ -126,7 +143,7 @@ export class AuthController {
     const email = body.email.trim().toLowerCase();
     const ip = req.ip ?? 'unknown';
     // Se decide antes de consultar la cuenta: la respuesta 429 es igual exista o no el email.
-    const decision = await this.limiter.check(email, ip);
+    const decision = await this.guardRateLimit(() => this.limiter.check(email, ip), res);
     if (!decision.allowed) {
       res.setHeader('Retry-After', String(decision.retryAfterSeconds));
       throw new AppError(429, 'TOO_MANY_ATTEMPTS', 'Demasiados intentos. Espera unos minutos y vuelve a intentarlo.', [
@@ -140,7 +157,7 @@ export class AuthController {
       .executeTakeFirst();
     const ok = user?.status === 'ACTIVE' && (await verifyPassword(user.password_hash, body.password));
     if (!user || !ok) {
-      await this.limiter.recordFailure(email, ip);
+      await this.guardRateLimit(() => this.limiter.recordFailure(email, ip), res);
       // Mensaje uniforme: no revela si el email existe. No se registra la contraseña.
       if (user) {
         await this.audit.record(this.db, {
@@ -150,7 +167,8 @@ export class AuthController {
       }
       throw new AppError(401, 'INVALID_CREDENTIALS', 'Email o contraseña incorrectos.');
     }
-    await this.limiter.recordSuccess(email, ip);
+    // Reiniciar el contador tras un éxito es una mejora, no una protección: si falla, no se bloquea el acceso.
+    await this.limiter.recordSuccess(email, ip).catch(() => this.logger.warn(`request_id=${req.requestId} no se pudo reiniciar el contador de login`));
     await this.db.transaction().execute(async (trx) => {
       await trx.updateTable('users').set({ last_login_at: new Date() }).where('id', '=', user.id).execute();
       await this.audit.record(trx, {

@@ -66,6 +66,12 @@ export default function OrganizationDetailPage() {
               </dl>
             </section>
           )}
+          {(can(org, 'producer:read') || can(org, 'producer:read_assigned')) && (
+            <section className="card">
+              <h2>Productores</h2>
+              <Link href={`/organizaciones/${org.id}/productores`}>Ver y registrar productores</Link>
+            </section>
+          )}
           {(me?.platform_role === 'SUPER_ADMIN' || can(org, 'membership:read')) && (
             <MembersSection org={org} canManage={me?.platform_role === 'SUPER_ADMIN' || can(org, 'membership:assign')} />
           )}
