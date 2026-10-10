@@ -34,6 +34,42 @@ services:
       ROOT_SECRET_KEY: ${S3_SECRET_KEY:?definir en .env}
     ports: ["${S3_PORT:-9000}:9000"]
     volumes: [object-data:/data]
+  # Aplicación en contenedores (opcional): `docker compose --profile app up -d --build --wait`.
+  # Secretos desde .env en tiempo de ejecución; nunca se copian a las imágenes.
+  migrate:
+    profiles: [app]
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    image: terra-link-api:local
+    command: ["node", "dist/db/migrate-cli.js"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres: { condition: service_healthy }
+  api:
+    profiles: [app]
+    image: terra-link-api:local
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?definir en .env}
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-3600}
+      WEB_ORIGIN: http://localhost:${WEB_HOST_PORT:-3000}
+      API_PORT: 4000
+    ports: ["${API_HOST_PORT:-4000}:4000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+  web:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:${API_HOST_PORT:-4000}
+    image: terra-link-web:local
+    ports: ["${WEB_HOST_PORT:-3000}:3000"]
+    depends_on:
+      api: { condition: service_healthy }
 volumes:
   postgres-data:
   object-data:

@@ -22,10 +22,26 @@ Estas cuestiones no bloquean la lectura ni preparación del paquete. Bloquean ú
 | D-16 | Tarifas/planes y titularidad de datos | Comercial/legal | Hipótesis validadas/contrato, no precios de benchmark |
 | D-17 | OpenAPI y enlaces tipados | Backend | Schema executable validado + integridad DB |
 | D-18 | Catálogo de `organization_type` (hoy código libre `^[A-Z_]{2,40}$`) | Producto | Catálogo aprobado y migración con CHECK/FK |
-| D-19 | Mecanismo definitivo de invitación y verificación de correo (hoy enlace provisional) | Producto/seguridad | Canal elegido (correo transaccional u OIDC), ADR-0005 aceptado |
+| D-19 | Mecanismo definitivo de invitación y verificación de correo (hoy enlace provisional) | Producto/seguridad | Tres decisiones separadas en ADR-0005: autenticación (local u OIDC), verificación del correo y entrega de invitaciones |
 | D-20 | Umbrales del límite de login (5/20/50 por 15 min) y tolerancia al bloqueo temporal por terceros | Seguridad | Valores aprobados o ajustados con datos del piloto |
 
-### D-18: propuesta de catálogo (NO ratificada)
+### Supuestos vigentes de desarrollo (2026-10-10)
+
+Se usan para avanzar; **no son decisiones ratificadas** ni están validados para producción.
+
+- **D-18:** catálogo provisional de 8 tipos en la tabla `organization_types` (migración `0003`, estado `PROVISIONAL`, etiquetas en español). Los cambios se hacen con nueva migración (`RATIFIED`, `RETIRED`; los códigos previos fuera de catálogo quedan `LEGACY`). El tipo no concede permisos.
+- **D-19:** invitaciones por enlace de un solo uso, sin proveedor externo. Tener el enlace no verifica el correo (`email_verified_at` sigue nulo).
+- **D-20:** límites 5/20/50 por 900 s, configurables. Riesgo, recuperación y fallo de Redis en ADR-0005.
+- **ADR-0001 y ADR-0005:** adoptados para desarrollo; ratificación pendiente del responsable técnico. No hay aprobación del usuario registrada.
+
+### D-04: parte bloqueada y decisión mínima
+
+Implementado sin D-04: SUPER_ADMIN solo administra metadatos de organizaciones, incorpora al primer ORG_ADMIN (`organization:onboard_admin`) y desactiva cuentas. No hay bypass global.
+**Bloqueado por D-04:** cualquier acceso de plataforma a miembros, datos personales, bitácora u operación de una organización donde no es miembro (hoy `ELEVATION_REQUIRED` o 404). Decisión mínima necesaria: (1) quién puede elevar y con qué aprobación, (2) motivo obligatorio y duración máxima, (3) alcance (lectura o escritura, qué recursos), (4) cómo se notifica a la organización y cómo se audita. Con eso se implementa una elevación temporal registrada y se prueba QA-02 «superadmin con elevación explícita».
+
+Concesiones entre organizaciones (BUYER/AUDITOR externos): sin contrato definido (ADR-0002 propuesto, P1-001). Fuera del alcance de P0-003.
+
+### D-18: catálogo provisional (NO ratificado; implementado como supuesto de desarrollo)
 
 Las fuentes no enumeran `organization_type`: S1 §10 solo nombra el campo. Sí mencionan estos actores de la cadena: asociación/cooperativa de productores (S1 guía de asociaciones, S3), acopiador y centro de acopio (S2), procesamiento/industria (S2, GUIA en S3), exportador (S1, S2), importador UE y fabricante/retail (S2). Propuesta para revisión de producto:
 
@@ -40,7 +56,7 @@ Las fuentes no enumeran `organization_type`: S1 §10 solo nombra el campo. Sí m
 | MANUFACTURER | Fabricante / retail | S2 |
 | OTHER | Otro (requiere descripción) | Propuesta |
 
-Hasta su ratificación, el campo sigue siendo un código libre validado por formato; no se añadió CHECK ni FK y la UI solo muestra ejemplos.
+Etiquetas en español en `organization_types.label_es`. Desde la migración `0003`, `organizations.organization_type` tiene FK al catálogo y la API rechaza códigos fuera de él (`ORGANIZATION_TYPE_UNKNOWN`). La ratificación sigue pendiente.
 
 Resueltas el 2026-10-09: **D-01** (stack NestJS/Next.js/PostGIS, ADR-0001, adoptado por delegación del usuario) y **D-02** (monorepo nuevo `cyberlandec-oss/TERRA-LINK-2025`). Pendiente: ratificación del responsable técnico.
 

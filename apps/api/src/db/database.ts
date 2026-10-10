@@ -3,11 +3,13 @@ import { Pool } from 'pg';
 import type { Database } from './schema';
 import * as m0001 from './migrations/0001_identity_organizations';
 import * as m0002 from './migrations/0002_invitations_sessions';
+import * as m0003 from './migrations/0003_organization_types';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
   '0001_identity_organizations': m0001,
   '0002_invitations_sessions': m0002,
+  '0003_organization_types': m0003,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

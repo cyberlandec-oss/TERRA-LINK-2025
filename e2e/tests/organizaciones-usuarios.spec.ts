@@ -61,7 +61,7 @@ test('SUPER_ADMIN crea organizaciones e invita al administrador', async ({ brows
   await login(superPage, SUPER_EMAIL, process.env.E2E_SUPER_PASSWORD!);
   for (const name of ['Asociación E2E', 'Exportadora Ajena']) {
     await superPage.getByLabel('Nombre').fill(name);
-    await superPage.getByLabel('Tipo (código, p. ej. ASSOCIATION, EXPORTER)').fill('ASSOCIATION');
+    await superPage.getByLabel('Tipo de organización (catálogo provisional, no concede permisos)').selectOption({ label: 'Asociación de productores' });
     await superPage.getByRole('button', { name: 'Crear organización' }).click();
     await expect(superPage.getByRole('link', { name })).toBeVisible();
   }
@@ -72,6 +72,11 @@ test('SUPER_ADMIN crea organizaciones e invita al administrador', async ({ brows
   await superPage.getByRole('link', { name: 'Asociación E2E' }).click();
   await expect(superPage.getByRole('heading', { name: 'Asociación E2E' })).toBeVisible();
   orgAUrl = superPage.url();
+  // Plataforma sin membresía: solo incorporación del ORG_ADMIN, sin lista de miembros (D-04).
+  await expect(superPage.getByRole('heading', { name: 'Incorporación del administrador' })).toBeVisible();
+  await expect(superPage.getByText('requiere una elevación auditada')).toBeVisible();
+  await expect(superPage.getByRole('list', { name: 'Miembros' })).toHaveCount(0);
+  await expect(superPage.getByLabel('Rol').locator('option')).toHaveText(['Elige un rol…', 'Administrador de organización']);
   adminLink = await inviteAndGetLink(superPage, ADMIN.email, 'Administrador de organización');
   expect(adminLink).toMatch(/\/invitacion#token=[A-Za-z0-9_-]{43}$/);
 });
@@ -100,6 +105,26 @@ test('un miembro sin permiso ve la organización en solo lectura y no accede a o
   await expect(techPage.getByText('Razón social')).toBeVisible();
   await techPage.goto(orgBUrl);
   await expect(techPage.locator('.error[role="alert"]')).toContainText('no existe o no está disponible');
+});
+
+test('cambiar roles muestra u oculta acciones según el permiso efectivo, sin volver a iniciar sesión', async () => {
+  await techPage.goto(orgAUrl);
+  await expect(techPage.getByRole('heading', { name: 'Asociación E2E' })).toBeVisible();
+  await expect(techPage.getByRole('heading', { name: 'Actividad reciente' })).toHaveCount(0);
+  await expect(techPage.getByRole('button', { name: 'Cambiar roles' })).toHaveCount(0);
+  await adminPage.reload();
+  const row = adminPage.getByRole('list', { name: 'Miembros' }).getByRole('listitem').filter({ hasText: TECH.email });
+  await row.getByRole('button', { name: 'Cambiar roles' }).click();
+  await row.getByRole('checkbox', { name: 'Auditor' }).check();
+  await row.getByLabel('Motivo del cambio (queda en la auditoría)').fill('Apoyo en auditoría interna');
+  await row.getByRole('button', { name: 'Guardar roles' }).click();
+  await expect(row).toContainText('Auditor, Técnico de campo');
+  // Misma sesión del técnico: al recargar aparece la bitácora (audit:read) con el cambio registrado.
+  await techPage.reload();
+  await expect(techPage.getByRole('heading', { name: 'Asociación E2E' })).toBeVisible();
+  await expect(techPage.getByRole('heading', { name: 'Actividad reciente' })).toBeVisible();
+  await expect(techPage.getByRole('list', { name: 'Actividad' })).toContainText('Roles modificados');
+  await expect(techPage.getByRole('button', { name: 'Guardar cambios' })).toHaveCount(0);
 });
 
 test('suspensión bloquea cambios con aviso; reactivación los restablece', async () => {

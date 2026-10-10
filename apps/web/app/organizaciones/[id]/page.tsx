@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ApiError, api, can, recoveryHint, session, type Me, type Organization } from '../../../lib/api';
 import { MembersSection } from './miembros';
+import { AuditSection } from './actividad';
 
 export default function OrganizationDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -68,6 +69,7 @@ export default function OrganizationDetailPage() {
           {(me?.platform_role === 'SUPER_ADMIN' || can(org, 'membership:read')) && (
             <MembersSection org={org} canManage={me?.platform_role === 'SUPER_ADMIN' || can(org, 'membership:assign')} />
           )}
+          {can(org, 'audit:read') && <AuditSection orgId={org.id} />}
           {me?.platform_role === 'SUPER_ADMIN' && <StatusControl org={org} onChanged={setOrg} />}
         </>
       )}

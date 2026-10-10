@@ -8,10 +8,15 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
+  Query,
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
-import { IsEmail, IsIn, IsOptional, IsString, Length, Matches, MaxLength, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize, ArrayMinSize, IsArray, IsEmail, IsIn, IsISO8601, IsInt, IsOptional, IsString, Length, Matches, Max, MaxLength, Min, MinLength,
+} from 'class-validator';
 import { createHash, randomBytes } from 'crypto';
 import { sql, type Kysely, type Transaction } from 'kysely';
 import { APP_CONFIG, type AppConfig } from '../config';
@@ -20,7 +25,7 @@ import type { Database } from '../db/schema';
 import { AppError, conflict, forbidden, notFound, unauthenticated } from '../common/errors';
 import { AuditService } from '../audit/audit.service';
 import { AuthorizationService } from '../authz/authorization.service';
-import { ORGANIZATION_ROLES, assignableRoles, canGrantRole, permissionsForRoles, type Permission } from '../authz/catalog';
+import { ORGANIZATION_ROLES, assignableRoles, canGrantRole, type Permission } from '../authz/catalog';
 import { CurrentUser, Public, issueAccessToken, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { hashPassword } from '../auth/passwords';
 
@@ -50,6 +55,21 @@ class AcceptInvitationDto {
   @ApiPropertyOptional({ minLength: 12 }) @IsOptional() @IsString() @MinLength(12) @MaxLength(200) password?: string;
 }
 
+class ChangeRolesDto {
+  @ApiProperty({ enum: ORGANIZATION_ROLES, isArray: true })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(11)
+  @IsIn(ORGANIZATION_ROLES, { each: true })
+  roles!: string[];
+  @ApiProperty() @IsString() @Length(3, 500) reason!: string;
+}
+
+class AuditQuery {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
+  @IsOptional() @IsISO8601() before?: string;
+}
+
 class ReasonDto {
   @ApiProperty() @IsString() @Length(3, 500) reason!: string;
 }
@@ -65,28 +85,51 @@ export class MembersService {
     private readonly audit: AuditService,
   ) {}
 
-  /** Permisos efectivos del actor para gestionar miembros; SUPER_ADMIN obtiene el conjunto de ORG_ADMIN. */
-  private async actorPermissions(user: AuthUser, orgId: string, mutation: boolean): Promise<Permission[]> {
-    if (this.authz.hasPlatform(user, 'membership:invite_any')) {
+  /**
+   * Resuelve al actor. Miembro activo: sus permisos en ESA organización (los roles de otra org no
+   * cuentan). SUPER_ADMIN sin membresía: modo `onboarding` (solo invitaciones ORG_ADMIN). Resto: 404.
+   */
+  private async actor(
+    user: AuthUser,
+    orgId: string,
+    need: 'membership:read' | 'membership:assign',
+    mutation: boolean,
+  ): Promise<{ perms: Permission[]; onboarding: boolean }> {
+    const ctx = await this.authz.tenantContext(user, orgId);
+    if (ctx) {
+      await this.authz.require(user, orgId, need, { mutation });
+      return { perms: ctx.permissions, onboarding: false };
+    }
+    if (this.authz.hasPlatform(user, 'organization:onboard_admin')) {
       const org = await this.db.selectFrom('organizations').select('status').where('id', '=', orgId).executeTakeFirst();
       if (!org) throw notFound();
       if (mutation && org.status !== 'ACTIVE') {
         throw forbidden('ORGANIZATION_SUSPENDED', 'La organización está suspendida; no admite nuevas operaciones.');
       }
-      return permissionsForRoles(['ORG_ADMIN']);
+      return { perms: [], onboarding: true };
     }
-    const ctx = await this.authz.require(user, orgId, mutation ? 'membership:assign' : 'membership:read', { mutation });
-    return ctx.permissions;
+    throw notFound();
+  }
+
+  /** Acceso a miembros y datos personales de una org ajena: bloqueado hasta definir D-04. */
+  private elevationRequired(): never {
+    throw forbidden(
+      'ELEVATION_REQUIRED',
+      'El acceso de plataforma a miembros de una organización requiere una elevación auditada que aún no está definida (D-04).',
+    );
   }
 
   async assignable(user: AuthUser, orgId: string) {
-    return { roles: assignableRoles(await this.actorPermissions(user, orgId, false)) };
+    const a = await this.actor(user, orgId, 'membership:read', false);
+    return { roles: a.onboarding ? ['ORG_ADMIN'] : assignableRoles(a.perms), onboarding_only: a.onboarding };
   }
 
   async createInvitation(user: AuthUser, orgId: string, dto: CreateInvitationDto, requestId?: string) {
-    const perms = await this.actorPermissions(user, orgId, true);
-    if (!canGrantRole(perms, dto.role_code)) {
-      throw forbidden('ROLE_NOT_GRANTABLE', 'No puedes conceder un rol con permisos que no tienes.');
+    const a = await this.actor(user, orgId, 'membership:assign', true);
+    if (a.onboarding ? dto.role_code !== 'ORG_ADMIN' : !canGrantRole(a.perms, dto.role_code)) {
+      throw forbidden('ROLE_NOT_GRANTABLE', a.onboarding
+        ? 'Desde la administración de plataforma solo se invita al administrador de la organización.'
+        : 'No puedes conceder un rol con permisos que no tienes.');
     }
     const email = dto.email.trim().toLowerCase();
     const token = newToken();
@@ -138,13 +181,13 @@ export class MembersService {
   }
 
   async listInvitations(user: AuthUser, orgId: string) {
-    await this.actorPermissions(user, orgId, false);
-    const rows = await this.db
+    const a = await this.actor(user, orgId, 'membership:read', false);
+    let q = this.db
       .selectFrom('invitations')
       .select(['id', 'email', 'role_code', 'status', 'expires_at', 'created_at', 'accepted_at', 'revoked_at'])
-      .where('organization_id', '=', orgId)
-      .orderBy('created_at', 'desc')
-      .execute();
+      .where('organization_id', '=', orgId);
+    if (a.onboarding) q = q.where('role_code', '=', 'ORG_ADMIN');
+    const rows = await q.orderBy('created_at', 'desc').execute();
     const now = Date.now();
     return rows.map((r) => ({
       ...r,
@@ -153,18 +196,20 @@ export class MembersService {
   }
 
   async revokeInvitation(user: AuthUser, orgId: string, invitationId: string, requestId?: string) {
-    await this.actorPermissions(user, orgId, true);
+    const a = await this.actor(user, orgId, 'membership:assign', true);
+    const allowed = a.onboarding ? ['ORG_ADMIN'] : ORGANIZATION_ROLES;
     return this.db.transaction().execute(async (trx) => {
       const inv = await trx
         .updateTable('invitations')
         .set({ status: 'REVOKED', revoked_at: new Date(), revoked_by: user.id })
         .where('id', '=', invitationId)
         .where('organization_id', '=', orgId)
+        .where('role_code', 'in', allowed)
         .where('status', '=', 'PENDING')
         .returning(['id', 'email', 'role_code', 'status'])
         .executeTakeFirst();
       if (!inv) {
-        const exists = await trx.selectFrom('invitations').select('status').where('id', '=', invitationId).where('organization_id', '=', orgId).executeTakeFirst();
+        const exists = await trx.selectFrom('invitations').select('status').where('id', '=', invitationId).where('organization_id', '=', orgId).where('role_code', 'in', allowed).executeTakeFirst();
         if (!exists) throw notFound();
         throw conflict('INVALID_TRANSITION', 'La invitación ya no está pendiente.');
       }
@@ -297,7 +342,7 @@ export class MembersService {
   }
 
   async listMembers(user: AuthUser, orgId: string) {
-    await this.actorPermissions(user, orgId, false);
+    if ((await this.actor(user, orgId, 'membership:read', false)).onboarding) this.elevationRequired();
     return this.db
       .selectFrom('memberships as m')
       .innerJoin('users as u', 'u.id', 'm.user_id')
@@ -314,7 +359,9 @@ export class MembersService {
   }
 
   async changeMembership(user: AuthUser, orgId: string, membershipId: string, target: 'ACTIVE' | 'INACTIVE', reason: string, requestId?: string) {
-    const perms = await this.actorPermissions(user, orgId, true);
+    const a = await this.actor(user, orgId, 'membership:assign', true);
+    if (a.onboarding) this.elevationRequired();
+    const perms = a.perms;
     return this.db.transaction().execute(async (trx) => {
       const m = await trx
         .selectFrom('memberships')
@@ -344,6 +391,70 @@ export class MembersService {
       });
       return { membership_id: m.id, status: target };
     });
+  }
+
+  /**
+   * Reemplaza los roles de un miembro. Anti-escalamiento: el actor debe poder conceder cada rol que
+   * añade, que retira y que el miembro ya tiene. Nadie cambia sus propios roles. Efecto inmediato:
+   * la autorización se recalcula en cada solicitud.
+   */
+  async changeRoles(user: AuthUser, orgId: string, membershipId: string, roles: string[], reason: string, requestId?: string) {
+    const a = await this.actor(user, orgId, 'membership:assign', true);
+    if (a.onboarding) this.elevationRequired();
+    const target = [...new Set(roles)].sort();
+    return this.db.transaction().execute(async (trx) => {
+      const m = await trx
+        .selectFrom('memberships')
+        .select(['id', 'user_id', 'status'])
+        .where('id', '=', membershipId)
+        .where('organization_id', '=', orgId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!m) throw notFound();
+      if (m.user_id === user.id) throw conflict('SELF_ROLE_CHANGE', 'No puedes cambiar tus propios roles.');
+      const current = (await trx.selectFrom('role_assignments').select('role_code')
+        .where('membership_id', '=', m.id).where('organization_id', '=', orgId).execute())
+        .map((r) => r.role_code).sort();
+      const touched = [...new Set([...current, ...target])];
+      if (!touched.every((r) => canGrantRole(a.perms, r))) {
+        throw forbidden('ROLE_NOT_GRANTABLE', 'No puedes conceder ni retirar roles con permisos que no tienes.');
+      }
+      const added = target.filter((r) => !current.includes(r));
+      const removed = current.filter((r) => !target.includes(r));
+      if (added.length === 0 && removed.length === 0) throw conflict('NO_CHANGE', 'El miembro ya tiene exactamente esos roles.');
+      if (removed.length) {
+        await trx.deleteFrom('role_assignments')
+          .where('membership_id', '=', m.id).where('organization_id', '=', orgId).where('role_code', 'in', removed).execute();
+      }
+      if (added.length) {
+        await trx.insertInto('role_assignments')
+          .values(added.map((role_code) => ({ organization_id: orgId, membership_id: m.id, role_code, created_by: user.id })))
+          .execute();
+      }
+      await this.audit.record(trx, {
+        organizationId: orgId, actorUserId: user.id, action: 'membership.roles_change', entityType: 'membership',
+        entityId: m.id, requestId, result: 'SUCCESS', reason,
+        before: { roles: current }, after: { roles: target, added, removed },
+      });
+      return { membership_id: m.id, roles: target };
+    });
+  }
+
+  /**
+   * Bitácora de la organización (audit:read). Solo filas de ESA organización; la identidad de actores
+   * que no son miembros de ella (p. ej. personal de plataforma) se muestra como PLATFORM.
+   */
+  async auditLogs(user: AuthUser, orgId: string, limit: number, before?: string) {
+    await this.authz.require(user, orgId, 'audit:read', { mutation: false });
+    let q = this.db
+      .selectFrom('audit_logs as a')
+      .leftJoin('memberships as m', (j) => j.onRef('m.user_id', '=', 'a.actor_user_id').onRef('m.organization_id', '=', 'a.organization_id'))
+      .leftJoin('users as u', 'u.id', 'm.user_id')
+      .select(['a.id', 'a.action', 'a.entity_type', 'a.entity_id', 'a.result', 'a.reason', 'a.before', 'a.after', 'a.occurred_at', 'a.request_id', 'u.email as actor_email'])
+      .where('a.organization_id', '=', orgId);
+    if (before) q = q.where('a.occurred_at', '<', new Date(before));
+    const rows = await q.orderBy('a.occurred_at', 'desc').orderBy('a.id', 'desc').limit(limit).execute();
+    return rows.map(({ actor_email, ...r }) => ({ ...r, actor: actor_email ?? 'PLATFORM' }));
   }
 
   /** SUPER_ADMIN: desactiva/reactiva la cuenta global e invalida todas sus sesiones (token_version + 1). */
@@ -401,6 +512,19 @@ export class MembersController {
     @Param('membershipId', ParseUUIDPipe) membershipId: string, @Body() dto: ReasonDto, @Req() req: AuthedRequest,
   ) {
     return this.service.changeMembership(user, orgId, membershipId, 'ACTIVE', dto.reason, req.requestId);
+  }
+
+  @Put('members/:membershipId/roles')
+  changeRoles(
+    @CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('membershipId', ParseUUIDPipe) membershipId: string, @Body() dto: ChangeRolesDto, @Req() req: AuthedRequest,
+  ) {
+    return this.service.changeRoles(user, orgId, membershipId, dto.roles, dto.reason, req.requestId);
+  }
+
+  @Get('audit-logs')
+  auditLogs(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Query() q: AuditQuery) {
+    return this.service.auditLogs(user, orgId, q.limit ?? 50, q.before);
   }
 
   @Get('invitations')

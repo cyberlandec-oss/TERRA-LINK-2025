@@ -23,8 +23,8 @@ import { ErrorFilter } from './common/errors';
 import { AuditService } from './audit/audit.service';
 import { AuthController, AuthGuard, CurrentUser, Public, type AuthUser, type AuthedRequest } from './auth/auth';
 import { AuthorizationService } from './authz/authorization.service';
-import { RBAC_CATALOG_VERSION } from './authz/catalog';
-import { OrganizationsController, OrganizationsService } from './organizations/organizations';
+import { PLATFORM_PERMISSIONS, RBAC_CATALOG_VERSION, ROLE_PERMISSIONS } from './authz/catalog';
+import { CatalogController, OrganizationsController, OrganizationsService } from './organizations/organizations';
 import { InvitationsController, MembersController, MembersService, UsersController } from './members/members';
 import { LOGIN_RATE_LIMITER, LoginRateLimiter, REDIS, RedisAttemptStore } from './auth/login-rate-limit';
 
@@ -77,6 +77,50 @@ class MeController {
       .executeTakeFirstOrThrow();
     return { ...u, rbac_catalog_version: RBAC_CATALOG_VERSION };
   }
+
+  // Catálogo efectivo: permisos por organización con membresía activa (cada org por separado; un rol
+  // en una organización nunca aparece ni cuenta en otra) y permisos de plataforma.
+  @Get('permissions')
+  async permissions(@CurrentUser() user: AuthUser) {
+    const memberships = await this.db
+      .selectFrom('memberships')
+      .select('organization_id')
+      .where('user_id', '=', user.id)
+      .where('status', '=', 'ACTIVE')
+      .execute();
+    const organizations = [];
+    for (const m of memberships) {
+      const ctx = await this.authz.tenantContext(user, m.organization_id);
+      if (ctx) {
+        organizations.push({
+          organization_id: ctx.organizationId,
+          organization_status: ctx.organizationStatus,
+          roles: ctx.roles.sort(),
+          permissions: ctx.permissions,
+        });
+      }
+    }
+    return {
+      rbac_catalog_version: RBAC_CATALOG_VERSION,
+      platform_permissions: user.platformRole === 'SUPER_ADMIN' ? PLATFORM_PERMISSIONS.SUPER_ADMIN : [],
+      organizations,
+    };
+  }
+}
+
+@ApiTags('rbac')
+@ApiBearerAuth()
+@Controller('api/v1/rbac')
+class RbacController {
+  // Matriz rol → permisos del catálogo vigente (no contiene datos de ninguna organización).
+  @Get('roles')
+  roles() {
+    return {
+      rbac_catalog_version: RBAC_CATALOG_VERSION,
+      organization_roles: Object.entries(ROLE_PERMISSIONS).map(([role, permissions]) => ({ role, permissions })),
+      platform_roles: [{ role: 'SUPER_ADMIN', permissions: PLATFORM_PERMISSIONS.SUPER_ADMIN }],
+    };
+  }
 }
 
 @Injectable()
@@ -93,7 +137,7 @@ export class AppModule implements NestModule {
     return {
       module: AppModule,
       controllers: [
-        HealthController, AuthController, MeController, OrganizationsController,
+        HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
         MembersController, InvitationsController, UsersController,
       ],
       providers: [

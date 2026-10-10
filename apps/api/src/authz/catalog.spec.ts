@@ -25,7 +25,7 @@ describe('catálogo RBAC', () => {
   });
 
   it('une permisos de varios roles sin duplicados y desconoce roles no catalogados', () => {
-    expect(permissionsForRoles(['MANAGER', 'AUDITOR', 'INVENTED'])).toEqual(['membership:read', 'organization:read']);
+    expect(permissionsForRoles(['MANAGER', 'AUDITOR', 'INVENTED'])).toEqual(['audit:read', 'membership:read', 'organization:read']);
   });
 
   it('anti-escalamiento: solo se conceden roles cuyos permisos posee el actor', () => {

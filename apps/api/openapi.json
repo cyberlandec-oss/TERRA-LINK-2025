@@ -72,6 +72,25 @@
         ]
       }
     },
+    "/api/v1/me/permissions": {
+      "get": {
+        "operationId": "MeController_permissions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/api/v1/organizations": {
       "post": {
         "operationId": "OrganizationsController_create",
@@ -258,6 +277,44 @@
         ]
       }
     },
+    "/api/v1/catalog/organization-types": {
+      "get": {
+        "operationId": "CatalogController_organizationTypes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/rbac/roles": {
+      "get": {
+        "operationId": "RbacController_roles",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "rbac"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/assignable-roles": {
       "get": {
         "operationId": "MembersController_assignable",
@@ -391,6 +448,80 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "members"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/members/{membershipId}/roles": {
+      "put": {
+        "operationId": "MembersController_changeRoles",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "membershipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeRolesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "members"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/audit-logs": {
+      "get": {
+        "operationId": "MembersController_auditLogs",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -674,7 +805,7 @@
           },
           "organization_type": {
             "type": "string",
-            "description": "Código en mayúsculas; catálogo pendiente (D-18)",
+            "description": "Código del catálogo provisional D-18 (GET /api/v1/catalog/organization-types)",
             "example": "EXPORTER"
           },
           "tax_id": {
@@ -753,6 +884,37 @@
           }
         },
         "required": [
+          "reason"
+        ]
+      },
+      "ChangeRolesDto": {
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "ORG_ADMIN",
+                "MANAGER",
+                "FIELD_TECHNICIAN",
+                "RECEPTION_OPERATOR",
+                "QUALITY_OPERATOR",
+                "TRACEABILITY_MANAGER",
+                "EUDR_MANAGER",
+                "EXPORT_MANAGER",
+                "BUYER",
+                "AUDITOR",
+                "PRODUCER"
+              ]
+            }
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "roles",
           "reason"
         ]
       },

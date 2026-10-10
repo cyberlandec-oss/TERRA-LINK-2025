@@ -72,8 +72,14 @@ export default function OrganizationsPage() {
   );
 }
 
+interface OrgType { code: string; label_es: string; status: string }
+
 function CreateOrganization({ onCreated }: { onCreated: () => void }) {
   const [form, setForm] = useState({ name: '', organization_type: '', country: 'EC', initial_admin_email: '' });
+  const [types, setTypes] = useState<OrgType[]>([]);
+  useEffect(() => {
+    api<OrgType[]>('/api/v1/catalog/organization-types').then(setTypes).catch(() => setTypes([]));
+  }, []);
   const [error, setError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -108,8 +114,11 @@ function CreateOrganization({ onCreated }: { onCreated: () => void }) {
       <form onSubmit={submit}>
         <label htmlFor="name">Nombre</label>
         <input id="name" required {...field('name')} />
-        <label htmlFor="type">Tipo (código, p. ej. ASSOCIATION, EXPORTER)</label>
-        <input id="type" required pattern="[A-Za-z_]{2,40}" {...field('organization_type')} />
+        <label htmlFor="type">Tipo de organización (catálogo provisional, no concede permisos)</label>
+        <select id="type" required {...field('organization_type')}>
+          <option value="">Elige un tipo…</option>
+          {types.map((t) => <option key={t.code} value={t.code}>{t.label_es}</option>)}
+        </select>
         <label htmlFor="country">País (ISO de 2 letras)</label>
         <input id="country" required pattern="[A-Za-z]{2}" {...field('country')} />
         <label htmlFor="admin">Correo del administrador inicial (opcional, usuario existente)</label>

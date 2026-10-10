@@ -161,7 +161,14 @@ export function recoveryHint(err: ApiError): string {
     case 'ROLE_NOT_GRANTABLE':
       return 'Elige un rol con permisos que tú tengas.';
     case 'SELF_MEMBERSHIP_CHANGE':
+    case 'SELF_ROLE_CHANGE':
       return 'Pide a otro administrador que realice el cambio.';
+    case 'ELEVATION_REQUIRED':
+      return 'Esta acción necesita una política de elevación auditada que aún no existe.';
+    case 'ORGANIZATION_TYPE_UNKNOWN':
+      return 'Elige un tipo de la lista.';
+    case 'NO_CHANGE':
+      return 'No hay cambios que guardar.';
     default:
       return err.body.request_id ? `Si persiste, comparte este código con soporte: ${err.body.request_id}` : 'Reintenta en unos minutos.';
   }

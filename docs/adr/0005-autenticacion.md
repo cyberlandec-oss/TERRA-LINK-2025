@@ -17,6 +17,23 @@ S1 pide identidad compatible con OIDC/OAuth2. No hay proveedor elegido (Keycloak
 - La web guarda el token en `sessionStorage` (limitación: está expuesto si hay XSS). Al adoptar OIDC, pasar a cookie httpOnly + SameSite con protección CSRF.
 - `users.external_subject` se añadirá al integrar OIDC. El dominio usa `users.id` y no depende del proveedor.
 
+## Tres asuntos que se deciden por separado (D-19)
+
+| Asunto | Estado de desarrollo | Qué NO implica | Decisión pendiente |
+| --- | --- | --- | --- |
+| **Autenticación** (cómo se prueba quién inicia sesión) | Contraseña local argon2id + JWT corto + límite de intentos | No es OIDC/SSO | Local frente a proveedor OIDC (P1-015) |
+| **Verificación del correo** (que la persona controla el buzón) | No implementada: `email_verified_at` siempre nulo | Aceptar un enlace o iniciar sesión **no** verifica el correo | Mecanismo (enlace de verificación por correo o claim `email_verified` de un IdP) |
+| **Entrega de invitaciones** (cómo llega el enlace al invitado) | Manual: quien invita copia el enlace secreto y lo comparte por un canal privado | Tener el enlace no prueba identidad ni posesión del correo | Correo transaccional (u otro canal), con su proveedor y plantilla |
+
+El correo transaccional resuelve la entrega y puede apoyar la verificación; OIDC resuelve la autenticación. No se sustituyen entre sí.
+
+## Límite de intentos: riesgo, recuperación y fallo de Redis (D-20, provisional)
+
+- **Riesgo:** con 20 fallos por cuenta en 15 minutos desde cualquier origen, un tercero puede bloquear temporalmente una cuenta.
+- **Recuperación:** el bloqueo dura como máximo la ventana (900 s) y desaparece solo. No hay desbloqueo manual ni bloqueo permanente. El titular puede entrar desde otro origen mientras el contador cuenta+origen de ese origen no esté al límite y el de cuenta tampoco.
+- **Si Redis falla:** el login responde error 500 `INTERNAL_ERROR` (fail-closed) y `/health/ready` devuelve 503. No se omite el límite. Verificado a mano el 2026-10-10: con Redis detenido, ready 503 y login 500; al restaurarlo, ready 200 y login normal. Sin prueba automatizada.
+- **Estado:** valores provisionales, sin validar para producción.
+
 ## Pendiente para aceptar
 
 Elegir proveedor OIDC (P1-015), refresh tokens, verificación de correo y envío de invitaciones por un canal verificado. Política de contraseñas actual: mínimo 12 caracteres, sin más reglas (decisión pendiente).

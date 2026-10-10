@@ -64,3 +64,49 @@ Grant con organización propietaria, destinatario autenticado, recurso/expedient
 | Data Consumer | Usa información dentro del propósito autorizado |
 
 Registrar base/propósito del tratamiento, retención por clase documental y atención de rectificaciones. No asumir que «consentimiento» siempre es la única base legal ni que el SaaS posee los datos del productor. Política aplicable y responsables se validan antes de producción.
+
+## Matriz implementada (catálogo `2026-10-10.1`, P0-003)
+
+Fuente de verdad: `apps/api/src/authz/catalog.ts`, expuesta en `GET /api/v1/rbac/roles`. El catálogo efectivo del usuario, por organización, está en `GET /api/v1/me/permissions`. Roles: los 12 de S1 §9 y S4, sin discrepancias de código con el catálogo. Solo se declaran permisos de recursos **ya implementados**. Las familias de la tabla «Permisos propuestos» (producer, plot, delivery, lot, risk, dd…) se añaden en la historia que crea cada recurso.
+
+### Permisos de organización (por membresía activa en ESA organización)
+
+| Rol | organization:read | organization:update | membership:read | membership:assign | audit:read |
+| --- | :-: | :-: | :-: | :-: | :-: |
+| ORG_ADMIN | ✔ | ✔ | ✔ | ✔ | ✔ |
+| MANAGER | ✔ | | ✔ | | |
+| AUDITOR | ✔ | | | | ✔ |
+| FIELD_TECHNICIAN, RECEPTION_OPERATOR, QUALITY_OPERATOR, TRACEABILITY_MANAGER, EUDR_MANAGER, EXPORT_MANAGER | ✔ | | | | |
+| BUYER, PRODUCER | | | | | |
+
+BUYER y PRODUCER no ven la ficha de la organización: su acceso será por concesión o por recurso propio (P1-001 / historias del productor).
+
+### Acciones y recurso
+
+| Acción (endpoint) | Permiso | Recurso validado | Sin membresía | Con membresía sin permiso |
+| --- | --- | --- | --- | --- |
+| Ver organización (`GET /organizations/:id`) | organization:read | org = membresía activa | 404 | 403 |
+| Configurar (`PATCH /organizations/:id`) | organization:update + org ACTIVE | ídem; `expected_version` | 404 | 403 / `ORGANIZATION_SUSPENDED` |
+| Listar miembros e invitaciones | membership:read | filas de la org | 404 | 403 |
+| Invitar / revocar | membership:assign + rol ⊆ permisos del actor | invitación de la org | 404 | 403 / `ROLE_NOT_GRANTABLE` |
+| Cambiar roles (`PUT …/members/:id/roles`) | membership:assign; roles añadidos, retirados y actuales ⊆ permisos del actor; no a uno mismo | membresía de la org | 404 | 403 / 409 `SELF_ROLE_CHANGE` |
+| Desactivar / reactivar miembro | ídem | membresía de la org | 404 | 403 / 409 |
+| Bitácora (`GET …/audit-logs`) | audit:read | solo filas de la org; actores no miembros como `PLATFORM` | 404 | 403 |
+
+### Plataforma (SUPER_ADMIN, `users.platform_role`)
+
+| Permiso | Alcance |
+| --- | --- |
+| organization:create, organization:suspend, organization:list_all | Metadatos de organizaciones (nombre, tipo, estado) |
+| organization:onboard_admin | Solo en una org donde **no** es miembro: invitar ORG_ADMIN y ver o revocar invitaciones ORG_ADMIN |
+| user:deactivate | Desactivar o reactivar cuentas globales (invalida sesiones) |
+
+No hay bypass global: sin membresía, SUPER_ADMIN recibe `ELEVATION_REQUIRED` (403) en miembros y cambios de rol, y 404 en la bitácora. Si además es miembro de una organización, actúa con los roles de esa membresía.
+
+### Invariantes probadas (`apps/api/test/rbac.int-spec.ts`, `members.int-spec.ts`, `organizations.int-spec.ts`)
+
+- Un rol en una organización no concede nada en otra (usuario MANAGER en A y ORG_ADMIN en B).
+- Revocación, desactivación y cambio de rol tienen efecto en la siguiente solicitud con el mismo token. La desactivación de cuenta invalida los tokens por `token_version`.
+- Las referencias del cuerpo no conceden tenant (`organization_id` extra → 400). Una membresía de otra org por la ruta propia → 404. La FK compuesta `role_assignments → memberships(organization_id, id)` impide asignaciones cruzadas en BD.
+- Listados y errores no incluyen nombres, correos ni identificadores de otra organización.
+- El tipo comercial de organización (D-18) no interviene en la autorización.

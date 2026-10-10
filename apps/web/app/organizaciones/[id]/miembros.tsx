@@ -16,18 +16,26 @@ export function MembersSection({ org, canManage }: { org: Organization; canManag
   const [members, setMembers] = useState<Member[] | null>(null);
   const [invitations, setInvitations] = useState<Invitation[] | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
+  const [onboardingOnly, setOnboardingOnly] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
     try {
+      let onboarding = false;
+      if (canManage) {
+        const a = await api<{ roles: string[]; onboarding_only: boolean }>(`/api/v1/organizations/${org.id}/assignable-roles`);
+        setRoles(a.roles);
+        onboarding = a.onboarding_only;
+        setOnboardingOnly(onboarding);
+      }
+      // En modo incorporación (plataforma sin membresía) la API no entrega miembros (D-04).
       const [m, i] = await Promise.all([
-        api<Member[]>(`/api/v1/organizations/${org.id}/members`),
+        onboarding ? Promise.resolve(null) : api<Member[]>(`/api/v1/organizations/${org.id}/members`),
         api<Invitation[]>(`/api/v1/organizations/${org.id}/invitations`),
       ]);
       setMembers(m);
       setInvitations(i);
-      if (canManage) setRoles((await api<{ roles: string[] }>(`/api/v1/organizations/${org.id}/assignable-roles`)).roles);
     } catch (err) {
       setError(err as ApiError);
     }
@@ -41,18 +49,24 @@ export function MembersSection({ org, canManage }: { org: Organization; canManag
 
   return (
     <section className="card">
-      <h2>Miembros</h2>
+      <h2>{onboardingOnly ? 'Incorporación del administrador' : 'Miembros'}</h2>
+      {onboardingOnly && (
+        <p className="notice">
+          Desde la administración de plataforma solo puedes invitar al administrador de la organización. Ver o gestionar
+          miembros requiere una elevación auditada que aún no está definida (decisión D-04).
+        </p>
+      )}
       {error && (
         <div className="error" role="alert">
           <p>{error.message} {recoveryHint(error)}</p>
           <button onClick={load}>Reintentar</button>
         </div>
       )}
-      {!members && !error && <p className="muted">Cargando…</p>}
+      {!members && !error && !onboardingOnly && <p className="muted">Cargando…</p>}
       {members && (
         <ul className="plain" aria-label="Miembros">
           {members.map((m) => (
-            <MemberRow key={m.membership_id} orgId={org.id} member={m} canManage={canManage && active} onChanged={load} />
+            <MemberRow key={m.membership_id} orgId={org.id} member={m} canManage={canManage && active} assignable={roles} onChanged={load} />
           ))}
         </ul>
       )}
@@ -76,9 +90,12 @@ export function MembersSection({ org, canManage }: { org: Organization; canManag
   );
 }
 
-function MemberRow({ orgId, member, canManage, onChanged }: { orgId: string; member: Member; canManage: boolean; onChanged: () => void }) {
+function MemberRow({ orgId, member, canManage, assignable, onChanged }: {
+  orgId: string; member: Member; canManage: boolean; assignable: string[]; onChanged: () => void;
+}) {
   const [reason, setReason] = useState('');
   const [open, setOpen] = useState(false);
+  const [editingRoles, setEditingRoles] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const deactivating = member.status === 'ACTIVE';
 
@@ -106,8 +123,17 @@ function MemberRow({ orgId, member, canManage, onChanged }: { orgId: string; mem
         {!member.email_verified_at && ' · correo no verificado'}
         {member.status_reason && ` · motivo: ${member.status_reason}`}
       </div>
-      {canManage && !open && (
-        <button className="secondary" onClick={() => setOpen(true)}>{deactivating ? 'Desactivar' : 'Reactivar'}</button>
+      {canManage && !open && !editingRoles && (
+        <>
+          <button className="secondary" onClick={() => setOpen(true)}>{deactivating ? 'Desactivar' : 'Reactivar'}</button>{' '}
+          {member.status === 'ACTIVE' && member.roles.every((r) => assignable.includes(r)) && (
+            <button className="secondary" onClick={() => setEditingRoles(true)}>Cambiar roles</button>
+          )}
+        </>
+      )}
+      {editingRoles && (
+        <RolesEditor orgId={orgId} member={member} assignable={assignable}
+          onDone={() => { setEditingRoles(false); onChanged(); }} onCancel={() => setEditingRoles(false)} />
       )}
       {open && (
         <form onSubmit={submit}>
@@ -119,6 +145,50 @@ function MemberRow({ orgId, member, canManage, onChanged }: { orgId: string; mem
         </form>
       )}
     </li>
+  );
+}
+
+function RolesEditor({ orgId, member, assignable, onDone, onCancel }: {
+  orgId: string; member: Member; assignable: string[]; onDone: () => void; onCancel: () => void;
+}) {
+  const [selected, setSelected] = useState<string[]>(member.roles);
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState<ApiError | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/api/v1/organizations/${orgId}/members/${member.membership_id}/roles`, { method: 'PUT', body: { roles: selected, reason } });
+      onDone();
+    } catch (err) {
+      setError(err as ApiError);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} aria-label={`Roles de ${member.email}`}>
+      <fieldset style={{ border: 0, padding: 0 }}>
+        <legend className="muted">Roles (el cambio aplica de inmediato)</legend>
+        {assignable.map((r) => (
+          <label key={r} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input type="checkbox" style={{ width: 'auto' }} checked={selected.includes(r)}
+              onChange={(e) => setSelected(e.target.checked ? [...selected, r] : selected.filter((x) => x !== r))} />
+            {ROLE_LABELS[r] ?? r}
+          </label>
+        ))}
+      </fieldset>
+      <label htmlFor={`roles-reason-${member.membership_id}`}>Motivo del cambio (queda en la auditoría)</label>
+      <input id={`roles-reason-${member.membership_id}`} required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} />
+      {selected.length === 0 && <p className="muted">Selecciona al menos un rol; para quitar todo el acceso, desactiva la membresía.</p>}
+      <button type="submit" disabled={busy || selected.length === 0}>{busy ? 'Guardando…' : 'Guardar roles'}</button>{' '}
+      <button type="button" className="secondary" onClick={onCancel}>Cancelar</button>
+      {error && <p className="error" role="alert">{error.message} {recoveryHint(error)}</p>}
+    </form>
   );
 }
 

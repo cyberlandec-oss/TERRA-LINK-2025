@@ -101,7 +101,15 @@ export interface InvitationsTable {
   revoked_by: string | null;
 }
 
+export interface OrganizationTypesTable {
+  code: string;
+  label_es: string;
+  status: 'PROVISIONAL' | 'RATIFIED' | 'LEGACY' | 'RETIRED';
+  sort_order: number;
+}
+
 export interface Database {
+  organization_types: OrganizationTypesTable;
   invitations: InvitationsTable;
   users: UsersTable;
   organizations: OrganizationsTable;
