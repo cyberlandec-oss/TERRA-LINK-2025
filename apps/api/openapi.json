@@ -1180,6 +1180,358 @@
           "producers"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/plots": {
+      "post": {
+        "operationId": "PlotsController_create",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlotDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      },
+      "get": {
+        "operationId": "PlotsController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/plots/{id}": {
+      "get": {
+        "operationId": "PlotsController_get",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      },
+      "patch": {
+        "operationId": "PlotsController_update",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlotDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/plots/{id}/geometry-versions": {
+      "get": {
+        "operationId": "PlotsController_versions",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      },
+      "post": {
+        "operationId": "PlotsController_createVersion",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVersionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/plots/{id}/history": {
+      "get": {
+        "operationId": "PlotsController_history",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/plots/{id}/archive": {
+      "post": {
+        "operationId": "PlotsController_archive",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/plots/{id}/activate": {
+      "post": {
+        "operationId": "PlotsController_activate",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
     }
   },
   "info": {
@@ -1554,6 +1906,114 @@
           "decision",
           "note",
           "expected_version"
+        ]
+      },
+      "CreatePlotDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "object"
+          },
+          "variety": {
+            "type": "object"
+          },
+          "land_use": {
+            "type": "object"
+          },
+          "province": {
+            "type": "object"
+          },
+          "canton": {
+            "type": "object"
+          },
+          "parish": {
+            "type": "object"
+          },
+          "producer_id": {
+            "type": "string"
+          },
+          "plot_code": {
+            "type": "string",
+            "example": "PAR-0001"
+          },
+          "crop": {
+            "type": "string",
+            "description": "Cultivo (obligatorio, doc 06)"
+          }
+        },
+        "required": [
+          "producer_id",
+          "plot_code",
+          "crop"
+        ]
+      },
+      "UpdatePlotDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "object"
+          },
+          "variety": {
+            "type": "object"
+          },
+          "land_use": {
+            "type": "object"
+          },
+          "province": {
+            "type": "object"
+          },
+          "canton": {
+            "type": "object"
+          },
+          "parish": {
+            "type": "object"
+          },
+          "expected_version": {
+            "type": "number"
+          },
+          "crop": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_version"
+        ]
+      },
+      "CreateVersionDto": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "number",
+            "description": "row_version de la parcela leída"
+          },
+          "survey_method": {
+            "type": "string",
+            "enum": [
+              "DECLARED",
+              "MANUAL_COORDINATES",
+              "GPS_POINT",
+              "GPS_POLYGON",
+              "FILE_IMPORT"
+            ]
+          },
+          "geometry": {
+            "type": "object",
+            "description": "GeoJSON Point/Polygon/MultiPolygon en WGS84 [lon, lat]"
+          },
+          "area_declared_ha": {
+            "type": "number",
+            "description": "Hectáreas declaradas"
+          },
+          "surveyed_at": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_version",
+          "survey_method"
         ]
       }
     }

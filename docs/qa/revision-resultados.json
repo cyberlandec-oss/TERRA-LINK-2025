@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-10T05:56:04.294Z",
+  "fecha": "2026-10-10T15:11:41.675Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -92,6 +92,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Productores",
+        "Parcelas",
         "Posibles duplicados",
         "Miembros e invitaciones",
         "Auditoría",
@@ -144,6 +145,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Productores",
+        "Parcelas",
         "Posibles duplicados",
         "Miembros e invitaciones",
         "Mis organizaciones"
@@ -195,6 +197,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Productores",
+        "Parcelas",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Cooperativa Río Verde",
@@ -244,6 +247,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Productores",
+        "Parcelas",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Cooperativa Río Verde",
@@ -342,6 +346,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Productores",
+        "Parcelas",
         "Posibles duplicados",
         "Miembros e invitaciones",
         "Auditoría",
@@ -492,6 +497,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Productores",
+        "Parcelas",
         "Posibles duplicados",
         "Miembros e invitaciones",
         "Auditoría",
@@ -544,6 +550,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Productores",
+        "Parcelas",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -593,6 +600,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Productores",
+        "Parcelas",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -691,6 +699,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Productores",
+        "Parcelas",
         "Auditoría",
         "Mis organizaciones"
       ],
@@ -741,6 +750,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Productores",
+        "Parcelas",
         "Posibles duplicados",
         "Miembros e invitaciones",
         "Auditoría",
@@ -842,6 +852,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Productores",
+        "Parcelas",
         "Posibles duplicados",
         "Miembros e invitaciones",
         "Mis organizaciones"
@@ -893,6 +904,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Productores",
+        "Parcelas",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -908,6 +920,37 @@
         "resultado": "vacío autorizado (la organización no tiene productores)",
         "ok": true
       }
+    },
+    {
+      "tipo": "parcelas",
+      "casos": [
+        {
+          "cuenta": "admin.cooperativa",
+          "resultado": "6 parcelas; ficha: esquema=1, 5 coordenadas, 2 versiones, botones GPS/importación=0; foco por teclado=solid; productor→parcelas=2",
+          "ok": true
+        },
+        {
+          "cuenta": "tecnico1.cooperativa (asignado)",
+          "resultado": "5 parcelas visibles; puede editar=1; punto sin superficie calculada=1",
+          "ok": true
+        },
+        {
+          "cuenta": "tecnico2.cooperativa (no asignado)",
+          "resultado": "1 parcela(s) propias; DEMO-PAR-002 por URL directa: no disponible, sin datos",
+          "ok": true
+        },
+        {
+          "cuenta": "coordinador.multi",
+          "resultado": "cooperativa (Supervisor): 6 parcelas; exportadora (Trazabilidad): 0 filas, vacío autorizado=1",
+          "ok": true
+        },
+        {
+          "cuenta": "tecnico1.cooperativa (390 px)",
+          "resultado": "desbordamiento horizontal en la ficha=false",
+          "ok": true
+        }
+      ],
+      "ok": true
     },
     {
       "tipo": "movil-390",

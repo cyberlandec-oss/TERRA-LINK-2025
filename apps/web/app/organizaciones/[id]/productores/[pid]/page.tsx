@@ -6,6 +6,7 @@ import { ApiError, api, session, type Member } from '../../../../../lib/api';
 import { useWorkspace } from '../../../../../lib/workspace';
 import { Alert, Breadcrumb, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../../lib/ui';
 import { ProducerFields, STATUS_LABEL, toPayload, type Producer } from '../page';
+import { ProducerPlots } from './parcelas-productor';
 
 type ProducerDetail = Producer & { can_update: boolean; can_assign: boolean; can_archive: boolean };
 
@@ -86,6 +87,7 @@ export default function ProducerDetailPage() {
           {p.can_update ? <EditProducer orgId={orgId} producer={p} onSaved={load} /> : <ReadOnly producer={p} />}
           {p.can_assign && p.status !== 'INACTIVE' && <AssignProducer orgId={orgId} producer={p} onSaved={load} />}
           {p.can_archive && <StatusProducer orgId={orgId} producer={p} onSaved={load} />}
+          <ProducerPlots orgId={orgId} producerId={p.id} producerActive={p.status !== 'INACTIVE'} />
           <section className="card">
             <h2>Historial</h2>
             <ul className="plain" aria-label="Historial">

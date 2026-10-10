@@ -69,3 +69,17 @@ Falsos positivos del propio script (conteos antes de terminar la carga) se corri
 | BUYER | Portal comprador | P1-001 + contrato de concesiones (UX-D09) |
 | PRODUCER | «Mi finca» | Vínculo cuenta–productor (UX-D08) |
 | Todos | Logotipo oficial (hoy identificación textual) | Activos oficiales (UX-D01) |
+
+## Actualización 2026-10-10 · P0-006 Parcelas
+
+Script: `node e2e/review/revision-por-rol.mjs` (módulo `e2e/review/parcelas.mjs`), contra la aplicación de desarrollo con 6 parcelas DEMO de coordenadas sintéticas. 22 entradas, 0 incidencias.
+
+| Cuenta | Comprobación | Resultado |
+| --- | --- | --- |
+| admin.cooperativa | Listado, ficha con polígono, teclado, vuelta al productor | 6 parcelas; esquema + 5 coordenadas + 2 versiones; sin botones de GPS/importación; foco visible; productor muestra sus 2 parcelas |
+| tecnico1.cooperativa (asignado) | Alcance y ficha de punto | 5 parcelas (sin las de tecnico2); puede editar; «un punto no tiene superficie» |
+| tecnico2.cooperativa (no asignado) | Abrir DEMO-PAR-002 por URL directa | «El recurso no está disponible», sin datos de la parcela |
+| coordinador.multi | Dos organizaciones | Cooperativa (Supervisor): 6 parcelas; exportadora (Trazabilidad): vacío autorizado |
+| tecnico1.cooperativa (390 px) | Ficha en móvil | Sin desbordamiento horizontal; la tabla de versiones se desplaza dentro de su marco |
+
+Capturas: `parcelas--admin-listado.png`, `parcelas--admin-ficha-poligono.png`, `parcelas--tecnico1-ficha-punto.png`, `parcelas--tecnico2-id-ajeno.png`, `movil--parcela-ficha.png`. Ajuste aplicado tras la revisión: espaciado entre la tabla de coordenadas y «Registrar superficie declarada».

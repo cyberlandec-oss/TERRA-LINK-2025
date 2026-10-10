@@ -1,6 +1,6 @@
 // Catálogo RBAC versionado (docs/07_RBAC_Y_GOBERNANZA.md). Se amplía por historia; no inferir
 // privilegios comparando nombres de rol fuera de este módulo.
-export const RBAC_CATALOG_VERSION = '2026-10-10.3';
+export const RBAC_CATALOG_VERSION = '2026-10-10.4';
 
 export type Permission =
   | 'organization:read'
@@ -18,7 +18,15 @@ export type Permission =
   | 'producer:assign'
   | 'producer:archive'
   // P0-005: revisar posibles duplicados (Data Steward).
-  | 'producer:review_duplicates';
+  | 'producer:review_duplicates'
+  // P0-006. `_assigned` = parcelas de productores asignados a la membresía del usuario.
+  | 'plot:read'
+  | 'plot:read_assigned'
+  | 'plot:create'
+  | 'plot:create_assigned'
+  | 'plot:update'
+  | 'plot:update_assigned'
+  | 'plot:archive';
 
 // Permisos de plataforma: solo SUPER_ADMIN (users.platform_role), nunca por membresía.
 export type PlatformPermission =
@@ -35,19 +43,24 @@ const PRODUCER_ALL: Permission[] = [
   'producer:update', 'producer:update_assigned', 'producer:assign', 'producer:archive', 'producer:review_duplicates',
 ];
 
+const PLOT_ALL: Permission[] = [
+  'plot:read', 'plot:read_assigned', 'plot:create', 'plot:create_assigned', 'plot:update', 'plot:update_assigned', 'plot:archive',
+];
+
 // Permisos de productor: propuesta provisional derivada de S1 §9 (FIELD_TECHNICIAN producer:create/read)
 // y doc 07/14 («solo asignaciones» para el técnico). Pendiente de ratificación con el resto de la matriz.
 export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  ORG_ADMIN: ['audit:read', 'organization:read', 'organization:update', 'membership:read', 'membership:assign', ...PRODUCER_ALL],
-  MANAGER: [...ALL_MEMBER_READ, 'membership:read', 'producer:read', 'producer:read_identity', 'producer:create', 'producer:update', 'producer:assign', 'producer:archive', 'producer:review_duplicates'],
-  FIELD_TECHNICIAN: [...ALL_MEMBER_READ, 'producer:read_assigned', 'producer:read_identity', 'producer:create', 'producer:update_assigned'],
+  ORG_ADMIN: ['audit:read', 'organization:read', 'organization:update', 'membership:read', 'membership:assign', ...PRODUCER_ALL, ...PLOT_ALL],
+  MANAGER: [...ALL_MEMBER_READ, 'membership:read', 'producer:read', 'producer:read_identity', 'producer:create', 'producer:update', 'producer:assign', 'producer:archive', 'producer:review_duplicates', 'plot:read', 'plot:create', 'plot:update', 'plot:archive'],
+  FIELD_TECHNICIAN: [...ALL_MEMBER_READ, 'producer:read_assigned', 'producer:read_identity', 'producer:create', 'producer:update_assigned',
+    'plot:read_assigned', 'plot:create_assigned', 'plot:update_assigned'],
   RECEPTION_OPERATOR: ALL_MEMBER_READ,
   QUALITY_OPERATOR: ALL_MEMBER_READ,
-  TRACEABILITY_MANAGER: [...ALL_MEMBER_READ, 'producer:read'],
-  EUDR_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'producer:read_identity'],
+  TRACEABILITY_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'plot:read'],
+  EUDR_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'producer:read_identity', 'plot:read'],
   EXPORT_MANAGER: ALL_MEMBER_READ,
   BUYER: [],
-  AUDITOR: [...ALL_MEMBER_READ, 'audit:read', 'producer:read'],
+  AUDITOR: [...ALL_MEMBER_READ, 'audit:read', 'producer:read', 'plot:read'],
   PRODUCER: [],
 };
 

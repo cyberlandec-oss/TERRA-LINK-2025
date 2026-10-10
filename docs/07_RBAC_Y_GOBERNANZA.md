@@ -132,3 +132,15 @@ Origen: S1 §9 (FIELD_TECHNICIAN `producer:create/read`) y doc 07/14 («solo asi
 ### Revisión de duplicados (catálogo `2026-10-10.3`, P0-005)
 
 `producer:review_duplicates` (Data Steward): ORG_ADMIN y MANAGER. Permite listar y resolver casos de `producer_match_reviews`. Los datos de identidad del caso se muestran solo con `producer:read_identity`. Quien registra un productor coincidente recibe solo el número de casos abiertos, nunca datos del otro productor.
+
+### Parcelas (catálogo `2026-10-10.4`, P0-006, propuesta provisional)
+
+| Rol | read | read_assigned | create | create_assigned | update | update_assigned | archive |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| ORG_ADMIN | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
+| MANAGER | ✔ | | ✔ | | ✔ | | ✔ |
+| FIELD_TECHNICIAN | | ✔ | | ✔ | | ✔ | |
+| TRACEABILITY_MANAGER, EUDR_MANAGER, AUDITOR | ✔ | | | | | | |
+| RECEPTION_OPERATOR, QUALITY_OPERATOR, EXPORT_MANAGER, BUYER, PRODUCER | | | | | | | |
+
+`_assigned` = parcelas cuyo **productor** está asignado a la membresía del usuario (misma política que productores). La consulta por id fuera de alcance responde 404 y reasignar el productor cambia el alcance de inmediato. `update` incluye crear versiones geométricas. `archive` = baja lógica y reactivación. El tipo comercial de la organización no interviene.

@@ -11,3 +11,4 @@ test-results/
 playwright-report/
 validation-results/
 CREDENCIALES.csv
+CREDENCIALES.pendiente.csv

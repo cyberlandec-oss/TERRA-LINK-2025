@@ -178,6 +178,14 @@ export function recoveryHint(err: ApiError): string {
       return 'Elige un miembro activo con acceso a productores.';
     case 'LOGIN_TEMPORARILY_UNAVAILABLE':
       return 'Espera un momento y vuelve a intentarlo.';
+    case 'PLOT_CODE_TAKEN':
+      return 'Usa otro código de parcela.';
+    case 'PLOT_INACTIVE':
+      return 'Reactiva la parcela para editarla.';
+    case 'PRODUCER_NOT_AVAILABLE':
+      return 'Elige un productor activo dentro de tu alcance.';
+    case 'GEOMETRY_STRUCTURE_INVALID':
+      return 'Revisa las coordenadas: anillos cerrados, longitud y latitud en rango.';
     case 'NO_CHANGE':
       return 'No hay cambios que guardar.';
     default:

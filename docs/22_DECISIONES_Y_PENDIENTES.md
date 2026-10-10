@@ -26,6 +26,7 @@ Estas cuestiones no bloquean la lectura ni preparación del paquete. Bloquean ú
 | D-20 | Umbrales del límite de login (5/20/50 por 15 min) y tolerancia al bloqueo temporal por terceros | Seguridad | Valores aprobados o ajustados con datos del piloto |
 | D-21 | ¿`producer_code` distingue mayúsculas/minúsculas? | Producto/Data Steward | Regla aprobada; si se unifican, migración con detección previa de colisiones |
 | D-22 | Reglas de coincidencia adicionales a la identidad (nombre + comunidad, teléfono…) | Producto/Data Steward | Reglas aprobadas con umbral y tasa de falsos positivos medida |
+| D-23 | Catálogo de `survey_method` (provisional: DECLARED, MANUAL_COORDINATES; reservados GPS_POINT, GPS_POLYGON, FILE_IMPORT para P0-007/008/009) y estados de parcela (ACTIVE/INACTIVE por la convención de baja lógica) | Producto/GIS | Catálogo aprobado; nuevos valores con migración |
 
 ### Decisiones UX (docs/UX_UI.md §27.2) aplicadas en la interfaz
 
@@ -44,6 +45,8 @@ Ninguna decisión es un bloqueo global. Solo bloquea la historia cuyo criterio d
 | D-20 umbrales de login | 5/20/50 por 15 min, configurables | No |
 | D-21 mayúsculas/minúsculas en `producer_code` | Hoy `PRD-1` y `prd-1` son códigos distintos (unicidad exacta tras recortar espacios) | No: el contrato solo exige unicidad por organización |
 | D-22 reglas adicionales de coincidencia (nombre, ubicación) | Solo se aplica la regla documentada de identidad (mismo tipo y número de documento) | No: P0-005 exige la coincidencia de identidad |
+| D-23 métodos de levantamiento y estados de parcela | Métodos DECLARED y MANUAL_COORDINATES disponibles; el resto se rechaza con 422 hasta su historia | No: P0-006 exige versión y método, no un catálogo cerrado |
+| D-05 umbral GIS | No se aplica ningún umbral ni conclusión; versiones NOT_VALIDATED | No para P0-006; sí para P0-010 |
 | Matriz `producer:*` | Propuesta provisional (doc 07) | No |
 | ADR-0001 / ADR-0005 sin ratificar | Stack y autenticación adoptados para desarrollo | No en local |
 | D-05, D-06… (GIS, stock) | Historias futuras | Se evaluarán en su historia |

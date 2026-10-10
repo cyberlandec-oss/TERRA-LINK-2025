@@ -59,6 +59,9 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     if (ws.can('producer:read') || ws.can('producer:read_assigned')) {
       origen.push({ href: `${base}/productores`, label: 'Productores', match: (p) => p.startsWith(`${base}/productores`) && !p.endsWith('/coincidencias') });
     }
+    if (ws.can('plot:read') || ws.can('plot:read_assigned')) {
+      origen.push({ href: `${base}/parcelas`, label: 'Parcelas', match: (p) => p.startsWith(`${base}/parcelas`) });
+    }
     if (ws.can('producer:review_duplicates')) {
       origen.push({ href: `${base}/productores/coincidencias`, label: 'Posibles duplicados', match: (p) => p.endsWith('/coincidencias') });
     }

@@ -25,7 +25,7 @@ describe('catálogo RBAC', () => {
   });
 
   it('une permisos de varios roles sin duplicados y desconoce roles no catalogados', () => {
-    expect(permissionsForRoles(['TRACEABILITY_MANAGER', 'AUDITOR', 'INVENTED'])).toEqual(['audit:read', 'organization:read', 'producer:read']);
+    expect(permissionsForRoles(['TRACEABILITY_MANAGER', 'AUDITOR', 'INVENTED'])).toEqual(['audit:read', 'organization:read', 'plot:read', 'producer:read']);
   });
 
   it('anti-escalamiento: solo se conceden roles cuyos permisos posee el actor', () => {
@@ -49,5 +49,12 @@ describe('catálogo RBAC', () => {
     expect(auditor).toContain('producer:read');
     expect(auditor).not.toContain('producer:read_identity');
     expect(permissionsForRoles(['BUYER', 'PRODUCER']).filter((p) => p.startsWith('producer:'))).toEqual([]);
+  });
+
+  it('parcela: el técnico solo opera parcelas de productores asignados; comprador y productor sin acceso', () => {
+    const tech = permissionsForRoles(['FIELD_TECHNICIAN']);
+    expect(tech).toEqual(expect.arrayContaining(['plot:read_assigned', 'plot:create_assigned', 'plot:update_assigned']));
+    expect(tech.filter((p) => ['plot:read', 'plot:create', 'plot:update', 'plot:archive'].includes(p))).toEqual([]);
+    expect(permissionsForRoles(['BUYER', 'PRODUCER', 'RECEPTION_OPERATOR']).filter((p) => p.startsWith('plot:'))).toEqual([]);
   });
 });

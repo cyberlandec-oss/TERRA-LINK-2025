@@ -5,6 +5,7 @@
 // docs/qa/capturas/. Escribe docs/qa/revision-resultados.json. No modifica datos salvo lo indicado en
 // cada tarea (solo lecturas y búsquedas).
 import { chromium } from '@playwright/test';
+import { reviewPlots } from './parcelas.mjs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -206,6 +207,9 @@ try {
     await ctx.close();
   }
 
+  // P0-006 Parcelas (módulo aparte).
+  results.push(await reviewPlots({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+
   // Adaptación móvil (390 px): menú en panel y contenido legible.
   for (const a of accounts.filter((x) => ['tecnico1.cooperativa', 'admin.cooperativa'].includes(x.email.split('@')[0]))) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -243,5 +247,6 @@ try {
 
 writeFileSync(join(root, 'docs', 'qa', 'revision-resultados.json'), JSON.stringify({ fecha: new Date().toISOString(), base: BASE, resultados: results }, null, 2));
 const issues = results.filter((r) => (r.incidencias?.length ?? 0) > 0 || r.ok === false);
+for (const c of results.find((r) => r.tipo === 'parcelas')?.casos ?? []) console.log(` [parcelas] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 console.log(`Revisión: ${results.length} entradas; con incidencias: ${issues.length}`);
 for (const i of issues) console.log(` - ${i.cuenta ?? i.tipo} @ ${i.organizacion ?? ''}: ${(i.incidencias ?? []).join(' | ') || JSON.stringify(i)}`);

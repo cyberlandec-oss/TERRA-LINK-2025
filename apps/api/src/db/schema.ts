@@ -216,7 +216,70 @@ export interface ProducerMatchReviewsTable {
   row_version: Generated<string>;
 }
 
+export type PlotStatus = 'ACTIVE' | 'INACTIVE';
+
+export interface PlotsTable {
+  id: string;
+  organization_id: string;
+  producer_id: string;
+  plot_code: string;
+  name: string | null;
+  crop: string;
+  variety: string | null;
+  land_use: string | null;
+  province: string | null;
+  canton: string | null;
+  parish: string | null;
+  status: PlotStatus;
+  current_version_id: string | null;
+  row_version: Generated<string>;
+  created_at: Timestamp;
+  created_by: string;
+  updated_at: Timestamp;
+  updated_by: string;
+  deleted_at: Timestamp | null;
+  deleted_by: string | null;
+  deletion_reason: string | null;
+}
+
+export interface PlotVersionsTable {
+  id: string;
+  organization_id: string;
+  plot_id: string;
+  version_number: number;
+  geometry: unknown | null;
+  geometry_type: 'POINT' | 'POLYGON' | 'MULTIPOLYGON' | null;
+  geometry_hash: string | null;
+  area_declared_ha: string | null;
+  area_calculated_ha: string | null;
+  survey_method: 'DECLARED' | 'MANUAL_COORDINATES' | 'GPS_POINT' | 'GPS_POLYGON' | 'FILE_IMPORT';
+  surveyed_at: Timestamp | null;
+  accuracy_m: string | null;
+  validation_status: 'NOT_VALIDATED' | 'VALID' | 'WARNING' | 'INVALID' | 'REVIEW_REQUIRED';
+  validation_rule_version: string;
+  previous_version_id: string | null;
+  notes: string | null;
+  created_at: Timestamp;
+  created_by: string;
+}
+
+export interface PlotHistoryTable {
+  id: Generated<string>;
+  organization_id: string;
+  plot_id: string;
+  row_version: string;
+  change_type: string;
+  changed_fields: string[];
+  snapshot: unknown;
+  reason: string | null;
+  changed_by: string;
+  changed_at: Timestamp;
+}
+
 export interface Database {
+  plots: PlotsTable;
+  plot_versions: PlotVersionsTable;
+  plot_history: PlotHistoryTable;
   producer_match_reviews: ProducerMatchReviewsTable;
   producers: ProducersTable;
   producer_versions: ProducerVersionsTable;

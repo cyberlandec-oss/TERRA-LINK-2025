@@ -69,6 +69,24 @@ const PRODUCERS = [
   { code: 'DEMO-RV-009', first_name: 'Teresa', last_name: 'Chávez Q. (demo)', community: 'El Carmen', parish: 'Quiroga', doc: '099-000-0003', tech: 1 },
 ];
 
+// Parcelas DEMO (P0-006): situaciones geométricas variadas con coordenadas SINTÉTICAS (zona de Calceta).
+const sq = (lon: number, lat: number, d: number) => ({ type: 'Polygon', coordinates: [[[lon, lat], [lon + d, lat], [lon + d, lat + d], [lon, lat + d], [lon, lat]]] });
+const PLOTS: Array<{ code: string; producer: string; name: string; versions: Array<Record<string, unknown>> }> = [
+  { code: 'DEMO-PAR-001', producer: 'DEMO-RV-001', name: 'Lote del río (demo)', versions: [
+    { survey_method: 'DECLARED', area_declared_ha: 2.5 },
+    { survey_method: 'MANUAL_COORDINATES', geometry: sq(-80.1621, -0.8512, 0.0012), area_declared_ha: 2.5, notes: 'Geometría sintética de demostración' },
+  ] },
+  { code: 'DEMO-PAR-002', producer: 'DEMO-RV-002', name: 'Loma alta (demo)', versions: [
+    { survey_method: 'MANUAL_COORDINATES', geometry: { type: 'Point', coordinates: [-80.1588, -0.8475] }, area_declared_ha: 1.2, notes: 'Punto sintético de demostración' },
+  ] },
+  { code: 'DEMO-PAR-003', producer: 'DEMO-RV-003', name: 'Huerta vieja (demo)', versions: [] },
+  { code: 'DEMO-PAR-004', producer: 'DEMO-RV-004', name: 'Los Almendros norte (demo)', versions: [{ survey_method: 'DECLARED', area_declared_ha: 5 }] },
+  { code: 'DEMO-PAR-005', producer: 'DEMO-RV-005', name: 'Membrillo (demo)', versions: [
+    { survey_method: 'MANUAL_COORDINATES', geometry: sq(-80.1702, -0.8601, 0.0008), notes: 'Geometría sintética de demostración' },
+  ] },
+  { code: 'DEMO-PAR-006', producer: 'DEMO-RV-001', name: 'Lote del cerro (demo)', versions: [] },
+];
+
 const ROLE_ES: Record<string, string> = {
   SUPER_ADMIN: 'Administración de plataforma', ORG_ADMIN: 'Administrador de organización', MANAGER: 'Supervisor',
   FIELD_TECHNICIAN: 'Técnico de campo', RECEPTION_OPERATOR: 'Operador de recepción', QUALITY_OPERATOR: 'Operador de calidad',
@@ -251,6 +269,25 @@ async function main(): Promise<void> {
       }
     }
 
+    // 4b) Parcelas DEMO de la cooperativa (P0-006): alta y versiones por la API (historial, eventos, auditoría).
+    if (passwords.has(coopAdmin)) {
+      const t = await tokenOf(coopAdmin);
+      const coopId = orgIds.get('coop')!;
+      for (const pl of PLOTS) {
+        const existing = (await call<{ items: Array<{ plot_code: string }> }>('GET', `/api/v1/organizations/${coopId}/plots?status=ALL&q=${encodeURIComponent(pl.code)}`, t)).data.items;
+        if (existing.some((x) => x.plot_code === pl.code)) continue;
+        const producer = (await call<{ items: Array<{ id: string; producer_code: string }> }>('GET', `/api/v1/organizations/${coopId}/producers?status=ALL&q=${encodeURIComponent(pl.producer)}`, t)).data.items
+          .find((x) => x.producer_code === pl.producer);
+        if (!producer) continue;
+        let plot = (await call<{ id: string; row_version: number }>('POST', `/api/v1/organizations/${coopId}/plots`, t,
+          { producer_id: producer.id, plot_code: pl.code, crop: 'Cacao', variety: 'Nacional', name: pl.name, canton: 'Bolívar', province: 'Manabí' })).data;
+        for (const v of pl.versions) {
+          const res = (await call<{ plot: { id: string; row_version: number } }>('POST', `/api/v1/organizations/${coopId}/plots/${plot.id}/geometry-versions`, t, { expected_version: plot.row_version, ...v })).data;
+          plot = res.plot;
+        }
+      }
+    }
+
     // 5) Verificación: login real de cada cuenta con contraseña conocida.
     const verified = new Map<string, boolean>();
     for (const [mail, pwd] of passwords) {
@@ -277,10 +314,21 @@ async function main(): Promise<void> {
       }
     }
     const csv = '﻿' + [HEADER, ...lines].map((r) => r.map(esc).join(',')).join('\r\n') + '\r\n';
-    writeFileSync(CSV_PATH, csv, { encoding: 'utf8' });
+    const current = existsSync(CSV_PATH) ? readFileSync(CSV_PATH, 'utf8') : null;
+    if (current !== csv) {
+      try {
+        writeFileSync(CSV_PATH, csv, { encoding: 'utf8' });
+      } catch (err) {
+        // Archivo abierto en otro programa (p. ej. Excel): no se pierden credenciales nuevas.
+        const pending = resolve(ROOT, 'CREDENCIALES.pendiente.csv');
+        writeFileSync(pending, csv, { encoding: 'utf8' });
+        console.error(`No se pudo escribir CREDENCIALES.csv (${(err as NodeJS.ErrnoException).code ?? 'error'}): ciérralo y renombra CREDENCIALES.pendiente.csv.`);
+        process.exitCode = 1;
+      }
+    }
 
     const ok = [...verified.values()].filter(Boolean).length;
-    console.log(`Seed DEMO listo: ${ORGS.length} organizaciones, ${USERS.length} cuentas, ${lines.length} filas en CREDENCIALES.csv; login verificado ${ok}/${verified.size}; sin credencial conocida: ${withoutCredential.size}.`);
+    console.log(`Seed DEMO listo: ${ORGS.length} organizaciones, ${PLOTS.length} parcelas DEMO definidas, ${USERS.length} cuentas, ${lines.length} filas en CREDENCIALES.csv; login verificado ${ok}/${verified.size}; sin credencial conocida: ${withoutCredential.size}.`);
     if (ok !== verified.size) process.exitCode = 1;
   } finally {
     await app.close();

@@ -1,0 +1,477 @@
+import {
+  Body, Controller, Get, HttpCode, Inject, Injectable, Param, ParseUUIDPipe, Patch, Post, Query, Req,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsIn, IsISO8601, IsInt, IsNumber, IsObject, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min } from 'class-validator';
+import { randomUUID } from 'crypto';
+import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
+import { DB } from '../db/database';
+import type { Database, PlotStatus, PlotsTable } from '../db/schema';
+import { AppError, conflict, forbidden, notFound } from '../common/errors';
+import { AuditService } from '../audit/audit.service';
+import { AuthorizationService, type TenantContext } from '../authz/authorization.service';
+import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
+import { EVENT_STORE, type EventStore } from '../events/events';
+import { geometryTypeCode, structuralIssues, type SupportedGeometry } from './geometry';
+
+// P0-006 — Parcela (RF-06).
+// Alcance: plot:read ve todas; plot:read_assigned solo parcelas de productores asignados a la membresía
+// del usuario (misma política que productores). Igual para create/update.
+// La geometría vive en plot_versions (inmutable). Métodos disponibles en esta historia: DECLARED (solo
+// superficie declarada) y MANUAL_COORDINATES (coordenadas ingresadas). GPS (P0-007/P0-008) e importación
+// (P0-009) se rechazan hasta implementarse. Validación GIS: P0-010 (estado NOT_VALIDATED).
+// Eventos y auditoría sin coordenadas: solo identificadores, tipo, hash y método.
+
+type PlotRow = Selectable<PlotsTable>;
+const EDITABLE = ['name', 'crop', 'variety', 'land_use', 'province', 'canton', 'parish'] as const;
+type Editable = (typeof EDITABLE)[number];
+const CODE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$/;
+export const STRUCTURAL_RULE = 'STRUCTURAL_ONLY_V1';
+const AVAILABLE_METHODS = ['DECLARED', 'MANUAL_COORDINATES'] as const;
+const PENDING_METHODS: Record<string, string> = { GPS_POINT: 'P0-007', GPS_POLYGON: 'P0-008', FILE_IMPORT: 'P0-009' };
+
+class PlotFieldsDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(120) name?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(60) variety?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) land_use?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) province?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) canton?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) parish?: string | null;
+}
+
+class CreatePlotDto extends PlotFieldsDto {
+  @ApiProperty() @IsUUID() producer_id!: string;
+  @ApiProperty({ example: 'PAR-0001' }) @Matches(CODE, { message: 'plot_code: 1–40 caracteres alfanuméricos, . _ -' }) plot_code!: string;
+  @ApiProperty({ description: 'Cultivo (obligatorio, doc 06)' }) @IsString() @Length(1, 60) crop!: string;
+}
+
+class UpdatePlotDto extends PlotFieldsDto {
+  @ApiProperty() @IsInt() @Min(1) expected_version!: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() @Length(1, 60) crop?: string;
+}
+
+class CreateVersionDto {
+  @ApiProperty({ description: 'row_version de la parcela leída' }) @IsInt() @Min(1) expected_version!: number;
+  @ApiProperty({ enum: ['DECLARED', 'MANUAL_COORDINATES', 'GPS_POINT', 'GPS_POLYGON', 'FILE_IMPORT'] })
+  @IsIn(['DECLARED', 'MANUAL_COORDINATES', 'GPS_POINT', 'GPS_POLYGON', 'FILE_IMPORT'])
+  survey_method!: string;
+  @ApiPropertyOptional({ description: 'GeoJSON Point/Polygon/MultiPolygon en WGS84 [lon, lat]' }) @IsOptional() @IsObject() geometry?: Record<string, unknown>;
+  @ApiPropertyOptional({ description: 'Hectáreas declaradas' }) @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 4 }) @Min(0.0001) @Max(99999999) area_declared_ha?: number;
+  @ApiPropertyOptional() @IsOptional() @IsISO8601() surveyed_at?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) notes?: string;
+}
+
+class StatusDto {
+  @ApiProperty() @IsInt() @Min(1) expected_version!: number;
+  @ApiProperty() @IsString() @Length(3, 500) reason!: string;
+}
+
+class ListQuery {
+  @IsOptional() @IsString() @MaxLength(100) q?: string;
+  @IsOptional() @IsUUID() producer_id?: string;
+  @IsOptional() @IsIn(['ACTIVE', 'INACTIVE', 'ALL']) status?: PlotStatus | 'ALL';
+  @IsOptional() @IsIn(['WITH', 'WITHOUT']) geometry?: 'WITH' | 'WITHOUT';
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
+  @IsOptional() @IsString() @MaxLength(200) cursor?: string;
+}
+
+const blankToNull = (v: string | null | undefined) => (v === undefined ? undefined : v === null || v.trim() === '' ? null : v.trim());
+const enc = (code: string, id: string) => Buffer.from(JSON.stringify([code, id])).toString('base64url');
+function dec(c: string): [string, string] {
+  try {
+    const v = JSON.parse(Buffer.from(c, 'base64url').toString('utf8'));
+    if (Array.isArray(v) && typeof v[0] === 'string' && typeof v[1] === 'string') return [v[0], v[1]];
+  } catch {
+    /* error abajo */
+  }
+  throw new AppError(400, 'INVALID_CURSOR', 'El cursor de paginación no es válido. Vuelve a la primera página.');
+}
+
+interface VersionView {
+  id: string; version_number: number; geometry_type: string | null; geometry: unknown | null; geometry_hash: string | null;
+  area_declared_ha: string | null; area_calculated_ha: string | null; survey_method: string; surveyed_at: Date | string | null;
+  accuracy_m: string | null; validation_status: string; validation_rule_version: string; previous_version_id: string | null;
+  notes: string | null; created_at: Date | string;
+}
+
+@Injectable()
+export class PlotsService {
+  constructor(
+    @Inject(DB) private readonly db: Kysely<Database>,
+    @Inject(EVENT_STORE) private readonly events: EventStore,
+    private readonly authz: AuthorizationService,
+    private readonly audit: AuditService,
+  ) {}
+
+  private has(ctx: TenantContext, p: string) {
+    return ctx.permissions.includes(p as never);
+  }
+
+  private async readContext(user: AuthUser, orgId: string) {
+    const ctx = await this.authz.tenantContext(user, orgId);
+    if (!ctx) throw notFound();
+    if (!this.has(ctx, 'plot:read') && !this.has(ctx, 'plot:read_assigned')) throw forbidden();
+    return ctx;
+  }
+
+  private inScope(ctx: TenantContext, producerAssignee: string | null, kind: 'read' | 'update' | 'create') {
+    if (this.has(ctx, `plot:${kind}`)) return true;
+    return this.has(ctx, `plot:${kind}_assigned`) && producerAssignee === ctx.membershipId;
+  }
+
+  /** Carga la parcela con el responsable de su productor; fuera de alcance = 404 (conocer el id no basta). */
+  private async load(db: Kysely<Database> | Transaction<Database>, ctx: TenantContext, id: string, kind: 'read' | 'update', lock = false) {
+    let q = db.selectFrom('plots as pl')
+      .innerJoin('producers as pr', (j) => j.onRef('pr.id', '=', 'pl.producer_id').onRef('pr.organization_id', '=', 'pl.organization_id'))
+      .selectAll('pl')
+      .select(['pr.assigned_membership_id as producer_assignee', 'pr.producer_code', 'pr.first_name', 'pr.last_name', 'pr.legal_name', 'pr.status as producer_status'])
+      .where('pl.organization_id', '=', ctx.organizationId)
+      .where('pl.id', '=', id);
+    if (lock) q = q.forUpdate('pl');
+    const row = await q.executeTakeFirst();
+    if (!row || !this.inScope(ctx, row.producer_assignee, 'read')) throw notFound();
+    if (kind === 'update' && !this.inScope(ctx, row.producer_assignee, 'update')) throw forbidden();
+    return row;
+  }
+
+  private async versionView(db: Kysely<Database> | Transaction<Database>, orgId: string, versionId: string | null): Promise<VersionView | null> {
+    if (!versionId) return null;
+    const r = await sql<VersionView>`
+      SELECT id, version_number, geometry_type, ST_AsGeoJSON(geometry)::jsonb AS geometry, geometry_hash,
+             area_declared_ha::text, area_calculated_ha::text, survey_method, surveyed_at, accuracy_m::text,
+             validation_status, validation_rule_version, previous_version_id, notes, created_at
+      FROM plot_versions WHERE organization_id = ${orgId} AND id = ${versionId}`.execute(db);
+    return r.rows[0] ?? null;
+  }
+
+  private view(p: PlotRow & { producer_code?: string; first_name?: string | null; last_name?: string | null; legal_name?: string | null }, current: VersionView | null) {
+    return {
+      id: p.id,
+      plot_code: p.plot_code,
+      name: p.name,
+      crop: p.crop,
+      variety: p.variety,
+      land_use: p.land_use,
+      province: p.province,
+      canton: p.canton,
+      parish: p.parish,
+      status: p.status,
+      producer: { id: p.producer_id, producer_code: p.producer_code, display_name: p.legal_name ?? [p.first_name, p.last_name].filter(Boolean).join(' ') },
+      row_version: Number(p.row_version),
+      deleted_at: p.deleted_at,
+      deletion_reason: p.deletion_reason,
+      // Situación geométrica: sin versión / solo superficie declarada / con geometría (sin validar hasta P0-010).
+      geometry_status: !current ? 'NONE' : current.geometry_type ? 'GEOMETRY_RECORDED' : 'DECLARED_AREA_ONLY',
+      current_version: current,
+      created_at: p.created_at,
+      updated_at: p.updated_at,
+    };
+  }
+
+  private normalize(dto: PlotFieldsDto & { crop?: string }) {
+    const out: Partial<Record<Editable, string | null>> = {};
+    for (const f of EDITABLE) {
+      const v = blankToNull((dto as Record<string, string | null | undefined>)[f]);
+      if (v !== undefined) out[f] = v;
+    }
+    if (out.crop === null) throw new AppError(400, 'VALIDATION_FAILED', 'El cultivo es obligatorio.', [{ field: 'crop', reason: 'REQUIRED' }]);
+    return out;
+  }
+
+  private async recordHistory(trx: Transaction<Database>, p: PlotRow, changeType: string, changed: string[], actorId: string, reason?: string | null) {
+    await trx.insertInto('plot_history').values({
+      organization_id: p.organization_id, plot_id: p.id, row_version: String(p.row_version), change_type: changeType,
+      changed_fields: changed, snapshot: JSON.stringify({ ...p, row_version: Number(p.row_version) }), reason: reason ?? null, changed_by: actorId,
+    }).execute();
+  }
+
+  private mapConstraint(e: unknown): unknown {
+    const c = (e as { constraint?: string }).constraint;
+    if (c === 'plots_code_uq') return conflict('PLOT_CODE_TAKEN', 'Ya existe una parcela con ese código en tu organización.');
+    if (c === 'plots_producer_fk') return new AppError(422, 'PRODUCER_NOT_AVAILABLE', 'El productor indicado no está disponible en esta organización.');
+    return e;
+  }
+
+  async create(user: AuthUser, orgId: string, dto: CreatePlotDto, requestId?: string) {
+    const ctx = await this.authz.tenantContext(user, orgId);
+    if (!ctx) throw notFound();
+    if (!this.has(ctx, 'plot:create') && !this.has(ctx, 'plot:create_assigned')) throw forbidden();
+    if (ctx.organizationStatus !== 'ACTIVE') throw forbidden('ORGANIZATION_SUSPENDED', 'La organización está suspendida; no admite nuevas operaciones.');
+    const fields = this.normalize(dto);
+    return this.db.transaction().execute(async (trx) => {
+      const producer = await trx.selectFrom('producers')
+        .select(['id', 'status', 'assigned_membership_id', 'producer_code', 'first_name', 'last_name', 'legal_name'])
+        .where('organization_id', '=', orgId).where('id', '=', dto.producer_id).forShare().executeTakeFirst();
+      // Productor de otra organización o fuera del alcance del usuario: misma respuesta (no revela existencia).
+      if (!producer || !this.inScope(ctx, producer.assigned_membership_id, 'create')) {
+        throw new AppError(422, 'PRODUCER_NOT_AVAILABLE', 'El productor indicado no está disponible para ti en esta organización.', [{ field: 'producer_id', reason: 'NOT_AVAILABLE' }]);
+      }
+      if (producer.status === 'INACTIVE') throw conflict('PRODUCER_INACTIVE', 'El productor está dado de baja; reactívalo antes de registrar parcelas.');
+      const id = randomUUID();
+      let p: PlotRow;
+      try {
+        p = await trx.insertInto('plots').values({
+          ...fields, crop: fields.crop ?? dto.crop.trim(), id, organization_id: orgId, producer_id: producer.id, plot_code: dto.plot_code.trim(),
+          status: 'ACTIVE', created_by: user.id, updated_by: user.id,
+        } as never).returningAll().executeTakeFirstOrThrow();
+      } catch (e) {
+        throw this.mapConstraint(e);
+      }
+      await this.recordHistory(trx, p, 'CREATE', Object.keys(fields), user.id);
+      await this.events.append(trx, {
+        organizationId: orgId, eventType: 'PlotRegistered', schemaVersion: 1, aggregateType: 'PLOT', aggregateId: id,
+        aggregateVersion: Number(p.row_version), actorId: user.id, correlationId: requestId,
+        payload: { plot_code: p.plot_code, producer_id: p.producer_id },
+      });
+      await this.audit.record(trx, {
+        organizationId: orgId, actorUserId: user.id, action: 'plot.create', entityType: 'plot', entityId: id, requestId,
+        result: 'SUCCESS', after: { plot_code: p.plot_code, producer_id: p.producer_id, crop: p.crop },
+      });
+      return this.view({ ...p, producer_code: producer.producer_code, first_name: producer.first_name, last_name: producer.last_name, legal_name: producer.legal_name }, null);
+    });
+  }
+
+  async list(user: AuthUser, orgId: string, q: ListQuery) {
+    const ctx = await this.readContext(user, orgId);
+    const limit = q.limit ?? 25;
+    let query = this.db.selectFrom('plots as pl')
+      .innerJoin('producers as pr', (j) => j.onRef('pr.id', '=', 'pl.producer_id').onRef('pr.organization_id', '=', 'pl.organization_id'))
+      .leftJoin('plot_versions as v', (j) => j.onRef('v.id', '=', 'pl.current_version_id').onRef('v.organization_id', '=', 'pl.organization_id'))
+      .selectAll('pl')
+      .select(['pr.producer_code', 'pr.first_name', 'pr.last_name', 'pr.legal_name', 'v.geometry_type', 'v.area_declared_ha', 'v.area_calculated_ha', 'v.validation_status'])
+      .where('pl.organization_id', '=', orgId);
+    if (!this.has(ctx, 'plot:read')) query = query.where('pr.assigned_membership_id', '=', ctx.membershipId);
+    const status = q.status ?? 'ACTIVE';
+    if (status !== 'ALL') query = query.where('pl.status', '=', status);
+    if (q.producer_id) query = query.where('pl.producer_id', '=', q.producer_id);
+    if (q.geometry === 'WITH') query = query.where('v.geometry_type', 'is not', null);
+    if (q.geometry === 'WITHOUT') query = query.where((eb) => eb.or([eb('pl.current_version_id', 'is', null), eb('v.geometry_type', 'is', null)]));
+    if (q.q?.trim()) {
+      const like = `%${q.q.trim().replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+      query = query.where((eb) => eb.or([eb('pl.plot_code', 'ilike', like), eb('pl.name', 'ilike', like), eb('pr.producer_code', 'ilike', like)]));
+    }
+    if (q.cursor) {
+      const [code, id] = dec(q.cursor);
+      query = query.where((eb) => eb.or([eb('pl.plot_code', '>', code), eb.and([eb('pl.plot_code', '=', code), eb('pl.id', '>', id)])]));
+    }
+    const rows = await query.orderBy('pl.plot_code').orderBy('pl.id').limit(limit + 1).execute();
+    const page = rows.slice(0, limit);
+    return {
+      items: page.map((r) => ({
+        id: r.id, plot_code: r.plot_code, name: r.name, crop: r.crop, status: r.status, row_version: Number(r.row_version),
+        producer: { id: r.producer_id, producer_code: r.producer_code, display_name: r.legal_name ?? [r.first_name, r.last_name].filter(Boolean).join(' ') },
+        geometry_status: !r.current_version_id ? 'NONE' : r.geometry_type ? 'GEOMETRY_RECORDED' : 'DECLARED_AREA_ONLY',
+        geometry_type: r.geometry_type, area_declared_ha: r.area_declared_ha, area_calculated_ha: r.area_calculated_ha, validation_status: r.validation_status,
+      })),
+      next_cursor: rows.length > limit ? enc(page[page.length - 1].plot_code, page[page.length - 1].id) : null,
+    };
+  }
+
+  async get(user: AuthUser, orgId: string, id: string) {
+    const ctx = await this.readContext(user, orgId);
+    const p = await this.load(this.db, ctx, id, 'read');
+    const active = ctx.organizationStatus === 'ACTIVE';
+    return {
+      ...this.view(p, await this.versionView(this.db, orgId, p.current_version_id)),
+      can_update: active && p.status === 'ACTIVE' && this.inScope(ctx, p.producer_assignee, 'update'),
+      can_archive: active && this.has(ctx, 'plot:archive'),
+    };
+  }
+
+  async update(user: AuthUser, orgId: string, id: string, dto: UpdatePlotDto, requestId?: string) {
+    const ctx = await this.authz.tenantContext(user, orgId);
+    if (!ctx) throw notFound();
+    if (!this.has(ctx, 'plot:update') && !this.has(ctx, 'plot:update_assigned')) throw forbidden();
+    if (ctx.organizationStatus !== 'ACTIVE') throw forbidden('ORGANIZATION_SUSPENDED', 'La organización está suspendida; no admite nuevas operaciones.');
+    const { expected_version, ...rest } = dto;
+    const patch = this.normalize(rest);
+    if (Object.keys(patch).length === 0) throw conflict('NO_CHANGE', 'No hay cambios que guardar.');
+    return this.db.transaction().execute(async (trx) => {
+      const before = await this.load(trx, ctx, id, 'update', true);
+      if (before.status === 'INACTIVE') throw conflict('PLOT_INACTIVE', 'La parcela está dada de baja; reactívala para editarla.');
+      if (Number(before.row_version) !== expected_version) throw conflict('VERSION_CONFLICT', 'Otra persona modificó esta parcela. Recarga para ver la versión actual.');
+      const changed = (Object.keys(patch) as Editable[]).filter((k) => patch[k] !== before[k]);
+      if (changed.length === 0) throw conflict('NO_CHANGE', 'No hay cambios que guardar.');
+      const after = await trx.updateTable('plots')
+        .set({ ...Object.fromEntries(changed.map((k) => [k, patch[k]])), updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1` } as never)
+        .where('id', '=', id).where('organization_id', '=', orgId).returningAll().executeTakeFirstOrThrow();
+      await this.recordHistory(trx, after, 'UPDATE', changed, user.id);
+      await this.events.append(trx, {
+        organizationId: orgId, eventType: 'PlotUpdated', schemaVersion: 1, aggregateType: 'PLOT', aggregateId: id,
+        aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId, payload: { changed_fields: changed },
+      });
+      await this.audit.record(trx, {
+        organizationId: orgId, actorUserId: user.id, action: 'plot.update', entityType: 'plot', entityId: id, requestId,
+        result: 'SUCCESS', after: { changed_fields: changed, version: Number(after.row_version) },
+      });
+      return this.view({ ...after, producer_code: before.producer_code, first_name: before.first_name, last_name: before.last_name, legal_name: before.legal_name },
+        await this.versionView(trx, orgId, after.current_version_id));
+    });
+  }
+
+  /** Crea una versión geométrica nueva (inmutable) y la marca como actual. La anterior no cambia. */
+  async createVersion(user: AuthUser, orgId: string, id: string, dto: CreateVersionDto, requestId?: string) {
+    const ctx = await this.authz.tenantContext(user, orgId);
+    if (!ctx) throw notFound();
+    if (!this.has(ctx, 'plot:update') && !this.has(ctx, 'plot:update_assigned')) throw forbidden();
+    if (ctx.organizationStatus !== 'ACTIVE') throw forbidden('ORGANIZATION_SUSPENDED', 'La organización está suspendida; no admite nuevas operaciones.');
+    if (PENDING_METHODS[dto.survey_method]) {
+      throw new AppError(422, 'SURVEY_METHOD_NOT_AVAILABLE', `El método ${dto.survey_method} aún no está disponible (${PENDING_METHODS[dto.survey_method]}).`, [{ field: 'survey_method', reason: 'NOT_IMPLEMENTED' }]);
+    }
+    if (!(AVAILABLE_METHODS as readonly string[]).includes(dto.survey_method)) throw new AppError(422, 'SURVEY_METHOD_NOT_AVAILABLE', 'Método no admitido.');
+    if (dto.survey_method === 'DECLARED') {
+      if (dto.geometry) throw new AppError(400, 'VALIDATION_FAILED', 'Una superficie declarada no lleva geometría.', [{ field: 'geometry', reason: 'NOT_ALLOWED_FOR_DECLARED' }]);
+      if (dto.area_declared_ha === undefined) throw new AppError(400, 'VALIDATION_FAILED', 'Indica la superficie declarada en hectáreas.', [{ field: 'area_declared_ha', reason: 'REQUIRED' }]);
+    } else {
+      if (!dto.geometry) throw new AppError(400, 'VALIDATION_FAILED', 'Indica la geometría (GeoJSON en WGS84).', [{ field: 'geometry', reason: 'REQUIRED' }]);
+      const issues = structuralIssues(dto.geometry);
+      if (issues.length) {
+        throw new AppError(422, 'GEOMETRY_STRUCTURE_INVALID', 'La geometría no tiene una estructura válida para almacenarse.', issues.map((i) => ({ field: i.path, reason: i.reason })));
+      }
+    }
+    return this.db.transaction().execute(async (trx) => {
+      const plot = await this.load(trx, ctx, id, 'update', true);
+      if (plot.status === 'INACTIVE') throw conflict('PLOT_INACTIVE', 'La parcela está dada de baja.');
+      if (Number(plot.row_version) !== dto.expected_version) throw conflict('VERSION_CONFLICT', 'Otra persona modificó esta parcela. Recarga para ver la versión actual.');
+      const last = await trx.selectFrom('plot_versions').select(sql<number>`coalesce(max(version_number), 0)::int`.as('n'))
+        .where('organization_id', '=', orgId).where('plot_id', '=', id).executeTakeFirstOrThrow();
+      const versionId = randomUUID();
+      const geojson = dto.geometry ? JSON.stringify(dto.geometry) : null;
+      const typeCode = dto.geometry ? geometryTypeCode(dto.geometry as unknown as SupportedGeometry) : null;
+      // Superficie calculada: solo polígonos topológicamente válidos, con geodesia (geography) en hectáreas.
+      // Puntos: NULL (un punto no tiene superficie). Polígono no válido: NULL (desconocida hasta P0-010).
+      await sql`
+        WITH g AS (SELECT CASE WHEN ${geojson}::text IS NULL THEN NULL ELSE ST_SetSRID(ST_GeomFromGeoJSON(${geojson}::text), 4326) END AS geom)
+        INSERT INTO plot_versions (id, organization_id, plot_id, version_number, geometry, geometry_type, geometry_hash,
+          area_declared_ha, area_calculated_ha, survey_method, surveyed_at, accuracy_m, validation_status, validation_rule_version,
+          previous_version_id, notes, created_by)
+        SELECT ${versionId}, ${orgId}, ${id}, ${last.n + 1}, g.geom, ${typeCode}::text,
+          CASE WHEN g.geom IS NULL THEN NULL ELSE encode(sha256(ST_AsBinary(g.geom)), 'hex') END,
+          ${dto.area_declared_ha ?? null}::numeric,
+          CASE WHEN ${typeCode}::text IN ('POLYGON','MULTIPOLYGON') AND ST_IsValid(g.geom) THEN round((ST_Area(g.geom::geography) / 10000)::numeric, 6) ELSE NULL END,
+          ${dto.survey_method}, ${dto.surveyed_at ?? null}::timestamptz, NULL, 'NOT_VALIDATED', ${STRUCTURAL_RULE},
+          ${plot.current_version_id}, ${dto.notes ?? null}, ${user.id}
+        FROM g`.execute(trx);
+      const after = await trx.updateTable('plots')
+        .set({ current_version_id: versionId, updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1` })
+        .where('id', '=', id).where('organization_id', '=', orgId).returningAll().executeTakeFirstOrThrow();
+      const version = (await this.versionView(trx, orgId, versionId))!;
+      await this.recordHistory(trx, after, 'GEOMETRY_VERSION', ['current_version_id'], user.id);
+      await this.events.append(trx, {
+        organizationId: orgId, eventType: 'PlotGeometryVersionCreated', schemaVersion: 1, aggregateType: 'PLOT', aggregateId: id,
+        aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId,
+        payload: {
+          plot_version_id: versionId, version_number: version.version_number, previous_version_id: version.previous_version_id,
+          geometry_type: version.geometry_type, geometry_hash: version.geometry_hash, survey_method: version.survey_method,
+        },
+      });
+      await this.audit.record(trx, {
+        organizationId: orgId, actorUserId: user.id, action: 'plot.geometry_version', entityType: 'plot', entityId: id, requestId,
+        result: 'SUCCESS', after: { plot_version_id: versionId, version_number: version.version_number, geometry_type: version.geometry_type, survey_method: version.survey_method },
+      });
+      return { plot: this.view({ ...after, producer_code: plot.producer_code, first_name: plot.first_name, last_name: plot.last_name, legal_name: plot.legal_name }, version), version };
+    });
+  }
+
+  async versions(user: AuthUser, orgId: string, id: string) {
+    const ctx = await this.readContext(user, orgId);
+    const p = await this.load(this.db, ctx, id, 'read');
+    const r = await sql<VersionView>`
+      SELECT id, version_number, geometry_type, ST_AsGeoJSON(geometry)::jsonb AS geometry, geometry_hash,
+             area_declared_ha::text, area_calculated_ha::text, survey_method, surveyed_at, accuracy_m::text,
+             validation_status, validation_rule_version, previous_version_id, notes, created_at
+      FROM plot_versions WHERE organization_id = ${orgId} AND plot_id = ${id} ORDER BY version_number DESC`.execute(this.db);
+    return r.rows.map((v) => ({ ...v, is_current: v.id === p.current_version_id }));
+  }
+
+  async history(user: AuthUser, orgId: string, id: string) {
+    const ctx = await this.readContext(user, orgId);
+    await this.load(this.db, ctx, id, 'read');
+    const rows = await this.db.selectFrom('plot_history as h')
+      .leftJoin('memberships as m', (j) => j.onRef('m.user_id', '=', 'h.changed_by').onRef('m.organization_id', '=', 'h.organization_id'))
+      .leftJoin('users as u', 'u.id', 'm.user_id')
+      .select(['h.row_version', 'h.change_type', 'h.changed_fields', 'h.reason', 'h.changed_at', 'u.email as actor_email'])
+      .where('h.organization_id', '=', orgId).where('h.plot_id', '=', id).orderBy('h.row_version', 'desc').execute();
+    return rows.map((r) => ({ version: Number(r.row_version), change_type: r.change_type, changed_fields: r.changed_fields, reason: r.reason, changed_at: r.changed_at, actor: r.actor_email ?? 'PLATFORM' }));
+  }
+
+  async changeStatus(user: AuthUser, orgId: string, id: string, target: PlotStatus, dto: StatusDto, requestId?: string) {
+    const ctx = await this.authz.require(user, orgId, 'plot:archive', { mutation: true });
+    return this.db.transaction().execute(async (trx) => {
+      const before = await this.load(trx, ctx, id, 'read', true);
+      if (Number(before.row_version) !== dto.expected_version) throw conflict('VERSION_CONFLICT', 'Otra persona modificó esta parcela. Recarga.');
+      if (before.status === target) throw conflict('INVALID_TRANSITION', 'La parcela ya está en ese estado.');
+      const archiving = target === 'INACTIVE';
+      const after = await trx.updateTable('plots').set({
+        status: target, deleted_at: archiving ? new Date() : null, deleted_by: archiving ? user.id : null, deletion_reason: archiving ? dto.reason : null,
+        updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1`,
+      }).where('id', '=', id).where('organization_id', '=', orgId).returningAll().executeTakeFirstOrThrow();
+      await this.recordHistory(trx, after, archiving ? 'ARCHIVE' : 'ACTIVATE', ['status'], user.id, dto.reason);
+      await this.events.append(trx, {
+        organizationId: orgId, eventType: 'PlotStatusChanged', schemaVersion: 1, aggregateType: 'PLOT', aggregateId: id,
+        aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId, payload: { from_status: before.status, to_status: target },
+      });
+      await this.audit.record(trx, {
+        organizationId: orgId, actorUserId: user.id, action: archiving ? 'plot.archive' : 'plot.activate', entityType: 'plot', entityId: id,
+        requestId, result: 'SUCCESS', reason: dto.reason, before: { status: before.status }, after: { status: target },
+      });
+      return this.view({ ...after, producer_code: before.producer_code, first_name: before.first_name, last_name: before.last_name, legal_name: before.legal_name },
+        await this.versionView(trx, orgId, after.current_version_id));
+    });
+  }
+}
+
+@ApiTags('plots')
+@ApiBearerAuth()
+@Controller('api/v1/organizations/:orgId/plots')
+export class PlotsController {
+  constructor(private readonly service: PlotsService) {}
+
+  @Post()
+  create(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Body() dto: CreatePlotDto, @Req() req: AuthedRequest) {
+    return this.service.create(user, orgId, dto, req.requestId);
+  }
+
+  @Get()
+  list(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Query() q: ListQuery) {
+    return this.service.list(user, orgId, q);
+  }
+
+  @Get(':id')
+  get(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.service.get(user, orgId, id);
+  }
+
+  @Patch(':id')
+  update(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdatePlotDto, @Req() req: AuthedRequest) {
+    return this.service.update(user, orgId, id, dto, req.requestId);
+  }
+
+  @Get(':id/geometry-versions')
+  versions(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.service.versions(user, orgId, id);
+  }
+
+  @Post(':id/geometry-versions')
+  createVersion(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: CreateVersionDto, @Req() req: AuthedRequest) {
+    return this.service.createVersion(user, orgId, id, dto, req.requestId);
+  }
+
+  @Get(':id/history')
+  history(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.service.history(user, orgId, id);
+  }
+
+  @Post(':id/archive')
+  @HttpCode(200)
+  archive(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: StatusDto, @Req() req: AuthedRequest) {
+    return this.service.changeStatus(user, orgId, id, 'INACTIVE', dto, req.requestId);
+  }
+
+  @Post(':id/activate')
+  @HttpCode(200)
+  activate(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: StatusDto, @Req() req: AuthedRequest) {
+    return this.service.changeStatus(user, orgId, id, 'ACTIVE', dto, req.requestId);
+  }
+}
