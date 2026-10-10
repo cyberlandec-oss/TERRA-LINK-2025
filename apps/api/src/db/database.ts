@@ -10,6 +10,7 @@ import * as m0006 from './migrations/0006_producer_identity_encryption';
 import * as m0007 from './migrations/0007_producer_match_reviews';
 import * as m0008 from './migrations/0008_plots';
 import * as m0009 from './migrations/0009_location_samples';
+import * as m0010 from './migrations/0010_polygon_drafts';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -22,6 +23,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0007_producer_match_reviews': m0007,
   '0008_plots': m0008,
   '0009_location_samples': m0009,
+  '0010_polygon_drafts': m0010,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

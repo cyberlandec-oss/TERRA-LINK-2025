@@ -1,4 +1,4 @@
-// Revisión de P0-006 Parcelas en navegador: administrador, técnico asignado, técnico NO asignado (abre una
+// Revisión de P0-006/P0-007/P0-008 Parcelas en navegador: administrador, técnico asignado, técnico NO asignado (abre una
 // parcela ajena por id directo), usuario con dos organizaciones, teclado y 390 px. Datos DEMO sintéticos.
 import { join } from 'node:path';
 
@@ -109,6 +109,68 @@ export async function reviewPlots({ browser, BASE, accounts, DEMO_ORGS, orgIdByN
         ok: rows.length === 6 && noCoords && notice === 1 && capture === 0 && !api.includes('coordinates') && !api.includes('-80.16') });
       await ctx.close();
     }
+  }
+
+  // P0-008 Polígono [SIMULADA]: borrador en el servidor con posiciones emuladas (no es captura real).
+  // La emulación de Chromium siempre informa precisión: «no informada» se prueba en integración (API real).
+  // Técnico asignado en DEMO-PAR-003: 3 vértices, recarga, revisión; al final cancela para no alterar DEMO.
+  // Admin ve la acción; auditor no (sin plot:read_geometry); técnico no asignado no accede a la parcela.
+  {
+    const tech = acc('tecnico1.cooperativa', 'Cooperativa');
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'es-EC', permissions: ['geolocation'], geolocation: { latitude: -0.848, longitude: -80.16, accuracy: 6 } });
+    const page = await ctx.newPage();
+    await page.goto(BASE);
+    await page.getByLabel('Correo').fill(tech.email);
+    await page.getByLabel('Contraseña', { exact: true }).fill(tech.contrasena);
+    await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+    await page.getByRole('heading', { level: 1, name: /organizaciones/i }).waitFor({ timeout: 15000 });
+    await plotRows(page, coopId);
+    await page.getByRole('link', { name: /DEMO-PAR-003/ }).click();
+    await page.getByRole('heading', { name: /DEMO-PAR-003/ }).waitFor();
+    const startBtn = page.getByRole('button', { name: 'Iniciar captura de polígono' });
+    await startBtn.or(page.getByRole('button', { name: 'Añadir vértice' })).first().waitFor({ timeout: 15000 });
+    if (await startBtn.count()) await startBtn.click();
+    const pts = [[-0.848, -80.16, 6], [-0.848, -80.159, 9], [-0.847, -80.1595, 11]];
+    for (const [lat, lon, a] of pts) {
+      await ctx.setGeolocation({ latitude: lat, longitude: lon, ...(a === null ? {} : { accuracy: a }) });
+      await page.getByRole('button', { name: 'Añadir vértice' }).click();
+      await page.getByRole('button', { name: 'Guardar vértice' }).click();
+      await page.getByRole('button', { name: 'Añadir vértice' }).waitFor();
+    }
+    await page.screenshot({ path: join(shots, 'poligono--tecnico1-borrador-390.png'), fullPage: true });
+    await page.reload();
+    await page.getByRole('table', { name: 'Vértices del borrador' }).waitFor({ timeout: 15000 });
+    const persisted = await page.getByRole('table', { name: 'Vértices del borrador' }).locator('tbody tr').filter({ hasText: '-80.1' }).count();
+    const summary = await page.getByText(/con precisión informada/).first().innerText().catch(() => '');
+    await page.getByRole('button', { name: 'Revisar y confirmar' }).click();
+    const review = await page.getByRole('region', { name: 'Revisión antes de confirmar' }).innerText();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+    await page.screenshot({ path: join(shots, 'poligono--tecnico1-revision-390.png'), fullPage: true });
+    await page.getByRole('button', { name: 'Seguir capturando' }).click();
+    page.once('dialog', (d) => d.accept());
+    await page.getByRole('button', { name: 'Cancelar borrador' }).click();
+    await startBtn.waitFor();
+    casos.push({ cuenta: 'tecnico1.cooperativa — polígono [SIMULADA]', resultado: `vértices tras recargar=${persisted}; resumen «${summary.replace('Precisión: ', '')}»; revisión con validez técnica=${review.includes('Válida')} y GIS pendiente=${review.includes('P0-010')}; desborde 390 px=${overflow}; borrador cancelado (DEMO intacto)`,
+      ok: persisted >= 3 && /3 vértices con precisión informada; 0 sin informar; peor precisión conocida 11 m/.test(summary) && review.includes('Válida') && review.includes('P0-010') && !overflow });
+    await ctx.close();
+  }
+  {
+    const check = async (local, plotCode) => {
+      const { ctx, page } = await loginAs(acc(local, 'Cooperativa'));
+      await plotRows(page, coopId);
+      await page.getByRole('link', { name: new RegExp(plotCode) }).click();
+      await page.getByRole('heading', { name: new RegExp(plotCode) }).waitFor();
+      await page.getByRole('heading', { name: 'Versiones geométricas' }).waitFor();
+      await page.waitForTimeout(1500);
+      const n = await page.getByRole('button', { name: /Iniciar captura de polígono|Añadir vértice/ }).count();
+      await page.screenshot({ path: join(shots, `poligono--${local.split('.')[0]}-accion.png`), fullPage: true });
+      await ctx.close();
+      return n;
+    };
+    const admin = await check('admin.cooperativa', 'DEMO-PAR-003');
+    const auditor = acc('auditor.cooperativa', 'Cooperativa') ? await check('auditor.cooperativa', 'DEMO-PAR-003') : null;
+    casos.push({ cuenta: 'polígono por rol', resultado: `admin: acción de polígono=${admin}; auditor: acción de polígono=${auditor} (sin plot:read_geometry); técnico no asignado: parcela ajena no disponible (caso anterior)`,
+      ok: admin === 1 && auditor === 0 });
   }
 
   // Usuario con dos organizaciones: roles y datos de cada una por separado.

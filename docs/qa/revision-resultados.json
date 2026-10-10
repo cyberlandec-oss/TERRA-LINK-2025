@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-10T15:40:49.389Z",
+  "fecha": "2026-10-10T16:12:29.859Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -360,7 +360,7 @@
       "datos_ajenos": "ninguno",
       "tarea": {
         "tarea": "Consultar la auditoría de su organización",
-        "resultado": "37 registros visibles",
+        "resultado": "47 registros visibles",
         "ok": true
       }
     },
@@ -993,6 +993,16 @@
         {
           "cuenta": "auditor.cooperativa (sin geometría exacta)",
           "resultado": "6 parcelas; coordenadas en pantalla=false; aviso=1; «Capturar ubicación»=0; respuesta API con coordenadas=false",
+          "ok": true
+        },
+        {
+          "cuenta": "tecnico1.cooperativa — polígono [SIMULADA]",
+          "resultado": "vértices tras recargar=3; resumen «3 vértices con precisión informada; 0 sin informar; peor precisión conocida 11 m»; revisión con validez técnica=true y GIS pendiente=true; desborde 390 px=false; borrador cancelado (DEMO intacto)",
+          "ok": true
+        },
+        {
+          "cuenta": "polígono por rol",
+          "resultado": "admin: acción de polígono=1; auditor: acción de polígono=0 (sin plot:read_geometry); técnico no asignado: parcela ajena no disponible (caso anterior)",
           "ok": true
         },
         {

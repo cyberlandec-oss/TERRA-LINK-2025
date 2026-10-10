@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-008 Polígono | **DONE_LOCAL** con evidencia de integración (PostGIS real) y navegador **[SIMULADA]**; captura real de campo pendiente | Ver criterios abajo |
 
 ### TECH-001 — criterio por criterio
 
@@ -106,6 +107,31 @@ Doc 06 exige «identidad **cifrada**/restringida». Antes solo estaba restringid
 | Captura web (UI-07) | Solicitar → revisar → confirmar → resultado; denegado, no disponible, timeout, sin soporte, cancelar; sin guardado automático | E2E `ubicacion.spec.ts` **[SIMULADA]** 8/8 |
 | Captura real en este equipo | **No obtenida**: Chromium de Playwright sin proveedor de ubicación (timeout, código 3), con y sin ventana | Pendiente de comprobación humana en Edge/Chrome |
 
+### P0-008 — criterios
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T16-01-06-176Z`): API 131/131, web 4/4, E2E 30/30, OpenAPI 45 rutas. Revisión visual 23 entradas, 0 incidencias.
+
+| Criterio | Resultado | Evidencia (`polygon-drafts.int-spec.ts` salvo indicación) |
+| --- | --- | --- |
+| Borrador en servidor, reapertura tras recargar, orden explícito, versión del borrador | `polygon_drafts` + `draft_vertices` (0010); `acquisition_seq`; `row_version` | «recuperación tras recargar»; E2E |
+| Muestra por vértice (coordenadas originales, fuente, adquisición, recepción, precisión o null, operation_id) | Append-only | ídem |
+| Doble envío idempotente; id reutilizado con otros datos | 201 + 200 réplica; 409 `OPERATION_ID_REUSED` | «doble envío idempotente» |
+| Deshacer sin falsear la muestra | Fila en `draft_vertex_exclusions`; UPDATE/DELETE de vértices rechazados por trigger | «deshacer…» |
+| Dos pestañas | 409 `VERSION_CONFLICT`, muestra conservada, recarga visible | «dos pestañas»; E2E |
+| <3 vértices distintos / repetidos | 422, borrador conservado; repetidos advertidos | «menos de 3…» |
+| Cierre sin muestra extra | Anillo cerrado con el primer vértice; 4 muestras → 5 posiciones; `accuracy_m` de la versión null | «cierre sin muestra adicional…» |
+| Confirmación atómica e inmutable; cambio posterior = otra versión | Versión POLYGON + borrador CONFIRMED + historial + evento + auditoría en una transacción | ídem |
+| Estructura / validez técnica / GIS P0-010 separadas | `storable`, `technically_valid` (ST_IsValid), `NOT_VALIDATED` | ídem; E2E |
+| Autointersección | Rechazada (422 `POLYGON_NOT_VALID`, borrador conservado) salvo `keep_invalid_for_review`: sin superficie, motivo en notas, sin reparar (D-26 provisional) | «autointersección» |
+| Resumen de precisión completo/mixto/ausente; 0 conservado | `summarizeAccuracy` | unitarias `accuracy-summary.spec.ts`; integración |
+| Acceso: `plot:read_geometry`, revalidación por escritura, otra organización | Auditor 403 y sin coordenadas; reasignado 404; membresía desactivada rechazada; org suspendida 403; org ajena 404 | «reasignación y revocación…», «entre organizaciones…» |
+| Sin coordenadas en eventos/auditoría | Verificado sobre el payload y `audit_logs` | «cierre…» |
+| Rollback sin efectos parciales | Conflicto de versión y fallo forzado en la transacción: sin versión, evento ni cierre | «rollback…» |
+| UI (añadir, lista, vista previa, deshacer, revisar, confirmar, estados, teclado, 390 px) | `lib/polygon-capture.tsx` | E2E `poligono.spec.ts` **[SIMULADA]** 4/4; revisión por rol |
+| Captura real en campo | **No obtenida** (mismo límite que P0-007) | Pendiente humano en Edge/Chrome |
+
+Límite: la emulación de Chromium siempre informa precisión; «precisión no informada» se prueba solo en integración.
+
 ## Interfaz según docs/UX_UI.md (2026-10-10)
 
 Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1/UX-V1 únicos en `apps/web/app/globals.css`; shell adaptable (organización activa con selector, usuario y rol efectivo, navegación por permisos, migas, «Saltar al contenido», menú móvil); login (UI-01) con mostrar/ocultar y mensajes distintos para 401/429/503/red; organizaciones (UI-02); miembros, invitaciones y roles (UI-03) en página propia; auditoría (UI-18) en página propia; productores y revisión de duplicados (UI-05) con tabla, filtros y estados diferenciados (carga, vacío, filtro sin resultados, error, 403, 404, conflicto 409 con recarga). Sin menús de módulos futuros; las capacidades pendientes por rol aparecen rotuladas en una tarjeta aparte. Revisión por rol: `docs/qa/REVISION_VISUAL_POR_ROL.md` (0 incidencias abiertas; 4 corregidas).
@@ -119,7 +145,7 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 - Android/offline, integraciones, despliegue: no iniciados.
 - Logotipo oficial y verificación de licencia de Inter (UX-D01/UX-D02). Evaluación de accesibilidad completa (lector de pantalla, zoom 200 %) no realizada: solo foco por teclado y móvil comprobados.
 
-## Próxima acción: P0-008 Polígono (propuesta en el registro de sesión)
+## Próxima acción: P0-009 GeoJSON (propuesta en `sesiones/2026-10-10-p0-008-poligono.md`)
 
 ## Anterior: P0-006 Parcela
 

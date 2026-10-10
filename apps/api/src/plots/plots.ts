@@ -112,6 +112,7 @@ interface VersionView {
   accuracy_m: string | null; validation_status: string; validation_rule_version: string; previous_version_id: string | null;
   notes: string | null; created_at: Date | string;
   geometry_visible: boolean;
+  technically_valid: boolean | null;
   sample: null | {
     id: string; source: string; captured_at: Date | string; received_at: Date | string;
     horizontal_accuracy_m: number | null; longitude?: number; latitude?: number;
@@ -127,6 +128,7 @@ const versionColumns = (withGeometry: boolean) => sql`
   ${withGeometry ? sql`ST_AsGeoJSON(v.geometry)::jsonb` : sql`NULL::jsonb`} AS geometry,
   v.geometry_hash, v.area_declared_ha::text, v.area_calculated_ha::text, v.survey_method, v.surveyed_at, v.accuracy_m::text,
   v.validation_status, v.validation_rule_version, v.previous_version_id, v.notes, v.created_at,
+  CASE WHEN v.geometry IS NULL THEN NULL ELSE ST_IsValid(v.geometry) END AS technically_valid,
   ${withGeometry}::boolean AS geometry_visible,
   CASE WHEN s.id IS NULL THEN NULL ELSE jsonb_strip_nulls(jsonb_build_object(
     'id', s.id, 'source', s.source, 'captured_at', s.captured_at, 'received_at', s.received_at,
@@ -144,7 +146,7 @@ export class PlotsService {
     private readonly audit: AuditService,
   ) {}
 
-  private has(ctx: TenantContext, p: string) {
+  has(ctx: TenantContext, p: string) {
     return ctx.permissions.includes(p as never);
   }
 
@@ -161,7 +163,7 @@ export class PlotsService {
   }
 
   /** Carga la parcela con el responsable de su productor; fuera de alcance = 404 (conocer el id no basta). */
-  private async load(db: Kysely<Database> | Transaction<Database>, ctx: TenantContext, id: string, kind: 'read' | 'update', lock = false) {
+  async load(db: Kysely<Database> | Transaction<Database>, ctx: TenantContext, id: string, kind: 'read' | 'update', lock = false) {
     let q = db.selectFrom('plots as pl')
       .innerJoin('producers as pr', (j) => j.onRef('pr.id', '=', 'pl.producer_id').onRef('pr.organization_id', '=', 'pl.organization_id'))
       .selectAll('pl')
@@ -176,11 +178,11 @@ export class PlotsService {
   }
 
   /** Permiso de geometría exacta (dentro del alcance ya comprobado por `load`). */
-  private geometryAllowed(ctx: TenantContext) {
+  geometryAllowed(ctx: TenantContext) {
     return this.has(ctx, 'plot:read_geometry');
   }
 
-  private async versionView(db: Kysely<Database> | Transaction<Database>, orgId: string, versionId: string | null, withGeometry: boolean): Promise<VersionView | null> {
+  async versionView(db: Kysely<Database> | Transaction<Database>, orgId: string, versionId: string | null, withGeometry: boolean): Promise<VersionView | null> {
     if (!versionId) return null;
     const r = await sql<VersionView>`
       SELECT ${versionColumns(withGeometry)}
@@ -223,7 +225,7 @@ export class PlotsService {
     return out;
   }
 
-  private async recordHistory(trx: Transaction<Database>, p: PlotRow, changeType: string, changed: string[], actorId: string, reason?: string | null) {
+  async recordHistory(trx: Transaction<Database>, p: PlotRow, changeType: string, changed: string[], actorId: string, reason?: string | null) {
     await trx.insertInto('plot_history').values({
       organization_id: p.organization_id, plot_id: p.id, row_version: String(p.row_version), change_type: changeType,
       changed_fields: changed, snapshot: JSON.stringify({ ...p, row_version: Number(p.row_version) }), reason: reason ?? null, changed_by: actorId,

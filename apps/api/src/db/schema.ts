@@ -292,7 +292,48 @@ export interface LocationSamplesTable {
   created_by: string;
 }
 
+export interface PolygonDraftsTable {
+  id: string;
+  organization_id: string;
+  plot_id: string;
+  status: 'OPEN' | 'CONFIRMED' | 'CANCELLED';
+  row_version: Generated<string>;
+  confirmed_version_id: string | null;
+  created_at: Timestamp;
+  created_by: string;
+  updated_at: Timestamp;
+  updated_by: string;
+  closed_at: Timestamp | null;
+  closed_by: string | null;
+}
+
+export interface DraftVerticesTable {
+  id: string;
+  organization_id: string;
+  draft_id: string;
+  acquisition_seq: number;
+  source: 'BROWSER_GEOLOCATION';
+  longitude: number;
+  latitude: number;
+  horizontal_accuracy_m: number | null;
+  captured_at: Timestamp;
+  received_at: Timestamp;
+  operation_id: string;
+  payload_hash: string;
+  created_by: string;
+}
+
+export interface DraftVertexExclusionsTable {
+  vertex_id: string;
+  organization_id: string;
+  excluded_at: Timestamp;
+  excluded_by: string;
+}
+
 export interface Database {
+  polygon_drafts: PolygonDraftsTable;
+  draft_vertices: DraftVerticesTable;
+  draft_vertex_exclusions: DraftVertexExclusionsTable;
   location_samples: LocationSamplesTable;
   plots: PlotsTable;
   plot_versions: PlotVersionsTable;

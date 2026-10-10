@@ -103,5 +103,8 @@ Completitud, validez, consistencia, unicidad y vigencia son resultados separados
 | producer_match_reviews | 0007 | Revisión asistida de duplicados (P0-005) |
 | plots, plot_versions, plot_history | 0008 | P0-006: geometría PostGIS 4326 inmutable por versión; superficie declarada y calculada separadas |
 | location_samples (equivale a `gps_samples`) | 0009 | P0-007: coordenadas originales, fuente `BROWSER_GEOLOCATION`, `captured_at` del dispositivo, `received_at` del servidor, precisión en m o NULL explícito, `operation_id` idempotente. Sin `device_reference` (no hay contrato de dispositivo). Append-only |
+| polygon_drafts | 0010 | P0-008: borrador de polígono **en el servidor** (no offline). Un solo OPEN por parcela; OPEN → CONFIRMED (`confirmed_version_id`, FK compuesta) o CANCELLED; `row_version` para concurrencia entre pestañas |
+| draft_vertices | 0010 | P0-008: cada muestra adquirida (lon/lat originales, `BROWSER_GEOLOCATION`, `captured_at`, `received_at`, precisión o NULL, `operation_id` idempotente, `acquisition_seq` = orden explícito). Append-only |
+| draft_vertex_exclusions | 0010 | P0-008: «deshacer» excluye un vértice sin borrar ni alterar la muestra. Composición vigente = vértices no excluidos por `acquisition_seq`. Append-only |
 
 Clasificación de la identidad del productor: documento, teléfono y dirección se cifran y solo se devuelven con `producer:read_identity`. Nombre, razón social y ubicación administrativa quedan en claro porque la operación los necesita para buscar e identificar; su exposición se controla por permisos de lectura.

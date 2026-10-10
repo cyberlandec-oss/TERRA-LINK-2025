@@ -30,6 +30,7 @@ import { EVENT_STORE, EventStore } from './events/events';
 import { ProducersController, ProducersService } from './producers/producers';
 import { ProducerMatchingController, ProducerMatchingService } from './producers/matching';
 import { PlotsController, PlotsService } from './plots/plots';
+import { PolygonDraftsController, PolygonDraftsService } from './plots/polygon-drafts';
 import { PII_CIPHER, PiiCipher } from './crypto/pii';
 import { PRODUCTION_CONSUMERS } from './events/consumers';
 import { LOGIN_RATE_LIMITER, LoginRateLimiter, REDIS, RedisAttemptStore } from './auth/login-rate-limit';
@@ -154,7 +155,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
-        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController,
+        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController,
       ],
       providers: [
         { provide: APP_CONFIG, useValue: config },
@@ -175,6 +176,7 @@ export class AppModule implements NestModule {
         ProducersService,
         ProducerMatchingService,
         PlotsService,
+        PolygonDraftsService,
         { provide: PII_CIPHER, useValue: new PiiCipher(config.pii) },
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },

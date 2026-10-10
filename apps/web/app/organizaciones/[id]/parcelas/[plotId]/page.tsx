@@ -7,6 +7,7 @@ import { ApiError, api } from '../../../../../lib/api';
 import { useWorkspace } from '../../../../../lib/workspace';
 import { Alert, Breadcrumb, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../../lib/ui';
 import { LocationCapture, accuracyLabel } from '../../../../../lib/location-capture';
+import { PolygonCapture } from '../../../../../lib/polygon-capture';
 import { GEOMETRY_STATUS, GEOMETRY_TYPE_LABEL, GeometrySketch, METHOD_LABEL, ha, positions, type Plot, type PlotVersion } from '../../../../../lib/plots';
 
 interface HistoryRow { version: number; change_type: string; changed_fields: string[]; reason: string | null; changed_at: string; actor: string }
@@ -88,7 +89,7 @@ export default function PlotDetailPage() {
             <h2 id="geo-title">Ubicación y superficie</h2>
             {!current ? (
               <EmptyState title="Geometría pendiente.">
-                <p className="muted">Esta parcela aún no tiene ubicación ni superficie registradas. La captura GPS de punto y polígono llegará con P0-007 y P0-008.</p>
+                <p className="muted">Esta parcela aún no tiene ubicación ni superficie registradas. Puedes capturar un punto o un polígono con la ubicación del navegador.</p>
               </EmptyState>
             ) : (
               <>
@@ -100,6 +101,9 @@ export default function PlotDetailPage() {
                   {current.sample && (<>
                     <dt>Captura</dt><dd>Ubicación del navegador · adquirida {new Date(current.sample.captured_at).toLocaleString('es-EC')} · recibida {new Date(current.sample.received_at).toLocaleString('es-EC')}</dd>
                     <dt>Precisión horizontal</dt><dd>{accuracyLabel(current.sample.horizontal_accuracy_m)}</dd>
+                  </>)}
+                  {current.technically_valid === false && (<>
+                    <dt>Validez técnica</dt><dd><StatusBadge tone="review">No válida</StatusBadge> <span className="muted">Conservada para revisión; sin superficie calculada.</span></dd>
                   </>)}
                   <dt>Validación GIS</dt><dd><StatusBadge tone="neutral">No validada</StatusBadge> <span className="muted">Solo comprobaciones estructurales ({current.validation_rule_version}). La validación GIS es P0-010.</span></dd>
                 </dl>
@@ -115,6 +119,7 @@ export default function PlotDetailPage() {
               </>
             )}
             {plot.can_capture_location && <LocationCapture orgId={orgId} plotId={plot.id} rowVersion={plot.row_version} onSaved={load} />}
+            {plot.can_capture_location && <PolygonCapture orgId={orgId} plotId={plot.id} plotVersion={plot.row_version} onConfirmed={load} />}
             {plot.can_update && <DeclaredAreaForm orgId={orgId} plot={plot} onSaved={load} />}
           </section>
 

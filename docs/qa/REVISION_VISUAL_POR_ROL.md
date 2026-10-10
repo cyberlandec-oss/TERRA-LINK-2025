@@ -99,3 +99,8 @@ Capturas: `parcelas--admin-listado.png`, `parcelas--admin-ficha-poligono.png`, `
 Defecto encontrado y corregido: `geometry_visible` llegaba como texto `"false"` (parámetro SQL sin tipo) y el aviso al auditor no se mostraba. Las coordenadas nunca se expusieron. Cast `::boolean` y aserción nueva en la integración.
 
 **Evidencia simulada** (`e2e/tests/ubicacion.spec.ts`, rotulada [SIMULADA]): posición emulada, permiso denegado, no disponible, timeout, navegador sin soporte, precisión no informada, cancelación y conflicto con muestra conservada. **Evidencia real:** intento con Chromium de Playwright sin posición emulada → timeout (código 3), con y sin ventana; no se obtuvo ubicación real. Comprobación pendiente con interacción humana.
+
+## P0-008 Polígono (2026-10-10)
+- tecnico1.cooperativa, DEMO-PAR-003, 390 px **[SIMULADA]**: 3 vértices persistidos tras recargar, resumen de precisión, revisión con validez técnica y GIS pendiente, sin desborde; borrador cancelado (DEMO intacto). Capturas `poligono--*.png`.
+- admin.cooperativa: acción de polígono visible. auditor.cooperativa: no visible (sin `plot:read_geometry`). tecnico2 (no asignado): parcela ajena no disponible.
+- Resultado: 23 entradas, 0 incidencias. La emulación siempre informa precisión; «no informada» se cubre en integración.
