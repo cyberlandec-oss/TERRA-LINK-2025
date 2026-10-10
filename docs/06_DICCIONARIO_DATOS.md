@@ -88,3 +88,18 @@ Cantidades `numeric(20,6)` y dinero `numeric(20,4)` son propuestas de precisión
 ## Calidad y privacidad
 
 Completitud, validez, consistencia, unicidad y vigencia son resultados separados con denominador y regla. Evitar un campo de «confidence» global sin método. Campos personales y geometrías exactas exigen clasificación de acceso; una exportación debe aplicar la misma política que la consulta.
+
+## Esquema implementado (contraste con el repositorio, 2026-10-10)
+
+| Tabla real | Migración | Diferencias con la propuesta |
+| --- | --- | --- |
+| users, organizations, memberships, roles, role_assignments, audit_logs | 0001, 0002 | `users.platform_role` para SUPER_ADMIN; `token_version`; `email_verified_at` (nunca lo marca una invitación); `role_assignments` con FK compuesta por tenant |
+| invitations | 0002 | Solo hash del token; una pendiente por correo y organización |
+| organization_types | 0003 | Catálogo provisional D-18 |
+| domain_events, event_deliveries, consumer_receipts | 0004 | Envolvente del doc 08; outbox por consumidor |
+| producers | 0005, 0006 | Campos de S1 §12. **Identidad cifrada**: `document_type_enc`, `document_number_enc`, `phone_enc`, `address_enc` (AES-256-GCM, AAD por registro) + `document_number_bidx` (índice ciego). Sin texto plano en tabla ni historial. `assigned_membership_id` con FK compuesta. Baja lógica `deleted_*` |
+| producer_versions | 0005, 0006 | Historial append-only; identidad cifrada por versión |
+| producer_status_counts, organization_event_stats | 0004, 0005 | Proyecciones alimentadas por eventos |
+| producer_match_reviews | 0007 | Revisión asistida de duplicados (P0-005) |
+
+Clasificación de la identidad del productor: documento, teléfono y dirección se cifran y solo se devuelven con `producer:read_identity`. Nombre, razón social y ubicación administrativa quedan en claro porque la operación los necesita para buscar e identificar; su exposición se controla por permisos de lectura.

@@ -37,9 +37,17 @@ Este paquete define el producto objetivo; no acredita implementación, conformid
 5. Actualiza estado, decisiones y reporte de evidencia. No cierres una historia solo porque el código compila.
 6. Entrega cambios, pruebas ejecutadas, limitaciones y siguiente paso; distingue «no ejecutado» de «aprobado».
 
+## Criterio de aceptación de esta etapa: desarrollo y validación local
+- Terra Link se desarrolla, levanta y verifica en el equipo local. GitHub Actions **no es obligatorio** en esta etapa; no hay que resolver facturación ni cambiar de cuenta.
+- Git/GitHub siguen siendo versionado y respaldo (commits y push a la rama de trabajo).
+- Una historia es **DONE_LOCAL** cuando cumple sus criterios funcionales y de seguridad con evidencia de pruebas locales pertinentes: `npm run validate` aprobado sobre el commit, más las pruebas específicas de la historia.
+- DONE_LOCAL **no** acredita producción, despliegue, Android real ni conformidad EUDR; esos gates se registran aparte.
+- El workflow de Actions está inactivo en `infra/ci/github-actions-ci.yml` (referencia). No pidas relanzarlo.
+
 ## Comandos
 Monorepo npm (`apps/api` NestJS + Kysely, `apps/web` Next.js). Comandos verificados en `docs/20_COMANDOS_Y_ENTORNO.md`; no inventes otros.
 - `npm run infra:up` (PostGIS en host:5440, Redis, S3 local) · `npm run db:migrate` · `npm run seed:dev -w apps/api`
+- **`npm run validate`**: validación local completa (servicios, typecheck, lint, build, OpenAPI validado, unitarias + integración, E2E). Resultados en `validation-results/<fecha>/`. Opciones: `-- --skip-e2e`, `-- --docker`
 - `npm run typecheck` · `npm run lint` · `npm test` (la integración recrea el esquema de la base `*_test`) · `npm run build`
 - `npm run dev:api` (4000, Swagger `/api/docs`) · `npm run dev:web` (3000)
 - `docker compose --profile app up -d --build --wait` (API y web en contenedores; `rm -sf api web migrate` para detenerlos)

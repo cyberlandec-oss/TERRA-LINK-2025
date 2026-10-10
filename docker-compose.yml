@@ -43,6 +43,9 @@ services:
     command: ["node", "dist/db/migrate-cli.js"]
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      PII_KEYS: ${PII_KEYS:?definir en .env}
+      PII_ACTIVE_KEY_ID: ${PII_ACTIVE_KEY_ID:?definir en .env}
+      PII_INDEX_KEY: ${PII_INDEX_KEY:?definir en .env}
     depends_on:
       postgres: { condition: service_healthy }
   api:
@@ -53,6 +56,9 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:?definir en .env}
       JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-3600}
+      PII_KEYS: ${PII_KEYS:?definir en .env}
+      PII_ACTIVE_KEY_ID: ${PII_ACTIVE_KEY_ID:?definir en .env}
+      PII_INDEX_KEY: ${PII_INDEX_KEY:?definir en .env}
       WEB_ORIGIN: http://localhost:${WEB_HOST_PORT:-3000}
       API_PORT: 4000
     ports: ["${API_HOST_PORT:-4000}:4000"]

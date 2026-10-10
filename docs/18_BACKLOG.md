@@ -163,3 +163,7 @@ Marketplace de servicios, red colaborativa de datos/capas, IA asistente avanzada
 ## Gestión
 
 Estados: `PENDIENTE_DE_VERIFICAR → GAP_CONFIRMADO → READY_FOR_DEV → IN_PROGRESS → IN_REVIEW → VERIFIED`; `BLOCKED` con motivo y siguiente acción. Regla: dependencia satisfecha por evidencia o contrato/mock explícito, no por checkbox. Estimación se hace tras inspeccionar código y equipo; no heredar el calendario ilustrativo como compromiso.
+
+### Criterio de cierre de la etapa local (desde 2026-10-10)
+
+Estado adicional `DONE_LOCAL`: criterios de la historia cumplidos con evidencia de pruebas locales (`npm run validate` aprobado + suites de la historia) y documentación al día. No requiere GitHub Actions. No equivale a producción ni a conformidad EUDR. Un criterio que dependa de una decisión no tomada o de un contrato inexistente deja la historia abierta solo si ese criterio forma parte de su aceptación; el resto de decisiones provisionales se registran sin bloquear. Estado vigente en docs/23.

@@ -160,10 +160,12 @@ export interface ProducersTable {
   first_name: string | null;
   last_name: string | null;
   legal_name: string | null;
-  document_type: string | null;
-  document_number: string | null;
-  phone: string | null;
-  address: string | null;
+  // Identidad cifrada (crypto/pii.ts); nunca en texto plano.
+  document_type_enc: string | null;
+  document_number_enc: string | null;
+  phone_enc: string | null;
+  address_enc: string | null;
+  document_number_bidx: string | null;
   community: string | null;
   province: string | null;
   canton: string | null;
@@ -199,7 +201,23 @@ export interface ProducerStatusCountsTable {
   producer_count: string;
 }
 
+export interface ProducerMatchReviewsTable {
+  id: Generated<string>;
+  organization_id: string;
+  producer_a_id: string;
+  producer_b_id: string;
+  rule_code: 'IDENTITY_DOCUMENT';
+  status: 'PENDING' | 'NOT_DUPLICATE' | 'DUPLICATE_CONFIRMED';
+  detected_at: Timestamp;
+  detected_by: string;
+  resolved_at: Timestamp | null;
+  resolved_by: string | null;
+  resolution_note: string | null;
+  row_version: Generated<string>;
+}
+
 export interface Database {
+  producer_match_reviews: ProducerMatchReviewsTable;
   producers: ProducersTable;
   producer_versions: ProducerVersionsTable;
   producer_status_counts: ProducerStatusCountsTable;

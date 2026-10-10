@@ -25,6 +25,7 @@ export interface Producer {
   phone?: string | null;
   address?: string | null;
   deletion_reason: string | null;
+  duplicate_reviews_pending?: number;
 }
 
 export const STATUS_LABEL: Record<Producer['status'], string> = { DRAFT: 'Borrador', ACTIVE: 'Activo', INACTIVE: 'De baja' };
@@ -69,6 +70,9 @@ export default function ProducersPage() {
     <>
       <p><Link href={`/organizaciones/${orgId}`}>← {org?.name ?? 'Organización'}</Link></p>
       <h1>Productores</h1>
+      {org && can(org, 'producer:review_duplicates') && (
+        <p><Link href={`/organizaciones/${orgId}/productores/coincidencias`}>Revisar posibles duplicados</Link></p>
+      )}
       <form className="card" onSubmit={(e) => { e.preventDefault(); void load(); }} role="search">
         <label htmlFor="q">Buscar por código, nombre o comunidad</label>
         <input id="q" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -109,7 +113,7 @@ export default function ProducersPage() {
         </section>
       )}
       {org && can(org, 'producer:create') && org.status === 'ACTIVE' && (
-        <CreateProducer orgId={orgId} onCreated={(p) => router.push(`/organizaciones/${orgId}/productores/${p.id}`)} />
+        <CreateProducer orgId={orgId} onCreated={(p) => router.push(`/organizaciones/${orgId}/productores/${p.id}${p.duplicate_reviews_pending ? '?coincidencia=1' : ''}`)} />
       )}
     </>
   );

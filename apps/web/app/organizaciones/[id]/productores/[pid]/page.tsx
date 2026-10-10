@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ApiError, api, recoveryHint, session, type Member } from '../../../../../lib/api';
 import { ProducerFields, STATUS_LABEL, toPayload, type Producer } from '../page';
@@ -30,6 +30,7 @@ const EDITABLE = ['first_name', 'last_name', 'legal_name', 'document_type', 'doc
 export default function ProducerDetailPage() {
   const { id: orgId, pid } = useParams<{ id: string; pid: string }>();
   const router = useRouter();
+  const possibleDuplicate = useSearchParams().get('coincidencia') === '1';
   const [p, setP] = useState<ProducerDetail | null>(null);
   const [history, setHistory] = useState<Version[]>([]);
   const [error, setError] = useState<ApiError | null>(null);
@@ -75,6 +76,11 @@ export default function ProducerDetailPage() {
             <span className={`badge ${p.status === 'INACTIVE' ? 'suspended' : ''}`}>{STATUS_LABEL[p.status]}</span>{' '}
             <span className="muted">versión {p.row_version}</span>
           </p>
+          {possibleDuplicate && (
+            <p className="notice" role="status">
+              Se detectó una posible coincidencia de identidad con otro productor. Un responsable la revisará; no se fusionó ni modificó ningún registro.
+            </p>
+          )}
           {p.status === 'INACTIVE' && <p className="notice">Productor de baja: {p.deletion_reason}. Su historial se conserva.</p>}
           {!p.identity_visible && <p className="muted">Los datos de identidad y contacto no están disponibles para tu rol.</p>}
           {p.can_update ? <EditProducer orgId={orgId} producer={p} onSaved={load} /> : <ReadOnly producer={p} />}

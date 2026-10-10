@@ -1,3 +1,5 @@
+import { parsePiiConfig, type PiiKeyConfig } from './crypto/pii';
+
 // Configuración validada al arrancar. Nunca se registran los valores, solo los nombres faltantes.
 export interface LoginRateLimitConfig {
   /** Ventana de conteo y duración máxima del bloqueo temporal, en segundos. */
@@ -24,6 +26,8 @@ export interface AppConfig {
   loginRateLimit: LoginRateLimitConfig;
   /** Vigencia de las invitaciones (P0-002), en horas. */
   invitationTtlHours: number;
+  /** Claves de cifrado de datos personales (obligatorias). */
+  pii: PiiKeyConfig;
 }
 
 function required(name: string, env: NodeJS.ProcessEnv): string {
@@ -59,6 +63,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       maxPerIp: positiveInt('LOGIN_RL_MAX_PER_IP', env, 50),
     },
     invitationTtlHours: positiveInt('INVITATION_TTL_HOURS', env, 72),
+    pii: (() => {
+      const pii = parsePiiConfig(env);
+      if (!pii) throw new Error('Variables requeridas no definidas: PII_KEYS, PII_ACTIVE_KEY_ID, PII_INDEX_KEY');
+      return pii;
+    })(),
   };
 }
 

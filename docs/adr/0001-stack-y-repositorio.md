@@ -26,7 +26,7 @@ La primera auditoría del 2026-10-09 inspeccionó por error otro proyecto (`cybe
 | Objetos | S3 compatible; local VersityGW `v1.8.0` | — | Reproducido el 2026-10-09: `docker pull minio/minio:latest` → «pull access denied» (control `redis:7.4-alpine` sí resuelve). Fuentes secundarias indican que MinIO dejó de publicar la imagen comunitaria en Docker Hub (oct. 2025); no se encontró comunicado oficial vigente. Alternativas: `quay.io/minio/minio` (congelada), Chainguard |
 | Auth | Local email/contraseña argon2id + JWT HS256 de corta vida | — | ADR-0005 (OIDC pendiente) |
 | Pruebas | Jest 30 + ts-jest (API, integración con PostgreSQL y Redis reales); Vitest (web); Playwright 1.64 + Chromium (E2E, `e2e/`) | — | |
-| CI | GitHub Actions `.github/workflows/ci.yml` (Ubuntu 24.04, Node 24, servicios `postgis/postgis:16-3.4` y `redis:7.4-alpine`) | — | Mismas versiones que el compose local |
+| Validación | **Local**: `npm run validate` (scripts/validate-local.mjs). Workflow de Actions inactivo como referencia en `infra/ci/github-actions-ci.yml` | — | Etapa de desarrollo local; mismas comprobaciones en el equipo |
 | TypeScript | 5.9.3 | — | `ts-jest@29.4.14` declara `peerDependencies.typescript: ">=4.3 <7"` (verificado con `npm view`) |
 
 Estructura: módulos por dominio en `apps/api/src/<módulo>` (dominio, caso de uso, persistencia y API). Las migraciones viven en `apps/api/src/db/migrations` y se registran explícitamente en `database.ts`.

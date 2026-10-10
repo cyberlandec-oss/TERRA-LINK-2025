@@ -1,3 +1,6 @@
+# REFERENCIA INACTIVA (2026-10-10): GitHub Actions no es obligatorio en la etapa de desarrollo local.
+# Este archivo está fuera de .github/workflows a propósito, así que no se ejecuta. La validación vigente
+# es `npm run validate` (scripts/validate-local.mjs). Para reactivarlo, devolverlo a .github/workflows/.
 # CI de Terra Link: instalación reproducible (lockfile), typecheck, lint, build, migraciones sobre
 # bases exclusivas de CI, unitarias + integración (PostgreSQL/PostGIS y Redis reales) y E2E en Chromium.
 # Sin credenciales reales: la contraseña de PostgreSQL es exclusiva de este contenedor efímero y el

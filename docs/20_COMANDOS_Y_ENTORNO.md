@@ -25,19 +25,19 @@ No imprimir ni versionar `.env` (está en `.gitignore`).
 | --- | --- | --- | --- |
 | Servicios locales | `npm run infra:up` (`docker compose up -d --wait`) | Levanta `postgres` (PostGIS 16-3.4, host:5440, crea `terra_link` y `terra_link_test`), `redis` (6379) y `object-storage` (VersityGW, 9000). Volúmenes `postgres-data` y `object-data` | 3 servicios healthy |
 | Detener servicios | `npm run infra:down` | No borra volúmenes | — |
-| Migrar dev | `npm run db:migrate` | Compila la API y aplica migraciones a `DATABASE_URL` | `0001`–`0005_producers` aplicadas |
+| Migrar dev | `npm run db:migrate` | Compila la API y aplica migraciones a `DATABASE_URL` | `0001`–`0007_producer_match_reviews` aplicadas (dev: productores y usuarios conservados) |
 | Seed dev | `npm run seed:dev -w apps/api` | Crea el SUPER_ADMIN desde `SEED_ADMIN_*`; idempotente | Creado |
 | API: typecheck | `npm run typecheck -w apps/api` | — | 0 errores |
 | API: lint | `npm run lint -w apps/api` | — | 0 problemas |
-| API: pruebas | `npm test -w apps/api` | Requiere `infra:up`, `TEST_DATABASE_URL` (debe terminar en `_test`; **recrea el esquema `public` de esa base**) y `REDIS_URL` (prefijo de claves único por corrida). Sin ellas, la integración queda *skipped* | 9 suites, **75/75** (11 unitarias + 64 integración PostgreSQL/Redis reales) |
+| API: pruebas | `npm test -w apps/api` | Requiere `infra:up`, `TEST_DATABASE_URL` (debe terminar en `_test`; **recrea el esquema `public` de esa base**) y `REDIS_URL` (prefijo de claves único por corrida). Sin ellas, la integración queda *skipped* | 12 suites, **90/90** (16 unitarias + 74 integración PostgreSQL/Redis reales) |
 | API: arrancar | `npm run dev:api` (compila + `node dist/main.js`, puerto 4000) | Swagger en `/api/docs`. `/health/ready` devuelve `checks` por dependencia (database, schema, redis) y 503 si alguna falla | live/ready 200; login OK |
-| OpenAPI | `npm run openapi -w apps/api` → `apps/api/openapi.json` | Generado desde los controladores | OpenAPI 3.0.0, 30 rutas |
+| OpenAPI | `npm run openapi -w apps/api` → `apps/api/openapi.json` | Generado desde los controladores y validado con `@apidevtools/swagger-parser` (falla si hay referencias o esquemas inválidos) | OpenAPI 3.0.0, 32 rutas, válido |
 | Web: typecheck / lint / test | `npm run typecheck -w apps/web`, `npm run lint -w apps/web`, `npm test -w apps/web` | — | OK; vitest 3/3 |
 | Web: build | `npm run build -w apps/web` | — | 5 rutas compiladas |
 | Worker del outbox | `npm run worker -w apps/api` | Procesa `event_deliveries`; variables `OUTBOX_POLL_MS`, `OUTBOX_MAX_ATTEMPTS`, `OUTBOX_LEASE_SECONDS` | Arranca y procesa (ver contenedores) |
 | Todo (raíz) | `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` | API + web | OK |
 | Navegadores E2E (una vez) | `npm run install-browsers -w e2e` | Descarga Chromium (~120 MB) | OK |
-| E2E en navegador | `npm run build -w apps/api && npm run test:e2e` | Crea o recrea `terra_link_e2e`, migra, siembra un SUPER_ADMIN con contraseña aleatoria, levanta API :4100 y web :3100 (compila la web con esa URL) | **13/13** en Chromium (~41 s + build; 2 corridas seguidas verdes). Una corrida previa falló por un `reload` lento (4,2 min en total, intermitente) |
+| E2E en navegador | `npm run build -w apps/api && npm run test:e2e` | Crea o recrea `terra_link_e2e`, migra, siembra un SUPER_ADMIN con contraseña aleatoria, levanta API :4100 y web :3100 (compila la web con esa URL) | **14/14** en Chromium (~38 s + build). Fallo intermitente previo (un `reload` sin respuesta en una corrida de 4,2 min): **causa no determinada**; su evidencia se perdió porque Playwright sobrescribe `test-results`. Ahora `validate` conserva trazas si vuelve a ocurrir |
 | Web: arrancar | `npm run dev:web` (dev) o `npm run start -w apps/web` (tras build), puerto 3000 | API en `NEXT_PUBLIC_API_URL` | Páginas 200; CORS solo `WEB_ORIGIN` |
 
 ## Contenedores de la aplicación (opcional)
@@ -50,9 +50,23 @@ No imprimir ni versionar `.env` (está en `.gitignore`).
 
 Las variables (`JWT_SECRET`, credenciales de PostgreSQL) se leen de `.env` al ejecutar; `.dockerignore` excluye `.env*` y nunca se copian a las imágenes. Puertos configurables con `API_HOST_PORT` y `WEB_HOST_PORT`. No arrancar a la vez que `dev:api`/`dev:web` en los mismos puertos.
 
-## CI (GitHub Actions)
+## Validación local (criterio de esta etapa)
 
-Workflow `.github/workflows/ci.yml`. Se dispara en push y PR hacia `main` y con `workflow_dispatch`. Pasos: `npm ci` → typecheck → lint → build → `db:migrate` sobre `terra_link_ci` → `npm test` (integración contra `terra_link_test`) → Playwright Chromium (`terra_link_e2e`). Servicios: `postgis/postgis:16-3.4` y `redis:7.4-alpine`, igual que en local. Sin secretos: contraseña efímera del contenedor y `JWT_SECRET` generado por corrida.
+```bash
+npm run validate                 # completa
+npm run validate -- --skip-e2e   # sin navegador
+npm run validate -- --docker     # añade build de imágenes
+```
+
+- **Requisitos:** Docker Desktop en marcha, `.env` completo (incluidas `TEST_DATABASE_URL` → `*_test` y las claves `PII_*`), `npm install` hecho y Chromium instalado (`npm run install-browsers -w e2e`).
+- **Pasos** (se detiene en el primer fallo): servicios (`docker compose up -d --wait postgres redis object-storage`, sin borrar nada) → typecheck → lint → build → OpenAPI generado **y validado** → unitarias + integración (`terra_link_test`, esquema recreado) → E2E Chromium (`terra_link_e2e`).
+- **Salvaguardas:** se niega a ejecutar si `TEST_DATABASE_URL` no termina en `_test` o coincide con la base de desarrollo (código 2). No toca `terra_link`, no borra volúmenes.
+- **Resultados:** `validation-results/<fecha>/resumen.md`, `resumen.json` (commit, archivos sin commit, pasos, códigos, tiempos) y un `.log` por paso. Si falla E2E, se copian trazas y reporte de Playwright a esa carpeta. Código de salida: 0 aprobada, 1 fallida, 2 configuración insegura o incompleta.
+- **Comprobado el 2026-10-10:** corrida aprobada (6 pasos); configuración insegura → código 2 sin ejecutar nada; Redis inaccesible → integración FALLA y código 1.
+
+## GitHub Actions (inactivo; registro histórico)
+
+El workflow se movió a `infra/ci/github-actions-ci.yml` y **no se ejecuta**: en esta etapa no es requisito y no hay que resolver facturación. Corridas anteriores, solo como historia (ninguna llegó a ejecutar pasos por la facturación de la cuenta):
 
 | Fecha | Commit | Run | Resultado |
 | --- | --- | --- | --- |
@@ -60,11 +74,9 @@ Workflow `.github/workflows/ci.yml`. Se dispara en push y PR hacia `main` y con 
 | 2026-10-10 | `63b18c7` (PR #1, P0-003) | [38021874080](https://github.com/cyberlandec-oss/TERRA-LINK-2025/actions/runs/38021874080) | **SIN VEREDICTO**: misma anotación de facturación; 0 pasos |
 | 2026-10-10 | `c8362ff` (PR #1, eventos + P0-004) | [38024418581](https://github.com/cyberlandec-oss/TERRA-LINK-2025/actions/runs/38024418581) | **SIN VEREDICTO**: misma anotación de facturación; 0 pasos |
 
-Evidencia complementaria, que **no sustituye al CI**: los mismos pasos se ejecutaron en Linux, en un contenedor `mcr.microsoft.com/playwright:v1.64.0-noble` (Node 24.21) a partir de `git archive` de `f2d395d`, contra los servicios del compose. Resultados: `npm ci`, typecheck, lint, build y migraciones desde cero OK; API 40/40; E2E 7/7. La línea de Vitest web no quedó capturada en ese registro.
-
 ## Pendiente (no ejecutado / no existe aún)
 
-Veredicto de CI (bloqueado por facturación), Dockerfiles de API/web, móvil/Android, backup/restauración (QA-16) y despliegue. Ningún comando de producción está definido.
+Móvil/Android, backup/restauración (QA-16) y despliegue. Ningún comando de producción está definido.
 
 ## Ejecución segura
 

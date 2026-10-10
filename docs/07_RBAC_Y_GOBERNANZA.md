@@ -128,3 +128,7 @@ Origen: S1 §9 (FIELD_TECHNICIAN `producer:create/read`) y doc 07/14 («solo asi
 - `read_assigned` / `update_assigned`: solo productores con `assigned_membership_id` = membresía del usuario. Lo que registra un técnico sin `producer:read` queda asignado a él.
 - `read_identity`: documento, teléfono y dirección (respuesta, historial y búsqueda exacta por documento). Sin él, esos campos no se devuelven.
 - Responsable asignado: membresía ACTIVA de la misma organización y con acceso a productores (422 si no). FK compuesta en BD.
+
+### Revisión de duplicados (catálogo `2026-10-10.3`, P0-005)
+
+`producer:review_duplicates` (Data Steward): ORG_ADMIN y MANAGER. Permite listar y resolver casos de `producer_match_reviews`. Los datos de identidad del caso se muestran solo con `producer:read_identity`. Quien registra un productor coincidente recibe solo el número de casos abiertos, nunca datos del otro productor.

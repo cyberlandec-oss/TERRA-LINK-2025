@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { sql, type Kysely } from 'kysely';
 import request from 'supertest';
 import { createApp } from '../src/bootstrap';
@@ -27,6 +27,8 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     trustProxy: false,
     loginRateLimit: { windowSeconds: 900, maxPerAccountAndIp: 5, maxPerAccount: 20, maxPerIp: 50 },
     invitationTtlHours: 72,
+    // Claves efímeras por corrida: nunca las del .env ni versionadas.
+    pii: { keys: { t1: randomBytes(32) }, activeKeyId: 't1', indexKey: randomBytes(32) },
     ...overrides,
   };
 }

@@ -24,6 +24,26 @@ Estas cuestiones no bloquean la lectura ni preparación del paquete. Bloquean ú
 | D-18 | Catálogo de `organization_type` (hoy código libre `^[A-Z_]{2,40}$`) | Producto | Catálogo aprobado y migración con CHECK/FK |
 | D-19 | Mecanismo definitivo de invitación y verificación de correo (hoy enlace provisional) | Producto/seguridad | Tres decisiones separadas en ADR-0005: autenticación (local u OIDC), verificación del correo y entrega de invitaciones |
 | D-20 | Umbrales del límite de login (5/20/50 por 15 min) y tolerancia al bloqueo temporal por terceros | Seguridad | Valores aprobados o ajustados con datos del piloto |
+| D-21 | ¿`producer_code` distingue mayúsculas/minúsculas? | Producto/Data Steward | Regla aprobada; si se unifican, migración con detección previa de colisiones |
+| D-22 | Reglas de coincidencia adicionales a la identidad (nombre + comunidad, teléfono…) | Producto/Data Steward | Reglas aprobadas con umbral y tasa de falsos positivos medida |
+
+### Efecto de cada decisión abierta sobre los criterios (2026-10-10)
+
+Ninguna decisión es un bloqueo global. Solo bloquea la historia cuyo criterio de aceptación la necesita.
+
+| Decisión | Comportamiento afectado hoy | ¿Bloquea un criterio? |
+| --- | --- | --- |
+| D-04 elevación SUPER_ADMIN | Acceso de plataforma a miembros, bitácora u operación sin membresía (hoy `ELEVATION_REQUIRED`/404) | **Sí**: P0-003 «superadmin/elevación» |
+| Grants entre organizaciones (ADR-0002, P1-001) | Acceso de BUYER/AUDITOR externos | **Sí**: P0-003 «buyer/grants» |
+| D-18 tipos de organización | Catálogo provisional de 8 tipos; no afecta permisos | No (P0-001 solo exige datos mínimos) |
+| D-19 autenticación, verificación de correo, entrega de invitaciones | Invitación por enlace manual; correo sin verificar | No para P0-002 en local; sí antes de operación real |
+| D-20 umbrales de login | 5/20/50 por 15 min, configurables | No |
+| D-21 mayúsculas/minúsculas en `producer_code` | Hoy `PRD-1` y `prd-1` son códigos distintos (unicidad exacta tras recortar espacios) | No: el contrato solo exige unicidad por organización |
+| D-22 reglas adicionales de coincidencia (nombre, ubicación) | Solo se aplica la regla documentada de identidad (mismo tipo y número de documento) | No: P0-005 exige la coincidencia de identidad |
+| Matriz `producer:*` | Propuesta provisional (doc 07) | No |
+| ADR-0001 / ADR-0005 sin ratificar | Stack y autenticación adoptados para desarrollo | No en local |
+| D-05, D-06… (GIS, stock) | Historias futuras | Se evaluarán en su historia |
+| GitHub Actions / facturación | Ninguno: Actions inactivo; validación local | **No** (eliminado como bloqueo) |
 
 ### Supuestos vigentes de desarrollo (2026-10-10)
 

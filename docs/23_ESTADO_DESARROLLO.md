@@ -1,75 +1,81 @@
 # Estado compartido de desarrollo
 
-Última actualización: 2026-10-10. Repositorio `cyberlandec-oss/TERRA-LINK-2025`. `main` en `03bb2f6`; el trabajo está en la rama `feat/tech-001-ci-p0-002` ([PR #1](https://github.com/cyberlandec-oss/TERRA-LINK-2025/pull/1), **sin fusionar**: falta CI).
+Última actualización: 2026-10-10. Repositorio `cyberlandec-oss/TERRA-LINK-2025`, rama de trabajo `feat/tech-001-ci-p0-002` (PR #1 abierto como respaldo y revisión; `main` en `03bb2f6`).
 
-> **Resultados ajenos a este proyecto (no usar):** la primera auditoría del 2026-10-09 inspeccionó por error `cyberlandec-oss/cacao`. Nada de aquel repositorio pertenece a Terra Link 2025.
+> Resultados ajenos a este proyecto: la auditoría inicial del repo `cacao` no aplica a Terra Link 2025.
 
-## Estados usados
+## Criterio vigente: validación local
 
-**Implementado** · **Verificado local** (comando en docs/20) · **Pendiente de CI** (sin veredicto de GitHub Actions sobre el SHA exacto) · **Pendiente de decisión** · **DONE** (todo lo anterior + CI verde). Hoy **ninguna historia está DONE**.
+GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/github-actions-ci.yml`). La facturación de GitHub **no es un bloqueo**. **DONE_LOCAL** = criterios de la historia cumplidos con evidencia local (`npm run validate` aprobado + suites de la historia). DONE_LOCAL no acredita producción, Android real ni conformidad EUDR.
 
-## Línea base
+Última validación: `npm run validate` **APROBADA**, 7 pasos (servicios, typecheck, lint, build, OpenAPI validado, API 90/90 + web 3/3, E2E 14/14). Registro en `validation-results/` (no versionado); commit y resultado en el registro de sesión.
 
-| Elemento | Estado | Evidencia |
+## Estado por historia
+
+| Historia | Estado | Motivo |
 | --- | --- | --- |
-| Stack | Adoptado para desarrollo (ADR-0001); ratificación pendiente | Manifiestos y lockfile |
-| Migraciones | `0001`–`0005_producers` | `apps/api/src/db/migrations` |
-| Pruebas locales | API 75/75 (64 integración real), web 3/3, E2E 13/13 | docs/20 |
-| Contenedores | API, web, migración y 2 workers verificados local | docs/20 |
-| CI | Pendiente: GitHub no inicia jobs por facturación | docs/20 |
-| Android/offline, integraciones, satélite | No iniciado | — |
-| Conformidad EUDR / preparación productiva | No acreditadas | — |
+| TECH-001 | **DONE_LOCAL (fundamentos)** | Ver tabla; lo funcional pendiente pasa a sus historias |
+| P0-001 Organización | **DONE_LOCAL** | Criterios cumplidos; D-18 provisional no afecta el criterio |
+| P0-002 Usuarios | **DONE_LOCAL** | Criterios cumplidos con la autenticación vigente; entrega de invitaciones provisional (D-19) registrada |
+| P0-003 RBAC y aislamiento | **ABIERTA, bloqueada en 2 criterios** | «buyer/grants» sin contrato (ADR-0002, P1-001) y «superadmin/elevación» sin D-04. El resto, verificado |
+| P0-004 Productor | **DONE_LOCAL** | Brecha de cifrado de identidad resuelta (migración 0006) |
+| P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 
-## Historias
+### TECH-001 — criterio por criterio
 
-| ID | Implementado | Verificado local | Pendiente de CI | Pendiente de decisión | DONE |
-| --- | :-: | :-: | :-: | --- | :-: |
-| TECH-001 | Parcial | Parcial | Sí | ADR-0001 | No |
-| P0-001 Organización | Sí | Sí | Sí | D-18 | No |
-| P0-002 Usuarios | Sí | Sí | Sí | D-19 | No |
-| P0-003 RBAC y aislamiento | Sí (sin D-04) | Sí | Sí | D-04 | No |
-| P0-004 Productor | Sí | Sí (integración + E2E) | Sí | Matriz `producer:*` provisional; cifrado de identidad en reposo | No |
-
-### Corrección: login con Redis caído
-
-Antes respondía 500. Ahora responde 503 `LOGIN_TEMPORARILY_UNAVAILABLE` con `Retry-After`, sin sesión ni detalles internos. Readiness muestra `checks.redis = unavailable` y la misma instancia se recupera sola. Prueba: `redis-outage.int-spec.ts` (3 casos, proxy TCP).
-
-### TECH-001 — elementos
-
-| Elemento | Estado |
-| --- | --- |
-| Stack, skeleton, compose, migraciones, comandos, rules | Hecho / verificado local |
-| OpenAPI generado (30 rutas) | Verificado local; sin validación de contrato automatizada |
-| CI | Implementado; pendiente de CI |
-| E2E navegador | Verificado local (13/13) |
-| Dockerfiles API/web + worker | Verificado local |
-| **Eventos de dominio + outbox** | **Verificado local**: envolvente, inmutabilidad, atomicidad, reintentos/DEAD, reentrega idempotente, 3 workers concurrentes, arrendamiento vencido, recorrido real con contenedores (doc 08 «Implementación vigente») |
-| Catálogos CTE/KDE | Pendiente |
-| Ledger de inventario (ADR-0003) | Pendiente (P0-016/017) |
-| Framework de reglas versionadas | Pendiente (doc 13) |
-| ERD y diccionario contrastados | Pendiente por historia (identidad, organización y productor reflejados en migraciones) |
-| Herramienta de reproceso de DEAD | Pendiente |
-
-### P0-004 — criterios
-
-| Criterio | Resultado | Evidencia (`producers.int-spec.ts` salvo indicación) |
+| Criterio (doc 18) | Estado | Evidencia o destino |
 | --- | --- | --- |
-| Modelo con organización obligatoria; código único por tenant | OK; mismo código en otra org permitido | «alta con validación…» |
-| Validación de campos de la fuente | Nombre+apellido o razón social; documento en par; formato de código y teléfono; campos extra → 400 | ídem |
-| Alta, búsqueda, listado paginado, consulta, edición | OK; cursor estable por código; búsqueda por código, nombre o comunidad | «búsqueda y paginación…»; E2E |
-| Historial de cambios | `producer_versions` append-only con instantánea por versión; identidad redactada sin permiso | «baja lógica…» |
-| Edición concurrente | Dos ediciones sobre la misma versión → 200 + 409 | «edición con control…»; E2E dos pestañas |
-| Asignación de responsable | `producer:assign`; membresía activa de la misma org con acceso a productores; FK compuesta | «referencias por tenant…», «asignación…» |
-| Alcance del técnico | Solo asignados; lo que registra queda asignado a él | «el técnico solo ve…» |
-| Identidad protegida | Sin `read_identity` no se devuelve ni se busca por documento; ausente de eventos y auditoría | «identidad protegida…», «registro atómico…» |
-| Baja lógica que preserva historia | INACTIVE con motivo; sale del listado por defecto; edición bloqueada; reactivable | «baja lógica…»; E2E |
-| Acceso cruzado y listados | 404 entre organizaciones; listados sin filas ajenas | «búsqueda…», mutante del filtro de tenant detectado |
-| Registro atómico cambio + evento + auditoría | Error de unicidad no deja evento ni versión | «registro atómico…» |
-| Eventos consumidos | Proyección por estado correcta e idempotente ante reentrega | «eventos del productor…»; contenedores |
-| Recorrido en navegador | alta → búsqueda → detalle → edición (conflicto) → baja | `e2e/tests/productores.spec.ts` |
-| Pendiente | Cifrado en reposo de la identidad («identidad cifrada/restringida», doc 06: hoy solo restringida); deduplicación y corrección de código (P0-005) | — |
+| Inventario, stack y estructura (ADR-0001), rules mapeadas | Cumplido | ADR-0001, `.claude/rules` |
+| Comandos reproducibles | Cumplido | docs/20, `npm run validate` |
+| Validación automatizada («CI») | **Cumplido en local**: `npm run validate` sustituye a Actions en esta etapa | docs/20 |
+| Migraciones versionadas | Cumplido (0001–0007) | `apps/api/src/db/migrations` |
+| OpenAPI ejecutable **validada** | Cumplido: generada y validada en cada `validate` | `npm run openapi -w apps/api` |
+| ERD/diccionario contrastados | Cumplido para lo implementado | doc 06 «Esquema implementado» |
+| Matriz RBAC real | Cumplido | doc 07 |
+| Envolvente de eventos + outbox | Cumplido | doc 08 «Implementación vigente», `events.int-spec.ts` |
+| Contenedores (API, web, worker) | Cumplido | docs/20 |
+| Catálogos CTE/KDE | **Trasladado** a P0-013 (CTE) y P0-014 (KDE): son funcionalidad de dominio | backlog |
+| Framework de reglas / riesgo | **Trasladado** a P0-020 (risk engine) | backlog |
+| Ledger de inventario | **Trasladado** a P0-016/P0-017 (ADR-0003) | backlog |
+| Reproceso manual de entregas DEAD | Pendiente técnico menor; se hará con el primer consumidor crítico (P0-015/P0-028) | doc 08 |
 
-## Próxima acción
+### P0-003 — criterios
 
-1. Cuando GitHub permita ejecutar: CI sobre el último SHA del PR #1; registrar enlace, SHA y resultado.
-2. **Siguiente historia: P0-005 Código y deduplicación** (depende de P0-004, verificada en local): unicidad bajo concurrencia y revisión asistida de coincidencias sin fusión silenciosa. Alternativa: P0-006 Parcela (depende de P0-004) si se prioriza el recorrido de campo.
+Verificados: catálogo efectivo, permisos por acción y recurso, organización y membresía activas, referencias del mismo tenant, anti-escalamiento, efecto inmediato de revocaciones, ausencia de datos de otra organización, varios roles y organizaciones (`rbac.int-spec.ts`, `members.int-spec.ts`, E2E). **Bloqueados**: concesiones a BUYER/AUDITOR externos (falta contrato de grants) y elevación de SUPER_ADMIN (falta D-04; decisión mínima en docs/22). Jobs y objetos se verificarán cuando existan esos recursos.
+
+### P0-004 — protección de identidad (revisión)
+
+Doc 06 exige «identidad **cifrada**/restringida». Antes solo estaba restringida (brecha registrada). Ahora:
+- Documento, teléfono y dirección se guardan con AES-256-GCM por campo. El AAD liga cada valor a su organización, registro y campo; las claves son versionadas, viven solo en `.env` (`PII_*`) y nunca en el repositorio.
+- El número de documento tiene un índice ciego (HMAC con clave aparte) para la búsqueda exacta.
+- No queda texto plano en la tabla ni en el historial (`producer_versions` cifra por versión).
+- La migración 0006 cifra los datos existentes y se detiene sin cambios si faltan claves.
+- Se mantiene la restricción por permiso (`producer:read_identity`): cifrado **y** permisos, no uno en lugar del otro.
+- Pruebas: `pii.spec.ts`, `producer-identity-encryption.int-spec.ts` (sin texto plano en tablas, eventos ni auditoría; texto cifrado trasladado entre registros rechazado; migración con y sin claves).
+- Pendiente operativo: custodia y respaldo de claves fuera del equipo y rotación con re-cifrado (antes de producción).
+
+### P0-005 — criterios
+
+| Criterio | Resultado | Evidencia (`producer-matching.int-spec.ts`) |
+| --- | --- | --- |
+| Código único por organización bajo concurrencia | 8 altas simultáneas → 1 × 201 y 7 × 409 `PRODUCER_CODE_TAKEN` | «unicidad del código bajo concurrencia» |
+| Mismo código en otra organización | Permitido | «normalización del código…» |
+| Normalización según contrato | Recorte de espacios; mayúsculas no unificadas (D-21, no bloquea) | ídem |
+| Coincidencia de identidad | Mismo tipo y número normalizados → caso PENDING, sin cambios en productores | «coincidencia de identidad…»; mutante de la comparación de tipo detectado |
+| Falsos positivos | Otro tipo, otro documento con el mismo nombre, otra organización → sin caso | «falsos positivos…» |
+| Revisión asistida sin fusión | Resolver solo cambia el caso; productores intactos; par resuelto no se reabre; auditado | «resolver no fusiona…» |
+| Permisos y aislamiento | `producer:review_duplicates` (ORG_ADMIN, MANAGER); técnico y auditor 403; otra org 404; quien registra solo ve el conteo | «permisos y aislamiento…» |
+| UI en español | Aviso al registrar; página de revisión con identidad según permiso | E2E «posible duplicado…» |
+| Fuera de alcance | Fusión de registros (sin contrato) y reglas no documentadas (D-22) | docs/22 |
+
+## Brechas reales
+
+- P0-003: grants y elevación (decisiones/contratos ausentes).
+- Custodia de claves PII fuera del equipo y procedimiento de rotación con re-cifrado.
+- Invitaciones: entrega por canal verificado y verificación de correo (D-19) antes de operación real.
+- Fallo intermitente E2E del 2026-10-10 (reload sin respuesta): causa no determinada, evidencia perdida; `validate` conserva trazas desde ahora.
+- Android/offline, integraciones, despliegue: no iniciados.
+
+## Próxima acción: P0-006 Parcela
+
+Dependencias: P0-004 (DONE_LOCAL). Leer docs/10 (GIS), 05/06 (`plots`, `plot_versions`, `gps_samples`) y 18 §P0-006–P0-010. Alcance de P0-006: parcela vinculada a un productor de la misma organización, con código único por tenant, versión geométrica (PostGIS, SRID 4326), permisos `plot:*` y eventos. La validación GIS y el umbral de 4 ha son P0-010 y dependen de D-05.

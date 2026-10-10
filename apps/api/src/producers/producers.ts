@@ -4,6 +4,7 @@ import {
 import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { randomUUID } from 'crypto';
 import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 import { DB } from '../db/database';
 import type { Database, ProducerStatus, ProducersTable } from '../db/schema';
@@ -13,6 +14,8 @@ import { AuthorizationService, type TenantContext } from '../authz/authorization
 import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { EVENT_STORE, type EventConsumer, type EventStore } from '../events/events';
 import { permissionsForRoles } from '../authz/catalog';
+import { PII_CIPHER, PiiCipher, normalizeDocumentNumber, producerAad, versionAad } from '../crypto/pii';
+import { ProducerMatchingService } from './matching';
 
 // P0-004 — Productor (RF-04). Alcance:
 // - producer:read ve todos los productores de la organización; producer:read_assigned solo los
@@ -28,6 +31,10 @@ const EDITABLE_FIELDS = [
 ] as const;
 type EditableField = (typeof EDITABLE_FIELDS)[number];
 type ProducerRow = Selectable<ProducersTable>;
+type IdentityField = (typeof IDENTITY_FIELDS)[number];
+/** Productor con identidad descifrada en memoria (nunca se persiste ni se registra así). */
+type ProducerPlain = Omit<ProducerRow, 'document_type_enc' | 'document_number_enc' | 'phone_enc' | 'address_enc' | 'document_number_bidx'>
+  & Record<IdentityField, string | null>;
 
 const CODE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$/;
 
@@ -93,9 +100,45 @@ export class ProducersService {
   constructor(
     @Inject(DB) private readonly db: Kysely<Database>,
     @Inject(EVENT_STORE) private readonly events: EventStore,
+    @Inject(PII_CIPHER) private readonly cipher: PiiCipher,
     private readonly authz: AuthorizationService,
     private readonly audit: AuditService,
+    private readonly matching: ProducerMatchingService,
   ) {}
+
+  /** Descifra la identidad solo cuando se necesita (lectura con permiso o comparación de cambios). */
+  private plain(row: ProducerRow, decrypt: boolean): ProducerPlain {
+    const { document_type_enc, document_number_enc, phone_enc, address_enc, ...withIndex } = row;
+    const rest = { ...withIndex } as Partial<ProducerRow>;
+    delete rest.document_number_bidx;
+    const enc: Record<IdentityField, string | null> = {
+      document_type: document_type_enc, document_number: document_number_enc, phone: phone_enc, address: address_enc,
+    };
+    const identity = Object.fromEntries(IDENTITY_FIELDS.map((f) => [
+      f, decrypt ? this.cipher.decryptNullable(enc[f], producerAad(row.organization_id, row.id, f)) : null,
+    ])) as Record<IdentityField, string | null>;
+    return { ...(rest as Omit<ProducerPlain, IdentityField>), ...identity };
+  }
+
+  /** Columnas cifradas (y el índice ciego del documento) para los campos de identidad presentes. */
+  private encryptIdentity(orgId: string, id: string, fields: Partial<Record<EditableField, string | null>>) {
+    const out: Record<string, string | null> = {};
+    for (const f of IDENTITY_FIELDS) {
+      if (fields[f] === undefined) continue;
+      out[`${f}_enc`] = this.cipher.encryptNullable(fields[f], producerAad(orgId, id, f));
+    }
+    if (fields.document_number !== undefined) {
+      out.document_number_bidx = fields.document_number == null
+        ? null
+        : this.cipher.blindIndex(orgId, 'DOC', normalizeDocumentNumber(fields.document_number));
+    }
+    return out;
+  }
+
+  private splitFields(fields: Partial<Record<EditableField, string | null>>) {
+    const nonIdentity = Object.fromEntries(Object.entries(fields).filter(([k]) => !(IDENTITY_FIELDS as readonly string[]).includes(k)));
+    return nonIdentity;
+  }
 
   /** Contexto con permiso de lectura (todos o asignados). */
   private async readContext(user: AuthUser, orgId: string): Promise<TenantContext> {
@@ -114,13 +157,13 @@ export class ProducersService {
   private async load(db: Kysely<Database> | Transaction<Database>, ctx: TenantContext, id: string, kind: 'read' | 'update', lock = false) {
     let q = db.selectFrom('producers').selectAll().where('organization_id', '=', ctx.organizationId).where('id', '=', id);
     if (lock) q = q.forUpdate();
-    const p = await q.executeTakeFirst();
-    if (!p || !this.inScope(ctx, p, 'read')) throw notFound();
-    if (kind === 'update' && !this.inScope(ctx, p, 'update')) throw forbidden();
-    return p;
+    const row = await q.executeTakeFirst();
+    if (!row || !this.inScope(ctx, row, 'read')) throw notFound();
+    if (kind === 'update' && !this.inScope(ctx, row, 'update')) throw forbidden();
+    return this.plain(row, true);
   }
 
-  private view(p: ProducerRow, ctx: TenantContext) {
+  private view(p: ProducerPlain, ctx: TenantContext) {
     const identity = ctx.permissions.includes('producer:read_identity');
     return {
       id: p.id,
@@ -168,11 +211,17 @@ export class ProducersService {
     }
   }
 
-  private snapshot(p: ProducerRow) {
-    return { ...p, row_version: Number(p.row_version) };
+  /** Instantánea de versión: identidad cifrada con el contexto de esa versión. */
+  private snapshot(p: ProducerPlain) {
+    const snap: Record<string, unknown> = { ...p, row_version: Number(p.row_version) };
+    for (const f of IDENTITY_FIELDS) {
+      delete snap[f];
+      snap[`${f}_enc`] = this.cipher.encryptNullable(p[f], versionAad(p.organization_id, p.id, String(p.row_version), f));
+    }
+    return snap;
   }
 
-  private async recordVersion(trx: Transaction<Database>, p: ProducerRow, changeType: string, changed: string[], actorId: string, reason?: string | null) {
+  private async recordVersion(trx: Transaction<Database>, p: ProducerPlain, changeType: string, changed: string[], actorId: string, reason?: string | null) {
     await trx
       .insertInto('producer_versions')
       .values({
@@ -194,16 +243,19 @@ export class ProducersService {
     this.assertNames(fields);
     return this.db.transaction().execute(async (trx) => {
       if (assignee) await this.assertAssignee(trx, orgId, assignee);
-      let p: ProducerRow;
+      const id = randomUUID(); // se genera antes para ligar el cifrado (AAD) al registro
+      let p: ProducerPlain;
       try {
-        p = await trx
+        const row = await trx
           .insertInto('producers')
           .values({
-            ...fields, organization_id: orgId, producer_code: dto.producer_code.trim(), status: dto.status ?? 'ACTIVE',
+            ...this.splitFields(fields), ...this.encryptIdentity(orgId, id, fields), id, organization_id: orgId,
+            producer_code: dto.producer_code.trim(), status: dto.status ?? 'ACTIVE',
             assigned_membership_id: assignee, created_by: user.id, updated_by: user.id,
           } as never)
           .returningAll()
           .executeTakeFirstOrThrow();
+        p = this.plain(row, true);
       } catch (e) {
         throw this.mapConstraint(e);
       }
@@ -217,7 +269,9 @@ export class ProducersService {
         organizationId: orgId, actorUserId: user.id, action: 'producer.create', entityType: 'producer', entityId: p.id,
         requestId, result: 'SUCCESS', after: { producer_code: p.producer_code, status: p.status, assigned_membership_id: p.assigned_membership_id },
       });
-      return this.view(p, ctx);
+      // P0-005: abre casos de revisión si hay coincidencia de identidad; nunca bloquea ni fusiona.
+      const pendingReviews = await this.matching.detect(trx, orgId, p.id, user.id, requestId);
+      return { ...this.view(p, ctx), duplicate_reviews_pending: pendingReviews };
     });
   }
 
@@ -248,7 +302,7 @@ export class ProducersService {
     const c = (e as { constraint?: string }).constraint;
     if (c === 'producers_code_uq') return conflict('PRODUCER_CODE_TAKEN', 'Ya existe un productor con ese código en tu organización.');
     if (c === 'producers_assignee_fk') return new AppError(422, 'ASSIGNEE_NOT_FOUND', 'El responsable indicado no es miembro de esta organización.');
-    if (c === 'producers_name_required' || c === 'producers_document_pair') {
+    if (c === 'producers_name_required' || c === 'producers_document_pair' || c === 'producers_document_bidx_consistent') {
       return new AppError(400, 'VALIDATION_FAILED', 'Revisa nombre/razón social y el par tipo–número de documento.');
     }
     return e;
@@ -275,8 +329,8 @@ export class ProducersService {
           eb('legal_name', 'ilike', like),
           eb('community', 'ilike', like),
         ];
-        // Buscar por documento solo con permiso de identidad, y por coincidencia exacta.
-        if (identity) ors.push(eb('document_number', '=', term));
+        // Buscar por documento solo con permiso de identidad, por coincidencia exacta (índice ciego).
+        if (identity) ors.push(eb('document_number_bidx', '=', this.cipher.blindIndex(orgId, 'DOC', normalizeDocumentNumber(term))));
         return eb.or(ors);
       });
     }
@@ -286,8 +340,9 @@ export class ProducersService {
     }
     const rows = await query.orderBy('producer_code').orderBy('id').limit(limit + 1).execute();
     const page = rows.slice(0, limit);
+    const identity = ctx.permissions.includes('producer:read_identity');
     return {
-      items: page.map((p) => this.view(p, ctx)),
+      items: page.map((p) => this.view(this.plain(p, identity), ctx)),
       next_cursor: rows.length > limit ? encodeCursor(page[page.length - 1].producer_code, page[page.length - 1].id) : null,
     };
   }
@@ -317,18 +372,27 @@ export class ProducersService {
       if (Number(before.row_version) !== expected_version) {
         throw conflict('VERSION_CONFLICT', 'Otra persona modificó este productor. Recarga para ver la versión actual.');
       }
+      // Sin permiso de identidad no se pueden escribir campos de identidad (no se ven, no se editan).
+      if (!ctx.permissions.includes('producer:read_identity') && IDENTITY_FIELDS.some((f) => patch[f] !== undefined)) {
+        throw forbidden('PERMISSION_DENIED', 'No tienes permiso para modificar datos de identidad.');
+      }
       const changed = (Object.keys(patch) as EditableField[]).filter((k) => patch[k] !== before[k]);
       if (changed.length === 0) throw conflict('NO_CHANGE', 'No hay cambios que guardar.');
       this.assertNames({ ...before, ...patch });
-      let after: ProducerRow;
+      const changedPatch = Object.fromEntries(changed.map((k) => [k, patch[k]])) as Partial<Record<EditableField, string | null>>;
+      let after: ProducerPlain;
       try {
-        after = await trx
+        const row = await trx
           .updateTable('producers')
-          .set({ ...patch, updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1` } as never)
+          .set({
+            ...this.splitFields(changedPatch), ...this.encryptIdentity(orgId, id, changedPatch),
+            updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1`,
+          } as never)
           .where('id', '=', id)
           .where('organization_id', '=', orgId)
           .returningAll()
           .executeTakeFirstOrThrow();
+        after = this.plain(row, true);
       } catch (e) {
         throw this.mapConstraint(e);
       }
@@ -343,7 +407,10 @@ export class ProducersService {
         organizationId: orgId, actorUserId: user.id, action: 'producer.update', entityType: 'producer', entityId: id,
         requestId, result: 'SUCCESS', after: { changed_fields: changed, version: Number(after.row_version) },
       });
-      return this.view(after, ctx);
+      const pendingReviews = changed.some((f) => f === 'document_type' || f === 'document_number')
+        ? await this.matching.detect(trx, orgId, id, user.id, requestId)
+        : undefined;
+      return { ...this.view(after, ctx), ...(pendingReviews !== undefined ? { duplicate_reviews_pending: pendingReviews } : {}) };
     });
   }
 
@@ -355,11 +422,11 @@ export class ProducersService {
       if (Number(before.row_version) !== dto.expected_version) throw conflict('VERSION_CONFLICT', 'Otra persona modificó este productor. Recarga.');
       if (before.assigned_membership_id === dto.membership_id) throw conflict('NO_CHANGE', 'Ese responsable ya está asignado.');
       if (dto.membership_id) await this.assertAssignee(trx, orgId, dto.membership_id);
-      const after = await trx
+      const after = this.plain(await trx
         .updateTable('producers')
         .set({ assigned_membership_id: dto.membership_id, updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1` })
         .where('id', '=', id).where('organization_id', '=', orgId)
-        .returningAll().executeTakeFirstOrThrow();
+        .returningAll().executeTakeFirstOrThrow(), true);
       await this.recordVersion(trx, after, 'ASSIGN', ['assigned_membership_id'], user.id);
       await this.events.append(trx, {
         organizationId: orgId, eventType: 'ProducerAssigned', schemaVersion: 1, aggregateType: 'PRODUCER',
@@ -383,7 +450,7 @@ export class ProducersService {
       const allowed: Record<ProducerStatus, ProducerStatus[]> = { DRAFT: ['ACTIVE', 'INACTIVE'], ACTIVE: ['INACTIVE'], INACTIVE: ['ACTIVE'] };
       if (!allowed[before.status].includes(target)) throw conflict('INVALID_TRANSITION', 'Ese cambio de estado no está permitido.');
       const archiving = target === 'INACTIVE';
-      const after = await trx
+      const after = this.plain(await trx
         .updateTable('producers')
         .set({
           status: target,
@@ -393,7 +460,7 @@ export class ProducersService {
           updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1`,
         })
         .where('id', '=', id).where('organization_id', '=', orgId)
-        .returningAll().executeTakeFirstOrThrow();
+        .returningAll().executeTakeFirstOrThrow(), true);
       await this.recordVersion(trx, after, archiving ? 'ARCHIVE' : 'ACTIVATE', ['status'], user.id, dto.reason);
       await this.events.append(trx, {
         organizationId: orgId, eventType: 'ProducerStatusChanged', schemaVersion: 1, aggregateType: 'PRODUCER',
@@ -424,7 +491,11 @@ export class ProducersService {
       .execute();
     return rows.map((r) => {
       const snap = { ...(r.snapshot as Record<string, unknown>) };
-      if (!identity) for (const f of IDENTITY_FIELDS) delete snap[f];
+      for (const f of IDENTITY_FIELDS) {
+        const token = snap[`${f}_enc`] as string | null | undefined;
+        delete snap[`${f}_enc`];
+        if (identity) snap[f] = this.cipher.decryptNullable(token, versionAad(orgId, id, r.version, f));
+      }
       return {
         version: Number(r.version), change_type: r.change_type, changed_fields: r.changed_fields, reason: r.reason,
         changed_at: r.changed_at, actor: r.actor_email ?? 'PLATFORM', snapshot: snap, identity_visible: identity,

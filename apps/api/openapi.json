@@ -1106,6 +1106,80 @@
           "producers"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/producer-match-reviews": {
+      "get": {
+        "operationId": "ProducerMatchingController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "producers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/producer-match-reviews/{id}/resolve": {
+      "post": {
+        "operationId": "ProducerMatchingController_resolve",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "producers"
+        ]
+      }
     }
   },
   "info": {
@@ -1457,6 +1531,29 @@
         "required": [
           "expected_version",
           "reason"
+        ]
+      },
+      "ResolveDto": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "NOT_DUPLICATE",
+              "DUPLICATE_CONFIRMED"
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
+          "expected_version": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "decision",
+          "note",
+          "expected_version"
         ]
       }
     }

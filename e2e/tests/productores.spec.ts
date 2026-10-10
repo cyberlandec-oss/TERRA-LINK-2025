@@ -62,6 +62,33 @@ test('alta con validación y código duplicado recuperable', async () => {
   await expect(adminPage.getByRole('heading', { name: 'COOP-002 · Hacienda Duplicada' })).toBeVisible();
 });
 
+test('posible duplicado: aviso al registrar, revisión asistida y ningún cambio en los productores', async () => {
+  await adminPage.goto(producersUrl);
+  await adminPage.getByLabel('Código de productor', { exact: true }).fill('COOP-003');
+  await adminPage.getByLabel('Nombre', { exact: true }).fill('Julio César');
+  await adminPage.getByLabel('Apellido', { exact: true }).fill('Vera');
+  await adminPage.getByLabel('Tipo de documento', { exact: true }).fill('cedula');
+  await adminPage.getByLabel('Número de documento', { exact: true }).fill('130-987.6543');
+  await adminPage.getByRole('button', { name: 'Registrar productor' }).click();
+  await expect(adminPage.getByRole('heading', { name: 'COOP-003 · Julio César Vera' })).toBeVisible();
+  await expect(adminPage.getByText('Se detectó una posible coincidencia de identidad')).toBeVisible();
+
+  await adminPage.goto(producersUrl);
+  await adminPage.getByRole('link', { name: 'Revisar posibles duplicados' }).click();
+  await expect(adminPage.getByRole('heading', { name: 'Posibles duplicados' })).toBeVisible();
+  const card = adminPage.getByRole('region', { name: /COOP-00[13] y COOP-00[13]/ });
+  await expect(card).toContainText('Mismo tipo y número de documento');
+  await expect(card).toContainText('130-987.6543'); // el administrador tiene permiso de identidad
+  await card.getByLabel('Nota de la decisión (queda en la auditoría)').fill('Padre e hijo con el mismo nombre; documento mal digitado');
+  await card.getByRole('button', { name: 'No es duplicado' }).click();
+  await expect(adminPage.getByText('No hay casos en este estado.')).toBeVisible();
+
+  // Los productores siguen intactos (versión 1, activos).
+  await adminPage.goto(producersUrl);
+  await adminPage.getByRole('list', { name: 'Productores' }).getByRole('link', { name: 'COOP-001 · Julio Vera' }).click();
+  await expect(adminPage.getByText('versión 1')).toBeVisible();
+});
+
 test('búsqueda por comunidad y apertura del detalle', async () => {
   await adminPage.goto(producersUrl);
   await adminPage.getByLabel('Buscar por código, nombre o comunidad').fill('río chico');

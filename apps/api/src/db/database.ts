@@ -6,6 +6,8 @@ import * as m0002 from './migrations/0002_invitations_sessions';
 import * as m0003 from './migrations/0003_organization_types';
 import * as m0004 from './migrations/0004_domain_events_outbox';
 import * as m0005 from './migrations/0005_producers';
+import * as m0006 from './migrations/0006_producer_identity_encryption';
+import * as m0007 from './migrations/0007_producer_match_reviews';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -14,6 +16,8 @@ const MIGRATIONS: Record<string, Migration> = {
   '0003_organization_types': m0003,
   '0004_domain_events_outbox': m0004,
   '0005_producers': m0005,
+  '0006_producer_identity_encryption': m0006,
+  '0007_producer_match_reviews': m0007,
 };
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -33,6 +37,13 @@ export async function migrateToLatest(db: Kysely<Database>): Promise<string[]> {
   const { error, results } = await migrator.migrateToLatest();
   if (error) throw error;
   return (results ?? []).filter((r) => r.status === 'Success').map((r) => r.migrationName);
+}
+
+/** Migra hasta una versión concreta (pruebas de migración sobre datos existentes). */
+export async function migrateTo(db: Kysely<Database>, name: string): Promise<void> {
+  const migrator = new Migrator({ db, provider: new StaticMigrationProvider() });
+  const { error } = await migrator.migrateTo(name);
+  if (error) throw error;
 }
 
 export const LATEST_MIGRATION = Object.keys(MIGRATIONS).sort().at(-1)!;
