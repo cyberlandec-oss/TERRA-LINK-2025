@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'crypto';
 import { sql } from 'kysely';
 import { PASSWORD, describeDb, setupHarness } from './helpers';
 import { OBJECT_STORE, type ObjectStore } from '../src/storage/object-store';
-import { ClamdScanner, MALWARE_SCANNER, type MalwareScanner } from '../src/storage/scanner';
+import { ClamdScanner, MALWARE_SCANNER, interpretReply, type MalwareScanner } from '../src/storage/scanner';
 
 // Integración P0-018 Documentos: PostgreSQL, S3 local y ClamAV local REALES. Archivos SINTÉTICOS; la muestra
 // maliciosa es la cadena de prueba EICAR (inofensiva), construida en memoria para no dejarla en disco.
@@ -225,14 +225,22 @@ describeDb('P0-018 documentos privados, escaneo y versiones', () => {
     await download('tecnico1@test.local', docId, v1).expect(404); // sin acceso residual
   });
 
-  it('cuota por organización', async () => {
-    const big = () => Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(60 * 1024, 0x20), Buffer.from(randomUUID())]);
+  it('cuota por organización bajo cargas concurrentes: nunca se supera', async () => {
+    const big = () => Buffer.concat([Buffer.from('%PDF-1.4' + String.fromCharCode(10)), Buffer.alloc(60 * 1024, 0x20), Buffer.from(randomUUID())]);
     const ownerB = (await http().post(`${base(orgB)}/producers`).set(as('admin-b@test.local')).send({ producer_code: 'B-2', legal_name: 'Finca B2' }).expect(201)).body.id;
     const f = { document_type: 'DELIVERY_SUPPORT', owner_type: 'producer', owner_id: ownerB, title: 'Cuota' };
-    const statuses: number[] = [];
-    for (let i = 0; i < 5; i++) statuses.push((await upload('admin-b@test.local', f, big(), { o: orgB })).status);
-    expect(statuses.slice(0, 4)).toEqual([201, 201, 201, 201]);
-    expect(statuses[4]).toBe(422);
+    const results = await Promise.all([1, 2, 3, 4, 5, 6].map(() => upload('admin-b@test.local', f, big(), { o: orgB })));
+    const ok = results.filter((r) => r.status === 201).length;
+    expect(ok).toBe(4);
+    expect(results.filter((r) => r.status === 422).every((r) => r.body.error.code === 'QUOTA_EXCEEDED')).toBe(true);
+    const used = await sql<{ n: number }>`SELECT coalesce(sum(size_bytes), 0)::int AS n FROM document_versions WHERE organization_id = ${orgB}`.execute(h.db);
+    expect(used.rows[0].n).toBeLessThanOrEqual(256 * 1024);
+  });
+
+  it('análisis incompleto por límite del escáner → no disponible (nunca limpio)', async () => {
+    jest.spyOn(scanner, 'scan').mockResolvedValueOnce(interpretReply('stream: Heuristics.Limits.Exceeded.MaxRecursion FOUND'));
+    const d = (await upload('admin-a@test.local', { document_type: 'DELIVERY_SUPPORT', owner_type: 'producer', owner_id: p2, title: 'Incompleto' }, pdf()).expect(201)).body.document;
+    expect(d.versions[0]).toMatchObject({ availability: 'SCAN_FAILED', scan: { status: 'FAILED', error_code: 'SCAN_INCOMPLETE_LIMITS' }, downloadable: false });
   });
 
   it('sin filtraciones: errores y eventos sin contenido, nombres de archivo, tokens ni identidad', async () => {

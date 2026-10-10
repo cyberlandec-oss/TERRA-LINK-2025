@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-019 Evidencias | **DONE_LOCAL** (criterios de la historia); afirmaciones de lote, análisis ambiental y mitigación esperan sus entidades; uso en riesgo/expediente es P0-020/P0-022 | Ver criterios abajo |
 | P0-018 Documentos | **DONE_LOCAL** (criterios de la historia); usa auditoría ya verificada; P0-025 (lectura/export de auditoría por alcance) y P0-019 (evidencia) siguen pendientes | Ver criterios abajo |
 | P0-015 Eventos | **DONE_LOCAL** para los criterios internos de la organización (correction_of con efecto real en productor, historial autorizado, reproceso DEAD, fencing); concesiones externas y elevación siguen en P0-003 | Ver criterios abajo |
 | P0-014 KDE | **DONE_LOCAL** para catálogo y servicio de validación; 0 compuertas integradas (cada operación lo demuestra en su historia); D-33, D-34 y configuración jurídica pendientes | Ver criterios abajo |
@@ -253,6 +254,23 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
 
+### P0-019 — criterios (y comprobación del escáner)
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T21-04-53-544Z`): API 228/228, web 4/4, E2E 47/47, OpenAPI 85 rutas. La 1.ª corrida falló por un localizador ambiguo en la prueba E2E nueva (corregido). Revisión visual 30 entradas, 0 incidencias.
+
+Escáner (brechas corregidas): `AlertExceedsMax` estaba desactivado (análisis incompleto podía responder «limpio») y `MaxScanTime` sin límite; el puerto se publicaba en todas las interfaces; multer aceptaba hasta 64 MiB antes de rechazar. Ahora: configuración versionada, límites alertados como FAILED, puerto en 127.0.0.1, límite de recepción = configuración. Limitación residual documentada en docs/12 (objeto interno > MaxFileSize → OK). Pruebas: `scanner-limits.int-spec.ts` (4) y casos nuevos en `documents.int-spec.ts` (cuota concurrente, análisis incompleto).
+
+| Criterio | Resultado | Evidencia (`evidence.int-spec.ts`; E2E) |
+| --- | --- | --- |
+| Claim, fuentes/versiones, enlaces tipados | Afirmación sobre entidad existente; soporte = versión exacta con SUPPORTS/CONTRADICTS/BASED_ON; adjuntar no valida | «flujo autorizado…» |
+| Revisión/verificación | Envío, verificación (facultad separada), rechazo, revocación y reapertura con motivo y responsable; historia completa | «flujo…», «nueva versión…» |
+| Nueva versión no hereda | Enlace a v1 conservado; «requiere revisión»; reverificación tras vincular v2 y retirar v1 | «nueva versión del documento…» |
+| Expiración y estados de soporte | Vencido, rechazado y no disponible bloquean la verificación con motivos distintos | «soportes vencidos…» |
+| Contradicción | Preservada; verificar exige reconocimiento expreso; no se sobrescribe (append-only) | «contradicción preservada…» |
+| Autorización y privacidad del grafo | Entidad/documento fuera de asignación o de otra organización → 404; soportes no visibles omitidos (sin conteos ni tipos), también en consulta inversa; auditor ve metadatos, no contenido personal | «autorización…», «privacidad del grafo…» |
+| Revocación de acceso | Reasignar el productor retira el acceso a sus afirmaciones | «acceso revocado…» |
+| Reintentos, concurrencia, rollback | `operation_id` en alta y vínculo; verificar/rechazar simultáneos → una decisión; fallo forzado sin efectos | «reintentos…» |
+
 ### P0-018 — criterios
 
 Dependencias: P0-003 aporta la autorización dentro del tenant (verificada); de P0-025 se usa el registro de auditoría existente (`audit_logs`, verificado desde P0-002). La lectura/exportación de auditoría por alcance y la redacción (P0-025) no son necesarias para P0-018 y siguen pendientes. Concesiones externas y elevación: P0-003.
@@ -298,7 +316,7 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 - Android/offline, integraciones, despliegue: no iniciados.
 - Logotipo oficial y verificación de licencia de Inter (UX-D01/UX-D02). Evaluación de accesibilidad completa (lector de pantalla, zoom 200 %) no realizada: solo foco por teclado y móvil comprobados.
 
-## Próxima acción: aprobar o ajustar la propuesta D-33/D-34/D-35 (`docs/decisiones/D-33-34-35-PROPUESTA-ENTREGAS.md`) antes de las compuertas de P0-012
+## Próxima acción: decisiones D-33/D-34/D-35 para P0-012 (propuesta en `docs/decisiones/D-33-34-35-PROPUESTA-ENTREGAS.md`); trabajo independiente: P0-020 Risk engine (revisar dependencias)
 
 ## Anterior: P0-006 Parcela
 

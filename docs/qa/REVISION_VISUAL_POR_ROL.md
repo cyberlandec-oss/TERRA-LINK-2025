@@ -148,3 +148,9 @@ Defecto encontrado y corregido: `geometry_visible` llegaba como texto `"false"` 
 - tecnico2.cooperativa: no ve documentos de productores ajenos.
 - productor.cooperativa: sin enlace y acceso denegado.
 - Capturas `documentos--*.png`. Resultado: 29 entradas, 0 incidencias.
+
+## P0-019 Evidencias (2026-10-10)
+- admin.cooperativa: afirmación DEMO «Existe documentación de tenencia» en revisión; estados distintos visibles (archivo disponible / revisión documental / afirmación); botón «Verificar afirmación»; ningún estado «conforme».
+- tecnico1.cooperativa (390 px, teclado): ve la afirmación de su productor, no puede verificar; orden de tabulación correcto en el alta; sin desborde.
+- auditor.cooperativa: consulta sin acciones; el soporte de tenencia indica «contenido restringido para tu rol».
+- Capturas `evidencias--*.png`. Resultado: 30 entradas, 0 incidencias.

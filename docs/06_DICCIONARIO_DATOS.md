@@ -115,6 +115,11 @@ Completitud, validez, consistencia, unicidad y vigencia son resultados separados
 | products | 0014 | P0-011: catálogo por ORGANIZACIÓN. `code` único por organización (mayúsculas, 2–40); `name`; `product_state` y `unit` (FK a catálogos de sistema); `scientific_name`/`variety` opcionales; ACTIVE/INACTIVE con motivo; `row_version`. Código, estado y unidad **inmutables** (trigger); sin borrado |
 | product_versions | 0014 | Historial append-only por versión (alta, edición, desactivación, activación) con instantánea y motivo |
 | gis_evaluations.comparison_scope / scope_membership_id | 0013 | Alcance efectivo de comparación de cada evaluación (ORGANIZATION o EVALUATOR_ASSIGNED) |
+| evidence_claim_types | 0019 | P0-019: catálogo de sistema con afirmaciones de docs/12 cuya entidad existe: PLOT_FIELD_CAPTURED (parcela), LAND_TENURE_DOCUMENTED (productor/parcela), con su limitación |
+| evidence | 0019 | Afirmación sobre una entidad existente del mismo tenant (trigger): tipo, entidad, estado DRAFT/SUBMITTED/VERIFIED/REJECTED/REVOKED (vencida = `valid_to` pasado), vigencia, `row_version`, `operation_id`. Afirmación y entidad inmutables; sin borrado |
+| evidence_sources | 0019 | Soporte = versión EXACTA de documento (FK compuesta) con relación SUPPORTS/CONTRADICTS/BASED_ON, nota, autor, fecha, `operation_id`. Append-only |
+| evidence_source_withdrawals | 0019 | Retirada de un soporte con motivo y responsable (historia conservada). Append-only |
+| evidence_decisions | 0019 | Envío, verificación, rechazo, revocación y reapertura con motivo, responsable, estado anterior/nuevo, reconocimiento de contradicciones e instantánea de soportes. Append-only |
 | document_types | 0018 | P0-018: catálogo de sistema con los tipos que nombran las fuentes: LAND_TENURE (tenencia; PERSONAL_DATA) y DELIVERY_SUPPORT (soporte de entrega; OPERATIONAL); titulares admitidos |
 | documents | 0018 | Documento de la organización: tipo, titular (producer/plot del mismo tenant, trigger; `delivery` reservado para P0-012), título, versión vigente, `row_version`. Tipo y titular inmutables; sin borrado |
 | document_versions | 0018 | Versión inmutable: objeto privado en S3, nombre, MIME real (PDF/JPEG/PNG), tamaño, SHA-256 del servidor, emisor, emisión, vencimiento, versión previa, `operation_id`. Append-only |

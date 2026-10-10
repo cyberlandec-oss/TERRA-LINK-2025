@@ -57,6 +57,23 @@ Objetos privados; URLs temporales, autorización antes de emitirlas y auditoría
 - Eventos `DocumentUploaded` y `DocumentScanCompleted` sin nombres de archivo ni contenido; auditoría de carga, rechazo, análisis, revisión, vínculo y descarga.
 - Contrato preparado para P0-012: titular/vínculo `delivery` reservado (hoy 422 `ENTITY_TYPE_NOT_AVAILABLE`); el validador KDE ya verifica `DELIVERY_SUPPORT` (existe, tenant, alcance, disponible) sin aprobar el contenido.
 
+### Escáner comprobado (2026-10-10)
+
+- Motor ClamAV 1.4.6, firmas daily 28149, main 63, bytecode 339 (actualizadas por freshclam al arrancar). Configuración versionada en `infra/clamav/clamd.conf`, montada en el servicio `scanner`; puerto publicado solo en `127.0.0.1` (antes en todas las interfaces).
+- Límites efectivos: `StreamMaxLength 16M` (por encima: `INSTREAM size limit` → FAILED), `MaxFileSize 100M`, `MaxScanSize 400M`, `MaxRecursion 17`, `MaxFiles 10000`, `MaxScanTime 25000` ms (menor que la espera del cliente, 30 s), `AlertExceedsMax yes`, `HeuristicAlerts yes`. Antes de esta comprobación `AlertExceedsMax` estaba desactivado y `MaxScanTime` sin límite.
+- Interpretación (`interpretReply`): `OK` → CLEAN; firma `FOUND` → INFECTED; `Heuristics.Limits.Exceeded.*` → FAILED `SCAN_INCOMPLETE_LIMITS` (nunca limpio); límite de flujo, tiempo de espera, conexión rechazada o respuesta desconocida → FAILED.
+- Fixtures comprobados (sintéticos, en memoria): EICAR → `Eicar-Test-Signature`; flujo de 17 MiB → FAILED por tamaño; ZIP anidado 20 niveles → `Heuristics.Limits.Exceeded.MaxRecursion`; PDF pequeño → CLEAN.
+- **Limitación residual observada**: un objeto interno mayor que `MaxFileSize` (ZIP con un archivo de 20 MiB cuando el límite era 16 MiB) se omite y clamd responde `OK` aunque `AlertExceedsMax` esté activo. Por eso `MaxFileSize`/`MaxScanSize` se mantienen muy por encima del máximo de documentos (10 MiB) y el resultado CLEAN se interpreta como «sin firmas detectadas dentro de esos límites», no como garantía.
+- La API acota la recepción al límite configurado (multer corta el flujo al superar `documents.maxBytes`) y la cuota se serializa por organización (probado con cargas concurrentes).
+
+## Evidencias (P0-019, implementado)
+
+- Afirmación (catálogo de sistema de docs/12, solo entidades existentes) ≠ soporte (versión exacta de documento con relación tipada) ≠ decisión (motivo y responsable). Adjuntar un documento disponible no cambia el estado de la afirmación.
+- Verificar exige: al menos un soporte SUPPORTS vigente; todos los SUPPORTS disponibles (análisis limpio), no vencidos, no rechazados en revisión documental y en su versión más reciente; reconocer expresamente cualquier CONTRADICTS activo; acceso a todos los soportes.
+- Una nueva versión del documento **no** sustituye el enlace ni hereda la verificación: la afirmación queda «requiere revisión» (`NEWER_DOCUMENT_VERSION`); se revoca, se reabre, se vincula la versión nueva (el soporte anterior se retira con motivo, conservado) y se vuelve a verificar. Otros motivos: soporte vencido, rechazado o no disponible; contradicción activa; vigencia de la afirmación terminada.
+- Eventos `EvidenceCreated/SourceLinked/SourceWithdrawn/Submitted/Verified/Rejected/Revoked/Reopened` y auditoría en la misma transacción, sin títulos, nombres de archivo ni datos personales.
+- Pendiente: afirmaciones de lote, análisis ambiental y mitigación (sus entidades no existen); uso de evidencias en riesgo y expedientes (P0-020/P0-022).
+
 ## Aceptación
 
 Archivo válido y malicioso; escaneo caído; tipo MIME engañoso; subida truncada; checksum distinto; versión nueva; documento vencido; enlace a entidad ajena; intento de aprobar soporte propio si política lo impide; revocación de acceso; paquete histórico intacto tras modificación. Ver QA-09–12.

@@ -220,3 +220,41 @@ test('P0-018 documentos: carga con etapas y análisis real, disponible, descarga
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });
+
+test('P0-019 evidencias: afirmación → soporte por versión → envío → verificación; estados distintos; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  const orgId = orgUrl.split('/organizaciones/')[1];
+  const h = { authorization: `Bearer ${token}` };
+  const producer = await (await page.request.post(`${API_URL}/api/v1/organizations/${orgId}/producers`, { headers: h, data: { producer_code: 'EVI-001', legal_name: 'Finca Evidencias' } })).json();
+  const up = await page.request.post(`${API_URL}/api/v1/organizations/${orgId}/documents`, { headers: h, multipart: {
+    operation_id: crypto.randomUUID(), document_type: 'LAND_TENURE', owner_type: 'producer', owner_id: producer.id, title: 'Tenencia EVI (sintética)',
+    file: { name: 'tenencia.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n% sintético evidencias\n%%EOF\n') } } });
+  expect(up.status()).toBe(201);
+  await page.goto(`${orgUrl}/evidencias`);
+  await page.getByLabel('Afirmación', { exact: true }).selectOption({ label: 'Existe documentación de tenencia' });
+  await page.getByLabel('Tipo de entidad').selectOption({ label: 'Productor' });
+  await expect(page.getByLabel('Entidad', { exact: true }).locator('option', { hasText: 'EVI-001' })).toHaveCount(1);
+  const options = await page.getByLabel('Entidad', { exact: true }).locator('option').allInnerTexts();
+  await page.getByLabel('Entidad', { exact: true }).selectOption({ index: options.findIndex((o) => o.includes('EVI-001')) });
+  await page.getByRole('button', { name: 'Registrar afirmación' }).click();
+  await page.getByRole('link', { name: 'abrir para vincular soportes' }).click();
+  await expect(page.getByRole('heading', { name: 'Existe documentación de tenencia' })).toBeVisible();
+  await page.getByLabel('Documento', { exact: true }).selectOption({ label: 'Tenencia EVI (sintética) (Documento de tenencia de la tierra)' });
+  await page.getByLabel('Versión').selectOption({ index: 1 });
+  await page.getByRole('button', { name: 'Vincular soporte' }).focus();
+  await page.keyboard.press('Enter');
+  const sources = page.getByRole('list', { name: 'Soportes de la afirmación' });
+  await expect(sources).toContainText('Respalda');
+  await expect(sources).toContainText('Archivo disponible (análisis limpio)'); // estado del archivo
+  await expect(sources).toContainText('revisión documental: sin revisar'); // estado del documento
+  await expect(page.getByText('Borrador', { exact: true })).toBeVisible(); // la afirmación sigue en borrador
+  await page.getByRole('button', { name: 'Enviar a revisión' }).click();
+  await expect(page.getByText('En revisión', { exact: true })).toBeVisible();
+  await page.getByLabel('Motivo').fill('Constancia coherente con el registro');
+  await page.getByRole('button', { name: 'Verificar afirmación' }).click();
+  await expect(page.getByText('Afirmación verificada', { exact: true })).toBeVisible();
+  await expect(page.getByText(/no significa conformidad EUDR ni riesgo nulo/)).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Decisiones' })).toContainText('Verificación');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await ctx.close();
+});

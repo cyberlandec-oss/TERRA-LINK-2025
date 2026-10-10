@@ -12,6 +12,7 @@ import { reviewProducts } from './productos.mjs';
 import { reviewCte } from './cte.mjs';
 import { reviewEvents } from './eventos.mjs';
 import { reviewDocuments } from './documentos.mjs';
+import { reviewEvidence } from './evidencias.mjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -223,6 +224,7 @@ try {
   results.push(await reviewCte({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewEvents({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewDocuments({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewEvidence({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
 
   // Adaptación móvil (390 px): menú en panel y contenido legible.
   for (const a of accounts.filter((x) => ['tecnico1.cooperativa', 'admin.cooperativa'].includes(x.email.split('@')[0]))) {
@@ -268,5 +270,6 @@ for (const c of results.find((r) => r.tipo === 'productos')?.casos ?? []) consol
 for (const c of results.find((r) => r.tipo === 'cte')?.casos ?? []) console.log(` [cte] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'eventos')?.casos ?? []) console.log(` [eventos] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'documentos')?.casos ?? []) console.log(` [documentos] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'evidencias')?.casos ?? []) console.log(` [evidencias] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 console.log(`Revisión: ${results.length} entradas; con incidencias: ${issues.length}`);
 for (const i of issues) console.log(` - ${i.cuenta ?? i.tipo} @ ${i.organizacion ?? ''}: ${(i.incidencias ?? []).join(' | ') || JSON.stringify(i)}`);

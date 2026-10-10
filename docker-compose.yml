@@ -28,8 +28,9 @@ services:
   # Escáner antimalware local (P0-018): ClamAV clamd por TCP (INSTREAM). Firmas en volumen propio.
   scanner:
     image: clamav/clamav:1.4
-    ports: ["${SCANNER_PORT:-3310}:3310"]
-    volumes: ["scanner-db:/var/lib/clamav"]
+    # Solo accesible desde este equipo (API/pruebas locales) y la red interna de compose; no desde la LAN.
+    ports: ["127.0.0.1:${SCANNER_PORT:-3310}:3310"]
+    volumes: ["scanner-db:/var/lib/clamav", "./infra/clamav/clamd.conf:/etc/clamav/clamd.conf:ro"]
     healthcheck:
       test: ["CMD", "clamdcheck.sh"]
       interval: 15s

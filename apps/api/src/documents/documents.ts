@@ -1,7 +1,7 @@
 import {
   Body, Controller, Get, HttpCode, Inject, Injectable, Logger, Param, ParseUUIDPipe, Post, Query, Req, Res, UploadedFile, UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { DocumentUploadInterceptor } from './upload-limit.interceptor';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString, IsUUID, Length } from 'class-validator';
 import { randomUUID } from 'crypto';
@@ -387,7 +387,7 @@ export class DocumentsService {
   }
 }
 
-const upload = () => UseInterceptors(FileInterceptor('file', { limits: { fileSize: 64 * 1024 * 1024, files: 1 } }));
+const upload = () => UseInterceptors(DocumentUploadInterceptor);
 const multipartBody = (extra: Record<string, unknown>) => ApiBody({ schema: { type: 'object', required: ['file', 'operation_id'], properties: { file: { type: 'string', format: 'binary' }, operation_id: { type: 'string', format: 'uuid' }, issuer: { type: 'string' }, issued_at: { type: 'string', format: 'date' }, expires_at: { type: 'string', format: 'date' }, ...extra } } });
 
 @ApiTags('documents')

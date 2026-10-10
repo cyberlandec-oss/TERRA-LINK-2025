@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-10T20:19:15.592Z",
+  "fecha": "2026-10-10T21:16:31.916Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -97,6 +97,7 @@
         "Productos",
         "Hitos (CTE)",
         "Documentos",
+        "Evidencias",
         "Miembros e invitaciones",
         "Auditoría",
         "Entregas de eventos",
@@ -154,6 +155,7 @@
         "Productos",
         "Hitos (CTE)",
         "Documentos",
+        "Evidencias",
         "Miembros e invitaciones",
         "Mis organizaciones"
       ],
@@ -208,6 +210,7 @@
         "Productos",
         "Hitos (CTE)",
         "Documentos",
+        "Evidencias",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Cooperativa Río Verde",
@@ -261,6 +264,7 @@
         "Productos",
         "Hitos (CTE)",
         "Documentos",
+        "Evidencias",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Cooperativa Río Verde",
@@ -363,6 +367,7 @@
         "Productos",
         "Hitos (CTE)",
         "Documentos",
+        "Evidencias",
         "Auditoría",
         "Mis organizaciones"
       ],
@@ -418,6 +423,7 @@
         "Productos",
         "Hitos (CTE)",
         "Documentos",
+        "Evidencias",
         "Miembros e invitaciones",
         "Auditoría",
         "Entregas de eventos",
@@ -577,6 +583,7 @@
         "Productos",
         "Hitos (CTE)",
         "Documentos",
+        "Evidencias",
         "Miembros e invitaciones",
         "Auditoría",
         "Entregas de eventos",
@@ -633,6 +640,7 @@
         "Productos",
         "Hitos (CTE)",
         "Documentos",
+        "Evidencias",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -686,6 +694,7 @@
         "Productos",
         "Hitos (CTE)",
         "Documentos",
+        "Evidencias",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -790,6 +799,7 @@
         "Productos",
         "Hitos (CTE)",
         "Documentos",
+        "Evidencias",
         "Auditoría",
         "Mis organizaciones"
       ],
@@ -845,6 +855,7 @@
         "Productos",
         "Hitos (CTE)",
         "Documentos",
+        "Evidencias",
         "Miembros e invitaciones",
         "Auditoría",
         "Entregas de eventos",
@@ -951,6 +962,7 @@
         "Productos",
         "Hitos (CTE)",
         "Documentos",
+        "Evidencias",
         "Miembros e invitaciones",
         "Mis organizaciones"
       ],
@@ -1005,6 +1017,7 @@
         "Productos",
         "Hitos (CTE)",
         "Documentos",
+        "Evidencias",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -1192,12 +1205,12 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "1 documento(s); disponible=true; formulario de carga=1; descarga guia-demo.pdf; puede revisar=1",
+          "resultado": "2 documento(s); disponible=true; formulario de carga=1; descarga guia-demo.pdf; puede revisar=1",
           "ok": true
         },
         {
           "cuenta": "tecnico1.cooperativa (capturador asignado, 390 px, teclado)",
-          "resultado": "1 documento(s) de sus productores; foco tras Tab en «up-title»; botón de revisión=0; desborde=false",
+          "resultado": "2 documento(s) de sus productores; foco tras Tab en «up-title»; botón de revisión=0; desborde=false",
           "ok": true
         },
         {
@@ -1208,6 +1221,27 @@
         {
           "cuenta": "productor.cooperativa (sin permiso)",
           "resultado": "enlace=0; acceso denegado=1",
+          "ok": true
+        }
+      ],
+      "ok": true
+    },
+    {
+      "tipo": "evidencias",
+      "casos": [
+        {
+          "cuenta": "admin.cooperativa",
+          "resultado": "afirmación en revisión; estados distintos (archivo/documento/afirmación)=true; puede verificar=1; sin «conformidad» como estado=true",
+          "ok": true
+        },
+        {
+          "cuenta": "tecnico1.cooperativa (capturador, 390 px, teclado)",
+          "resultado": "ve la afirmación de su productor; puede verificar=0; foco tras elegir afirmación con teclado en «cl-etype»; desborde=false",
+          "ok": true
+        },
+        {
+          "cuenta": "auditor.cooperativa",
+          "resultado": "consulta sin acciones (0); contenido restringido indicado=true",
           "ok": true
         }
       ],

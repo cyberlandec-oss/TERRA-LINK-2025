@@ -336,6 +336,39 @@ async function main(): Promise<void> {
       }
     }
 
+    // 4e) Recorrido DEMO de evidencias (P0-019): documento de tenencia SINTÉTICO de DEMO-RV-002 y una
+    // afirmación «Existe documentación de tenencia» con ese soporte, ENVIADA a revisión (sin verificar).
+    // Idempotente: si ya existe una afirmación para ese productor, no se crea otra.
+    if (passwords.has(coopAdmin)) {
+      const t = await tokenOf(coopAdmin);
+      const coopId = orgIds.get('coop')!;
+      const producer = (await call<{ items: Array<{ id: string; producer_code: string }> }>('GET', `/api/v1/organizations/${coopId}/producers?status=ALL&q=DEMO-RV-002`, t)).data.items.find((x) => x.producer_code === 'DEMO-RV-002');
+      if (producer) {
+        const claims = (await call<Array<{ id: string }>>('GET', `/api/v1/organizations/${coopId}/evidence?entity_type=producer&entity_id=${producer.id}`, t)).data;
+        if (claims.length === 0) {
+          const title = 'Constancia de tenencia DEMO-RV-002 (sintética)';
+          const docs = (await call<Array<{ id: string; title: string; versions: Array<{ id: string }> }>>('GET', `/api/v1/organizations/${coopId}/documents?document_type=LAND_TENURE`, t)).data;
+          let version = docs.find((d) => d.title === title)?.versions[0]?.id;
+          if (!version) {
+            const form = new FormData();
+            form.append('operation_id', randomUUID());
+            form.append('document_type', 'LAND_TENURE');
+            form.append('owner_type', 'producer');
+            form.append('owner_id', producer.id);
+            form.append('title', title);
+            form.append('issuer', 'Junta parroquial (ficticia)');
+            form.append('file', new Blob([Buffer.from(['%PDF-1.4', '% Documento SINTETICO de demostracion: tenencia', '%%EOF', ''].join(String.fromCharCode(10)))], { type: 'application/pdf' }), 'tenencia-demo.pdf');
+            const res = await fetch(`${base}/api/v1/organizations/${coopId}/documents`, { method: 'POST', headers: { authorization: `Bearer ${t}` }, body: form });
+            if (res.status !== 201 && res.status !== 200) throw new Error(`POST documento de tenencia DEMO → ${res.status}`);
+            version = ((await res.json()) as { document: { versions: Array<{ id: string }> } }).document.versions[0].id;
+          }
+          let ev = (await call<{ evidence: { id: string; row_version: number } }>('POST', `/api/v1/organizations/${coopId}/evidence`, t, { operation_id: randomUUID(), claim_type: 'LAND_TENURE_DOCUMENTED', entity_type: 'producer', entity_id: producer.id })).data.evidence;
+          ev = (await call<{ evidence: { id: string; row_version: number } }>('POST', `/api/v1/organizations/${coopId}/evidence/${ev.id}/sources`, t, { operation_id: randomUUID(), expected_version: ev.row_version, document_version_id: version, relationship: 'SUPPORTS' })).data.evidence;
+          await call('POST', `/api/v1/organizations/${coopId}/evidence/${ev.id}/submit`, t, { expected_version: ev.row_version, reason: 'Recorrido DEMO: enviada a revisión' });
+        }
+      }
+    }
+
     // 5) Verificación: login real de cada cuenta con contraseña conocida.
     const verified = new Map<string, boolean>();
     for (const [mail, pwd] of passwords) {

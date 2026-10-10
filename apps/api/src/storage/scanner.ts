@@ -9,6 +9,21 @@ export interface ScanResult { result: 'CLEAN' | 'INFECTED' | 'FAILED'; engine: s
 export interface MalwareScanner { scan(bytes: Buffer): Promise<ScanResult> }
 export const MALWARE_SCANNER = Symbol('MALWARE_SCANNER');
 
+/**
+ * Interpreta la respuesta de clamd. Un límite alcanzado (AlertExceedsMax) significa análisis INCOMPLETO:
+ * se registra como FAILED, nunca como limpio ni como malware. Cualquier respuesta no reconocida → FAILED.
+ */
+export function interpretReply(reply: string): ScanResult {
+  const r = reply.split(String.fromCharCode(0)).join('').trim();
+  if (/^stream: OK$/.test(r)) return { result: 'CLEAN', engine: 'clamd', signature: null, error_code: null };
+  const m = /^stream: (.+) FOUND$/.exec(r);
+  if (m) {
+    if (m[1].startsWith('Heuristics.Limits.Exceeded')) return { result: 'FAILED', engine: 'clamd', signature: m[1].slice(0, 120), error_code: 'SCAN_INCOMPLETE_LIMITS' };
+    return { result: 'INFECTED', engine: 'clamd', signature: m[1].slice(0, 120), error_code: null };
+  }
+  return { result: 'FAILED', engine: 'clamd', signature: null, error_code: /size limit/i.test(r) ? 'SCANNER_SIZE_LIMIT' : 'SCANNER_UNEXPECTED_REPLY' };
+}
+
 export class ClamdScanner implements MalwareScanner {
   constructor(private readonly host: string, private readonly port: number, private readonly timeoutMs = 30_000) {}
 
@@ -22,13 +37,7 @@ export class ClamdScanner implements MalwareScanner {
       sock.setTimeout(this.timeoutMs, () => fail('SCANNER_TIMEOUT'));
       sock.on('error', (e: NodeJS.ErrnoException) => fail(e.code === 'ECONNREFUSED' ? 'SCANNER_UNAVAILABLE' : 'SCANNER_ERROR'));
       sock.on('data', (d: Buffer) => chunks.push(d));
-      sock.on('close', () => {
-        const reply = Buffer.concat(chunks).toString('utf8').replace(/\0/g, '').trim();
-        if (/^stream: OK$/.test(reply)) return done({ result: 'CLEAN', engine: 'clamd', signature: null, error_code: null });
-        const m = /^stream: (.+) FOUND$/.exec(reply);
-        if (m) return done({ result: 'INFECTED', engine: 'clamd', signature: m[1].slice(0, 120), error_code: null });
-        fail(/size limit/i.test(reply) ? 'SCANNER_SIZE_LIMIT' : 'SCANNER_UNEXPECTED_REPLY');
-      });
+      sock.on('close', () => done(interpretReply(Buffer.concat(chunks).toString('utf8'))));
       sock.connect(this.port, this.host, () => {
         sock.write('zINSTREAM\0');
         const size = 64 * 1024;

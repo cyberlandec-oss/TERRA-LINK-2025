@@ -40,6 +40,7 @@ import { CteController, CteService } from './traceability/cte';
 import { KdeController, KdeService } from './traceability/kde';
 import { EventHistoryController, EventHistoryService } from './events/event-history';
 import { DocumentsController, DocumentsService } from './documents/documents';
+import { EvidenceController, EvidenceService } from './evidence/evidence';
 import { ClamdScanner, MALWARE_SCANNER } from './storage/scanner';
 import { PRODUCTION_CONSUMERS } from './events/consumers';
 import { LOGIN_RATE_LIMITER, LoginRateLimiter, REDIS, RedisAttemptStore } from './auth/login-rate-limit';
@@ -172,7 +173,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
-        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController, KdeController, EventHistoryController, DocumentsController,
+        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController, KdeController, EventHistoryController, DocumentsController, EvidenceController,
       ],
       providers: [
         { provide: APP_CONFIG, useValue: config },
@@ -204,6 +205,7 @@ export class AppModule implements NestModule {
         KdeService,
         EventHistoryService,
         DocumentsService,
+        EvidenceService,
         { provide: MALWARE_SCANNER, useValue: new ClamdScanner(config.scanner.host, config.scanner.port, config.scanner.timeoutMs) },
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },

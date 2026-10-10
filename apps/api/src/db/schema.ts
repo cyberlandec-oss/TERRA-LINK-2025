@@ -472,7 +472,29 @@ export interface DocumentVersionReviewsTable {
 }
 export interface DocumentLinksTable { document_id: string; organization_id: string; entity_type: string; entity_id: string; created_by: string; created_at: Generated<Timestamp> }
 
+export interface EvidenceClaimTypesTable { code: string; label: string; entity_types: string[]; limitation: string; source: string }
+export interface EvidenceTable {
+  id: string; organization_id: string; claim_type: string; entity_type: string; entity_id: string;
+  status: 'DRAFT' | 'SUBMITTED' | 'VERIFIED' | 'REJECTED' | 'REVOKED'; valid_from: string | null; valid_to: string | null;
+  row_version: Generated<string>; operation_id: string; created_by: string; created_at: Generated<Timestamp>;
+}
+export interface EvidenceSourcesTable {
+  id: string; organization_id: string; evidence_id: string; document_version_id: string; relationship: 'SUPPORTS' | 'CONTRADICTS' | 'BASED_ON';
+  note: string | null; operation_id: string; added_by: string; added_at: Generated<Timestamp>;
+}
+export interface EvidenceSourceWithdrawalsTable { source_id: string; organization_id: string; reason: string; withdrawn_by: string; withdrawn_at: Generated<Timestamp> }
+export interface EvidenceDecisionsTable {
+  id: Generated<string>; organization_id: string; evidence_id: string; action: 'SUBMIT' | 'VERIFY' | 'REJECT' | 'REVOKE' | 'REOPEN';
+  from_status: string; to_status: string; reason: string; sources_snapshot: unknown; contradictions_acknowledged: Generated<boolean>;
+  actor_id: string; decided_at: Generated<Timestamp>;
+}
+
 export interface Database {
+  evidence_claim_types: EvidenceClaimTypesTable;
+  evidence: EvidenceTable;
+  evidence_sources: EvidenceSourcesTable;
+  evidence_source_withdrawals: EvidenceSourceWithdrawalsTable;
+  evidence_decisions: EvidenceDecisionsTable;
   document_types: DocumentTypesTable;
   documents: DocumentsTable;
   document_versions: DocumentVersionsTable;
