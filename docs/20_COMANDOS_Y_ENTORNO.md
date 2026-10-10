@@ -58,6 +58,7 @@ Workflow `.github/workflows/ci.yml`. Se dispara en push y PR hacia `main` y con 
 | --- | --- | --- | --- |
 | 2026-10-10 03:09 UTC | `f2d395d` (PR #1) | [38019557517](https://github.com/cyberlandec-oss/TERRA-LINK-2025/actions/runs/38019557517) | **SIN VEREDICTO**: GitHub no inició el job (0 pasos). Anotación: «The job was not started because recent account payments have failed or your spending limit needs to be increased.» Se resuelve en *Billing & plans* de `cyberlandec-oss` |
 | 2026-10-10 | `63b18c7` (PR #1, P0-003) | [38021874080](https://github.com/cyberlandec-oss/TERRA-LINK-2025/actions/runs/38021874080) | **SIN VEREDICTO**: misma anotación de facturación; 0 pasos |
+| 2026-10-10 | `c8362ff` (PR #1, eventos + P0-004) | [38024418581](https://github.com/cyberlandec-oss/TERRA-LINK-2025/actions/runs/38024418581) | **SIN VEREDICTO**: misma anotación de facturación; 0 pasos |
 
 Evidencia complementaria, que **no sustituye al CI**: los mismos pasos se ejecutaron en Linux, en un contenedor `mcr.microsoft.com/playwright:v1.64.0-noble` (Node 24.21) a partir de `git archive` de `f2d395d`, contra los servicios del compose. Resultados: `npm ci`, typecheck, lint, build y migraciones desde cero OK; API 40/40; E2E 7/7. La línea de Vitest web no quedó capturada en ese registro.
 
