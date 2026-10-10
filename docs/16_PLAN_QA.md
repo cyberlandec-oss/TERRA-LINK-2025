@@ -47,3 +47,7 @@ Por ejecución: commit/rama, entorno, comando exacto, hora, resultado, versión 
 Historia ligada a RF y fuente/ADR; criterio demostrado; dominio/API/persistencia/autorización/auditoría integrados; UI/offline cuando aplica; migraciones revisadas; errores recuperables; pruebas pertinentes verdes; documentación y comandos actualizados; limitaciones declaradas. Compilar no demuestra DB/GIS/offline.
 
 Gates de conformidad regulatoria, integración oficial, Android real y producción se registran separadamente. Nunca usar «todas las pruebas pasan» si no se ejecutaron todas las requeridas o si solo pasó una suite unitaria.
+
+## Validación local (etapa vigente)
+
+La verificación de cierre se ejecuta en el equipo local con `npm run validate` (docs/20): servicios de desarrollo, typecheck, lint, build, OpenAPI validado, unitarias + integración contra PostgreSQL/PostGIS y Redis reales (base `terra_link_test`) y E2E en Chromium (base `terra_link_e2e`). Resultados en `validation-results/<fecha>/resumen.md`. Las mismas comprobaciones que el workflow de Actions inactivo (`infra/ci/github-actions-ci.yml`), ejecutadas localmente. DONE_LOCAL no sustituye los gates de producción, Android real ni conformidad.

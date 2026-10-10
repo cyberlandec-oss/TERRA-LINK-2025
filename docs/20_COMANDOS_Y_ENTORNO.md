@@ -1,12 +1,12 @@
 # Comandos y entorno comprobables
 
-Actualizado: 2026-10-09. Repositorio `cyberlandec-oss/TERRA-LINK-2025`, rama `main`, en `C:\Users\mario\TERRA LINK 2025`.
+Actualizado: 2026-10-10. Repositorio `cyberlandec-oss/TERRA-LINK-2025`, rama `main`, en `C:\Users\mario\TERRA LINK 2025`.
 
 > Corrección: la versión anterior de este documento registraba comandos de otro proyecto (`cyberlandec-oss/cacao`, `refactor/...`). Eran ajenos a Terra Link 2025 y se eliminaron.
 
 ## Requisitos del equipo
 
-Comprobados en Windows 11: git 2.53, Node 24.12 / npm 11.6, Docker Desktop 29.8 (contexto `desktop-linux`, `npipe:////./pipe/dockerDesktopLinuxEngine`).
+Comprobados en Windows 11: git 2.53, Node 24.12 (mínimo 22.9 por `--env-file-if-exists`) / npm 11.6, Docker Desktop 29.8 (contexto `desktop-linux`, `npipe:////./pipe/dockerDesktopLinuxEngine`).
 
 Nota del equipo: hay un **PostgreSQL nativo de Windows escuchando en `0.0.0.0:5432`**, así que el PostgreSQL de Docker se publica en **5440**. No se tocó el servicio nativo.
 
@@ -23,22 +23,69 @@ No imprimir ni versionar `.env` (está en `.gitignore`).
 
 | Acción | Comando | Precondición / efecto | Resultado 2026-10-09 |
 | --- | --- | --- | --- |
-| Servicios locales | `npm run infra:up` (`docker compose up -d --wait`) | Levanta `postgres` (PostGIS 16-3.4, host:5440, crea `terra_link` y `terra_link_test`), `redis` (6379) y `object-storage` (VersityGW, 9000). Volúmenes `postgres-data` y `object-data` | 3 servicios healthy |
+| Servicios locales | `npm run infra:up` (`docker compose up -d --wait`) | Levanta `postgres` (PostGIS 16-3.4, host:5440, crea `terra_link` y `terra_link_test`), `redis` (6379) y `object-storage` (VersityGW, 9000). Volúmenes `postgres-data` y `object-data` | 3 servicios healthy. La API usa `object-storage` como almacenamiento privado (P0-009): `S3_ACCESS_KEY`/`S3_SECRET_KEY` obligatorias; buckets `terra-link-private` (desarrollo), `terra-link-test` (integración) y `terra-link-e2e` (E2E), creados por la API si faltan |
 | Detener servicios | `npm run infra:down` | No borra volúmenes | — |
-| Migrar dev | `npm run db:migrate` | Compila la API y aplica migraciones a `DATABASE_URL` | `0001_identity_organizations` aplicada |
+| Migrar dev | `npm run db:migrate` | Compila la API y aplica migraciones a `DATABASE_URL` | `0001`–`0007_producer_match_reviews` aplicadas (dev: productores y usuarios conservados) |
 | Seed dev | `npm run seed:dev -w apps/api` | Crea el SUPER_ADMIN desde `SEED_ADMIN_*`; idempotente | Creado |
 | API: typecheck | `npm run typecheck -w apps/api` | — | 0 errores |
 | API: lint | `npm run lint -w apps/api` | — | 0 problemas |
-| API: pruebas | `npm test -w apps/api` | Requiere `infra:up`; la integración usa `TEST_DATABASE_URL` (debe terminar en `_test`; **recrea el esquema `public` de esa base**) | 2 suites, **16/16** (4 unitarias + 12 integración PostgreSQL real), ~12 s |
-| API: arrancar | `npm run dev:api` (compila + `node dist/main.js`, puerto 4000) | Swagger en `/api/docs` | live/ready 200; login OK |
-| OpenAPI | `npm run openapi -w apps/api` → `apps/api/openapi.json` | Generado desde los controladores | OpenAPI 3.0.0, 8 rutas |
-| Web: typecheck / lint / test | `npm run typecheck -w apps/web`, `npm run lint -w apps/web`, `npm test -w apps/web` | — | OK; vitest 2/2 |
-| Web: build | `npm run build -w apps/web` | — | 4 rutas compiladas |
+| API: pruebas | `npm test -w apps/api` | Requiere `infra:up`, `TEST_DATABASE_URL` (debe terminar en `_test`; **recrea el esquema `public` de esa base**) y `REDIS_URL` (prefijo de claves único por corrida). Sin ellas, la integración queda *skipped* | 12 suites, **90/90** (16 unitarias + 74 integración PostgreSQL/Redis reales) |
+| API: arrancar | `npm run dev:api` (compila + `node dist/main.js`, puerto 4000) | Swagger en `/api/docs`. `/health/ready` devuelve `checks` por dependencia (database, schema, redis) y 503 si alguna falla | live/ready 200; login OK |
+| OpenAPI | `npm run openapi -w apps/api` → `apps/api/openapi.json` | Generado desde los controladores y validado con `@apidevtools/swagger-parser` (falla si hay referencias o esquemas inválidos) | OpenAPI 3.0.0, 32 rutas, válido |
+| Web: typecheck / lint / test | `npm run typecheck -w apps/web`, `npm run lint -w apps/web`, `npm test -w apps/web` | — | OK; vitest 3/3 |
+| Web: build | `npm run build -w apps/web` | — | 5 rutas compiladas |
+| Worker del outbox | `npm run worker -w apps/api` | Procesa `event_deliveries`; variables `OUTBOX_POLL_MS`, `OUTBOX_MAX_ATTEMPTS`, `OUTBOX_LEASE_SECONDS` | Arranca y procesa (ver contenedores) |
+| Todo (raíz) | `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` | API + web | OK |
+| Navegadores E2E (una vez) | `npm run install-browsers -w e2e` | Descarga Chromium (~120 MB) | OK |
+| E2E en navegador | `npm run build -w apps/api && npm run test:e2e` | Crea o recrea `terra_link_e2e`, migra, siembra un SUPER_ADMIN con contraseña aleatoria, levanta API :4100 y web :3100 (compila la web con esa URL) | **14/14** en Chromium (~38 s + build). Fallo intermitente previo (un `reload` sin respuesta en una corrida de 4,2 min): **causa no determinada**; su evidencia se perdió porque Playwright sobrescribe `test-results`. Ahora `validate` conserva trazas si vuelve a ocurrir |
 | Web: arrancar | `npm run dev:web` (dev) o `npm run start -w apps/web` (tras build), puerto 3000 | API en `NEXT_PUBLIC_API_URL` | Páginas 200; CORS solo `WEB_ORIGIN` |
+
+## Contenedores de la aplicación (opcional)
+
+| Acción | Comando | Efecto | Resultado 2026-10-10 |
+| --- | --- | --- | --- |
+| Construir y arrancar | `docker compose --profile app up -d --build --wait` | Imágenes `terra-link-api:local` (431 MB) y `terra-link-web:local` (412 MB), multietapa sobre `node:24-bookworm-slim`, `npm ci` desde el lockfile, usuario `node`, `HEALTHCHECK`. Orden: `migrate` (una vez, sobre `terra_link`) → `api` (:4000) → `web` (:3000, compilada con `NEXT_PUBLIC_API_URL`). Reutiliza los volúmenes y el PostgreSQL en 5440 | migrate aplicó solo `0003` (datos previos conservados); api y web healthy; ready 200; web 200; login OK; sin secretos en `docker history` |
+| Con dos workers | `docker compose --profile app up -d --build --wait --scale worker=2` | Añade el servicio `worker` (sin healthcheck HTTP, `restart: unless-stopped`) | 3 productores creados vía API → 6 entregas `DONE` (2 consumidores), proyección `ACTIVE: 3`, sin duplicados |
+| Detener solo la app | `docker compose --profile app rm -sf api web migrate worker` | Conserva infraestructura y volúmenes | — |
+
+Las variables (`JWT_SECRET`, credenciales de PostgreSQL) se leen de `.env` al ejecutar; `.dockerignore` excluye `.env*` y nunca se copian a las imágenes. Puertos configurables con `API_HOST_PORT` y `WEB_HOST_PORT`. No arrancar a la vez que `dev:api`/`dev:web` en los mismos puertos.
+
+## Datos DEMO y revisión por rol (solo desarrollo local)
+
+| Acción | Comando | Efecto | Resultado 2026-10-10 |
+| --- | --- | --- | --- |
+| Seed DEMO/QA | `npm run seed:demo -w apps/api` | Crea (si faltan) 4 organizaciones «DEMO ·», 17 cuentas (los 12 roles; un ORG_ADMIN por empresa; 1 SUPER_ADMIN de revisión; 1 usuario con roles en dos organizaciones) y 9 productores sintéticos con un caso de posible duplicado. Usa los flujos reales de la API (invitación, aceptación, cifrado, eventos, auditoría). Idempotente; conserva datos existentes; se niega a correr contra bases `*_test`/`*_e2e` | 17/17 logins verificados; segunda ejecución sin cambios |
+| Credenciales locales | `CREDENCIALES.csv` (raíz) | UTF-8 con BOM, una fila por usuario + organización + rol. **Ignorado por git.** Contraseñas solo ahí (hash argon2id en la base); se reutilizan entre ejecuciones y nunca se resetean cuentas existentes | 18 filas |
+| Aplicación para revisión | `docker compose --profile app up -d --build --wait` | Web :3000 y API :4000 sobre la base de desarrollo `terra_link` | api, web, worker activos |
+| Revisión visual por rol | `node e2e/review/revision-por-rol.mjs http://localhost:3000` | Sesión aislada por fila del CSV; rutas, tarea real, denegación, datos ajenos, teclado y móvil; capturas en `docs/qa/capturas/`, resultados en `docs/qa/revision-resultados.json` | 21 entradas, 0 incidencias (informe `docs/qa/REVISION_VISUAL_POR_ROL.md`) |
+
+## Validación local (criterio de esta etapa)
+
+```bash
+npm run validate                 # completa
+npm run validate -- --skip-e2e   # sin navegador
+npm run validate -- --docker     # añade build de imágenes
+```
+
+- **Requisitos:** Docker Desktop en marcha, `.env` completo (incluidas `TEST_DATABASE_URL` → `*_test` y las claves `PII_*`), `npm install` hecho y Chromium instalado (`npm run install-browsers -w e2e`).
+- **Pasos** (se detiene en el primer fallo): servicios (`docker compose up -d --wait postgres redis object-storage`, sin borrar nada) → typecheck → lint → build → OpenAPI generado **y validado** → unitarias + integración (`terra_link_test`, esquema recreado) → E2E Chromium (`terra_link_e2e`).
+- **Salvaguardas:** se niega a ejecutar si `TEST_DATABASE_URL` no termina en `_test` o coincide con la base de desarrollo (código 2). No toca `terra_link`, no borra volúmenes.
+- **Resultados:** `validation-results/<fecha>/resumen.md`, `resumen.json` (commit, archivos sin commit, pasos, códigos, tiempos) y un `.log` por paso. Si falla E2E, se copian trazas y reporte de Playwright a esa carpeta. Código de salida: 0 aprobada, 1 fallida, 2 configuración insegura o incompleta.
+- **Comprobado el 2026-10-10:** corrida aprobada (6 pasos); configuración insegura → código 2 sin ejecutar nada; Redis inaccesible → integración FALLA y código 1.
+
+## GitHub Actions (inactivo; registro histórico)
+
+El workflow se movió a `infra/ci/github-actions-ci.yml` y **no se ejecuta**: en esta etapa no es requisito y no hay que resolver facturación. Corridas anteriores, solo como historia (ninguna llegó a ejecutar pasos por la facturación de la cuenta):
+
+| Fecha | Commit | Run | Resultado |
+| --- | --- | --- | --- |
+| 2026-10-10 03:09 UTC | `f2d395d` (PR #1) | [38019557517](https://github.com/cyberlandec-oss/TERRA-LINK-2025/actions/runs/38019557517) | **SIN VEREDICTO**: GitHub no inició el job (0 pasos). Anotación: «The job was not started because recent account payments have failed or your spending limit needs to be increased.» Se resuelve en *Billing & plans* de `cyberlandec-oss` |
+| 2026-10-10 | `63b18c7` (PR #1, P0-003) | [38021874080](https://github.com/cyberlandec-oss/TERRA-LINK-2025/actions/runs/38021874080) | **SIN VEREDICTO**: misma anotación de facturación; 0 pasos |
+| 2026-10-10 | `c8362ff` (PR #1, eventos + P0-004) | [38024418581](https://github.com/cyberlandec-oss/TERRA-LINK-2025/actions/runs/38024418581) | **SIN VEREDICTO**: misma anotación de facturación; 0 pasos |
 
 ## Pendiente (no ejecutado / no existe aún)
 
-CI en GitHub Actions, Dockerfiles de API/web, E2E de navegador, móvil/Android, backup/restauración (QA-16) y despliegue. Ningún comando de producción está definido.
+Móvil/Android, backup/restauración (QA-16) y despliegue. Ningún comando de producción está definido.
 
 ## Ejecución segura
 

@@ -6,12 +6,7 @@ export const metadata = { title: 'Terra Link', description: 'Trazabilidad y debi
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es">
-      <body>
-        <header className="topbar">
-          <strong>Terra Link</strong>
-        </header>
-        <main className="container">{children}</main>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

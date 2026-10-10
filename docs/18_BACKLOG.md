@@ -53,25 +53,27 @@ Aceptación: geometría/CRS/área/duplicados/cobertura, estados y versión de re
 ### P0-011 — Productos
 Depende P0-003. Como operador, necesito producto/estado/unidad coherentes.
 Aceptación: catálogo de cacao y unidades, códigos por ámbito; transformación cambia estado con evento/rendimiento, no conversión implícita. RF-11; QA-05/06.
+Capacidades (2026-10-10): «catálogo y unidades» verificada y disponible para P0-012; «transformación con evento/rendimiento» pendiente y demostrable solo con P0-016 (procesamiento). P0-011 sigue abierta hasta demostrarla.
 
 ### P0-012 — Entrega y recepción
-Depende P0-004/006/011/013/014/015. Como recepción, necesito cantidad y origen reales.
+Depende P0-004/006/013/014/015 y de la **capacidad** «catálogo de productos y unidades» de P0-011 (verificada el 2026-10-10; el criterio de transformación de P0-011 no bloquea Entregas). Como recepción, necesito cantidad y origen reales.
 Aceptación: entrega declarada, peso recibido, recepción parcial/completa, diferencias con causa, vínculos válidos y quality básica; confirmar repetido no crea doble stock. RF-12; QA-05/06.
 
 ### P0-013 — CTE
 Depende TECH-001. Como trazabilidad, necesito hitos definidos.
 Aceptación: catálogo versionado de harvest/delivery/reception/weighing/processing/storage/packaging/sale/shipment; hechos operativos mapeados a eventos existentes. RF-13; QA-05.
+Nota (2026-10-10): cada historia que implemente una operación (P0-012, P0-016, P0-017, P0-029) debe pasar su vínculo CTE de PENDING a INTEGRATED con una nueva versión del catálogo. HARVEST, PACKAGING y SALE no tienen historia asignada (D-33).
 
 ### P0-014 — KDE
 Depende P0-013. Como steward, necesito datos mínimos por hito.
 Aceptación: definición, validación, condición, responsable y versión; faltantes aparecen como tales e impiden transición aplicable sin inventarlos. RF-14; QA-05.
 
 ### P0-015 — Eventos
-Depende TECH-001/P0-003. Como auditor, necesito historial causal.
+Depende TECH-001 y de la **capacidad** «autorización dentro del tenant» de P0-003 (verificada). Los criterios abiertos de P0-003 (concesiones externas/grants y elevación de plataforma, D-04) bloquean solo la visibilidad de eventos para terceros con concesión y el acceso de plataforma a eventos. Como auditor, necesito historial causal.
 Aceptación: envolvente/versión/tenant/actor/tiempos, append-only, correction_of, outbox atómico y consumo idempotente; evento repetido no duplica efectos. RF-15; QA-05/07/13.
 
 ### P0-016 — Lotes y procesos
-Depende P0-012/015. Como trazabilidad, necesito reconstruir mezclas/transformaciones.
+Depende P0-012/015. Al cerrar un proceso se demuestra el criterio pendiente de P0-011 (transformación con evento y rendimiento) y se integra el vínculo CTE FERMENTATION/DRYING. Como trazabilidad, necesito reconstruir mezclas/transformaciones.
 Aceptación: lote con inputs/outputs/run; DAG sin ciclos; origen conservado en salida; cierre atómico y consulta upstream/downstream con cantidades y permisos. RF-16; QA-07.
 
 ### P0-017 — Inventario/balance de masa
@@ -163,3 +165,19 @@ Marketplace de servicios, red colaborativa de datos/capas, IA asistente avanzada
 ## Gestión
 
 Estados: `PENDIENTE_DE_VERIFICAR → GAP_CONFIRMADO → READY_FOR_DEV → IN_PROGRESS → IN_REVIEW → VERIFIED`; `BLOCKED` con motivo y siguiente acción. Regla: dependencia satisfecha por evidencia o contrato/mock explícito, no por checkbox. Estimación se hace tras inspeccionar código y equipo; no heredar el calendario ilustrativo como compromiso.
+
+### Corrección de dependencias por capacidad (2026-10-10)
+
+Se detectó un ciclo: P0-012 dependía de P0-011 completa; el criterio de transformación de P0-011 solo se demuestra con P0-016, que depende de P0-012. Fundamento de la corrección: una dependencia expresa la **capacidad** que la historia consumidora necesita. Entregas necesita productos y unidades válidos (verificado), no la transformación. Por eso P0-012 depende de la capacidad «catálogo y unidades» de P0-011, y el criterio de transformación sigue dentro de P0-011, abierto hasta P0-016. No se eliminó ni simuló ningún requisito.
+
+| Capacidad | Historia | Estado | Bloquea a | No bloquea |
+| --- | --- | --- | --- | --- |
+| Catálogo de productos y unidades | P0-011 | Verificada | — | P0-012 |
+| Transformación con evento/rendimiento | P0-011 | Pendiente (demostrable con P0-016) | Cierre de P0-011 | P0-012 |
+| Autorización dentro del tenant | P0-003 | Verificada | — | P0-015 (eventos del tenant) |
+| Concesiones externas (grants) | P0-003 | Bloqueada (contrato ausente, ADR-0002/P1-001) | Eventos visibles a terceros con concesión (P0-015), P1-001 | Eventos del tenant |
+| Elevación de plataforma | P0-003 | Bloqueada (D-04) | Acceso de SUPER_ADMIN a eventos de un tenant | Eventos del tenant |
+
+### Criterio de cierre de la etapa local (desde 2026-10-10)
+
+Estado adicional `DONE_LOCAL`: criterios de la historia cumplidos con evidencia de pruebas locales (`npm run validate` aprobado + suites de la historia) y documentación al día. No requiere GitHub Actions. No equivale a producción ni a conformidad EUDR. Un criterio que dependa de una decisión no tomada o de un contrato inexistente deja la historia abierta solo si ese criterio forma parte de su aceptación; el resto de decisiones provisionales se registran sin bloquear. Estado vigente en docs/23.

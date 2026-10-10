@@ -20,6 +20,52 @@ Para superficie usar geodesia (`geography`) o proyección adecuada validada, exp
 
 Corrección automática de una geometría puede cambiar la parcela. Si se propone reparación, mostrar antes/después y obtener confirmación de quien tiene permiso; conservar versiones.
 
+## Perfil de importación GeoJSON (P0-009, `GEOJSON_IMPORT_V1`, implementado)
+
+Cuatro niveles distintos: **intercambio** (este perfil, RFC 7946), **estructura** (rechazo 422 si no se cumple), **validez geométrica técnica** (PostGIS `ST_IsValid`: autointersección, huecos fuera del exterior…) y **validación GIS** (P0-010, pendiente: toda versión queda `NOT_VALIDATED`).
+
+| Aspecto | Regla |
+| --- | --- |
+| Tipos | Polygon y MultiPolygon (con huecos). Point, LineString, GeometryCollection… → `TYPE_NOT_SUPPORTED` |
+| Envolventes | Geometría directa; Feature; FeatureCollection con **exactamente una** feature (advertencia). Vacía → `EMPTY_FEATURE_COLLECTION`; varias → `MULTIPLE_FEATURES` (un archivo = una parcela; no se importan varias en silencio) |
+| Coordenadas | `[longitud, latitud]`, grados decimales WGS84. SRID 4326 en PostGIS no cambia ese orden. Rangos −180…180 / −90…90 |
+| Dimensiones | Exactamente 2. Altitud u otras → `EXTRA_DIMENSIONS_NOT_SUPPORTED` (no se eliminan) |
+| CRS heredado (`crs`, GeoJSON 2008) | CRS84 → aceptado con advertencia (no cambia nada). EPSG:4326 declarado (orden de ejes ambiguo) u otro CRS → `CRS_NOT_SUPPORTED`. Nunca se reproyecta |
+| Anillos | ≥4 posiciones y cerrados (`RING_NOT_CLOSED`, sin cierre automático) |
+| Ejes | Si todas las posiciones parecen `[lat, lon]` de Ecuador → advertencia `POSSIBLE_AXIS_SWAP`; no se intercambian |
+| Ignorados con advertencia | `properties`, `id`, `bbox`: la parcela y la organización salen de la pantalla autorizada, nunca del archivo |
+| Límites (configurables) | `GEOJSON_MAX_BYTES` 1 MiB, `GEOJSON_MAX_POSITIONS` 5000, `GEOJSON_MAX_DEPTH` 10, `GEOJSON_MAX_COMPONENTS` 50, `GEOJSON_MAX_RINGS` 50 |
+| Validez técnica | Inválida → se muestra el motivo (sin coordenadas en notas/eventos/auditoría); confirmar exige «conservar para revisión» (D-26): sin superficie ni reparación |
+| Decimales | Se informan como dato del archivo; no son precisión de medición |
+| Original | Bytes intactos en almacenamiento privado S3 + SHA-256 calculado en el servidor (identidad de bytes, no autenticidad del origen) |
+| Exportación | Feature RFC 7946 de una versión concreta (`ST_AsGeoJSON` con 17 dígitos: ida y vuelta exacta de los dobles); propiedades técnicas sin identidad personal; aviso «no es paquete EUDR ni declaración presentada». Distinta de la descarga del original |
+
+Pendiente de P0-010/D-05: «perfil destino» (especificación GeoJSON del sistema receptor y reglas de exportación regulatoria), validación GIS, umbral de 4 ha y cobertura.
+
+## Evaluación GIS técnica (P0-010, `TL_GIS_TECH` 1.0.1, implementada)
+
+Evalúa una versión geométrica **sin modificarla** y guarda un registro inmutable (`gis_evaluations`). Reevaluar crea otro registro. Tres bloques que no se mezclan:
+
+1. **Validez técnica** → estado `VALID` / `WARNING` / `INVALID` / `REVIEW_REQUIRED`, siempre con alcance técnico («VALID» no es conformidad EUDR).
+2. **Calidad y cobertura de captura** → informativa: COMPLETE / PARTIAL / ABSENT (resumen de precisión) o NOT_AVAILABLE («Precisión de captura no disponible» para importadas o sin muestras; nunca se infiere de decimales). Sin umbrales (D-25).
+3. **Perfil de destino / regulatorio** → siempre «No evaluado: requiere definición (D-05)». Propuesta: `docs/decisiones/D-05-PROPUESTA.md` (no aprobada).
+
+| Comprobación | Resultado posible | Nota |
+| --- | --- | --- |
+| GEOMETRY_PRESENT | PASS / FAIL (`GEOMETRY_MISSING` → REVIEW_REQUIRED) | Versión solo con superficie declarada |
+| GEOMETRY_TYPE, SRID, COORDINATE_RANGE, NOT_EMPTY | PASS / FAIL | SRID 4326; rangos lon/lat |
+| NOT_DEGENERATE | PASS / FAIL / NOT_APPLICABLE (punto) | Polígono sin superficie |
+| TECHNICAL_VALIDITY | PASS / FAIL con código controlado (`SELF_INTERSECTION`, `HOLE_OUTSIDE_SHELL`…) | Ubicación del problema guardada aparte; solo con `plot:read_geometry` |
+| AREA | PASS (ha geodésicas) / NOT_APPLICABLE (punto) / NOT_EXECUTED (no válida) | Sin área mínima |
+| GEOMETRIC_EQUALITY | PASS / REVIEW / WARNING (comparaciones incompletas) | `ST_Equals`: igual aunque cambie el orden o inicio de vértices; se informa aparte si coincide el hash |
+| OVERLAP | PASS (sin relación o solo contacto) / REVIEW / WARNING / NOT_EXECUTED (punto: fuera de V1) | Superficie compartida = DE-9IM `2********`; contacto por borde/vértice = TOUCH, no cuenta |
+
+Estado: FAIL → INVALID; si no, REVIEW (igualdad/solape o sin geometría) → REVIEW_REQUIRED; si no, WARNING → WARNING; si no, VALID. Alcance de comparación: otras parcelas ACTIVAS de la organización, versión vigente, geometrías válidas; nunca las versiones históricas de la misma parcela. Una coincidencia no prueba ilegalidad ni autoriza fusionar parcelas.
+
+Desactualización (sin tocar el registro): `GEOMETRY_CHANGED` (hay versión más nueva), `RULES_CHANGED` (otra versión de regla), `COMPARED_PLOTS_CHANGED` (cambió la huella del conjunto comparado).
+
+Privacidad (corregida el 2026-10-10, doc 09: «no revelar counts o identidades ocultas»): (1) el alcance de comparación es el del evaluador: con `plot:read`, toda la organización (`ORGANIZATION`); con solo `_assigned`, únicamente sus parcelas asignadas (`EVALUATOR_ASSIGNED`), y queda registrado en el resultado; (2) un lector sin `plot:read` ve el bloque de comparación de una evaluación de organización como «Reservada» **siempre**, haya o no coincidencias, y el estado se calcula solo con las comprobaciones de la propia geometría (`view_scope: GEOMETRY_ONLY`); (3) no se devuelve ningún tipo ni cantidad de relaciones ocultas, ni la desactualización por cambios en parcelas que no puede ver. **Versionado (precisado el 2026-10-10):** la corrección cambia el *contenido calculado* de las evaluaciones de quien solo lee sus parcelas asignadas (se compara con otro conjunto), por lo que se publica `TL_GIS_TECH 1.0.1`. 1.0.0 = comparación siempre con toda la organización (registros anteriores, inmutables, que ahora se muestran desactualizados por `RULES_CHANGED`); 1.0.1 = conjunto comparado según el alcance del evaluador (`comparison_scope` y `scope_membership_id` guardados en cada registro para reproducirlo). Las comprobaciones geométricas son idénticas. D-30 sigue sin ratificar y no se añaden comprobaciones. PostGIS emite `NOTICE` con coordenadas (p. ej. `ST_IsValid`): las conexiones usan `client_min_messages=warning` y el código usa `ST_IsValidDetail`; los errores de base se registran solo con SQLSTATE. El servidor PostgreSQL local registra desde WARNING (`log_min_messages=warning`), así que los NOTICE no llegan a su registro; las sentencias usan parámetros y `log_parameter_max_length_on_error=0`, por lo que los valores no se registran. Riesgo residual: el registro del servidor sí guarda el **mensaje** de un ERROR de base de datos; la aplicación evita operaciones GEOS sobre geometrías inválidas y valida GeoJSON antes de PostGIS para no provocar errores con coordenadas. El acceso a ese registro debe restringirse en operación.
+
 ## Umbral pendiente
 
 La fuente técnica escribe `<4 ha` y `>4 ha`, dejando indefinido `=4`. El paquete no convierte esa omisión en norma. Modelar `threshold_ha`, operador de comparación, producto, jurisdicción, vigencia y fuente legal en el perfil. Antes de activarlo, validar texto consolidado y especificación GeoJSON del destino con responsable regulatorio. Probar casos por debajo, igual y por encima; sin perfil aprobado la preparación regulatoria queda pendiente.

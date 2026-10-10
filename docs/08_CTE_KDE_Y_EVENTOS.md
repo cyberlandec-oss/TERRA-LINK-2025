@@ -74,3 +74,45 @@ Unique `(organization_id, operation_id)` para comando idempotente; unique `(orga
 `DocumentUploaded`, `DocumentScanCompleted`, `EvidenceSubmitted`, `EvidenceVerified`, `EvidenceRejected`, `PlotGeometryVersionCreated`, `SatelliteAnalysisRequested/Completed/Failed`, `RiskAssessmentCreated`, `MitigationEvidenceSubmitted/Verified/Rejected`, `DDPackageApproved/Generated/Exported`, `ShareGranted/Revoked`.
 
 Si el repositorio ya usa nombres como `RunClosed` u `OutputLotMaterialized`, mapearlos sin renombrar por estética. Versionar payload antes de introducir un cambio incompatible.
+
+## Catálogo CTE implementado (P0-013, versión 1.0.0)
+
+Catálogo de sistema versionado (migración 0015). Distinción explícita: **hito definido** (`cte_definitions`), **operación que lo genera** y **evento emitido** (`cte_operation_links`, INTEGRATED/PENDING) y **datos mínimos** (P0-014, pendientes). Las 11 definiciones (10 de S1 §19 + CLASSIFICATION de este documento) tienen su operación **PENDING**: ninguna operación de cosecha, entrega, recepción, pesaje, clasificación, proceso, almacenamiento, envasado, venta o embarque existe todavía. Los eventos existentes (`ProducerCreated`, `PlotGeometryVersionCreated`, `ProductCreated`…) son datos maestros y no se vinculan como hitos.
+
+| CTE | Operación / evento previsto | Historia |
+| --- | --- | --- |
+| HARVEST | HARVEST_RECORD / HarvestRecorded | Sin asignar (D-33) |
+| DELIVERY | DELIVERY_REGISTER / DeliveryRegistered | P0-012 |
+| RECEPTION | RECEPTION_CONFIRM / ReceptionConfirmed | P0-012 |
+| WEIGHING | WEIGHT_RECORD / WeightRecorded | P0-012 |
+| CLASSIFICATION | QUALITY_DECISION / QualityDecisionRecorded | P0-012 |
+| FERMENTATION, DRYING | PROCESSING_RUN_CLOSE / ProcessingRunClosed | P0-016 |
+| STORAGE | STOCK_MOVEMENT / StockMovementRecorded | P0-017 |
+| PACKAGING | PACKAGING_RECORD / PackagingRecorded | Sin asignar (D-33) |
+| SALE | SALE_RECORD / SaleRecorded | Sin asignar (D-33) |
+| SHIPMENT | SHIPMENT_DISPATCH / ShipmentDispatched | P0-029 |
+
+Cambios: una nueva versión del catálogo crea la versión siguiente de la definición (la anterior queda retirada y resoluble) o retira una definición con motivo. Al integrar una operación se publica una versión con el vínculo INTEGRATED.
+
+## Implementación vigente (TECH-001, 2026-10-10)
+
+Código: `apps/api/src/events/` y migración `0004_domain_events_outbox`. **No cierra** CTE/KDE, P0-015 (historial causal completo) ni el framework de reglas: es la base técnica que esas historias usarán.
+
+| Elemento del contrato | Implementación |
+| --- | --- |
+| Envolvente | `domain_events`: `event_id`, `organization_id`, `event_type`, `schema_version`, `aggregate_type`, `aggregate_id`, `aggregate_version`, `actor_id`, `occurred_at`, `recorded_at` (reloj del servidor), `correlation_id` (id de solicitud), `causation_id`, `operation_id`, `payload` |
+| Inmutabilidad | Trigger append-only (UPDATE/DELETE rechazados) |
+| Orden por agregado | `UNIQUE (organization_id, aggregate_type, aggregate_id, aggregate_version)`; la versión es la `row_version` del agregado |
+| Idempotencia de comando | `UNIQUE (organization_id, operation_id)` cuando hay `operation_id` (aún ningún endpoint lo exige; P0-012/P0-023 lo usarán) |
+| Outbox | `event_deliveries` (una fila por consumidor suscrito), escrita con el **mismo** `trx` que el cambio de dominio y la auditoría |
+| Entrega | **Al menos una vez.** Worker con reclamo `FOR UPDATE SKIP LOCKED` y arrendamiento (`locked_until`); al vencer, otra instancia retoma la entrega. No hay orden global entre agregados |
+| Consumo idempotente | `consumer_receipts (consumer, event_id)` + efectos + `DONE` en una transacción; una reentrega encuentra el recibo y no repite efectos |
+| Fallos | Reintento con espera exponencial (base 2 s, máx. 15 min); al agotar `OUTBOX_MAX_ATTEMPTS` (8) pasa a `DEAD` con `last_error` saneado (≤300 caracteres). `DEAD` no se reintenta solo: requiere revisión |
+| Consumidores en producción | `organization-event-stats` (conteo por tipo) y `producer-status-counts` (productores por estado, `GET …/producers/summary`, consistencia eventual) |
+| Proceso | `node dist/worker-main.js` (servicio `worker` del perfil `app`, escalable) |
+
+Eventos emitidos hoy: `ProducerRegistered`, `ProducerUpdated`, `ProducerAssigned`, `ProducerStatusChanged` (schema 1). Payloads sin datos personales: identificadores, código, estados y **nombres** de campos cambiados, nunca sus valores.
+
+**Auditoría frente a eventos:** `audit_logs` responde «quién hizo qué» (incluye accesos denegados, logins y administración) y no alimenta procesos. `domain_events` expresa hechos de dominio para consumidores. Ambos se escriben en la misma transacción; ninguno sustituye al otro. Organizaciones, membresías e invitaciones todavía solo auditan (no emiten eventos de dominio).
+
+Pendientes separados: catálogo CTE/KDE y su validación (doc 08), ledger de inventario (ADR-0003), P0-015 (vista causal de eventos para auditor), framework de reglas (doc 13), DLQ con herramienta de reproceso.

@@ -88,3 +88,37 @@ Cantidades `numeric(20,6)` y dinero `numeric(20,4)` son propuestas de precisión
 ## Calidad y privacidad
 
 Completitud, validez, consistencia, unicidad y vigencia son resultados separados con denominador y regla. Evitar un campo de «confidence» global sin método. Campos personales y geometrías exactas exigen clasificación de acceso; una exportación debe aplicar la misma política que la consulta.
+
+## Esquema implementado (contraste con el repositorio, 2026-10-10)
+
+| Tabla real | Migración | Diferencias con la propuesta |
+| --- | --- | --- |
+| users, organizations, memberships, roles, role_assignments, audit_logs | 0001, 0002 | `users.platform_role` para SUPER_ADMIN; `token_version`; `email_verified_at` (nunca lo marca una invitación); `role_assignments` con FK compuesta por tenant |
+| invitations | 0002 | Solo hash del token; una pendiente por correo y organización |
+| organization_types | 0003 | Catálogo provisional D-18 |
+| domain_events, event_deliveries, consumer_receipts | 0004 | Envolvente del doc 08; outbox por consumidor |
+| producers | 0005, 0006 | Campos de S1 §12. **Identidad cifrada**: `document_type_enc`, `document_number_enc`, `phone_enc`, `address_enc` (AES-256-GCM, AAD por registro) + `document_number_bidx` (índice ciego). Sin texto plano en tabla ni historial. `assigned_membership_id` con FK compuesta. Baja lógica `deleted_*` |
+| producer_versions | 0005, 0006 | Historial append-only; identidad cifrada por versión |
+| producer_status_counts, organization_event_stats | 0004, 0005 | Proyecciones alimentadas por eventos |
+| producer_match_reviews | 0007 | Revisión asistida de duplicados (P0-005) |
+| plots, plot_versions, plot_history | 0008 | P0-006: geometría PostGIS 4326 inmutable por versión; superficie declarada y calculada separadas |
+| location_samples (equivale a `gps_samples`) | 0009 | P0-007: coordenadas originales, fuente `BROWSER_GEOLOCATION`, `captured_at` del dispositivo, `received_at` del servidor, precisión en m o NULL explícito, `operation_id` idempotente. Sin `device_reference` (no hay contrato de dispositivo). Append-only |
+| polygon_drafts | 0010 | P0-008: borrador de polígono **en el servidor** (no offline). Un solo OPEN por parcela; OPEN → CONFIRMED (`confirmed_version_id`, FK compuesta) o CANCELLED; `row_version` para concurrencia entre pestañas |
+| draft_vertices | 0010 | P0-008: cada muestra adquirida (lon/lat originales, `BROWSER_GEOLOCATION`, `captured_at`, `received_at`, precisión o NULL, `operation_id` idempotente, `acquisition_seq` = orden explícito). Append-only |
+| geometry_imports | 0011 | P0-009: importación GeoJSON. Original en S3 privado (`object_key`), `sha256` calculado en el servidor, tamaño, nombre, perfil, geometría analizada (PostGIS, clasificada como geometría exacta), validez técnica y motivo sin coordenadas, `analysis` (advertencias y conteos, sin coordenadas), `operation_id` (análisis) y `confirm_operation_id` (confirmación) idempotentes. ANALYZED → CONFIRMED / DISCARDED; original y análisis inmutables (trigger) |
+| plot_versions.source_import_id | 0011 | Referencia (FK compuesta, mismo tenant, única) al original importado; solo con `survey_method = FILE_IMPORT`. Versiones anteriores sin cambios (NULL) |
+| gis_evaluations | 0012 | P0-010: evaluación técnica inmutable de una versión (regla, versión, parámetros, estado, comprobaciones, calidad de captura, perfil de destino no evaluado, `error_location` protegida, huella del conjunto comparado, actor, fecha, `operation_id`). Append-only |
+| gis_evaluation_comparisons | 0012 | Versiones de otras parcelas relacionadas (EQUAL/OVERLAP/TOUCH, mismo hash sí/no, superficie compartida m²). Append-only |
+| object_deletions | 0012 | Tareas de borrado del almacenamiento privado (DISCARDED u ORPHAN): estado, intentos, código de error controlado, próxima ejecución y lease |
+| product_states | 0014 | Catálogo de SISTEMA de estados/presentaciones del cacao definidos en las fuentes (S1 §17, doc 06): CACAO_BABA, CACAO_FERMENTADO, CACAO_SECO, CACAO_CLASIFICADO. Solo lectura (cambia con migración) |
+| measurement_units | 0014 | Catálogo de SISTEMA de unidades con dimensión. Las fuentes solo definen KG (masa). Sin conversiones (D-32). Solo lectura |
+| products | 0014 | P0-011: catálogo por ORGANIZACIÓN. `code` único por organización (mayúsculas, 2–40); `name`; `product_state` y `unit` (FK a catálogos de sistema); `scientific_name`/`variety` opcionales; ACTIVE/INACTIVE con motivo; `row_version`. Código, estado y unidad **inmutables** (trigger); sin borrado |
+| product_versions | 0014 | Historial append-only por versión (alta, edición, desactivación, activación) con instantánea y motivo |
+| gis_evaluations.comparison_scope / scope_membership_id | 0013 | Alcance efectivo de comparación de cada evaluación (ORGANIZATION o EVALUATOR_ASSIGNED) |
+| cte_catalog_releases | 0015 | P0-013: versiones publicadas del catálogo de sistema de hitos (versión, fuente, notas, fecha). Registro de auditoría de cada cambio permitido. Append-only |
+| cte_definitions | 0015 | Hito crítico: `code` + `version` (referencia estable `CODE@n`), nombre, descripción, etapa (ORIGIN/INTERNAL/OUTBOUND), fuente, versión de catálogo, `supersedes_id`. Inmutable |
+| cte_definition_retirements | 0015 | Retirada o sustitución de una definición en una versión del catálogo, con motivo; la definición sigue resoluble. Append-only |
+| cte_operation_links | 0015 | Operación que genera el hito y evento emitido; `integration_status` INTEGRATED solo si existen; si no, PENDING con historia prevista. Append-only |
+| draft_vertex_exclusions | 0010 | P0-008: «deshacer» excluye un vértice sin borrar ni alterar la muestra. Composición vigente = vértices no excluidos por `acquisition_seq`. Append-only |
+
+Clasificación de la identidad del productor: documento, teléfono y dirección se cifran y solo se devuelven con `producer:read_identity`. Nombre, razón social y ubicación administrativa quedan en claro porque la operación los necesita para buscar e identificar; su exposición se controla por permisos de lectura.
