@@ -1,0 +1,39 @@
+# Servicios locales de desarrollo (TECH-001). Solo desarrollo: credenciales de ejemplo
+# vienen de .env (copiar .env.example). No usar en staging/producción.
+name: terra-link
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?definir en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?definir en .env}
+      POSTGRES_DB: ${POSTGRES_DB:?definir en .env}
+    ports: ["${POSTGRES_PORT:-5440}:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7.4-alpine
+    ports: ["${REDIS_PORT:-6379}:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  # S3 compatible local (VersityGW, backend posix). MinIO ya no publica imágenes en Docker Hub.
+  object-storage:
+    image: versity/versitygw:v1.8.0
+    command: ["--port", ":9000", "posix", "/data"]
+    environment:
+      ROOT_ACCESS_KEY: ${S3_ACCESS_KEY:?definir en .env}
+      ROOT_SECRET_KEY: ${S3_SECRET_KEY:?definir en .env}
+    ports: ["${S3_PORT:-9000}:9000"]
+    volumes: [object-data:/data]
+volumes:
+  postgres-data:
+  object-data:

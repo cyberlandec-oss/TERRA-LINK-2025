@@ -1,0 +1,49 @@
+# Plan de QA y definición de terminado
+
+Base: S1 §§70–74, 98–99, 115; todas las pruebas de esta entrega están especificadas, NO EJECUTADAS. No inferir números históricos de suites ni aprobación del repositorio.
+
+## Estrategia
+
+Unitarias para invariantes; integración con PostgreSQL/PostGIS reales para transacciones/autorización; contratos API para serialización/errores; UI/E2E para workflows; dispositivo Android para persistencia/GPS/fotos/offline. Dobles de proveedores externos identificados como tales. Datos de prueba sintéticos y organización A/B separadas.
+
+## Casos de aceptación
+
+| ID | Escenario | Resultado exigido |
+| --- | --- | --- |
+| QA-01 | Login, membresía, suspensión, rol efectivo e intento de asignar SUPER_ADMIN por org admin | Rechazo donde no hay permiso; auditoría sin secreto |
+| QA-02 | A solicita IDs/listas/grafo/snapshot/plots/export/download/job de B; A envía FK de B; buyer con grant vencido | Sin datos cruzados, objeto privado y resultado consistente 403/404 según política |
+| QA-03 | Productor nuevo/existente, mismo código dos tenants, Excel válido/erróneo/repetido | Unicidad por tenant; preview sin mutar; commit no duplica ni borra campos no incluidos |
+| QA-04 | GPS/polígono/CRS/área/umbral/precisión desconocida/GeoJSON | Validación con motivos/regla, no superficie inventada de punto |
+| QA-05 | Entrega 500 kg, recepción parcial/completa, evento repetido, corrección | Peso declarado/real separados; hito/KDE y un único efecto |
+| QA-06 | Inputs 500 + 300 kg, pérdida 50, output 750; intento output 850; consumos/reservas concurrentes | Conservación; exceso rechazado; transacción impide saldo negativo/doble consumo |
+| QA-07 | Parcela → entrega → lote → proceso → output → embarque y recorrido inverso | Todos los orígenes conservados, cantidades/unidades, sin ciclos ni datos ocultos filtrados |
+| QA-08 | Captura offline, cierre forzado, reboot, 7 días simulados, retry, adjunto interrumpido y conflicto | Persistencia sin pérdida, misma operación una vez, dependencias/conflicto visibles |
+| QA-09 | Archivo limpio/malicioso/MIME engañoso, escáner caído, nueva versión y vencimiento | Cuarentena/estado correcto, descarga autorizada y evidencia vigente explícita |
+| QA-10 | Inputs faltantes, score bajo con factor crítico, regla/dataset/geometría nueva, job antiguo | No conclusion automática; evaluación versionada reproducible, resultado antiguo no pisa nuevo |
+| QA-11 | Crear/asignar mitigación, aportar soporte, verificar/rechazar y separación de funciones | Transiciones autorizadas; cola actualizada por acción real y reevaluación documentada |
+| QA-12 | DD con datos faltantes, mitigación no verificada, READY, export, cambio posterior y timeout oficial | Guard bloquea; snapshot/manifest; STALE/nueva revisión; descarga no implica submission |
+| QA-13 | Crear/corregir/aprobar/descargar/exportar/cambiar permiso; reporte | Historial con actor/tiempo/versiones, redacción y permiso de exportación |
+| QA-14 | Home por permiso, links, sección 403, vacío/error/loading, teclado y acción My Work | UI distingue estados; navegación segura; tarea sale al resolver dominio |
+| QA-15 | Satélite ok/timeout/rate limit/no coverage, redirects y URL maliciosa | Proveniencia; fallo explícito; credencial no sale a destino ajeno; ningún verde falso |
+| QA-16 | Restaurar DB+objetos en entorno aislado y ejecutar recorrido | Snapshot consistente, archivos disponibles y tiempos/RPO/RTO medidos |
+| QA-17 | Piloto una asociación con 20–50 productores, 20–100 parcelas y 1–3 lotes | Flujo con operadores, sin cambios DB manuales para completar operaciones |
+
+## Ejemplo de conservación y concurrencia
+
+Recepciones 500 + 300 = 800 kg. Proceso consume 800, produce 750 y registra 50 de merma. Output con reserva 300 deja 450 no reservados. Despachar 300 reduce físico a 450 y elimina esa reserva, sin volver a descontar 300 por cancelarla. Dos solicitudes simultáneas de 500 del output no pueden ambas aceptarse. Verificar con DB real y barrera concurrente; un mock secuencial no demuestra protección.
+
+Secado cambia contenido de agua; inputs/outputs pueden ser estados distintos del producto. El rendimiento se conserva por transformación y pérdida documentada, no por una conversión de unidades inventada.
+
+## Comprobaciones críticas de seguridad
+
+Enumerar métodos GET/POST/PATCH/DELETE de recursos operativos, vistas agregadas, referencias de body, snapshots, GeoJSON, objetos, jobs y webhooks. Prueba positiva A→A junto a negativa A→B, para evitar «seguridad» obtenida rompiendo todo acceso. Buyer y auditor según grants; superadmin con elevación explícita. Mutación dirigida del tenant filter o del guard de stock puede demostrar que el test detecta el fallo; no exigir mutation testing general para cada cambio menor.
+
+## Evidencia requerida
+
+Por ejecución: commit/rama, entorno, comando exacto, hora, resultado, versión relevante, dataset sintético y artefacto/log redactado. Prueba no ejecutable por dependencia faltante se marca BLOQUEADA con motivo. Fotos/screenshots de Android cuando demuestran captura y persistencia, evitando datos personales reales.
+
+## Definition of Done
+
+Historia ligada a RF y fuente/ADR; criterio demostrado; dominio/API/persistencia/autorización/auditoría integrados; UI/offline cuando aplica; migraciones revisadas; errores recuperables; pruebas pertinentes verdes; documentación y comandos actualizados; limitaciones declaradas. Compilar no demuestra DB/GIS/offline.
+
+Gates de conformidad regulatoria, integración oficial, Android real y producción se registran separadamente. Nunca usar «todas las pruebas pasan» si no se ejecutaron todas las requeridas o si solo pasó una suite unitaria.
