@@ -20,7 +20,8 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-003 RBAC y aislamiento | **ABIERTA, bloqueada en 2 criterios** | «buyer/grants» sin contrato (ADR-0002, P1-001) y «superadmin/elevación» sin D-04. El resto, verificado |
 | P0-004 Productor | **DONE_LOCAL** | Brecha de cifrado de identidad resuelta (migración 0006) |
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
-| P0-006 Parcela | **DONE_LOCAL** | Ver criterios abajo |
+| P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
+| P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
 
 ### TECH-001 — criterio por criterio
 
@@ -88,6 +89,23 @@ Doc 06 exige «identidad **cifrada**/restringida». Antes solo estaba restringid
 | Interfaz (UI-06) | Menú por permiso, listado, alta contextual desde el productor, ficha con situación geométrica, esquema y tabla de coordenadas, navegación productor ↔ parcela; sin botones de GPS/importación | E2E + revisión visual |
 | Fuera de alcance | Captura GPS (P0-007), polígono de campo (P0-008), GeoJSON (P0-009), validación GIS y umbral (P0-010, D-05) | — |
 
+### P0-007 — criterios
+
+| Criterio | Resultado | Evidencia |
+| --- | --- | --- |
+| Coordenadas originales, fuente, adquisición, recepción, precisión, actor/organización/parcela/versión | `location_samples` + versión POINT `BROWSER_GEOLOCATION`, en una transacción con historial, evento y auditoría | `location-capture.int-spec.ts` «captura válida…» |
+| La fuente no se presenta como GPS | Fuente `BROWSER_GEOLOCATION`; la UI explica que puede ser GPS, Wi-Fi o red | ídem; E2E |
+| Fecha de adquisición preservada; recepción del servidor | `captured_at` = `position.timestamp`; `received_at` = `now()`; adquisición en el futuro → 422 | «captura válida…», «coordenadas, fecha y fuente inválidas…» |
+| Precisión null explícita, 0 reportado, inválidas | null se conserva; 0 se conserva sin presentarse como perfecta; negativa, texto u omitida → 400 | «precisión…»; vitest `accuracyLabel` |
+| Orden longitud/latitud | `ST_MakePoint(lon, lat)`; `ST_X` = longitud, `ST_Y` = latitud | «captura válida…» |
+| Punto sin superficie | `area_calculated_ha` NULL; la declarada vigente se arrastra | «captura válida…», «versiones inmutables…» |
+| Alcance del técnico y reasignación antes de guardar | No asignado 404; tras reasignar, el anterior 404 y el nuevo 201 | «alcance del técnico…» |
+| Acceso entre organizaciones | 404 (ruta e id ajenos) | «acceso entre organizaciones…» |
+| Conflicto y doble envío | 409 con muestra conservada; mismo `operation_id` → un efecto (201 + 200 réplica); reutilizado con otros datos → 409 | «doble envío…», «conflicto concurrente…»; E2E |
+| Rollback y datos sensibles | Rechazos sin versión ni evento; eventos y auditoría sin coordenadas | «coordenadas, fecha…», «versiones inmutables…» |
+| Captura web (UI-07) | Solicitar → revisar → confirmar → resultado; denegado, no disponible, timeout, sin soporte, cancelar; sin guardado automático | E2E `ubicacion.spec.ts` **[SIMULADA]** 8/8 |
+| Captura real en este equipo | **No obtenida**: Chromium de Playwright sin proveedor de ubicación (timeout, código 3), con y sin ventana | Pendiente de comprobación humana en Edge/Chrome |
+
 ## Interfaz según docs/UX_UI.md (2026-10-10)
 
 Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1/UX-V1 únicos en `apps/web/app/globals.css`; shell adaptable (organización activa con selector, usuario y rol efectivo, navegación por permisos, migas, «Saltar al contenido», menú móvil); login (UI-01) con mostrar/ocultar y mensajes distintos para 401/429/503/red; organizaciones (UI-02); miembros, invitaciones y roles (UI-03) en página propia; auditoría (UI-18) en página propia; productores y revisión de duplicados (UI-05) con tabla, filtros y estados diferenciados (carga, vacío, filtro sin resultados, error, 403, 404, conflicto 409 con recarga). Sin menús de módulos futuros; las capacidades pendientes por rol aparecen rotuladas en una tarjeta aparte. Revisión por rol: `docs/qa/REVISION_VISUAL_POR_ROL.md` (0 incidencias abiertas; 4 corregidas).
@@ -101,7 +119,7 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 - Android/offline, integraciones, despliegue: no iniciados.
 - Logotipo oficial y verificación de licencia de Inter (UX-D01/UX-D02). Evaluación de accesibilidad completa (lector de pantalla, zoom 200 %) no realizada: solo foco por teclado y móvil comprobados.
 
-## Próxima acción: P0-007 Punto GPS (propuesta en el registro de sesión)
+## Próxima acción: P0-008 Polígono (propuesta en el registro de sesión)
 
 ## Anterior: P0-006 Parcela
 

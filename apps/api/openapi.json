@@ -1405,6 +1405,52 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/plots/{id}/location-samples": {
+      "post": {
+        "operationId": "PlotsController_captureLocation",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptureLocationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/plots/{id}/history": {
       "get": {
         "operationId": "PlotsController_history",
@@ -2014,6 +2060,51 @@
         "required": [
           "expected_version",
           "survey_method"
+        ]
+      },
+      "CaptureLocationDto": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "number",
+            "description": "row_version de la parcela leída"
+          },
+          "operation_id": {
+            "type": "string",
+            "description": "Identificador del envío (idempotencia)"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "BROWSER_GEOLOCATION"
+            ]
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Longitud WGS84 reportada"
+          },
+          "latitude": {
+            "type": "number",
+            "description": "Latitud WGS84 reportada"
+          },
+          "accuracy_m": {
+            "type": "object",
+            "nullable": true,
+            "description": "Precisión horizontal informada en metros (>= 0) o null si no se informó"
+          },
+          "captured_at": {
+            "type": "string",
+            "description": "Momento de adquisición informado por el dispositivo (ISO 8601)"
+          }
+        },
+        "required": [
+          "expected_version",
+          "operation_id",
+          "source",
+          "longitude",
+          "latitude",
+          "accuracy_m",
+          "captured_at"
         ]
       }
     }

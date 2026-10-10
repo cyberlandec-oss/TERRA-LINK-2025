@@ -18,6 +18,8 @@ export interface PlotVersion {
   notes: string | null;
   created_at: string;
   is_current?: boolean;
+  geometry_visible?: boolean;
+  sample?: null | { id: string; source: string; captured_at: string; received_at: string; horizontal_accuracy_m: number | null; longitude?: number; latitude?: number };
 }
 
 export interface Plot {
@@ -41,6 +43,8 @@ export interface Plot {
   area_calculated_ha?: string | null;
   can_update?: boolean;
   can_archive?: boolean;
+  can_capture_location?: boolean;
+  geometry_access?: boolean;
 }
 
 export const GEOMETRY_STATUS: Record<Plot['geometry_status'], { label: string; tone: 'review' | 'process' | 'neutral' }> = {
@@ -52,6 +56,7 @@ export const GEOMETRY_STATUS: Record<Plot['geometry_status'], { label: string; t
 export const METHOD_LABEL: Record<string, string> = {
   DECLARED: 'Superficie declarada',
   MANUAL_COORDINATES: 'Coordenadas ingresadas',
+  BROWSER_GEOLOCATION: 'Ubicación del navegador',
   GPS_POINT: 'Punto GPS',
   GPS_POLYGON: 'Polígono GPS',
   FILE_IMPORT: 'Importación de archivo',

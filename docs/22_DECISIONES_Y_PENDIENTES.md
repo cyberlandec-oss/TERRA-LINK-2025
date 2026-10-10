@@ -26,7 +26,9 @@ Estas cuestiones no bloquean la lectura ni preparación del paquete. Bloquean ú
 | D-20 | Umbrales del límite de login (5/20/50 por 15 min) y tolerancia al bloqueo temporal por terceros | Seguridad | Valores aprobados o ajustados con datos del piloto |
 | D-21 | ¿`producer_code` distingue mayúsculas/minúsculas? | Producto/Data Steward | Regla aprobada; si se unifican, migración con detección previa de colisiones |
 | D-22 | Reglas de coincidencia adicionales a la identidad (nombre + comunidad, teléfono…) | Producto/Data Steward | Reglas aprobadas con umbral y tasa de falsos positivos medida |
-| D-23 | Catálogo de `survey_method` (provisional: DECLARED, MANUAL_COORDINATES; reservados GPS_POINT, GPS_POLYGON, FILE_IMPORT para P0-007/008/009) y estados de parcela (ACTIVE/INACTIVE por la convención de baja lógica) | Producto/GIS | Catálogo aprobado; nuevos valores con migración |
+| D-24 | ¿AUDITOR necesita coordenadas exactas para verificar geolocalización? (hoy no las recibe) | Producto/regulatorio | Política de acceso por rol y propósito aprobada |
+| D-25 | Política de calidad de precisión de ubicación (umbrales de advertencia; hoy solo se muestra el valor informado o «no informada») | GIS/campo | Umbral aprobado y probado en campo |
+| D-23 | Catálogo de `survey_method` (provisional: DECLARED, MANUAL_COORDINATES, BROWSER_GEOLOCATION; reservados GPS_POINT para el GPS nativo de la app móvil, GPS_POLYGON y FILE_IMPORT para P0-008/009) y estados de parcela (ACTIVE/INACTIVE por la convención de baja lógica) | Producto/GIS | Catálogo aprobado; nuevos valores con migración |
 
 ### Decisiones UX (docs/UX_UI.md §27.2) aplicadas en la interfaz
 

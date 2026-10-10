@@ -25,7 +25,7 @@ describe('catálogo RBAC', () => {
   });
 
   it('une permisos de varios roles sin duplicados y desconoce roles no catalogados', () => {
-    expect(permissionsForRoles(['TRACEABILITY_MANAGER', 'AUDITOR', 'INVENTED'])).toEqual(['audit:read', 'organization:read', 'plot:read', 'producer:read']);
+    expect(permissionsForRoles(['TRACEABILITY_MANAGER', 'AUDITOR', 'INVENTED'])).toEqual(['audit:read', 'organization:read', 'plot:read', 'plot:read_geometry', 'producer:read']);
   });
 
   it('anti-escalamiento: solo se conceden roles cuyos permisos posee el actor', () => {
@@ -56,5 +56,13 @@ describe('catálogo RBAC', () => {
     expect(tech).toEqual(expect.arrayContaining(['plot:read_assigned', 'plot:create_assigned', 'plot:update_assigned']));
     expect(tech.filter((p) => ['plot:read', 'plot:create', 'plot:update', 'plot:archive'].includes(p))).toEqual([]);
     expect(permissionsForRoles(['BUYER', 'PRODUCER', 'RECEPTION_OPERATOR']).filter((p) => p.startsWith('plot:'))).toEqual([]);
+  });
+
+  it('geometría exacta: clasificación separada de la lectura de parcela; AUDITOR lee parcelas sin coordenadas', () => {
+    expect(permissionsForRoles(['AUDITOR'])).toContain('plot:read');
+    expect(permissionsForRoles(['AUDITOR'])).not.toContain('plot:read_geometry');
+    for (const r of ['ORG_ADMIN', 'MANAGER', 'FIELD_TECHNICIAN', 'TRACEABILITY_MANAGER', 'EUDR_MANAGER']) {
+      expect(permissionsForRoles([r])).toContain('plot:read_geometry');
+    }
   });
 });

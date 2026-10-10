@@ -83,3 +83,19 @@ Script: `node e2e/review/revision-por-rol.mjs` (módulo `e2e/review/parcelas.mjs
 | tecnico1.cooperativa (390 px) | Ficha en móvil | Sin desbordamiento horizontal; la tabla de versiones se desplaza dentro de su marco |
 
 Capturas: `parcelas--admin-listado.png`, `parcelas--admin-ficha-poligono.png`, `parcelas--tecnico1-ficha-punto.png`, `parcelas--tecnico2-id-ajeno.png`, `movil--parcela-ficha.png`. Ajuste aplicado tras la revisión: espaciado entre la tabla de coordenadas y «Registrar superficie declarada».
+
+## Actualización 2026-10-10 · Clasificación de geometría y P0-007
+
+23 entradas, 0 incidencias (tras corregir un defecto). Nueva cuenta DEMO `auditor.cooperativa`.
+
+| Cuenta | Comprobación | Resultado |
+| --- | --- | --- |
+| admin.cooperativa | «Capturar ubicación» visible y alcanzable por teclado | Visible; foco sólido |
+| tecnico1.cooperativa (asignado) | Captura disponible en sus parcelas | Visible |
+| tecnico2.cooperativa (no asignado) | Parcela ajena por URL | No disponible, sin datos |
+| auditor.cooperativa | Parcela con polígono | Ve atributos y superficies; **sin coordenadas** en pantalla ni en la respuesta de la API; aviso «Tu rol no tiene acceso a las coordenadas exactas»; sin botón de captura |
+| tecnico1.cooperativa (390 px) | Ficha con bloque de captura | Sin desbordamiento horizontal |
+
+Defecto encontrado y corregido: `geometry_visible` llegaba como texto `"false"` (parámetro SQL sin tipo) y el aviso al auditor no se mostraba. Las coordenadas nunca se expusieron. Cast `::boolean` y aserción nueva en la integración.
+
+**Evidencia simulada** (`e2e/tests/ubicacion.spec.ts`, rotulada [SIMULADA]): posición emulada, permiso denegado, no disponible, timeout, navegador sin soporte, precisión no informada, cancelación y conflicto con muestra conservada. **Evidencia real:** intento con Chromium de Playwright sin posición emulada → timeout (código 3), con y sin ventana; no se obtuvo ubicación real. Comprobación pendiente con interacción humana.

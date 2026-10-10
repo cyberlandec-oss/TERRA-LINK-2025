@@ -186,6 +186,10 @@ export function recoveryHint(err: ApiError): string {
       return 'Elige un productor activo dentro de tu alcance.';
     case 'GEOMETRY_STRUCTURE_INVALID':
       return 'Revisa las coordenadas: anillos cerrados, longitud y latitud en rango.';
+    case 'CAPTURED_AT_IN_FUTURE':
+      return 'Revisa la fecha y hora del dispositivo y vuelve a capturar.';
+    case 'OPERATION_ID_REUSED':
+      return 'Descarta la muestra y vuelve a capturar.';
     case 'NO_CHANGE':
       return 'No hay cambios que guardar.';
     default:

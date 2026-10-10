@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-10T15:11:41.675Z",
+  "fecha": "2026-10-10T15:40:49.389Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -108,7 +108,7 @@
       "datos_ajenos": "ninguno",
       "tarea": {
         "tarea": "Consultar miembros y formulario de invitación",
-        "resultado": "6 miembros; invitar disponible",
+        "resultado": "7 miembros; invitar disponible",
         "ok": true
       }
     },
@@ -311,6 +311,57 @@
         "resultado": "1 capacidad(es) pendientes rotuladas; aviso de rol sin pantallas",
         "ok": true,
         "pendiente": true
+      }
+    },
+    {
+      "cuenta": "auditor.cooperativa@demo.terralink.local",
+      "organizacion": "DEMO · Cooperativa Río Verde",
+      "rol": "AUDITOR (Auditor)",
+      "rutas": [
+        {
+          "ruta": "/",
+          "estado": "OK: DEMO · Cooperativa Río Verde"
+        },
+        {
+          "ruta": "/productores",
+          "estado": "OK: Productores"
+        },
+        {
+          "ruta": "/productores/coincidencias",
+          "estado": "ERROR: No tienes permiso para realizar esta acción."
+        },
+        {
+          "ruta": "/miembros",
+          "estado": "ERROR: No tienes permiso para realizar esta acción."
+        },
+        {
+          "ruta": "/auditoria",
+          "estado": "OK: Auditoría"
+        }
+      ],
+      "incidencias": [],
+      "login": "OK",
+      "contexto": "auditor.cooperativa@demo.terralink.local · Auditor",
+      "organizacion_activa": "DEMO · Cooperativa Río Verde",
+      "navegacion": [
+        "Resumen de la organización",
+        "Productores",
+        "Parcelas",
+        "Auditoría",
+        "Mis organizaciones"
+      ],
+      "titulo": "DEMO · Cooperativa Río Verde",
+      "denegacion": {
+        "destino": "DEMO · Acopio San Isidro",
+        "resultado": "Recurso no disponible; sin datos de la otra organización",
+        "ok": true
+      },
+      "org_url": "http://localhost:3000/organizaciones/d575976c-d0dc-4efa-a652-0ca0c273eee0",
+      "datos_ajenos": "ninguno",
+      "tarea": {
+        "tarea": "Consultar la auditoría de su organización",
+        "resultado": "37 registros visibles",
+        "ok": true
       }
     },
     {
@@ -926,17 +977,22 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "6 parcelas; ficha: esquema=1, 5 coordenadas, 2 versiones, botones GPS/importación=0; foco por teclado=solid; productor→parcelas=2",
+          "resultado": "6 parcelas; ficha: esquema=1, 5 coordenadas, 2 versiones, botones GPS/importación=0, «Capturar ubicación»=1 (foco solid); foco campo=solid; productor→parcelas=2",
           "ok": true
         },
         {
           "cuenta": "tecnico1.cooperativa (asignado)",
-          "resultado": "5 parcelas visibles; puede editar=1; punto sin superficie calculada=1",
+          "resultado": "5 parcelas visibles; puede editar=1; punto sin superficie calculada=1; «Capturar ubicación»=1",
           "ok": true
         },
         {
           "cuenta": "tecnico2.cooperativa (no asignado)",
           "resultado": "1 parcela(s) propias; DEMO-PAR-002 por URL directa: no disponible, sin datos",
+          "ok": true
+        },
+        {
+          "cuenta": "auditor.cooperativa (sin geometría exacta)",
+          "resultado": "6 parcelas; coordenadas en pantalla=false; aviso=1; «Capturar ubicación»=0; respuesta API con coordenadas=false",
           "ok": true
         },
         {

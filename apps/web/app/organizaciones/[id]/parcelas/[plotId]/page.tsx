@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ApiError, api } from '../../../../../lib/api';
 import { useWorkspace } from '../../../../../lib/workspace';
 import { Alert, Breadcrumb, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../../lib/ui';
+import { LocationCapture, accuracyLabel } from '../../../../../lib/location-capture';
 import { GEOMETRY_STATUS, GEOMETRY_TYPE_LABEL, GeometrySketch, METHOD_LABEL, ha, positions, type Plot, type PlotVersion } from '../../../../../lib/plots';
 
 interface HistoryRow { version: number; change_type: string; changed_fields: string[]; reason: string | null; changed_at: string; actor: string }
@@ -96,8 +97,15 @@ export default function PlotDetailPage() {
                   <dt>Tipo de geometría</dt><dd>{current.geometry_type ? GEOMETRY_TYPE_LABEL[current.geometry_type] : 'Sin geometría (solo superficie declarada)'}</dd>
                   <dt>Superficie declarada</dt><dd>{ha(current.area_declared_ha) ?? 'Sin registrar'}</dd>
                   <dt>Superficie calculada</dt><dd>{ha(current.area_calculated_ha) ?? (current.geometry_type === 'POINT' ? 'No aplica: un punto no tiene superficie' : current.geometry_type ? 'No calculada (geometría no válida para cálculo; se revisará en la validación GIS)' : 'Sin geometría')}</dd>
+                  {current.sample && (<>
+                    <dt>Captura</dt><dd>Ubicación del navegador · adquirida {new Date(current.sample.captured_at).toLocaleString('es-EC')} · recibida {new Date(current.sample.received_at).toLocaleString('es-EC')}</dd>
+                    <dt>Precisión horizontal</dt><dd>{accuracyLabel(current.sample.horizontal_accuracy_m)}</dd>
+                  </>)}
                   <dt>Validación GIS</dt><dd><StatusBadge tone="neutral">No validada</StatusBadge> <span className="muted">Solo comprobaciones estructurales ({current.validation_rule_version}). La validación GIS es P0-010.</span></dd>
                 </dl>
+                {current.geometry_type && !current.geometry_visible && (
+                  <p className="muted">Tu rol no tiene acceso a las coordenadas exactas de esta parcela.</p>
+                )}
                 {current.geometry && (
                   <div className="grid-2">
                     <GeometrySketch geometry={current.geometry} label={`Esquema de ${plot.plot_code}, versión ${current.version_number}`} />
@@ -106,6 +114,7 @@ export default function PlotDetailPage() {
                 )}
               </>
             )}
+            {plot.can_capture_location && <LocationCapture orgId={orgId} plotId={plot.id} rowVersion={plot.row_version} onSaved={load} />}
             {plot.can_update && <DeclaredAreaForm orgId={orgId} plot={plot} onSaved={load} />}
           </section>
 

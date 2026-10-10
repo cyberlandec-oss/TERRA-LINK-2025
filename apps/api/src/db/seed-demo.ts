@@ -39,6 +39,8 @@ const USERS: UserSpec[] = [
   { local: 'tecnico2.cooperativa', first: 'Jorge', last: 'Loor (demo)', memberships: [{ org: 'coop', role: 'FIELD_TECHNICIAN' }] },
   { local: 'productor.cooperativa', first: 'Ana', last: 'Vélez (demo)', memberships: [{ org: 'coop', role: 'PRODUCER',
     note: 'Cuenta sin vínculo con un registro de productor (UX-D08): «Mi finca» pendiente.' }] },
+  { local: 'auditor.cooperativa', first: 'Silvia', last: 'Andrade (demo)', memberships: [{ org: 'coop', role: 'AUDITOR',
+    note: 'Lee parcelas sin coordenadas exactas (clasificación de geometría, D-24).' }] },
   { local: 'admin.acopio', first: 'Patricia', last: 'Intriago (demo)', memberships: [{ org: 'acopio', role: 'ORG_ADMIN' }] },
   { local: 'recepcion.acopio', first: 'Kevin', last: 'Macías (demo)', memberships: [{ org: 'acopio', role: 'RECEPTION_OPERATOR', note: 'Recepción y pesaje pendientes (P0-012).' }] },
   { local: 'calidad.acopio', first: 'Diana', last: 'Pinargote (demo)', memberships: [{ org: 'acopio', role: 'QUALITY_OPERATOR', note: 'Cola de calidad pendiente (UX-D12).' }] },
@@ -133,12 +135,15 @@ const HEADER = ['nombre_usuario', 'email', 'contrasena', 'rol', 'organizacion', 
 
 function loadKnownPasswords(): Map<string, string> {
   const known = new Map<string, string>();
-  if (!existsSync(CSV_PATH)) return known;
-  const rows = parseCsv(readFileSync(CSV_PATH, 'utf8'));
-  const head = rows.shift() ?? [];
-  const iEmail = head.indexOf('email');
-  const iPass = head.indexOf('contrasena');
-  for (const r of rows) if (r[iEmail] && r[iPass]) known.set(r[iEmail], r[iPass]);
+  // También el archivo pendiente (escrito cuando CREDENCIALES.csv estaba abierto en otro programa).
+  for (const path of [CSV_PATH, resolve(ROOT, 'CREDENCIALES.pendiente.csv')]) {
+    if (!existsSync(path)) continue;
+    const rows = parseCsv(readFileSync(path, 'utf8'));
+    const head = rows.shift() ?? [];
+    const iEmail = head.indexOf('email');
+    const iPass = head.indexOf('contrasena');
+    for (const r of rows) if (r[iEmail] && r[iPass] && !known.has(r[iEmail])) known.set(r[iEmail], r[iPass]);
+  }
   return known;
 }
 

@@ -252,7 +252,7 @@ export interface PlotVersionsTable {
   geometry_hash: string | null;
   area_declared_ha: string | null;
   area_calculated_ha: string | null;
-  survey_method: 'DECLARED' | 'MANUAL_COORDINATES' | 'GPS_POINT' | 'GPS_POLYGON' | 'FILE_IMPORT';
+  survey_method: 'DECLARED' | 'MANUAL_COORDINATES' | 'BROWSER_GEOLOCATION' | 'GPS_POINT' | 'GPS_POLYGON' | 'FILE_IMPORT';
   surveyed_at: Timestamp | null;
   accuracy_m: string | null;
   validation_status: 'NOT_VALIDATED' | 'VALID' | 'WARNING' | 'INVALID' | 'REVIEW_REQUIRED';
@@ -276,7 +276,24 @@ export interface PlotHistoryTable {
   changed_at: Timestamp;
 }
 
+export interface LocationSamplesTable {
+  id: string;
+  organization_id: string;
+  plot_id: string;
+  plot_version_id: string;
+  source: 'BROWSER_GEOLOCATION';
+  longitude: number;
+  latitude: number;
+  horizontal_accuracy_m: number | null;
+  captured_at: Timestamp;
+  received_at: Timestamp;
+  operation_id: string;
+  payload_hash: string;
+  created_by: string;
+}
+
 export interface Database {
+  location_samples: LocationSamplesTable;
   plots: PlotsTable;
   plot_versions: PlotVersionsTable;
   plot_history: PlotHistoryTable;

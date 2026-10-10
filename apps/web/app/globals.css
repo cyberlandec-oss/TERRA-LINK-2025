@@ -97,6 +97,8 @@ a:hover { color: var(--tl-forest); }
 .card { background: var(--tl-surface); border: 1px solid var(--tl-border-subtle); border-radius: var(--tl-radius-md); padding: var(--tl-space-5); margin-bottom: var(--tl-space-4); }
 .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--tl-space-4); }
 .sketch { margin: 0; }
+.capture { margin-top: var(--tl-space-5); }
+.capture-review { margin-top: var(--tl-space-3); background: var(--tl-surface-subtle); }
 .sketch svg { display: block; border: 1px solid var(--tl-border-subtle); border-radius: var(--tl-radius-sm); max-width: 100%; height: auto; }
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--tl-space-4); }
 .muted { color: var(--tl-text-secondary); font-size: 14px; }

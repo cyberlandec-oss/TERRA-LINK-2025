@@ -1,10 +1,11 @@
 import {
-  Body, Controller, Get, HttpCode, Inject, Injectable, Param, ParseUUIDPipe, Patch, Post, Query, Req,
+  Body, Controller, Get, HttpCode, Inject, Injectable, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsISO8601, IsInt, IsNumber, IsObject, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min } from 'class-validator';
-import { randomUUID } from 'crypto';
+import { IsDefined, IsIn, IsISO8601, IsInt, IsNumber, IsObject, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { createHash, randomUUID } from 'crypto';
 import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 import { DB } from '../db/database';
 import type { Database, PlotStatus, PlotsTable } from '../db/schema';
@@ -62,6 +63,23 @@ class CreateVersionDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) notes?: string;
 }
 
+const CAPTURE_FUTURE_TOLERANCE_MS = 5 * 60_000;
+
+class CaptureLocationDto {
+  @ApiProperty({ description: 'row_version de la parcela leída' }) @IsInt() @Min(1) expected_version!: number;
+  @ApiProperty({ description: 'Identificador del envío (idempotencia)' }) @IsUUID() operation_id!: string;
+  @ApiProperty({ enum: ['BROWSER_GEOLOCATION'] }) @IsIn(['BROWSER_GEOLOCATION']) source!: 'BROWSER_GEOLOCATION';
+  @ApiProperty({ description: 'Longitud WGS84 reportada' }) @IsNumber({ allowNaN: false, allowInfinity: false }) @Min(-180) @Max(180) longitude!: number;
+  @ApiProperty({ description: 'Latitud WGS84 reportada' }) @IsNumber({ allowNaN: false, allowInfinity: false }) @Min(-90) @Max(90) latitude!: number;
+  @ApiProperty({ nullable: true, description: 'Precisión horizontal informada en metros (>= 0) o null si no se informó' })
+  @IsDefined({ message: 'accuracy_m es obligatorio: envía null si el dispositivo no la informó' })
+  @ValidateIf((_, v) => v !== null)
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @Min(0)
+  accuracy_m!: number | null;
+  @ApiProperty({ description: 'Momento de adquisición informado por el dispositivo (ISO 8601)' }) @IsISO8601({ strict: true }) captured_at!: string;
+}
+
 class StatusDto {
   @ApiProperty() @IsInt() @Min(1) expected_version!: number;
   @ApiProperty() @IsString() @Length(3, 500) reason!: string;
@@ -93,7 +111,29 @@ interface VersionView {
   area_declared_ha: string | null; area_calculated_ha: string | null; survey_method: string; surveyed_at: Date | string | null;
   accuracy_m: string | null; validation_status: string; validation_rule_version: string; previous_version_id: string | null;
   notes: string | null; created_at: Date | string;
+  geometry_visible: boolean;
+  sample: null | {
+    id: string; source: string; captured_at: Date | string; received_at: Date | string;
+    horizontal_accuracy_m: number | null; longitude?: number; latitude?: number;
+  };
 }
+
+/**
+ * Columnas de versión. Sin permiso de geometría exacta las coordenadas NO se leen de la base (NULL en SQL):
+ * la clasificación se aplica en el servidor, no ocultando datos en la interfaz (doc 06, UX_UI §22.3).
+ */
+const versionColumns = (withGeometry: boolean) => sql`
+  v.id, v.version_number, v.geometry_type,
+  ${withGeometry ? sql`ST_AsGeoJSON(v.geometry)::jsonb` : sql`NULL::jsonb`} AS geometry,
+  v.geometry_hash, v.area_declared_ha::text, v.area_calculated_ha::text, v.survey_method, v.surveyed_at, v.accuracy_m::text,
+  v.validation_status, v.validation_rule_version, v.previous_version_id, v.notes, v.created_at,
+  ${withGeometry}::boolean AS geometry_visible,
+  CASE WHEN s.id IS NULL THEN NULL ELSE jsonb_strip_nulls(jsonb_build_object(
+    'id', s.id, 'source', s.source, 'captured_at', s.captured_at, 'received_at', s.received_at,
+    'horizontal_accuracy_m', s.horizontal_accuracy_m,
+    'longitude', ${withGeometry ? sql`s.longitude` : sql`NULL::double precision`},
+    'latitude', ${withGeometry ? sql`s.latitude` : sql`NULL::double precision`}
+  )) || jsonb_build_object('horizontal_accuracy_m', s.horizontal_accuracy_m) END AS sample`;
 
 @Injectable()
 export class PlotsService {
@@ -135,13 +175,17 @@ export class PlotsService {
     return row;
   }
 
-  private async versionView(db: Kysely<Database> | Transaction<Database>, orgId: string, versionId: string | null): Promise<VersionView | null> {
+  /** Permiso de geometría exacta (dentro del alcance ya comprobado por `load`). */
+  private geometryAllowed(ctx: TenantContext) {
+    return this.has(ctx, 'plot:read_geometry');
+  }
+
+  private async versionView(db: Kysely<Database> | Transaction<Database>, orgId: string, versionId: string | null, withGeometry: boolean): Promise<VersionView | null> {
     if (!versionId) return null;
     const r = await sql<VersionView>`
-      SELECT id, version_number, geometry_type, ST_AsGeoJSON(geometry)::jsonb AS geometry, geometry_hash,
-             area_declared_ha::text, area_calculated_ha::text, survey_method, surveyed_at, accuracy_m::text,
-             validation_status, validation_rule_version, previous_version_id, notes, created_at
-      FROM plot_versions WHERE organization_id = ${orgId} AND id = ${versionId}`.execute(db);
+      SELECT ${versionColumns(withGeometry)}
+      FROM plot_versions v LEFT JOIN location_samples s ON s.plot_version_id = v.id AND s.organization_id = v.organization_id
+      WHERE v.organization_id = ${orgId} AND v.id = ${versionId}`.execute(db);
     return r.rows[0] ?? null;
   }
 
@@ -273,8 +317,10 @@ export class PlotsService {
     const p = await this.load(this.db, ctx, id, 'read');
     const active = ctx.organizationStatus === 'ACTIVE';
     return {
-      ...this.view(p, await this.versionView(this.db, orgId, p.current_version_id)),
+      ...this.view(p, await this.versionView(this.db, orgId, p.current_version_id, this.geometryAllowed(ctx))),
+      geometry_access: this.geometryAllowed(ctx),
       can_update: active && p.status === 'ACTIVE' && this.inScope(ctx, p.producer_assignee, 'update'),
+      can_capture_location: active && p.status === 'ACTIVE' && this.inScope(ctx, p.producer_assignee, 'update') && this.geometryAllowed(ctx),
       can_archive: active && this.has(ctx, 'plot:archive'),
     };
   }
@@ -306,7 +352,7 @@ export class PlotsService {
         result: 'SUCCESS', after: { changed_fields: changed, version: Number(after.row_version) },
       });
       return this.view({ ...after, producer_code: before.producer_code, first_name: before.first_name, last_name: before.last_name, legal_name: before.legal_name },
-        await this.versionView(trx, orgId, after.current_version_id));
+        await this.versionView(trx, orgId, after.current_version_id, this.geometryAllowed(ctx)));
     });
   }
 
@@ -316,6 +362,7 @@ export class PlotsService {
     if (!ctx) throw notFound();
     if (!this.has(ctx, 'plot:update') && !this.has(ctx, 'plot:update_assigned')) throw forbidden();
     if (ctx.organizationStatus !== 'ACTIVE') throw forbidden('ORGANIZATION_SUSPENDED', 'La organización está suspendida; no admite nuevas operaciones.');
+    if (dto.geometry && !this.geometryAllowed(ctx)) throw forbidden('PERMISSION_DENIED', 'Tu rol no permite registrar coordenadas exactas.');
     if (PENDING_METHODS[dto.survey_method]) {
       throw new AppError(422, 'SURVEY_METHOD_NOT_AVAILABLE', `El método ${dto.survey_method} aún no está disponible (${PENDING_METHODS[dto.survey_method]}).`, [{ field: 'survey_method', reason: 'NOT_IMPLEMENTED' }]);
     }
@@ -356,7 +403,7 @@ export class PlotsService {
       const after = await trx.updateTable('plots')
         .set({ current_version_id: versionId, updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1` })
         .where('id', '=', id).where('organization_id', '=', orgId).returningAll().executeTakeFirstOrThrow();
-      const version = (await this.versionView(trx, orgId, versionId))!;
+      const version = (await this.versionView(trx, orgId, versionId, this.geometryAllowed(ctx)))!;
       await this.recordHistory(trx, after, 'GEOMETRY_VERSION', ['current_version_id'], user.id);
       await this.events.append(trx, {
         organizationId: orgId, eventType: 'PlotGeometryVersionCreated', schemaVersion: 1, aggregateType: 'PLOT', aggregateId: id,
@@ -374,14 +421,109 @@ export class PlotsService {
     });
   }
 
+  /**
+   * P0-007: registra una muestra de ubicación reportada por el navegador y crea, en la misma transacción,
+   * una versión POINT (método BROWSER_GEOLOCATION) que pasa a ser la actual. Idempotente por operation_id:
+   * repetir el mismo envío devuelve el resultado original; reutilizar el id con otro contenido es conflicto.
+   * La superficie declarada vigente se arrastra a la nueva versión (no es un dato de la captura); la
+   * superficie calculada queda NULL (un punto no tiene superficie).
+   */
+  async captureLocation(user: AuthUser, orgId: string, id: string, dto: CaptureLocationDto, requestId?: string) {
+    const ctx = await this.authz.tenantContext(user, orgId);
+    if (!ctx) throw notFound();
+    if (!this.has(ctx, 'plot:update') && !this.has(ctx, 'plot:update_assigned')) throw forbidden();
+    if (!this.geometryAllowed(ctx)) throw forbidden('PERMISSION_DENIED', 'Tu rol no permite registrar ubicaciones exactas.');
+    if (ctx.organizationStatus !== 'ACTIVE') throw forbidden('ORGANIZATION_SUSPENDED', 'La organización está suspendida; no admite nuevas operaciones.');
+    const capturedAt = new Date(dto.captured_at);
+    if (capturedAt.getTime() > Date.now() + CAPTURE_FUTURE_TOLERANCE_MS) {
+      throw new AppError(422, 'CAPTURED_AT_IN_FUTURE', 'La hora de adquisición informada está en el futuro. Revisa el reloj del dispositivo y vuelve a capturar.', [{ field: 'captured_at', reason: 'IN_FUTURE' }]);
+    }
+    const payloadHash = createHash('sha256').update(JSON.stringify([id, dto.source, dto.longitude, dto.latitude, dto.accuracy_m, capturedAt.toISOString()])).digest('hex');
+
+    const replay = async () => {
+      const prior = await this.db.selectFrom('location_samples').select(['plot_id', 'plot_version_id', 'payload_hash'])
+        .where('organization_id', '=', orgId).where('operation_id', '=', dto.operation_id).executeTakeFirst();
+      if (!prior) return null;
+      if (prior.plot_id !== id || prior.payload_hash !== payloadHash) {
+        throw conflict('OPERATION_ID_REUSED', 'Ese identificador de operación ya se usó con otros datos. Captura de nuevo.');
+      }
+      const plot = await this.load(this.db, ctx, id, 'read');
+      return { replayed: true, version: (await this.versionView(this.db, orgId, prior.plot_version_id, true))!, plot_row_version: Number(plot.row_version) };
+    };
+    const earlier = await replay();
+    if (earlier) return earlier;
+
+    try {
+      const result = await this.db.transaction().execute(async (trx) => {
+        // El alcance se comprueba al guardar: si el productor se reasignó a otro técnico, se rechaza.
+        const plot = await this.load(trx, ctx, id, 'update', true);
+        // Envío simultáneo con el mismo operation_id: tras esperar el bloqueo, el original ya existe.
+        const already = await trx.selectFrom('location_samples').select('id').where('organization_id', '=', orgId).where('operation_id', '=', dto.operation_id).executeTakeFirst();
+        if (already) return null;
+        if (plot.status === 'INACTIVE') throw conflict('PLOT_INACTIVE', 'La parcela está dada de baja.');
+        if (Number(plot.row_version) !== dto.expected_version) {
+          throw conflict('VERSION_CONFLICT', 'La parcela cambió mientras capturabas. Tu muestra se conserva: recarga y vuelve a guardarla.');
+        }
+        const previous = plot.current_version_id
+          ? await trx.selectFrom('plot_versions').select('area_declared_ha').where('organization_id', '=', orgId).where('id', '=', plot.current_version_id).executeTakeFirst()
+          : undefined;
+        const last = await trx.selectFrom('plot_versions').select(sql<number>`coalesce(max(version_number), 0)::int`.as('n'))
+          .where('organization_id', '=', orgId).where('plot_id', '=', id).executeTakeFirstOrThrow();
+        const versionId = randomUUID();
+        // ST_MakePoint(x = longitud, y = latitud): orden GeoJSON/PostGIS.
+        await sql`
+          WITH g AS (SELECT ST_SetSRID(ST_MakePoint(${dto.longitude}::double precision, ${dto.latitude}::double precision), 4326) AS geom)
+          INSERT INTO plot_versions (id, organization_id, plot_id, version_number, geometry, geometry_type, geometry_hash,
+            area_declared_ha, area_calculated_ha, survey_method, surveyed_at, accuracy_m, validation_status, validation_rule_version,
+            previous_version_id, notes, created_by)
+          SELECT ${versionId}, ${orgId}, ${id}, ${last.n + 1}, g.geom, 'POINT', encode(sha256(ST_AsBinary(g.geom)), 'hex'),
+            ${previous?.area_declared_ha ?? null}::numeric, NULL, 'BROWSER_GEOLOCATION', ${capturedAt.toISOString()}::timestamptz,
+            ${dto.accuracy_m === null ? null : Math.round(dto.accuracy_m * 100) / 100}::numeric, 'NOT_VALIDATED', ${STRUCTURAL_RULE},
+            ${plot.current_version_id}, NULL, ${user.id}
+          FROM g`.execute(trx);
+        const sampleId = randomUUID();
+        await trx.insertInto('location_samples').values({
+          id: sampleId, organization_id: orgId, plot_id: id, plot_version_id: versionId, source: 'BROWSER_GEOLOCATION',
+          longitude: dto.longitude, latitude: dto.latitude, horizontal_accuracy_m: dto.accuracy_m, captured_at: capturedAt,
+          operation_id: dto.operation_id, payload_hash: payloadHash, created_by: user.id,
+        }).execute();
+        const after = await trx.updateTable('plots')
+          .set({ current_version_id: versionId, updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1` })
+          .where('id', '=', id).where('organization_id', '=', orgId).returningAll().executeTakeFirstOrThrow();
+        await this.recordHistory(trx, after, 'GEOMETRY_VERSION', ['current_version_id'], user.id);
+        // Evento y auditoría sin coordenadas exactas.
+        await this.events.append(trx, {
+          organizationId: orgId, eventType: 'PlotGeometryVersionCreated', schemaVersion: 1, aggregateType: 'PLOT', aggregateId: id,
+          aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId, operationId: dto.operation_id,
+          payload: {
+            plot_version_id: versionId, version_number: last.n + 1, previous_version_id: plot.current_version_id, geometry_type: 'POINT',
+            survey_method: 'BROWSER_GEOLOCATION', location_sample_id: sampleId, accuracy_reported: dto.accuracy_m !== null,
+          },
+        });
+        await this.audit.record(trx, {
+          organizationId: orgId, actorUserId: user.id, action: 'plot.location_capture', entityType: 'plot', entityId: id, requestId, result: 'SUCCESS',
+          after: { plot_version_id: versionId, location_sample_id: sampleId, source: 'BROWSER_GEOLOCATION', accuracy_reported: dto.accuracy_m !== null },
+        });
+        return { replayed: false, version: (await this.versionView(trx, orgId, versionId, true))!, plot_row_version: Number(after.row_version) };
+      });
+      return result ?? (await replay())!;
+    } catch (e) {
+      // Dos envíos simultáneos del mismo operation_id: el segundo choca con la unicidad y recibe el original.
+      if ((e as { constraint?: string }).constraint === 'location_samples_operation_uq') {
+        const again = await replay();
+        if (again) return again;
+      }
+      throw e;
+    }
+  }
+
   async versions(user: AuthUser, orgId: string, id: string) {
     const ctx = await this.readContext(user, orgId);
     const p = await this.load(this.db, ctx, id, 'read');
     const r = await sql<VersionView>`
-      SELECT id, version_number, geometry_type, ST_AsGeoJSON(geometry)::jsonb AS geometry, geometry_hash,
-             area_declared_ha::text, area_calculated_ha::text, survey_method, surveyed_at, accuracy_m::text,
-             validation_status, validation_rule_version, previous_version_id, notes, created_at
-      FROM plot_versions WHERE organization_id = ${orgId} AND plot_id = ${id} ORDER BY version_number DESC`.execute(this.db);
+      SELECT ${versionColumns(this.geometryAllowed(ctx))}
+      FROM plot_versions v LEFT JOIN location_samples s ON s.plot_version_id = v.id AND s.organization_id = v.organization_id
+      WHERE v.organization_id = ${orgId} AND v.plot_id = ${id} ORDER BY v.version_number DESC`.execute(this.db);
     return r.rows.map((v) => ({ ...v, is_current: v.id === p.current_version_id }));
   }
 
@@ -417,7 +559,7 @@ export class PlotsService {
         requestId, result: 'SUCCESS', reason: dto.reason, before: { status: before.status }, after: { status: target },
       });
       return this.view({ ...after, producer_code: before.producer_code, first_name: before.first_name, last_name: before.last_name, legal_name: before.legal_name },
-        await this.versionView(trx, orgId, after.current_version_id));
+        await this.versionView(trx, orgId, after.current_version_id, this.geometryAllowed(ctx)));
     });
   }
 }
@@ -456,6 +598,16 @@ export class PlotsController {
   @Post(':id/geometry-versions')
   createVersion(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: CreateVersionDto, @Req() req: AuthedRequest) {
     return this.service.createVersion(user, orgId, id, dto, req.requestId);
+  }
+
+  @Post(':id/location-samples')
+  async captureLocation(
+    @CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CaptureLocationDto, @Req() req: AuthedRequest, @Res({ passthrough: true }) res: Response,
+  ) {
+    const r = await this.service.captureLocation(user, orgId, id, dto, req.requestId);
+    if (r.replayed) res.status(200);
+    return r;
   }
 
   @Get(':id/history')

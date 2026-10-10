@@ -35,6 +35,11 @@ export async function reviewPlots({ browser, BASE, accounts, DEMO_ORGS, orgIdByN
     const coords = await page.getByRole('table', { name: 'Coordenadas (WGS84)' }).locator('tbody tr').count();
     const versions = await page.getByRole('table', { name: 'Versiones geométricas' }).locator('tbody tr').count();
     const forbiddenButtons = await page.getByRole('button', { name: /GPS|Importar|Analizar/ }).count();
+    const captureButton = await page.getByRole('button', { name: 'Capturar ubicación' }).count();
+    await page.getByRole('button', { name: 'Capturar ubicación' }).focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab'); // llegar por teclado activa :focus-visible
+    const captureFocus = await page.evaluate(() => getComputedStyle(document.activeElement).outlineStyle);
     await page.screenshot({ path: join(shots, 'parcelas--admin-ficha-poligono.png'), fullPage: true });
     await page.getByLabel('Nombre (opcional)').focus();
     await page.keyboard.press('Tab');
@@ -42,8 +47,8 @@ export async function reviewPlots({ browser, BASE, accounts, DEMO_ORGS, orgIdByN
     await page.getByRole('link', { name: /DEMO-RV-001/ }).first().click();
     await page.getByRole('list', { name: 'Parcelas del productor' }).waitFor();
     const back = await page.getByRole('list', { name: 'Parcelas del productor' }).getByRole('listitem').count();
-    casos.push({ cuenta: 'admin.cooperativa', resultado: `${rows.length} parcelas; ficha: esquema=${sketch}, ${coords} coordenadas, ${versions} versiones, botones GPS/importación=${forbiddenButtons}; foco por teclado=${outline}; productor→parcelas=${back}`,
-      ok: rows.length === 6 && sketch === 1 && coords === 5 && versions === 2 && forbiddenButtons === 0 && outline === 'solid' && back === 2 });
+    casos.push({ cuenta: 'admin.cooperativa', resultado: `${rows.length} parcelas; ficha: esquema=${sketch}, ${coords} coordenadas, ${versions} versiones, botones GPS/importación=${forbiddenButtons}, «Capturar ubicación»=${captureButton} (foco ${captureFocus}); foco campo=${outline}; productor→parcelas=${back}`,
+      ok: rows.length === 6 && sketch === 1 && coords === 5 && versions === 2 && forbiddenButtons === 0 && captureButton === 1 && captureFocus === 'solid' && outline === 'solid' && back === 2 });
     await ctx.close();
   }
 
@@ -58,9 +63,10 @@ export async function reviewPlots({ browser, BASE, accounts, DEMO_ORGS, orgIdByN
     foreignPlotUrl = page.url();
     const canEdit = await page.getByRole('button', { name: 'Guardar cambios' }).count();
     const pointArea = await page.getByText('No aplica: un punto no tiene superficie').count();
+    const capture = await page.getByRole('button', { name: 'Capturar ubicación' }).count();
     await page.screenshot({ path: join(shots, 'parcelas--tecnico1-ficha-punto.png'), fullPage: true });
-    casos.push({ cuenta: 'tecnico1.cooperativa (asignado)', resultado: `${rows.length} parcelas visibles; puede editar=${canEdit}; punto sin superficie calculada=${pointArea}`,
-      ok: rows.length === 5 && !rows.some((r) => r.includes('DEMO-PAR-005')) && canEdit === 1 && pointArea === 1 });
+    casos.push({ cuenta: 'tecnico1.cooperativa (asignado)', resultado: `${rows.length} parcelas visibles; puede editar=${canEdit}; punto sin superficie calculada=${pointArea}; «Capturar ubicación»=${capture}`,
+      ok: rows.length === 5 && !rows.some((r) => r.includes('DEMO-PAR-005')) && canEdit === 1 && pointArea === 1 && capture === 1 });
     await ctx.close();
   }
 
@@ -76,6 +82,33 @@ export async function reviewPlots({ browser, BASE, accounts, DEMO_ORGS, orgIdByN
     casos.push({ cuenta: 'tecnico2.cooperativa (no asignado)', resultado: `${rows.length} parcela(s) propias; DEMO-PAR-002 por URL directa: ${denied ? 'no disponible, sin datos' : 'INESPERADO'}`,
       ok: rows.length === 1 && rows[0].includes('DEMO-PAR-005') && denied });
     await ctx.close();
+  }
+
+  // Auditor de la cooperativa: lee parcelas pero NO recibe coordenadas exactas (clasificación de geometría).
+  {
+    const auditor = acc('auditor.cooperativa', 'Cooperativa');
+    if (auditor) {
+      const { ctx, page } = await loginAs(auditor);
+      const rows = await plotRows(page, coopId);
+      await page.getByRole('link', { name: /DEMO-PAR-001/ }).click();
+      await page.getByRole('heading', { name: /DEMO-PAR-001/ }).waitFor();
+      await page.getByRole('table', { name: 'Versiones geométricas' }).waitFor();
+      const text = await page.locator('main').innerText();
+      const noCoords = !text.includes('-80.16') && (await page.getByRole('table', { name: 'Coordenadas (WGS84)' }).count()) === 0;
+      const notice = await page.getByText('Tu rol no tiene acceso a las coordenadas exactas').count();
+      const capture = await page.getByRole('button', { name: 'Capturar ubicación' }).count();
+      const api = await page.evaluate(async (url) => {
+        const id = url.split('/').pop();
+        const org = url.split('/organizaciones/')[1].split('/')[0];
+        const t = sessionStorage.getItem('tl_token');
+        const r = await fetch(`http://localhost:4000/api/v1/organizations/${org}/plots/${id}/geometry-versions`, { headers: { authorization: `Bearer ${t}` } });
+        return JSON.stringify(await r.json());
+      }, page.url());
+      await page.screenshot({ path: join(shots, 'parcelas--auditor-sin-coordenadas.png'), fullPage: true });
+      casos.push({ cuenta: 'auditor.cooperativa (sin geometría exacta)', resultado: `${rows.length} parcelas; coordenadas en pantalla=${!noCoords}; aviso=${notice}; «Capturar ubicación»=${capture}; respuesta API con coordenadas=${api.includes('coordinates') || api.includes('-80.16')}`,
+        ok: rows.length === 6 && noCoords && notice === 1 && capture === 0 && !api.includes('coordinates') && !api.includes('-80.16') });
+      await ctx.close();
+    }
   }
 
   // Usuario con dos organizaciones: roles y datos de cada una por separado.
@@ -95,6 +128,7 @@ export async function reviewPlots({ browser, BASE, accounts, DEMO_ORGS, orgIdByN
     await plotRows(page, coopId);
     await page.getByRole('link', { name: /DEMO-PAR-001/ }).click();
     await page.getByRole('table', { name: 'Versiones geométricas' }).waitFor();
+    await page.getByRole('button', { name: 'Capturar ubicación' }).waitFor();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     await page.screenshot({ path: join(shots, 'movil--parcela-ficha.png'), fullPage: true });
     casos.push({ cuenta: 'tecnico1.cooperativa (390 px)', resultado: `desbordamiento horizontal en la ficha=${overflow}`, ok: !overflow });

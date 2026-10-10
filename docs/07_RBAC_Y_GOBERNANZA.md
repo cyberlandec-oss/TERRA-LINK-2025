@@ -144,3 +144,14 @@ Origen: S1 §9 (FIELD_TECHNICIAN `producer:create/read`) y doc 07/14 («solo asi
 | RECEPTION_OPERATOR, QUALITY_OPERATOR, EXPORT_MANAGER, BUYER, PRODUCER | | | | | | | |
 
 `_assigned` = parcelas cuyo **productor** está asignado a la membresía del usuario (misma política que productores). La consulta por id fuera de alcance responde 404 y reasignar el productor cambia el alcance de inmediato. `update` incluye crear versiones geométricas. `archive` = baja lógica y reactivación. El tipo comercial de la organización no interviene.
+
+### Geometría exacta (catálogo `2026-10-10.5`)
+
+Doc 06: «geometrías exactas exigen clasificación de acceso». Clasificación de desarrollo:
+
+| Nivel | Contenido | Permiso |
+| --- | --- | --- |
+| Parcela (atributos) | Código, productor, cultivo, estado, tipo de geometría, superficies, método, fechas y precisión de captura | `plot:read` / `plot:read_assigned` |
+| **Geometría exacta** | Coordenadas de la versión actual y de versiones anteriores, coordenadas de muestras de ubicación | `plot:read_geometry` (dentro del mismo alcance) |
+
+`plot:read_geometry`: ORG_ADMIN, MANAGER, FIELD_TECHNICIAN (solo parcelas de sus productores asignados), TRACEABILITY_MANAGER y EUDR_MANAGER, es decir, los roles que ya veían coordenadas. **AUDITOR deja de recibirlas** (restricción, D-24). Sin el permiso, la API devuelve `geometry: null`, `geometry_visible: false` y muestras sin longitud ni latitud. Las coordenadas no se leen de la base (filtro en SQL), no se ocultan en la interfaz. Registrar coordenadas (manuales o capturadas) también exige `plot:read_geometry`. Eventos y auditoría nunca contienen coordenadas. Una futura exportación (P0-009) debe aplicar esta misma política.

@@ -6,7 +6,7 @@
 // cada tarea (solo lecturas y búsquedas).
 import { chromium } from '@playwright/test';
 import { reviewPlots } from './parcelas.mjs';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,7 +29,9 @@ function parseCsv(text) {
   return rows.map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] ?? ''])));
 }
 
-const accounts = parseCsv(readFileSync(join(root, 'CREDENCIALES.csv'), 'utf8'));
+// Si existe CREDENCIALES.pendiente.csv (el principal estaba abierto al ejecutar el seed), contiene todo.
+const credFile = existsSync(join(root, 'CREDENCIALES.pendiente.csv')) ? 'CREDENCIALES.pendiente.csv' : 'CREDENCIALES.csv';
+const accounts = parseCsv(readFileSync(join(root, credFile), 'utf8'));
 const DEMO_ORGS = [...new Set(accounts.map((a) => a.organizacion).filter((o) => o.startsWith('DEMO')))];
 const slug = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
 const role = (r) => r.split(' ')[0];
