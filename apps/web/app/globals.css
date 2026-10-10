@@ -197,3 +197,6 @@ ul.plain > li:last-child { border-bottom: 0; }
 }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .polygon-capture table td { overflow-wrap: anywhere; }
+.hash { overflow-wrap: anywhere; font-size: 0.85em; }
+.downloads { display: flex; flex-wrap: wrap; gap: var(--tl-space-2); align-items: center; }
+button.small { padding: 4px 10px; font-size: 0.875rem; }

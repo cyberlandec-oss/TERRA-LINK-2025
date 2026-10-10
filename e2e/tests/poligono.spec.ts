@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { randomBytes } from 'crypto';
-import { SUPER_EMAIL } from '../env';
+import { randomBytes, randomUUID } from 'crypto';
+import { API_URL, SUPER_EMAIL } from '../env';
 
 // P0-008 en navegador con GEOLOCALIZACIÓN SIMULADA (evidencia simulada, no captura real de campo).
 // Posiciones emuladas por Playwright (setGeolocation). Borrador persistido en el servidor.
@@ -119,6 +119,39 @@ test('[SIMULADA] autointersección: sin superficie, confirmación bloqueada salv
   await expect(review).toContainText('No calculada');
   await expect(page.getByRole('button', { name: 'Confirmar polígono' })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await page.getByRole('button', { name: 'Seguir capturando' }).click();
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('button', { name: 'Cancelar borrador' }).click();
+  await expect(page.getByRole('button', { name: 'Iniciar captura de polígono' })).toBeVisible();
+  await ctx.close();
+});
+
+test('[FIXTURE] precisión null en pantalla: muestras sintéticas enviadas a la API real con accuracy_m null', async ({ browser }) => {
+  // No es una medición física ni sustituye la captura real: se usa porque la emulación de Chromium siempre informa precisión.
+  const { ctx, page } = await open(browser);
+  const [, orgId, plotId] = /\/organizaciones\/([^/?#]+)\/parcelas\/([^/?#]+)/.exec(new URL(plotUrl).pathname)!;
+  const api = `${API_URL}/api/v1/organizations/${orgId}`;
+  const headers = { authorization: `Bearer ${token}` };
+  const start = await page.request.post(`${api}/plots/${plotId}/polygon-drafts`, { headers });
+  expect(start.status()).toBe(201);
+  let draft = await start.json();
+  const add = async (lon: number, lat: number, acc: number | null) => {
+    const r = await page.request.post(`${api}/polygon-drafts/${draft.id}/vertices`, { headers, data: {
+      expected_version: draft.row_version, operation_id: randomUUID(), source: 'BROWSER_GEOLOCATION', longitude: lon, latitude: lat,
+      accuracy_m: acc, captured_at: new Date(Date.now() - 30_000).toISOString() } });
+    expect(r.status()).toBe(201);
+    draft = (await r.json()).draft;
+  };
+  await add(-80.16, -0.848, null);
+  await add(-80.159, -0.848, null);
+  await page.reload();
+  await expect(page.getByText('Precisión: Precisión no informada')).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Vértices del borrador' })).toContainText('No informada por el navegador');
+  await add(-80.159, -0.847, 7);
+  await page.reload();
+  await expect(page.getByText('1 vértice con precisión informada; 2 sin informar; peor precisión conocida 7 m (resumen incompleto)').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Revisar y confirmar' }).click();
+  await expect(page.getByRole('region', { name: 'Revisión antes de confirmar' })).toContainText('(resumen incompleto)');
   await page.getByRole('button', { name: 'Seguir capturando' }).click();
   page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: 'Cancelar borrador' }).click();

@@ -20,6 +20,8 @@ export interface PlotVersion {
   is_current?: boolean;
   geometry_visible?: boolean;
   technically_valid?: boolean | null;
+  source_import_id?: string | null;
+  source_import_sha256?: string | null;
   sample?: null | { id: string; source: string; captured_at: string; received_at: string; horizontal_accuracy_m: number | null; longitude?: number; latitude?: number };
 }
 

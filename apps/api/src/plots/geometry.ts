@@ -77,3 +77,6 @@ export function structuralIssues(input: unknown): StructuralIssue[] {
 
 export const geometryTypeCode = (g: SupportedGeometry) =>
   g.type === 'Point' ? 'POINT' : g.type === 'Polygon' ? 'POLYGON' : 'MULTIPOLYGON';
+
+/** Motivo de PostGIS sin la coordenada que lo acompaña (eventos, auditoría, notas y errores no llevan coordenadas). */
+export const reasonWithoutCoordinates = (r: string | null) => (r ? r.replace(/\s*\[[^\]]*\]\s*$/, '').trim() : null);

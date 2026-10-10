@@ -66,7 +66,7 @@ if (!env.TEST_DATABASE_URL || !dbName(env.TEST_DATABASE_URL).endsWith('_test')) 
 if (env.TEST_DATABASE_URL && env.DATABASE_URL && dbName(env.TEST_DATABASE_URL) === dbName(env.DATABASE_URL)) {
   preflight.push('TEST_DATABASE_URL no puede ser la misma base que DATABASE_URL.');
 }
-for (const name of ['DATABASE_URL', 'REDIS_URL', 'JWT_SECRET', 'PII_KEYS', 'PII_ACTIVE_KEY_ID', 'PII_INDEX_KEY']) {
+for (const name of ['DATABASE_URL', 'REDIS_URL', 'JWT_SECRET', 'PII_KEYS', 'PII_ACTIVE_KEY_ID', 'PII_INDEX_KEY', 'S3_ACCESS_KEY', 'S3_SECRET_KEY']) {
   if (!env[name]) preflight.push(`Falta la variable ${name} (ver .env.example).`);
 }
 if (preflight.length) {

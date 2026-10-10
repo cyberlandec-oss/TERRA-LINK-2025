@@ -113,6 +113,8 @@ interface VersionView {
   notes: string | null; created_at: Date | string;
   geometry_visible: boolean;
   technically_valid: boolean | null;
+  source_import_id: string | null;
+  source_import_sha256: string | null;
   sample: null | {
     id: string; source: string; captured_at: Date | string; received_at: Date | string;
     horizontal_accuracy_m: number | null; longitude?: number; latitude?: number;
@@ -125,11 +127,13 @@ interface VersionView {
  */
 const versionColumns = (withGeometry: boolean) => sql`
   v.id, v.version_number, v.geometry_type,
-  ${withGeometry ? sql`ST_AsGeoJSON(v.geometry)::jsonb` : sql`NULL::jsonb`} AS geometry,
+  ${withGeometry ? sql`ST_AsGeoJSON(v.geometry, 17)::jsonb` : sql`NULL::jsonb`} AS geometry,
   v.geometry_hash, v.area_declared_ha::text, v.area_calculated_ha::text, v.survey_method, v.surveyed_at, v.accuracy_m::text,
   v.validation_status, v.validation_rule_version, v.previous_version_id, v.notes, v.created_at,
   CASE WHEN v.geometry IS NULL THEN NULL ELSE ST_IsValid(v.geometry) END AS technically_valid,
   ${withGeometry}::boolean AS geometry_visible,
+  v.source_import_id,
+  (SELECT gi.sha256 FROM geometry_imports gi WHERE gi.id = v.source_import_id AND gi.organization_id = v.organization_id) AS source_import_sha256,
   CASE WHEN s.id IS NULL THEN NULL ELSE jsonb_strip_nulls(jsonb_build_object(
     'id', s.id, 'source', s.source, 'captured_at', s.captured_at, 'received_at', s.received_at,
     'horizontal_accuracy_m', s.horizontal_accuracy_m,

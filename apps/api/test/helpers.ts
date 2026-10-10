@@ -29,6 +29,12 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     invitationTtlHours: 72,
     // Claves efímeras por corrida: nunca las del .env ni versionadas.
     pii: { keys: { t1: randomBytes(32) }, activeKeyId: 't1', indexKey: randomBytes(32) },
+    // Bucket propio de pruebas (nunca el de desarrollo).
+    objectStore: {
+      endpoint: process.env.S3_ENDPOINT ?? `http://localhost:${process.env.S3_PORT ?? '9000'}`, region: 'us-east-1',
+      accessKey: process.env.S3_ACCESS_KEY ?? '', secretKey: process.env.S3_SECRET_KEY ?? '', bucket: 'terra-link-test',
+    },
+    geojson: { maxBytes: 1_048_576, maxPositions: 5000, maxDepth: 10, maxComponents: 50, maxRingsPerPolygon: 50 },
     ...overrides,
   };
 }

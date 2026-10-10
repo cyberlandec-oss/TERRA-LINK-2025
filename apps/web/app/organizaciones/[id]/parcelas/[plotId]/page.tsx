@@ -8,6 +8,8 @@ import { useWorkspace } from '../../../../../lib/workspace';
 import { Alert, Breadcrumb, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../../lib/ui';
 import { LocationCapture, accuracyLabel } from '../../../../../lib/location-capture';
 import { PolygonCapture } from '../../../../../lib/polygon-capture';
+import { GeometryImport } from '../../../../../lib/geometry-import';
+import { VersionDownloads } from '../../../../../lib/geometry-downloads';
 import { GEOMETRY_STATUS, GEOMETRY_TYPE_LABEL, GeometrySketch, METHOD_LABEL, ha, positions, type Plot, type PlotVersion } from '../../../../../lib/plots';
 
 interface HistoryRow { version: number; change_type: string; changed_fields: string[]; reason: string | null; changed_at: string; actor: string }
@@ -102,6 +104,9 @@ export default function PlotDetailPage() {
                     <dt>Captura</dt><dd>Ubicación del navegador · adquirida {new Date(current.sample.captured_at).toLocaleString('es-EC')} · recibida {new Date(current.sample.received_at).toLocaleString('es-EC')}</dd>
                     <dt>Precisión horizontal</dt><dd>{accuracyLabel(current.sample.horizontal_accuracy_m)}</dd>
                   </>)}
+                  {current.source_import_sha256 && (<>
+                    <dt>Archivo original</dt><dd>GeoJSON importado · SHA-256 <code className="hash">{current.source_import_sha256}</code></dd>
+                  </>)}
                   {current.technically_valid === false && (<>
                     <dt>Validez técnica</dt><dd><StatusBadge tone="review">No válida</StatusBadge> <span className="muted">Conservada para revisión; sin superficie calculada.</span></dd>
                   </>)}
@@ -120,6 +125,7 @@ export default function PlotDetailPage() {
             )}
             {plot.can_capture_location && <LocationCapture orgId={orgId} plotId={plot.id} rowVersion={plot.row_version} onSaved={load} />}
             {plot.can_capture_location && <PolygonCapture orgId={orgId} plotId={plot.id} plotVersion={plot.row_version} onConfirmed={load} />}
+            {plot.can_capture_location && <GeometryImport orgId={orgId} plotId={plot.id} plotVersion={plot.row_version} onConfirmed={load} />}
             {plot.can_update && <DeclaredAreaForm orgId={orgId} plot={plot} onSaved={load} />}
           </section>
 
@@ -129,7 +135,7 @@ export default function PlotDetailPage() {
             {versions.length === 0 ? <p className="muted">Sin versiones.</p> : (
               <div className="table-wrap">
                 <table aria-label="Versiones geométricas">
-                  <thead><tr><th scope="col">Versión</th><th scope="col">Método</th><th scope="col">Tipo</th><th scope="col">Declarada</th><th scope="col">Calculada</th><th scope="col">Registrada</th></tr></thead>
+                  <thead><tr><th scope="col">Versión</th><th scope="col">Método</th><th scope="col">Tipo</th><th scope="col">Declarada</th><th scope="col">Calculada</th><th scope="col">Registrada</th>{plot.geometry_access && <th scope="col">Descargas</th>}</tr></thead>
                   <tbody>
                     {versions.map((v) => (
                       <tr key={v.id}>
@@ -139,6 +145,7 @@ export default function PlotDetailPage() {
                         <td>{ha(v.area_declared_ha) ?? '—'}</td>
                         <td>{ha(v.area_calculated_ha) ?? '—'}</td>
                         <td>{new Date(v.created_at).toLocaleString('es-EC')}</td>
+                        {plot.geometry_access && <td><VersionDownloads orgId={orgId} plotId={plot.id} version={v} /></td>}
                       </tr>
                     ))}
                   </tbody>

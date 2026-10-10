@@ -32,6 +32,8 @@ import { ProducerMatchingController, ProducerMatchingService } from './producers
 import { PlotsController, PlotsService } from './plots/plots';
 import { PolygonDraftsController, PolygonDraftsService } from './plots/polygon-drafts';
 import { PII_CIPHER, PiiCipher } from './crypto/pii';
+import { OBJECT_STORE, S3ObjectStore, type ObjectStore } from './storage/object-store';
+import { GeometryImportsController, GeometryImportsService } from './plots/geometry-imports';
 import { PRODUCTION_CONSUMERS } from './events/consumers';
 import { LOGIN_RATE_LIMITER, LoginRateLimiter, REDIS, RedisAttemptStore } from './auth/login-rate-limit';
 
@@ -148,6 +150,14 @@ class RedisLifecycle implements OnApplicationShutdown {
   }
 }
 
+@Injectable()
+class ObjectStoreLifecycle implements OnApplicationShutdown {
+  constructor(@Inject(OBJECT_STORE) private readonly store: ObjectStore) {}
+  onApplicationShutdown(): void {
+    this.store.close();
+  }
+}
+
 @Module({})
 export class AppModule implements NestModule {
   static forRoot(config: AppConfig, db: Kysely<Database>): DynamicModule {
@@ -155,7 +165,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
-        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController,
+        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController,
       ],
       providers: [
         { provide: APP_CONFIG, useValue: config },
@@ -171,6 +181,7 @@ export class AppModule implements NestModule {
           useFactory: (redis: Redis) => new LoginRateLimiter(new RedisAttemptStore(redis, config.redisKeyPrefix), config.loginRateLimit),
         },
         RedisLifecycle,
+        ObjectStoreLifecycle,
         { provide: EVENT_STORE, useValue: new EventStore(PRODUCTION_CONSUMERS) },
         MembersService,
         ProducersService,
@@ -178,6 +189,8 @@ export class AppModule implements NestModule {
         PlotsService,
         PolygonDraftsService,
         { provide: PII_CIPHER, useValue: new PiiCipher(config.pii) },
+        { provide: OBJECT_STORE, useValue: new S3ObjectStore(config.objectStore) },
+        GeometryImportsService,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },
         AuditService,

@@ -20,6 +20,28 @@ Para superficie usar geodesia (`geography`) o proyección adecuada validada, exp
 
 Corrección automática de una geometría puede cambiar la parcela. Si se propone reparación, mostrar antes/después y obtener confirmación de quien tiene permiso; conservar versiones.
 
+## Perfil de importación GeoJSON (P0-009, `GEOJSON_IMPORT_V1`, implementado)
+
+Cuatro niveles distintos: **intercambio** (este perfil, RFC 7946), **estructura** (rechazo 422 si no se cumple), **validez geométrica técnica** (PostGIS `ST_IsValid`: autointersección, huecos fuera del exterior…) y **validación GIS** (P0-010, pendiente: toda versión queda `NOT_VALIDATED`).
+
+| Aspecto | Regla |
+| --- | --- |
+| Tipos | Polygon y MultiPolygon (con huecos). Point, LineString, GeometryCollection… → `TYPE_NOT_SUPPORTED` |
+| Envolventes | Geometría directa; Feature; FeatureCollection con **exactamente una** feature (advertencia). Vacía → `EMPTY_FEATURE_COLLECTION`; varias → `MULTIPLE_FEATURES` (un archivo = una parcela; no se importan varias en silencio) |
+| Coordenadas | `[longitud, latitud]`, grados decimales WGS84. SRID 4326 en PostGIS no cambia ese orden. Rangos −180…180 / −90…90 |
+| Dimensiones | Exactamente 2. Altitud u otras → `EXTRA_DIMENSIONS_NOT_SUPPORTED` (no se eliminan) |
+| CRS heredado (`crs`, GeoJSON 2008) | CRS84 → aceptado con advertencia (no cambia nada). EPSG:4326 declarado (orden de ejes ambiguo) u otro CRS → `CRS_NOT_SUPPORTED`. Nunca se reproyecta |
+| Anillos | ≥4 posiciones y cerrados (`RING_NOT_CLOSED`, sin cierre automático) |
+| Ejes | Si todas las posiciones parecen `[lat, lon]` de Ecuador → advertencia `POSSIBLE_AXIS_SWAP`; no se intercambian |
+| Ignorados con advertencia | `properties`, `id`, `bbox`: la parcela y la organización salen de la pantalla autorizada, nunca del archivo |
+| Límites (configurables) | `GEOJSON_MAX_BYTES` 1 MiB, `GEOJSON_MAX_POSITIONS` 5000, `GEOJSON_MAX_DEPTH` 10, `GEOJSON_MAX_COMPONENTS` 50, `GEOJSON_MAX_RINGS` 50 |
+| Validez técnica | Inválida → se muestra el motivo (sin coordenadas en notas/eventos/auditoría); confirmar exige «conservar para revisión» (D-26): sin superficie ni reparación |
+| Decimales | Se informan como dato del archivo; no son precisión de medición |
+| Original | Bytes intactos en almacenamiento privado S3 + SHA-256 calculado en el servidor (identidad de bytes, no autenticidad del origen) |
+| Exportación | Feature RFC 7946 de una versión concreta (`ST_AsGeoJSON` con 17 dígitos: ida y vuelta exacta de los dobles); propiedades técnicas sin identidad personal; aviso «no es paquete EUDR ni declaración presentada». Distinta de la descarga del original |
+
+Pendiente de P0-010/D-05: «perfil destino» (especificación GeoJSON del sistema receptor y reglas de exportación regulatoria), validación GIS, umbral de 4 ha y cobertura.
+
 ## Umbral pendiente
 
 La fuente técnica escribe `<4 ha` y `>4 ha`, dejando indefinido `=4`. El paquete no convierte esa omisión en norma. Modelar `threshold_ha`, operador de comparación, producto, jurisdicción, vigencia y fuente legal en el perfil. Antes de activarlo, validar texto consolidado y especificación GeoJSON del destino con responsable regulatorio. Probar casos por debajo, igual y por encima; sin perfil aprobado la preparación regulatoria queda pendiente.

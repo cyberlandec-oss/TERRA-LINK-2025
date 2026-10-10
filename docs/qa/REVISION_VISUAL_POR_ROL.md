@@ -104,3 +104,9 @@ Defecto encontrado y corregido: `geometry_visible` llegaba como texto `"false"` 
 - tecnico1.cooperativa, DEMO-PAR-003, 390 px **[SIMULADA]**: 3 vértices persistidos tras recargar, resumen de precisión, revisión con validez técnica y GIS pendiente, sin desborde; borrador cancelado (DEMO intacto). Capturas `poligono--*.png`.
 - admin.cooperativa: acción de polígono visible. auditor.cooperativa: no visible (sin `plot:read_geometry`). tecnico2 (no asignado): parcela ajena no disponible.
 - Resultado: 23 entradas, 0 incidencias. La emulación siempre informa precisión; «no informada» se cubre en integración.
+
+## P0-009 GeoJSON (2026-10-10)
+- admin.cooperativa (DEMO-PAR-001): análisis con hash del servidor, válida, GIS pendiente; descartado (DEMO intacto). Exportación `DEMO-PAR-001-v2.geojson`: Feature/Polygon con aviso, sin identidad del productor.
+- tecnico1.cooperativa (DEMO-PAR-003, 390 px, teclado): autointersección no válida sin superficie, confirmar bloqueado, retomada tras recargar y descartada; sin desborde.
+- auditor.cooperativa: sin panel de importación ni descargas; API de exportación e importaciones 403.
+- Capturas `geojson--*.png`. Resultado: 24 entradas, 0 incidencias. Archivos sintéticos.

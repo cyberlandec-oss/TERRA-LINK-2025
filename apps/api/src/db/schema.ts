@@ -261,6 +261,7 @@ export interface PlotVersionsTable {
   notes: string | null;
   created_at: Timestamp;
   created_by: string;
+  source_import_id: Generated<string | null>;
 }
 
 export interface PlotHistoryTable {
@@ -330,7 +331,34 @@ export interface DraftVertexExclusionsTable {
   excluded_by: string;
 }
 
+export interface GeometryImportsTable {
+  id: string;
+  organization_id: string;
+  plot_id: string;
+  status: 'ANALYZED' | 'CONFIRMED' | 'DISCARDED';
+  object_key: string;
+  sha256: string;
+  byte_size: number;
+  original_filename: string | null;
+  media_type: string;
+  profile_version: string;
+  geometry: unknown;
+  geometry_type: 'POLYGON' | 'MULTIPOLYGON';
+  technically_valid: boolean;
+  validity_reason: string | null;
+  analysis: unknown;
+  operation_id: string;
+  confirm_operation_id: string | null;
+  confirmed_version_id: string | null;
+  row_version: Generated<string>;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  closed_at: Timestamp | null;
+  closed_by: string | null;
+}
+
 export interface Database {
+  geometry_imports: GeometryImportsTable;
   polygon_drafts: PolygonDraftsTable;
   draft_vertices: DraftVerticesTable;
   draft_vertex_exclusions: DraftVertexExclusionsTable;

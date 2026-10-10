@@ -12,7 +12,7 @@ import { AuthorizationService, type TenantContext } from '../authz/authorization
 import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { EVENT_STORE, type EventStore } from '../events/events';
 import { PlotsService, STRUCTURAL_RULE } from './plots';
-import { structuralIssues } from './geometry';
+import { reasonWithoutCoordinates, structuralIssues } from './geometry';
 import { summarizeAccuracy } from './accuracy-summary';
 
 // P0-008 — Polígono. Borrador persistido en el servidor (contrato en la migración 0010).
@@ -115,7 +115,7 @@ export class PolygonDraftsService {
                  CASE WHEN ST_IsValid(geom) THEN round((ST_Area(geom::geography) / 10000)::numeric, 6)::text ELSE NULL END AS area
           FROM g`.execute(db);
         valid = r.rows[0].valid;
-        reason = valid ? null : r.rows[0].reason;
+        reason = valid ? null : reasonWithoutCoordinates(r.rows[0].reason);
         area = r.rows[0].area;
       }
     }

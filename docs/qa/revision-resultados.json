@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-10T16:12:29.859Z",
+  "fecha": "2026-10-10T17:15:17.245Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -360,7 +360,7 @@
       "datos_ajenos": "ninguno",
       "tarea": {
         "tarea": "Consultar la auditoría de su organización",
-        "resultado": "47 registros visibles",
+        "resultado": "50 registros visibles",
         "ok": true
       }
     },
@@ -977,7 +977,7 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "6 parcelas; ficha: esquema=1, 5 coordenadas, 2 versiones, botones GPS/importación=0, «Capturar ubicación»=1 (foco solid); foco campo=solid; productor→parcelas=2",
+          "resultado": "6 parcelas; ficha: esquema=1, 5 coordenadas, 2 versiones, botones de funciones no implementadas (GPS nativo, satélite, riesgo)=0, «Capturar ubicación»=1 (foco solid); foco campo=solid; productor→parcelas=2",
           "ok": true
         },
         {
@@ -1013,6 +1013,27 @@
         {
           "cuenta": "tecnico1.cooperativa (390 px)",
           "resultado": "desbordamiento horizontal en la ficha=false",
+          "ok": true
+        }
+      ],
+      "ok": true
+    },
+    {
+      "tipo": "geojson",
+      "casos": [
+        {
+          "cuenta": "admin.cooperativa",
+          "resultado": "revisión: hash del servidor=true, válida=true, GIS pendiente=true, descartada; exportación DEMO-PAR-001-v2.geojson: Feature/Polygon con aviso=true, sin identidad del productor=true",
+          "ok": true
+        },
+        {
+          "cuenta": "tecnico1.cooperativa (asignado, 390 px)",
+          "resultado": "autointersección: no válida=true, sin superficie=true, confirmar bloqueado=true; retomada tras recargar y descartada; desborde=false",
+          "ok": true
+        },
+        {
+          "cuenta": "auditor.cooperativa",
+          "resultado": "panel de importación=0; botones de descarga=0; API exportación/importaciones=403/403",
           "ok": true
         }
       ],

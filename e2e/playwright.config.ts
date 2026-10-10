@@ -24,6 +24,7 @@ export default defineConfig({
         API_PORT: String(API_PORT),
         WEB_ORIGIN: WEB_URL,
         REDIS_KEY_PREFIX: `tl-e2e:${Date.now()}:`,
+        S3_BUCKET: 'terra-link-e2e',
       },
     },
     {

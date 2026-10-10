@@ -34,7 +34,7 @@ export async function reviewPlots({ browser, BASE, accounts, DEMO_ORGS, orgIdByN
     const sketch = await page.getByRole('img', { name: /Esquema de DEMO-PAR-001/ }).count();
     const coords = await page.getByRole('table', { name: 'Coordenadas (WGS84)' }).locator('tbody tr').count();
     const versions = await page.getByRole('table', { name: 'Versiones geométricas' }).locator('tbody tr').count();
-    const forbiddenButtons = await page.getByRole('button', { name: /GPS|Importar|Analizar/ }).count();
+    const forbiddenButtons = await page.getByRole('button', { name: /GPS|satelital|riesgo/i }).count();
     const captureButton = await page.getByRole('button', { name: 'Capturar ubicación' }).count();
     await page.getByRole('button', { name: 'Capturar ubicación' }).focus();
     await page.keyboard.press('Shift+Tab');
@@ -47,7 +47,7 @@ export async function reviewPlots({ browser, BASE, accounts, DEMO_ORGS, orgIdByN
     await page.getByRole('link', { name: /DEMO-RV-001/ }).first().click();
     await page.getByRole('list', { name: 'Parcelas del productor' }).waitFor();
     const back = await page.getByRole('list', { name: 'Parcelas del productor' }).getByRole('listitem').count();
-    casos.push({ cuenta: 'admin.cooperativa', resultado: `${rows.length} parcelas; ficha: esquema=${sketch}, ${coords} coordenadas, ${versions} versiones, botones GPS/importación=${forbiddenButtons}, «Capturar ubicación»=${captureButton} (foco ${captureFocus}); foco campo=${outline}; productor→parcelas=${back}`,
+    casos.push({ cuenta: 'admin.cooperativa', resultado: `${rows.length} parcelas; ficha: esquema=${sketch}, ${coords} coordenadas, ${versions} versiones, botones de funciones no implementadas (GPS nativo, satélite, riesgo)=${forbiddenButtons}, «Capturar ubicación»=${captureButton} (foco ${captureFocus}); foco campo=${outline}; productor→parcelas=${back}`,
       ok: rows.length === 6 && sketch === 1 && coords === 5 && versions === 2 && forbiddenButtons === 0 && captureButton === 1 && captureFocus === 'solid' && outline === 'solid' && back === 2 });
     await ctx.close();
   }

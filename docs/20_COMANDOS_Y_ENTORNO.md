@@ -23,7 +23,7 @@ No imprimir ni versionar `.env` (está en `.gitignore`).
 
 | Acción | Comando | Precondición / efecto | Resultado 2026-10-09 |
 | --- | --- | --- | --- |
-| Servicios locales | `npm run infra:up` (`docker compose up -d --wait`) | Levanta `postgres` (PostGIS 16-3.4, host:5440, crea `terra_link` y `terra_link_test`), `redis` (6379) y `object-storage` (VersityGW, 9000). Volúmenes `postgres-data` y `object-data` | 3 servicios healthy |
+| Servicios locales | `npm run infra:up` (`docker compose up -d --wait`) | Levanta `postgres` (PostGIS 16-3.4, host:5440, crea `terra_link` y `terra_link_test`), `redis` (6379) y `object-storage` (VersityGW, 9000). Volúmenes `postgres-data` y `object-data` | 3 servicios healthy. La API usa `object-storage` como almacenamiento privado (P0-009): `S3_ACCESS_KEY`/`S3_SECRET_KEY` obligatorias; buckets `terra-link-private` (desarrollo), `terra-link-test` (integración) y `terra-link-e2e` (E2E), creados por la API si faltan |
 | Detener servicios | `npm run infra:down` | No borra volúmenes | — |
 | Migrar dev | `npm run db:migrate` | Compila la API y aplica migraciones a `DATABASE_URL` | `0001`–`0007_producer_match_reviews` aplicadas (dev: productores y usuarios conservados) |
 | Seed dev | `npm run seed:dev -w apps/api` | Crea el SUPER_ADMIN desde `SEED_ADMIN_*`; idempotente | Creado |

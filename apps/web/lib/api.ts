@@ -133,6 +133,46 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
   return data as T;
 }
 
+/** Envío multipart (archivo). El navegador fija el content-type con el límite del formulario. */
+export async function apiUpload<T>(path: string, form: FormData): Promise<{ status: number; data: T }> {
+  const token = session.get();
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { method: 'POST', headers: token ? { authorization: `Bearer ${token}` } : {}, body: form });
+  } catch {
+    throw new ApiError(0, { code: 'NETWORK', message: 'No se pudo contactar el servidor. Revisa tu conexión y reintenta.', request_id: null });
+  }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(res.status, data?.error ?? { code: `HTTP_${res.status}`, message: 'Error inesperado.', request_id: null });
+  return { status: res.status, data: data as T };
+}
+
+/** Descarga autorizada: el servidor revalida permisos; no hay URL pública. Guarda el archivo con su nombre. */
+export async function apiDownload(path: string, fallbackName: string): Promise<{ filename: string; sha256: string | null; bytes: number }> {
+  const token = session.get();
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
+  } catch {
+    throw new ApiError(0, { code: 'NETWORK', message: 'No se pudo contactar el servidor. Revisa tu conexión y reintenta.', request_id: null });
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new ApiError(res.status, data?.error ?? { code: `HTTP_${res.status}`, message: 'Error inesperado.', request_id: null });
+  }
+  const blob = await res.blob();
+  const filename = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return { filename, sha256: res.headers.get('x-content-sha256'), bytes: blob.size };
+}
+
 /** Texto de recuperación por código de error (la UI no traduce 403 en «sin datos»). */
 export function recoveryHint(err: ApiError): string {
   switch (err.body.code) {

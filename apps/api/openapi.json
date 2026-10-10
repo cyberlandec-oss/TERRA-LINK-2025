@@ -1914,6 +1914,298 @@
           "plots"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/plots/{plotId}/geometry-imports": {
+      "post": {
+        "operationId": "GeometryImportsController_analyze",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "operation_id"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "operation_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      },
+      "get": {
+        "operationId": "GeometryImportsController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/plots/{plotId}/geometry-versions/{versionId}/geojson": {
+      "get": {
+        "operationId": "GeometryImportsController_export",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/geometry-imports/{importId}": {
+      "get": {
+        "operationId": "GeometryImportsController_get",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "importId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/geometry-imports/{importId}/original": {
+      "get": {
+        "operationId": "GeometryImportsController_original",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "importId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/geometry-imports/{importId}/confirm": {
+      "post": {
+        "operationId": "GeometryImportsController_confirm",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "importId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmImportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/geometry-imports/{importId}/discard": {
+      "post": {
+        "operationId": "GeometryImportsController_discard",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "importId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
     }
   },
   "info": {
@@ -2510,6 +2802,26 @@
         },
         "required": [
           "expected_version",
+          "plot_expected_version"
+        ]
+      },
+      "ConfirmImportDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "plot_expected_version": {
+            "type": "number",
+            "description": "row_version de la parcela leída"
+          },
+          "keep_invalid_for_review": {
+            "type": "boolean",
+            "description": "Conservar para revisión una geometría técnicamente no válida (sin superficie)"
+          }
+        },
+        "required": [
+          "operation_id",
           "plot_expected_version"
         ]
       }

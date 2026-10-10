@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-009 GeoJSON | **ABIERTA**: alcance independiente verificado localmente; «perfil destino» depende de P0-010/D-05 (dependencia del backlog conservada) | Ver criterios abajo |
 | P0-008 Polígono | **DONE_LOCAL** con evidencia de integración (PostGIS real) y navegador **[SIMULADA]**; captura real de campo pendiente | Ver criterios abajo |
 
 ### TECH-001 — criterio por criterio
@@ -132,6 +133,28 @@ Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T16-01-0
 
 Límite: la emulación de Chromium siempre informa precisión; «precisión no informada» se prueba solo en integración.
 
+### P0-009 — criterios
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T17-00-24-210Z`): API 153/153, web 4/4, E2E 36/36, OpenAPI 53 rutas. Revisión visual 24 entradas, 0 incidencias. Perfil documentado en docs/10 §«Perfil de importación GeoJSON».
+
+| Criterio | Resultado | Evidencia (`geometry-imports.int-spec.ts`, `geojson-profile.spec.ts`, E2E `geojson.spec.ts`) |
+| --- | --- | --- |
+| Import/export autorizado | Escritura: update en alcance + `plot:read_geometry` + org activa; lectura de original/exportación: read + `plot:read_geometry`. Auditor 403; técnico no asignado 404; otra organización 404 | «descarga del original…», «acceso entre organizaciones…», revisión por rol |
+| `[lon, lat]` | Perfil RFC 7946; `ST_X` = longitud con ejemplo inequívoco; ejes nunca intercambiados (advertencia `POSSIBLE_AXIS_SWAP`) | integración «Polygon en Feature…», unitaria «orden de ejes» |
+| Límites y errores | Bytes, profundidad, componentes, anillos y posiciones configurables; JSON mal formado, tipo, CRS, dimensiones, anillo abierto → 422 comprensible, sin eco ni almacenamiento | unitarias; «archivos fuera del perfil…»; E2E |
+| Reintento sin duplicar | `operation_id` en análisis y confirmación; concurrente → una versión (201 + 200) | «doble confirmación…» |
+| Revisión previa y versión única | Análisis → revisión (hash, tipo, componentes, huecos, posiciones, validez, advertencias, vista previa) → confirmación atómica con historia, evento y auditoría | «Polygon en Feature…», E2E |
+| Original privado e intacto | S3 privado sin URL; SHA-256 del servidor; descarga revalida permisos y verifica el hash | «descarga del original…», E2E (bytes idénticos) |
+| Staging y compensación (sin transacción S3+BD) | Fallo de subida → sin fila; fallo de BD → objeto borrado; original ausente → sin versión; descarte con fallo de borrado → barrido | «fallos de almacenamiento…» |
+| Validez técnica vs P0-010 | Autointersección sin superficie, solo «conservar para revisión» (D-26), `NOT_VALIDATED`, sin reparar | «autointersección…» |
+| Exportación actual/anterior; reimportación | Feature RFC 7946 sin identidad personal y con aviso «no es paquete EUDR»; serialización de 17 dígitos; reimportar conserva `geometry_hash` | «exportación…», E2E |
+| Revocación/reasignación tras el análisis | Reasignado 404; membresía desactivada rechazada; org suspendida 403; la importación queda ANALYZED | «revocación o reasignación…» |
+| MultiPolygon con huecos y compatibilidad | Versiones previas sin cambios (`source_import_id` NULL) | «MultiPolygon con hueco…», suites P0-006/007/008 en verde |
+| **Perfil destino** | **Pendiente**: especificación GeoJSON del sistema receptor y reglas regulatorias dependen de P0-010/D-05 | — |
+| Evidencia visual de precisión null (P0-008) | **[FIXTURE]**: muestras sintéticas enviadas a la API real con `accuracy_m` null; «Precisión no informada» y «(resumen incompleto)» en pantalla | E2E `poligono.spec.ts` |
+
+Correcciones laterales: (1) el motivo de `ST_IsValidReason` incluía una coordenada y P0-008 lo guardaba en `notes` (visible sin `plot:read_geometry`); ahora se elimina en notas, eventos, auditoría y errores. (2) Las vistas de versiones usaban `ST_AsGeoJSON` con 9 decimales; ahora 17 (ida y vuelta exacta).
+
 ## Interfaz según docs/UX_UI.md (2026-10-10)
 
 Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1/UX-V1 únicos en `apps/web/app/globals.css`; shell adaptable (organización activa con selector, usuario y rol efectivo, navegación por permisos, migas, «Saltar al contenido», menú móvil); login (UI-01) con mostrar/ocultar y mensajes distintos para 401/429/503/red; organizaciones (UI-02); miembros, invitaciones y roles (UI-03) en página propia; auditoría (UI-18) en página propia; productores y revisión de duplicados (UI-05) con tabla, filtros y estados diferenciados (carga, vacío, filtro sin resultados, error, 403, 404, conflicto 409 con recarga). Sin menús de módulos futuros; las capacidades pendientes por rol aparecen rotuladas en una tarjeta aparte. Revisión por rol: `docs/qa/REVISION_VISUAL_POR_ROL.md` (0 incidencias abiertas; 4 corregidas).
@@ -145,7 +168,7 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 - Android/offline, integraciones, despliegue: no iniciados.
 - Logotipo oficial y verificación de licencia de Inter (UX-D01/UX-D02). Evaluación de accesibilidad completa (lector de pantalla, zoom 200 %) no realizada: solo foco por teclado y móvil comprobados.
 
-## Próxima acción: P0-009 GeoJSON (propuesta en `sesiones/2026-10-10-p0-008-poligono.md`)
+## Próxima acción: P0-010 Validación GIS (propuesta en `sesiones/2026-10-10-p0-009-geojson.md`)
 
 ## Anterior: P0-006 Parcela
 
