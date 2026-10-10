@@ -1,4 +1,5 @@
 import { Kysely, Migrator, PostgresDialect, type Migration, type MigrationProvider } from 'kysely';
+import type { LogEvent } from 'kysely';
 import { Pool } from 'pg';
 import type { Database } from './schema';
 import * as m0001 from './migrations/0001_identity_organizations';
@@ -17,6 +18,7 @@ import * as m0013 from './migrations/0013_gis_comparison_scope';
 import * as m0014 from './migrations/0014_products';
 import * as m0015 from './migrations/0015_cte_catalog';
 import * as m0016 from './migrations/0016_kde_catalog';
+import * as m0017 from './migrations/0017_event_corrections_delivery_fencing';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -36,6 +38,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0014_products': m0014,
   '0015_cte_catalog': m0015,
   '0016_kde_catalog': m0016,
+  '0017_event_corrections_delivery_fencing': m0017,
 };
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -47,8 +50,9 @@ class StaticMigrationProvider implements MigrationProvider {
 /** Opciones de sesión de cada conexión (ver createDb). */
 export const PG_SESSION_OPTIONS = { options: '-c client_min_messages=warning' };
 
-export function createDb(connectionString: string): Kysely<Database> {
+export function createDb(connectionString: string, onSlowQuery?: (sqlText: string, ms: number) => void, slowMs = 1000): Kysely<Database> {
   return new Kysely<Database>({
+    ...(onSlowQuery ? { log: (e: LogEvent) => { if (e.queryDurationMillis >= slowMs) onSlowQuery(e.query.sql.replace(/\s+/g, ' ').slice(0, 200), Math.round(e.queryDurationMillis)); } } : {}),
     // client_min_messages=warning: PostGIS emite NOTICE con coordenadas (p. ej. ST_IsValid ante una
     // autointersección). Sin esto llegarían al cliente; además se usa ST_IsValidDetail, que no emite NOTICE.
     dialect: new PostgresDialect({ pool: new Pool({ connectionString, max: 10, ...PG_SESSION_OPTIONS }) }),

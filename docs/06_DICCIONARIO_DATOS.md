@@ -115,6 +115,10 @@ Completitud, validez, consistencia, unicidad y vigencia son resultados separados
 | products | 0014 | P0-011: catálogo por ORGANIZACIÓN. `code` único por organización (mayúsculas, 2–40); `name`; `product_state` y `unit` (FK a catálogos de sistema); `scientific_name`/`variety` opcionales; ACTIVE/INACTIVE con motivo; `row_version`. Código, estado y unidad **inmutables** (trigger); sin borrado |
 | product_versions | 0014 | Historial append-only por versión (alta, edición, desactivación, activación) con instantánea y motivo |
 | gis_evaluations.comparison_scope / scope_membership_id | 0013 | Alcance efectivo de comparación de cada evaluación (ORGANIZATION o EVALUATOR_ASSIGNED) |
+| domain_events.correction_of_event_id / correction_reason | 0017 | P0-015: corrección de un evento EXISTENTE de la misma organización y agregado (FK compuesta + trigger), posterior al corregido, motivo obligatorio (3–500), sin autorreferencia; un evento se corrige una vez (índice único) → cadena lineal |
+| event_deliveries.lease_token / manual_requeues | 0017 | Fencing del arrendamiento: solo el reclamo con el token vigente confirma o registra el fallo; reprocesos manuales contados. `last_error` guarda solo códigos |
+| event_delivery_attempts | 0017 | Historial append-only de intentos por entrega: DONE, DUPLICATE, FAILED, DEAD, LEASE_LOST, MANUAL_REQUEUE (actor y motivo), código de error |
+| consumer_receipts | 0004, 0017 | Recibos de consumo idempotente; desde 0017 no admiten UPDATE ni DELETE |
 | kde_catalog_releases | 0016 | P0-014: versiones publicadas del catálogo de datos mínimos (auditoría de cada cambio). Append-only |
 | kde_definitions | 0016 | Dato mínimo `code@version` ligado a la versión EXACTA de un hito (`cte_definition_id`): entidad y campo del contrato, tipo, unidad/dimensión (en `validation`), obligatoriedad REQUIRED/CONDITIONAL/OPTIONAL, condición y validación en un **esquema cerrado** (sin código ejecutable), roles responsables, fuente y diferencia con el modelo. Inmutable |
 | kde_definition_retirements | 0016 | Retirada o sustitución de un KDE con motivo; sigue resoluble para consultar historia. Append-only |

@@ -969,6 +969,61 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/producers/{id}/events/{eventId}/corrections": {
+      "post": {
+        "operationId": "ProducersController_correct",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectUpdateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Corregir una actualización del productor (correction_of)",
+        "tags": [
+          "producers"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/producers/{id}/assignment": {
       "put": {
         "operationId": "ProducersController_assign",
@@ -2844,6 +2899,132 @@
           "traceability"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/aggregates/{kind}/{id}/events": {
+      "get": {
+        "operationId": "EventHistoryController_history",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/event-deliveries": {
+      "get": {
+        "operationId": "EventHistoryController_deliveries",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/event-deliveries/{eventId}/{consumer}/requeue": {
+      "post": {
+        "operationId": "EventHistoryController_requeue",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "consumer",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequeueDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "events"
+        ]
+      }
     }
   },
   "info": {
@@ -3119,6 +3300,56 @@
         },
         "required": [
           "producer_code"
+        ]
+      },
+      "CorrectionFieldsDto": {
+        "type": "object",
+        "properties": {
+          "first_name": {
+            "type": "object"
+          },
+          "last_name": {
+            "type": "object"
+          },
+          "legal_name": {
+            "type": "object"
+          },
+          "community": {
+            "type": "object"
+          },
+          "province": {
+            "type": "object"
+          },
+          "canton": {
+            "type": "object"
+          },
+          "parish": {
+            "type": "object"
+          }
+        }
+      },
+      "CorrectUpdateDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "expected_version": {
+            "type": "number",
+            "description": "row_version del productor leído"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "fields": {
+            "$ref": "#/components/schemas/CorrectionFieldsDto"
+          }
+        },
+        "required": [
+          "operation_id",
+          "expected_version",
+          "reason",
+          "fields"
         ]
       },
       "UpdateProducerDto": {
@@ -3556,6 +3787,17 @@
         "required": [
           "cte_definition_id",
           "values"
+        ]
+      },
+      "RequeueDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
         ]
       }
     }

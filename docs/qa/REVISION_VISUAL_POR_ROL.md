@@ -134,3 +134,10 @@ Defecto encontrado y corregido: `geometry_visible` llegaba como texto `"false"` 
 - coordinador.multi (responsable de trazabilidad): datos mínimos de Recepción (6), incluida la causa de diferencia condicional.
 - productor.cooperativa: sin acceso al catálogo ni a los datos mínimos (mensaje de permiso).
 - Capturas `kde--*.png`. Resultado: 27 entradas, 0 incidencias.
+
+## P0-015 Eventos (2026-10-10)
+- admin.cooperativa (390 px): «Historial de eventos» en la ficha de DEMO-RV-001 (sin correo ni documento), página «Entregas de eventos fallidas» accesible (sin DEAD en DEMO).
+- tecnico1.cooperativa: historial de su productor asignado; sin enlace a entregas DEAD.
+- tecnico2.cooperativa: sin acceso al historial de un productor no asignado.
+- auditor.cooperativa: ve el historial, sin botones de corrección; entregas DEAD denegadas.
+- La corrección con teclado a 390 px se verifica en E2E (`productos.spec.ts`). Capturas `eventos--*.png`. Resultado: 28 entradas, 0 incidencias.

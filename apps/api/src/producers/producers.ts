@@ -1,10 +1,10 @@
 import {
   Body, Controller, Get, HttpCode, Inject, Injectable, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
-import { randomUUID } from 'crypto';
+import { IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
+import { createHash, randomUUID } from 'crypto';
 import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 import { DB } from '../db/database';
 import type { Database, ProducerStatus, ProducersTable } from '../db/schema';
@@ -58,6 +58,27 @@ class CreateProducerDto extends ProducerFieldsDto {
   @ApiPropertyOptional({ enum: ['DRAFT', 'ACTIVE'], default: 'ACTIVE' }) @IsOptional() @IsIn(['DRAFT', 'ACTIVE']) status?: 'DRAFT' | 'ACTIVE';
   @ApiPropertyOptional({ description: 'Membresía responsable (misma organización)' })
   @IsOptional() @IsUUID() assigned_membership_id?: string;
+}
+
+/** Campos corregibles (P0-015): descriptivos en claro. La identidad cifrada no se corrige por esta vía. */
+export const CORRECTABLE_FIELDS = ['first_name', 'last_name', 'legal_name', 'community', 'province', 'canton', 'parish'] as const;
+export const CORRECTABLE_EVENT_TYPES = ['ProducerUpdated', 'ProducerUpdateCorrected'];
+
+class CorrectionFieldsDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() @Length(1, 100) first_name?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @Length(1, 100) last_name?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @Length(1, 200) legal_name?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(120) community?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) province?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) canton?: string | null;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) parish?: string | null;
+}
+
+export class CorrectUpdateDto {
+  @ApiProperty() @IsUUID() operation_id!: string;
+  @ApiProperty({ description: 'row_version del productor leído' }) @IsInt() @Min(1) expected_version!: number;
+  @ApiProperty() @IsString() @Length(3, 500) reason!: string;
+  @ApiProperty({ type: CorrectionFieldsDto }) @IsObject() @ValidateNested() @Type(() => CorrectionFieldsDto) fields!: CorrectionFieldsDto;
 }
 
 class UpdateProducerDto extends ProducerFieldsDto {
@@ -154,7 +175,7 @@ export class ProducersService {
   }
 
   /** Carga un productor de la organización respetando el alcance; fuera de alcance = 404. */
-  private async load(db: Kysely<Database> | Transaction<Database>, ctx: TenantContext, id: string, kind: 'read' | 'update', lock = false) {
+  async load(db: Kysely<Database> | Transaction<Database>, ctx: TenantContext, id: string, kind: 'read' | 'update', lock = false) {
     let q = db.selectFrom('producers').selectAll().where('organization_id', '=', ctx.organizationId).where('id', '=', id);
     if (lock) q = q.forUpdate();
     const row = await q.executeTakeFirst();
@@ -356,6 +377,99 @@ export class ProducersService {
       can_assign: ctx.permissions.includes('producer:assign') && ctx.organizationStatus === 'ACTIVE',
       can_archive: ctx.permissions.includes('producer:archive') && ctx.organizationStatus === 'ACTIVE',
     };
+  }
+
+  /**
+   * P0-015 — Corrección de una actualización de productor (contrato de corrección implementado).
+   * Efecto de dominio: los campos corregidos del productor toman los valores indicados (nueva versión con
+   * change_type CORRECTION y motivo). Registro: evento ProducerUpdateCorrected con correction_of al evento
+   * corregido (mismo agregado y organización, protegido también en BD). El evento original y su versión
+   * no se modifican. Solo se corrigen campos que el evento corregido cambió y que sean corregibles; un
+   * campo vuelto a cambiar después por otra operación hace la corrección obsoleta (409). Un evento se
+   * corrige una vez: para volver a corregir se corrige la última corrección (cadena).
+   */
+  async correctUpdate(user: AuthUser, orgId: string, id: string, eventId: string, dto: CorrectUpdateDto, requestId?: string) {
+    const ctx = await this.authz.tenantContext(user, orgId);
+    if (!ctx) throw notFound();
+    if (!ctx.permissions.includes('producer:update') && !ctx.permissions.includes('producer:update_assigned')) throw forbidden();
+    if (ctx.organizationStatus !== 'ACTIVE') throw forbidden('ORGANIZATION_SUSPENDED', 'La organización está suspendida; no admite nuevas operaciones.');
+    const fields = Object.fromEntries(Object.entries(dto.fields ?? {}).filter(([, v]) => v !== undefined)) as Partial<Record<(typeof CORRECTABLE_FIELDS)[number], string | null>>;
+    const requestHash = createHash('sha256').update(JSON.stringify([eventId, dto.reason.trim(), Object.entries(fields).sort()])).digest('hex');
+
+    // Reintento: se revalida el alcance sobre el recurso ANTES de devolver el resultado.
+    const prior = await this.db.selectFrom('domain_events').selectAll().where('organization_id', '=', orgId).where('operation_id', '=', dto.operation_id).executeTakeFirst();
+    if (prior) {
+      await this.load(this.db, ctx, id, 'update');
+      const pl = prior.payload as { request_hash?: string };
+      if (prior.event_type !== 'ProducerUpdateCorrected' || prior.aggregate_id !== id || prior.correction_of_event_id !== eventId || pl.request_hash !== requestHash) {
+        throw conflict('OPERATION_ID_REUSED', 'Ese identificador de operación ya se usó con otro contenido.');
+      }
+      return { replayed: true, correction_event_id: prior.event_id, producer: this.view(await this.load(this.db, ctx, id, 'read'), ctx) };
+    }
+    if (Object.keys(fields).length === 0) throw new AppError(400, 'VALIDATION_FAILED', 'Indica al menos un campo a corregir.', [{ field: 'fields', reason: 'EMPTY' }]);
+
+    try {
+      return await this.db.transaction().execute(async (trx) => {
+        const before = await this.load(trx, ctx, id, 'update', true);
+        if (before.status === 'INACTIVE') throw conflict('PRODUCER_INACTIVE', 'El productor está dado de baja; reactívalo para corregirlo.');
+        if (Number(before.row_version) !== dto.expected_version) throw conflict('VERSION_CONFLICT', 'Otra persona modificó este productor. Recarga para ver la versión actual.');
+        const original = await trx.selectFrom('domain_events').selectAll()
+          .where('organization_id', '=', orgId).where('event_id', '=', eventId).where('aggregate_type', '=', 'PRODUCER').where('aggregate_id', '=', id).executeTakeFirst();
+        if (!original) throw notFound('El evento no existe en el historial de este productor.');
+        if (!CORRECTABLE_EVENT_TYPES.includes(original.event_type)) {
+          throw new AppError(422, 'CORRECTION_NOT_SUPPORTED', 'Este tipo de evento no tiene un contrato de corrección.', [{ field: 'event_id', reason: original.event_type }]);
+        }
+        const next = await trx.selectFrom('domain_events').select('event_id').where('organization_id', '=', orgId).where('correction_of_event_id', '=', eventId).executeTakeFirst();
+        if (next) {
+          let last = next.event_id;
+          for (;;) {
+            const n = await trx.selectFrom('domain_events').select('event_id').where('organization_id', '=', orgId).where('correction_of_event_id', '=', last).executeTakeFirst();
+            if (!n) break;
+            last = n.event_id;
+          }
+          throw new AppError(409, 'EVENT_ALREADY_CORRECTED', 'Este evento ya fue corregido: corrige la última corrección de la cadena.', [{ field: 'latest_correction_event_id', reason: last }]);
+        }
+        const changedByOriginal = ((original.payload as { changed_fields?: string[] }).changed_fields ?? []);
+        for (const f of Object.keys(fields)) {
+          if (!(CORRECTABLE_FIELDS as readonly string[]).includes(f)) throw new AppError(422, 'FIELD_NOT_CORRECTABLE', 'Ese campo no se corrige por esta vía.', [{ field: f, reason: 'NOT_CORRECTABLE' }]);
+          if (!changedByOriginal.includes(f)) throw new AppError(422, 'FIELD_NOT_IN_CORRECTED_EVENT', 'Solo se corrigen campos que cambió el evento corregido.', [{ field: f, reason: 'NOT_CHANGED_BY_EVENT' }]);
+        }
+        const later = await trx.selectFrom('domain_events').select(['payload'])
+          .where('organization_id', '=', orgId).where('aggregate_type', '=', 'PRODUCER').where('aggregate_id', '=', id)
+          .where(sql<boolean>`aggregate_version > ${original.aggregate_version}`)
+          .where('event_type', 'in', CORRECTABLE_EVENT_TYPES).execute();
+        const touched = new Set(later.flatMap((e) => (e.payload as { changed_fields?: string[] }).changed_fields ?? []));
+        const stale = Object.keys(fields).filter((f) => touched.has(f));
+        if (stale.length) throw new AppError(409, 'CORRECTION_SUPERSEDED', 'Un cambio posterior ya modificó ese campo; la corrección quedaría sin sentido. Revisa el historial.', stale.map((f) => ({ field: f, reason: 'CHANGED_LATER' })));
+        const patch = this.normalize(fields as ProducerFieldsDto);
+        const changed = (Object.keys(patch) as EditableField[]).filter((k) => patch[k] !== before[k]);
+        if (changed.length === 0) throw conflict('NO_CHANGE', 'Los valores indicados ya son los vigentes.');
+        this.assertNames({ ...before, ...patch });
+        const changedPatch = Object.fromEntries(changed.map((k) => [k, patch[k]])) as Partial<Record<EditableField, string | null>>;
+        const row = await trx.updateTable('producers')
+          .set({ ...this.splitFields(changedPatch), updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1` } as never)
+          .where('id', '=', id).where('organization_id', '=', orgId).returningAll().executeTakeFirstOrThrow();
+        const after = this.plain(row, true);
+        await this.recordVersion(trx, after, 'CORRECTION', changed, user.id, dto.reason.trim());
+        const ev = await this.events.append(trx, {
+          organizationId: orgId, eventType: 'ProducerUpdateCorrected', schemaVersion: 1, aggregateType: 'PRODUCER',
+          aggregateId: id, aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId,
+          operationId: dto.operation_id, correctionOf: { eventId, reason: dto.reason.trim() },
+          payload: { changed_fields: changed, corrected_event_id: eventId, request_hash: requestHash },
+        });
+        await this.audit.record(trx, {
+          organizationId: orgId, actorUserId: user.id, action: 'producer.correct', entityType: 'producer', entityId: id, requestId, result: 'SUCCESS',
+          after: { corrected_event_id: eventId, correction_event_id: ev.event_id, changed_fields: changed, reason: dto.reason.trim(), version: Number(after.row_version) },
+        });
+        return { replayed: false, correction_event_id: ev.event_id, producer: this.view(after, ctx) };
+      });
+    } catch (e) {
+      const c = (e as { constraint?: string }).constraint;
+      if (c === 'domain_events_corrected_once') throw conflict('EVENT_ALREADY_CORRECTED', 'Otra persona corrigió este evento al mismo tiempo. Recarga el historial.');
+      if (c === 'domain_events_operation_uq') throw conflict('OPERATION_ID_REUSED', 'Ese identificador de operación ya se usó.');
+      if (c === 'domain_events_aggregate_version_uq') throw conflict('VERSION_CONFLICT', 'Otra persona modificó este productor. Recarga para ver la versión actual.');
+      throw e;
+    }
   }
 
   async update(user: AuthUser, orgId: string, id: string, dto: UpdateProducerDto, requestId?: string) {
@@ -564,6 +678,12 @@ export class ProducersController {
   @Get(':id/history')
   history(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.service.history(user, orgId, id);
+  }
+
+  @Post(':id/events/:eventId/corrections')
+  @ApiOperation({ summary: 'Corregir una actualización del productor (correction_of)' })
+  correct(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string, @Param('eventId', ParseUUIDPipe) eventId: string, @Body() dto: CorrectUpdateDto, @Req() req: AuthedRequest) {
+    return this.service.correctUpdate(user, orgId, id, eventId, dto, req.requestId);
   }
 
   @Patch(':id')

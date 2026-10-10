@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-015 Eventos | **DONE_LOCAL** para los criterios internos de la organización (correction_of con efecto real en productor, historial autorizado, reproceso DEAD, fencing); concesiones externas y elevación siguen en P0-003 | Ver criterios abajo |
 | P0-014 KDE | **DONE_LOCAL** para catálogo y servicio de validación; 0 compuertas integradas (cada operación lo demuestra en su historia); D-33, D-34 y configuración jurídica pendientes | Ver criterios abajo |
 | P0-013 CTE | **DONE_LOCAL** (catálogo versionado y mapeo de lo existente; la integración de cada operación es criterio de su propia historia) | Ver criterios abajo |
 | P0-011 Productos | **ABIERTA**: catálogo, unidades, permisos, historia y UI-09 verificados localmente; queda 1 criterio que depende de P0-016/017 («transformación cambia estado con evento/rendimiento») | Ver criterios abajo |
@@ -232,6 +233,40 @@ Fallo intermitente previo (`validation-results/2026-10-10T18-49-29-397Z`): `prod
 | UI | Consulta por hito (tipo, unidad, obligatoriedad, condición, regla, responsable, fuente, integración) sin formularios; 390 px y teclado | E2E; revisión por rol |
 | **Integración en operaciones** | **0 integradas**; cada historia (P0-012, P0-016, P0-017, P0-029) debe demostrar el bloqueo | — |
 
+### P0-015 — criterios (alcance interno)
+
+Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-10-10T19-28-15-559Z`): API 203/203, web 4/4, E2E 45/45, OpenAPI 70 rutas. Revisión visual 28 entradas, 0 incidencias.
+
+| Criterio | Resultado | Evidencia (`event-corrections.int-spec.ts`, `events.int-spec.ts`, E2E) |
+| --- | --- | --- |
+| Envolvente/versión/tenant/actor/tiempos, append-only | Existentes (TECH-001); actor de la sesión | `events.int-spec.ts` |
+| correction_of | Misma organización y agregado, motivo, cadena, sin autorreferencia ni referencias ajenas (también en BD); original inmutable; efecto de dominio real en el productor | «corrección real…», «rechazos…» |
+| Idempotencia y concurrencia | Reintento idéntico → réplica (con autorización revalidada); mismo id con otro contenido → 409; 3 correcciones simultáneas → 1; cambio posterior → obsoleta | «idempotencia y concurrencia…» |
+| Rollback | Fallo forzado → sin cambio, evento ni auditoría | «rollback…» |
+| Historial causal | Por recurso con alcance efectivo, orden y paginación estables, corrección y vínculo al original, campos permitidos, sin identidad ni secretos; tipo desconocido sin campos; reasignación y membresía desactivada retiran acceso | «historial por recurso…» |
+| Outbox atómico y consumo idempotente | Fallo de confirmación tras efectos → efectos revertidos; reintento aplica una vez; entrega repetida sin efectos; recibos no se borran | «el consumidor completa sus efectos…» |
+| Reproceso DEAD | Autorizado (ORG_ADMIN) con motivo y auditoría; auditor/técnico/otra organización denegados; solicitudes simultáneas → una; historial de intentos y recibos conservados | «DEAD → reproceso…» |
+| Fencing de arrendamientos | Un worker con arrendamiento vencido no confirma la entrega reclamada después (LEASE_LOST); efectos una vez | «fencing…» |
+| UI | Historial en fichas de productor y parcela; corrección solo con permiso y contrato; original visible y marcado; página de entregas DEAD; 390 px y teclado | E2E; revisión por rol |
+| **Concesiones externas y elevación** | **Pendientes en P0-003** | — |
+
+Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
+
+### Preparación de P0-012 Entregas (revisión, sin implementar)
+
+| Aspecto | Situación |
+| --- | --- |
+| Productos | Capacidad disponible (catálogo por organización, KG) |
+| CTE/KDE que usará | DELIVERY@1 (7 KDE), RECEPTION@1 (6), WEIGHING@1 (5), CLASSIFICATION@1 (5) |
+| Condiciones indefinidas (D-34) | `DELIVERY_PRODUCTION_PERIOD` → CONDITION_NOT_EVALUABLE en **toda** entrega: la compuerta bloquearía cualquier registro |
+| Referencias sin entidad | `DELIVERY_SUPPORT` (documento, P0-018) → no verificable o ausente: bloquea toda entrega (D-35); `RECEPTION_LOCATION` (centros: docs/06 `locations`), `WEIGHING_SUBJECT` (modelo de pesaje), `CLASSIFICATION_SAMPLE` (muestras) deben modelarse en P0-012 |
+| Diferencias de modelo | `deliveries` sin parcela en docs/06 (arreglo tipado en docs/09); proveedor no productor sin entidad; sin entidad de pesaje |
+| Eventos y correcciones | DeliveryRegistered, ReceptionConfirmed, WeightRecorded, QualityDecisionRecorded; `ReceptionCorrected` definido en docs/08 (referencia al original, motivo, ajuste; bloquear si hay descendientes) — usar el mecanismo `correction_of` de P0-015 |
+| Decisiones que **bloquean** | **D-34** (condición de production_period), **D-35** (exigencia del soporte documental o P0-018), **D-33** en lo que afecta a P0-012 (si pesaje y clasificación son obligatorios antes de confirmar la recepción) |
+| Decisiones que no bloquean | D-32 (KG es suficiente), D-31 (catálogo provisional ya usable), proveedor no productor (P0 puede limitarse a productores si se registra la limitación) |
+
+No se convierte ninguna condición desconocida en opcional para desbloquear Entregas.
+
 ## Interfaz según docs/UX_UI.md (2026-10-10)
 
 Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1/UX-V1 únicos en `apps/web/app/globals.css`; shell adaptable (organización activa con selector, usuario y rol efectivo, navegación por permisos, migas, «Saltar al contenido», menú móvil); login (UI-01) con mostrar/ocultar y mensajes distintos para 401/429/503/red; organizaciones (UI-02); miembros, invitaciones y roles (UI-03) en página propia; auditoría (UI-18) en página propia; productores y revisión de duplicados (UI-05) con tabla, filtros y estados diferenciados (carga, vacío, filtro sin resultados, error, 403, 404, conflicto 409 con recarga). Sin menús de módulos futuros; las capacidades pendientes por rol aparecen rotuladas en una tarjeta aparte. Revisión por rol: `docs/qa/REVISION_VISUAL_POR_ROL.md` (0 incidencias abiertas; 4 corregidas).
@@ -245,7 +280,7 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 - Android/offline, integraciones, despliegue: no iniciados.
 - Logotipo oficial y verificación de licencia de Inter (UX-D01/UX-D02). Evaluación de accesibilidad completa (lector de pantalla, zoom 200 %) no realizada: solo foco por teclado y móvil comprobados.
 
-## Próxima acción: P0-015 dentro de la organización, incluido `correction_of` (alcance en `sesiones/2026-10-10-p0-014-kde.md`)
+## Próxima acción: decidir D-34, D-35 y la parte de D-33 que afecta a la recepción antes de P0-012 (análisis en `sesiones/2026-10-10-p0-015-eventos.md`)
 
 ## Anterior: P0-006 Parcela
 

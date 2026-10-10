@@ -158,3 +158,30 @@ test('P0-014 datos mínimos (KDE) de un hito: tipo, unidad, obligatoriedad, cond
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });
+
+test('P0-015 historial de eventos y corrección de una actualización de productor; original visible; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  const orgId = orgUrl.split('/organizaciones/')[1];
+  const h = { authorization: `Bearer ${token}` };
+  const created = await (await page.request.post(`${API_URL}/api/v1/organizations/${orgId}/producers`, { headers: h, data: { producer_code: 'EV-001', legal_name: 'Finca Eventos', community: 'El Carmen' } })).json();
+  const upd = await page.request.patch(`${API_URL}/api/v1/organizations/${orgId}/producers/${created.id}`, { headers: h, data: { expected_version: created.row_version, community: 'Chone' } });
+  expect(upd.status()).toBe(200);
+  await page.goto(`${orgUrl}/productores/${created.id}`);
+  const history = page.getByRole('region', { name: 'Historial de eventos' });
+  await expect(history).toContainText('Datos actualizados');
+  await history.getByRole('button', { name: 'Corregir la versión 2' }).focus();
+  await page.keyboard.press('Enter');
+  await page.getByLabel('Valor correcto de comunidad').fill('El Carmen Alto');
+  await page.getByLabel('Motivo de la corrección').fill('Se registró la comunidad equivocada');
+  await page.getByRole('button', { name: 'Registrar corrección' }).click();
+  await expect(history).toContainText('Corrección de datos');
+  await expect(history).toContainText('Corrige v2 (Datos actualizados) · motivo: Se registró la comunidad equivocada');
+  await expect(history).toContainText('Corregido'); // el original sigue visible y marcado
+  await expect(history.getByRole('button', { name: 'Corregir la versión 2' })).toHaveCount(0);
+  const after = await (await page.request.get(`${API_URL}/api/v1/organizations/${orgId}/producers/${created.id}`, { headers: h })).json();
+  expect(after.community).toBe('El Carmen Alto'); // efecto de dominio
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await page.goto(`${orgUrl}/entregas-eventos`);
+  await expect(page.getByRole('heading', { name: 'Entregas de eventos fallidas' })).toBeVisible();
+  await ctx.close();
+});

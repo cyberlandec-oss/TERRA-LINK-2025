@@ -200,3 +200,5 @@ ul.plain > li:last-child { border-bottom: 0; }
 .hash { overflow-wrap: anywhere; font-size: 0.85em; }
 .downloads { display: flex; flex-wrap: wrap; gap: var(--tl-space-2); align-items: center; }
 button.small { padding: 4px 10px; font-size: 0.875rem; }
+.event-list .event { padding: var(--tl-space-2) 0; border-bottom: 1px solid var(--tl-border, #e3e7e5); }
+.event-list .event.correction { border-left: 3px solid var(--tl-review, #b7791f); padding-left: var(--tl-space-2); }

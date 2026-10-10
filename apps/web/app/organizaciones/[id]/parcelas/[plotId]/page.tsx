@@ -11,6 +11,7 @@ import { PolygonCapture } from '../../../../../lib/polygon-capture';
 import { GeometryImport } from '../../../../../lib/geometry-import';
 import { VersionDownloads } from '../../../../../lib/geometry-downloads';
 import { GisEvaluation } from '../../../../../lib/gis-evaluation';
+import { EventHistory } from '../../../../../lib/event-history';
 import { GEOMETRY_STATUS, GEOMETRY_TYPE_LABEL, GeometrySketch, METHOD_LABEL, ha, positions, type Plot, type PlotVersion } from '../../../../../lib/plots';
 
 interface HistoryRow { version: number; change_type: string; changed_fields: string[]; reason: string | null; changed_at: string; actor: string }
@@ -158,6 +159,8 @@ export default function PlotDetailPage() {
           </section>
 
           {plot.can_archive && <StatusPlot orgId={orgId} plot={plot} onSaved={load} />}
+
+          <EventHistory orgId={orgId} kind="plots" id={plot.id} />
 
           <section className="card">
             <h2>Historial</h2>

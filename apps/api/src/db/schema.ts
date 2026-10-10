@@ -123,6 +123,8 @@ export interface DomainEventsTable {
   causation_id: string | null;
   operation_id: string | null;
   payload: unknown;
+  correction_of_event_id: Generated<string | null>;
+  correction_reason: Generated<string | null>;
 }
 
 export interface EventDeliveriesTable {
@@ -136,6 +138,8 @@ export interface EventDeliveriesTable {
   last_error: string | null;
   delivered_at: Timestamp | null;
   created_at: Timestamp;
+  lease_token: string | null;
+  manual_requeues: Generated<number>;
 }
 
 export interface ConsumerReceiptsTable {
@@ -435,7 +439,22 @@ export interface ProductVersionsTable {
   changed_at: Timestamp;
 }
 
+export interface EventDeliveryAttemptsTable {
+  id: Generated<string>;
+  event_id: string;
+  consumer: string;
+  attempt: number;
+  worker_id: string | null;
+  lease_token: string | null;
+  outcome: 'DONE' | 'DUPLICATE' | 'FAILED' | 'DEAD' | 'LEASE_LOST' | 'MANUAL_REQUEUE';
+  error_code: string | null;
+  actor_id: string | null;
+  reason: string | null;
+  recorded_at: Generated<Timestamp>;
+}
+
 export interface Database {
+  event_delivery_attempts: EventDeliveryAttemptsTable;
   product_states: ProductStatesTable;
   measurement_units: MeasurementUnitsTable;
   products: ProductsTable;

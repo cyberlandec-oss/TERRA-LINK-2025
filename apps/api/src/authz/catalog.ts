@@ -1,6 +1,6 @@
 // Catálogo RBAC versionado (docs/07_RBAC_Y_GOBERNANZA.md). Se amplía por historia; no inferir
 // privilegios comparando nombres de rol fuera de este módulo.
-export const RBAC_CATALOG_VERSION = '2026-10-10.8';
+export const RBAC_CATALOG_VERSION = '2026-10-10.9';
 
 export type Permission =
   | 'organization:read'
@@ -37,7 +37,9 @@ export type Permission =
   | 'product:read'
   | 'product:manage'
   // P0-013: consultar el catálogo de sistema de hitos críticos (CTE). Sin facultad de administración.
-  | 'traceability:read_catalog';
+  | 'traceability:read_catalog'
+  // P0-015: reprocesar manualmente entregas DEAD del outbox de la propia organización (con motivo y auditoría).
+  | 'events:reprocess';
 
 // Permisos de plataforma: solo SUPER_ADMIN (users.platform_role), nunca por membresía.
 export type PlatformPermission =
@@ -62,7 +64,7 @@ const PLOT_ALL: Permission[] = [
 // Permisos de productor: propuesta provisional derivada de S1 §9 (FIELD_TECHNICIAN producer:create/read)
 // y doc 07/14 («solo asignaciones» para el técnico). Pendiente de ratificación con el resto de la matriz.
 export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  ORG_ADMIN: ['audit:read', 'organization:read', 'organization:update', 'membership:read', 'membership:assign', ...PRODUCER_ALL, ...PLOT_ALL, 'product:read', 'traceability:read_catalog', 'product:manage'],
+  ORG_ADMIN: ['audit:read', 'organization:read', 'organization:update', 'membership:read', 'membership:assign', ...PRODUCER_ALL, ...PLOT_ALL, 'product:read', 'traceability:read_catalog', 'product:manage', 'events:reprocess'],
   MANAGER: [...ALL_MEMBER_READ, 'membership:read', 'producer:read', 'producer:read_identity', 'producer:create', 'producer:update', 'producer:assign', 'producer:archive', 'producer:review_duplicates', 'plot:read', 'plot:create', 'plot:update', 'plot:archive', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog'],
   FIELD_TECHNICIAN: [...ALL_MEMBER_READ, 'producer:read_assigned', 'producer:read_identity', 'producer:create', 'producer:update_assigned',
     'plot:read_assigned', 'plot:create_assigned', 'plot:update_assigned', 'plot:read_geometry', 'plot:evaluate_gis_assigned', 'product:read', 'traceability:read_catalog'],

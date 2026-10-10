@@ -117,6 +117,18 @@ Diferencias registradas en cada definición (campo `difference`), entre ellas: d
 | SALE | 5 | Sin historia (D-33) | Precio sin moneda se rechaza |
 | SHIPMENT | 7 | P0-029 | SHIPMENT_DISPATCH con condiciones no definidas queda bloqueado hasta D-34 |
 
+## Eventos dentro de la organización (P0-015, implementado)
+
+**Correcciones.** `correction_of_event_id` + `correction_reason` en `domain_events` (migración 0017), protegidos en BD: misma organización y agregado, posterior al corregido, sin autorreferencia (los ciclos son imposibles: solo se referencia un evento ya insertado y la tabla es append-only), motivo obligatorio, un evento corregido una sola vez (para volver a corregir se corrige la última corrección → cadena). El actor sale de la sesión (un `actor_id` en el cuerpo es rechazado).
+
+Se distinguen tres cosas: (1) **registrar** que un evento fue corregido (evento de corrección con `correction_of`), (2) **aplicar** el cambio de dominio (en la misma transacción), (3) **actualizar consumidores/proyecciones** (outbox, al menos una vez, consumo idempotente).
+
+**Contrato de corrección implementado:** `ProducerUpdated` (y sus correcciones) → `ProducerUpdateCorrected` vía `POST /producers/{id}/events/{eventId}/corrections` con `operation_id`, `expected_version`, `reason` y `fields`. Efecto: los campos indicados del productor toman los valores corregidos (nueva versión `CORRECTION` con motivo); evento y versión originales intactos. Solo campos que cambió el evento corregido y que sean descriptivos en claro (nombre, apellido, razón social, comunidad, provincia, cantón, parroquia); la identidad cifrada no se corrige por esta vía. Si un evento posterior volvió a cambiar el campo → 409 `CORRECTION_SUPERSEDED`. Concurrencia: bloqueo del productor + `expected_version` + índice único de corrección. Idempotencia: `operation_id` con huella del contenido (mismo id con otro contenido → 409). **Cualquier otro tipo de evento → 422 `CORRECTION_NOT_SUPPORTED`.** No hay endpoint genérico de eventos. Las correcciones de cantidades, stock o procesos se definirán en sus historias (p. ej. `ReceptionCorrected` en P0-012).
+
+**Historial.** Lista blanca de campos por tipo (`events/event-history.ts`); un tipo desconocido no expone campos. Orden por `aggregate_version` descendente con cursor.
+
+**Entregas.** Token de arrendamiento (fencing): la confirmación y el registro de fallo filtran por el token del reclamo; si otro reclamo tomó la entrega, la transacción del consumidor se revierte (`LEASE_LOST`). Historial de intentos append-only; `last_error` solo con códigos. Reproceso manual de DEAD: misma entrega y evento, recibos intactos, un intento adicional, motivo y auditoría. Garantía: **al menos una vez** con consumo idempotente; no exactamente una vez.
+
 ## Implementación vigente (TECH-001, 2026-10-10)
 
 Código: `apps/api/src/events/` y migración `0004_domain_events_outbox`. **No cierra** CTE/KDE, P0-015 (historial causal completo) ni el framework de reglas: es la base técnica que esas historias usarán.

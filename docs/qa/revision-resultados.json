@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-10T19:07:02.570Z",
+  "fecha": "2026-10-10T19:41:25.908Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -98,6 +98,7 @@
         "Hitos (CTE)",
         "Miembros e invitaciones",
         "Auditoría",
+        "Entregas de eventos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Cooperativa Río Verde",
@@ -413,6 +414,7 @@
         "Hitos (CTE)",
         "Miembros e invitaciones",
         "Auditoría",
+        "Entregas de eventos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Acopio San Isidro",
@@ -570,6 +572,7 @@
         "Hitos (CTE)",
         "Miembros e invitaciones",
         "Auditoría",
+        "Entregas de eventos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -833,6 +836,7 @@
         "Hitos (CTE)",
         "Miembros e invitaciones",
         "Auditoría",
+        "Entregas de eventos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Chocolates Europa (importador UE)",
@@ -1139,6 +1143,32 @@
         {
           "cuenta": "productor.cooperativa (sin permiso)",
           "resultado": "enlace=0; acceso directo denegado=1",
+          "ok": true
+        }
+      ],
+      "ok": true
+    },
+    {
+      "tipo": "eventos",
+      "casos": [
+        {
+          "cuenta": "admin.cooperativa (390 px, teclado)",
+          "resultado": "1 eventos en la ficha; muestra «Productor registrado»=true; sin correo ni documento=true; página DEAD accesible=true; desborde=false",
+          "ok": true
+        },
+        {
+          "cuenta": "tecnico1.cooperativa (operativo asignado)",
+          "resultado": "1 eventos en su productor asignado; enlace a entregas DEAD=0",
+          "ok": true
+        },
+        {
+          "cuenta": "tecnico2.cooperativa (sin asignación)",
+          "resultado": "historial de un productor ajeno visible=0",
+          "ok": true
+        },
+        {
+          "cuenta": "auditor.cooperativa",
+          "resultado": "1 eventos visibles; botones de corrección=0; entregas DEAD denegadas",
           "ok": true
         }
       ],

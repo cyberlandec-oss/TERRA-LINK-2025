@@ -79,6 +79,7 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
       admin.push({ href: `${base}/miembros`, label: onboardingOnly ? 'Incorporar administrador' : 'Miembros e invitaciones', match: (p) => p.startsWith(`${base}/miembros`) });
     }
     if (ws.can('audit:read')) admin.push({ href: `${base}/auditoria`, label: 'Auditoría', match: (p) => p.startsWith(`${base}/auditoria`) });
+    if (ws.can('events:reprocess')) admin.push({ href: `${base}/entregas-eventos`, label: 'Entregas de eventos', match: (p) => p.startsWith(`${base}/entregas-eventos`) });
     if (admin.length) groups.push({ title: 'Administración', items: admin });
   }
   const general: NavItem[] = [{ href: '/organizaciones', label: ws.isPlatformAdmin ? 'Organizaciones (plataforma)' : 'Mis organizaciones', match: (p) => p === '/organizaciones' }];

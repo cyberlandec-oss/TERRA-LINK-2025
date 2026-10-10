@@ -7,6 +7,18 @@ import type { AppConfig } from '../src/config';
 import { createDb, migrateToLatest } from '../src/db/database';
 import type { Database } from '../src/db/schema';
 import { hashPassword } from '../src/auth/passwords';
+import { appendFileSync, mkdirSync } from 'fs';
+import { join } from 'path';
+
+// Diagnóstico acotado del timeout intermitente (P0-004): tiempos de fases del arnés (reinicio del esquema,
+// migraciones, arranque, cierre) y consultas ≥ 1 s (solo texto SQL, sin parámetros). No cambia timeouts.
+const TIMINGS_DIR = join(__dirname, '..', 'test-results');
+function recordTiming(entry: Record<string, unknown>) {
+  try {
+    mkdirSync(TIMINGS_DIR, { recursive: true });
+    appendFileSync(join(TIMINGS_DIR, 'harness-timings.jsonl'), JSON.stringify({ at: new Date().toISOString(), suite: expect.getState().testPath?.split(/[\\/]/).pop(), ...entry }) + '\n');
+  } catch { /* el diagnóstico nunca hace fallar una prueba */ }
+}
 
 // Arnés de integración: PostgreSQL/PostGIS real (base *_test, esquema recreado) y Redis real con
 // prefijo de claves único por corrida. Sin credenciales reales: todo sale de TEST_DATABASE_URL/REDIS_URL.
@@ -41,10 +53,13 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
 
 export async function setupHarness(overrides: Partial<AppConfig> = {}) {
   if (!new URL(TEST_URL!).pathname.endsWith('_test')) throw new Error('TEST_DATABASE_URL debe apuntar a una base *_test');
-  const db: Kysely<Database> = createDb(TEST_URL!);
+  const db: Kysely<Database> = createDb(TEST_URL!, (sqlText, ms) => recordTiming({ phase: 'slow_query', ms, test: expect.getState().currentTestName ?? null, sql: sqlText }));
+  const t0 = Date.now();
   await sql`DROP SCHEMA IF EXISTS public CASCADE`.execute(db);
   await sql`CREATE SCHEMA public`.execute(db);
+  const t1 = Date.now();
   await migrateToLatest(db);
+  const t2 = Date.now();
   const config = testConfig(overrides);
   const app: INestApplication = await createApp(config, db);
   await app.init();
@@ -69,8 +84,12 @@ export async function setupHarness(overrides: Partial<AppConfig> = {}) {
 
   const as = (email: string) => ({ Authorization: `Bearer ${tokens[email]}` });
   const close = async () => {
+    const c0 = Date.now();
     await app.close();
+    const c1 = Date.now();
     await db.destroy();
+    recordTiming({ phase: 'close', app_close_ms: c1 - c0, db_destroy_ms: Date.now() - c1 });
   };
+  recordTiming({ phase: 'setup', schema_reset_ms: t1 - t0, migrate_ms: t2 - t1, app_init_ms: Date.now() - t2 });
   return { db, app, config, http, user, login, as, tokens, close };
 }
