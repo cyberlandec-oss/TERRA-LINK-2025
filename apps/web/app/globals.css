@@ -104,6 +104,11 @@ a:hover { color: var(--tl-forest); }
 .muted { color: var(--tl-text-secondary); font-size: 14px; }
 .form { max-width: 760px; }
 .card form h3, .card .form h3 { margin-top: var(--tl-space-5); }
+/* P0-012 entregas: recepción como bloque dentro de la tarjeta; formularios en línea. */
+.subcard { border: 1px solid var(--tl-border-subtle); border-radius: var(--tl-radius-md); padding: var(--tl-space-4); margin-top: var(--tl-space-4); }
+.inline-form { display: flex; flex-wrap: wrap; gap: var(--tl-space-2); align-items: end; margin-top: var(--tl-space-2); }
+.inline-form input { flex: 1 1 12rem; min-width: 0; }
+.gate + .gate { margin-top: var(--tl-space-4); }
 dl.props { display: grid; grid-template-columns: max-content 1fr; gap: var(--tl-space-2) var(--tl-space-4); margin: 0; }
 dl.props dt { color: var(--tl-text-secondary); font-size: 14px; }
 dl.props dd { margin: 0; }

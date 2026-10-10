@@ -143,7 +143,7 @@ describeDb('P0-018 documentos privados, escaneo y versiones', () => {
     expect((await download('admin-a@test.local', d.id, v.id).expect(409)).body.toString()).toContain('VERSION_NOT_AVAILABLE');
     expect((await http().post(`${base(orgA)}/documents/${d.id}/versions/${v.id}/reviews`).set(as('admin-a@test.local')).send({ decision: 'ACCEPTED', reason: 'no debería' }).expect(409)).body.error.code).toBe('VERSION_NOT_AVAILABLE');
     const cte = (await http().get(`${base(orgA)}/cte-catalog`).set(as('admin-a@test.local')).expect(200)).body.definitions.find((x: { code: string }) => x.code === 'DELIVERY').id;
-    const kde = async () => (await http().post(`${base(orgA)}/kde/validate`).set(as('admin-a@test.local')).send({ cte_definition_id: cte, values: { DELIVERY_SUPPORT: d.id } }).expect(200)).body.items.find((i: { code: string }) => i.code === 'DELIVERY_SUPPORT');
+    const kde = async () => (await http().post(`${base(orgA)}/kde/validate`).set(as('admin-a@test.local')).send({ cte_definition_id: cte, values: { DELIVERY_SUPPORT: [d.id] } }).expect(200)).body.items.find((i: { code: string }) => i.code === 'DELIVERY_SUPPORT');
     expect(await kde()).toMatchObject({ result: 'PRESENT_INVALID', error_code: 'DOCUMENT_NOT_AVAILABLE' });
     const retried = (await http().post(`${base(orgA)}/documents/${d.id}/versions/${v.id}/scan`).set(as('admin-a@test.local')).expect(200)).body;
     expect(retried.versions[0]).toMatchObject({ scan: { status: 'CLEAN' }, availability: 'AVAILABLE' });

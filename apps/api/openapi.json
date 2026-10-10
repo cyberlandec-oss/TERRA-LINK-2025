@@ -4026,6 +4026,732 @@
           "audit"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/locations": {
+      "get": {
+        "operationId": "DeliveriesController_locations",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      },
+      "post": {
+        "operationId": "DeliveriesController_createLocation",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/locations/{locationId}/status": {
+      "post": {
+        "operationId": "DeliveriesController_changeLocation",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocationStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/deliveries": {
+      "get": {
+        "operationId": "DeliveriesController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      },
+      "post": {
+        "operationId": "DeliveriesController_create",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDeliveryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/delivery-options": {
+      "get": {
+        "operationId": "DeliveriesController_options",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/deliveries/{id}": {
+      "get": {
+        "operationId": "DeliveriesController_detail",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      },
+      "patch": {
+        "operationId": "DeliveriesController_update",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDeliveryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/deliveries/{id}/register": {
+      "post": {
+        "operationId": "DeliveriesController_register",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/deliveries/{id}/support-candidates": {
+      "get": {
+        "operationId": "DeliveriesController_candidates",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/deliveries/{id}/supports": {
+      "post": {
+        "operationId": "DeliveriesController_addSupport",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/deliveries/{id}/supports/{supportId}/withdraw": {
+      "post": {
+        "operationId": "DeliveriesController_withdrawSupport",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "supportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/deliveries/{id}/receptions": {
+      "post": {
+        "operationId": "DeliveriesController_receive",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/deliveries/{id}/corrections": {
+      "post": {
+        "operationId": "DeliveriesController_correctDelivery",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryCorrectionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/deliveries/{id}/receptions/{receptionId}/corrections": {
+      "post": {
+        "operationId": "DeliveriesController_correctReception",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "receptionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceptionCorrectionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/deliveries/{id}/receptions/{receptionId}/quality-samples": {
+      "post": {
+        "operationId": "DeliveriesController_addSample",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "receptionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AfterSampleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/deliveries/{id}/receptions/{receptionId}/quality-samples/{sampleId}/results": {
+      "post": {
+        "operationId": "DeliveriesController_addResult",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "receptionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sampleId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QualityResultDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
     }
   },
   "info": {
@@ -4920,6 +5646,452 @@
         "required": [
           "expected_version",
           "reason"
+        ]
+      },
+      "LocationDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "location_type": {
+            "type": "string",
+            "enum": [
+              "COLLECTION_CENTER",
+              "WAREHOUSE",
+              "OTHER"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "location_type"
+        ]
+      },
+      "LocationStatusDto": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_version",
+          "status",
+          "reason"
+        ]
+      },
+      "HarvestPeriodDto": {
+        "type": "object",
+        "properties": {
+          "precision": {
+            "type": "string",
+            "enum": [
+              "DAY",
+              "MONTH",
+              "UNKNOWN"
+            ]
+          },
+          "start": {
+            "type": "string",
+            "description": "DAY: AAAA-MM-DD · MONTH: AAAA-MM"
+          },
+          "end": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "precision"
+        ]
+      },
+      "OriginDto": {
+        "type": "object",
+        "properties": {
+          "plot_id": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Cantidad atribuida a esta parcela (KG, texto decimal); omitir si no se conoce"
+          }
+        },
+        "required": [
+          "plot_id"
+        ]
+      },
+      "CreateDeliveryDto": {
+        "type": "object",
+        "properties": {
+          "product_id": {
+            "type": "object"
+          },
+          "location_id": {
+            "type": "object"
+          },
+          "delivery_date": {
+            "type": "object"
+          },
+          "quantity_declared": {
+            "type": "object",
+            "description": "Texto decimal"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "KG"
+            ]
+          },
+          "harvest_period": {
+            "$ref": "#/components/schemas/HarvestPeriodDto"
+          },
+          "origins": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OriginDto"
+            }
+          },
+          "notes": {
+            "type": "object"
+          },
+          "operation_id": {
+            "type": "string"
+          },
+          "producer_id": {
+            "type": "string"
+          },
+          "register": {
+            "type": "boolean",
+            "description": "Registrar en la misma operación (si la compuerta lo permite)"
+          }
+        },
+        "required": [
+          "operation_id",
+          "producer_id"
+        ]
+      },
+      "UpdateDeliveryDto": {
+        "type": "object",
+        "properties": {
+          "product_id": {
+            "type": "object"
+          },
+          "location_id": {
+            "type": "object"
+          },
+          "delivery_date": {
+            "type": "object"
+          },
+          "quantity_declared": {
+            "type": "object",
+            "description": "Texto decimal"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "KG"
+            ]
+          },
+          "harvest_period": {
+            "$ref": "#/components/schemas/HarvestPeriodDto"
+          },
+          "origins": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OriginDto"
+            }
+          },
+          "notes": {
+            "type": "object"
+          },
+          "expected_version": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "expected_version"
+        ]
+      },
+      "SupportDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "document_version_id": {
+            "type": "string"
+          },
+          "support_kind": {
+            "type": "string",
+            "enum": [
+              "DELIVERY_NOTE",
+              "REMISSION_GUIDE",
+              "PURCHASE_SETTLEMENT",
+              "OTHER"
+            ]
+          }
+        },
+        "required": [
+          "operation_id",
+          "document_version_id",
+          "support_kind"
+        ]
+      },
+      "WeighingDto": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Texto decimal"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "KG"
+            ]
+          },
+          "weighed_on": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "quantity",
+          "unit",
+          "weighed_on"
+        ]
+      },
+      "MeasurementDto": {
+        "type": "object",
+        "properties": {
+          "parameter": {
+            "type": "string",
+            "enum": [
+              "MOISTURE",
+              "FERMENTATION",
+              "IMPURITIES"
+            ]
+          },
+          "value": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string",
+            "description": "Unidad explícita (sin catálogo: D-32)"
+          }
+        },
+        "required": [
+          "parameter",
+          "value",
+          "unit"
+        ]
+      },
+      "QualityResultFieldsDto": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string"
+          },
+          "measurements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MeasurementDto"
+            }
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "RELEASED",
+              "REJECTED"
+            ]
+          },
+          "limits_version": {
+            "type": "string"
+          },
+          "decision_reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "method"
+        ]
+      },
+      "SampleDto": {
+        "type": "object",
+        "properties": {
+          "sample_reference": {
+            "type": "string"
+          },
+          "result": {
+            "$ref": "#/components/schemas/QualityResultFieldsDto"
+          }
+        }
+      },
+      "ReceptionDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "location_id": {
+            "type": "string"
+          },
+          "received_at": {
+            "type": "string",
+            "description": "ISO 8601 con zona"
+          },
+          "weighing": {
+            "$ref": "#/components/schemas/WeighingDto"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "quality_sample": {
+            "description": "Muestra tomada durante la recepción",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SampleDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "operation_id",
+          "location_id",
+          "received_at",
+          "weighing"
+        ]
+      },
+      "DeliveryCorrectionFieldsDto": {
+        "type": "object",
+        "properties": {
+          "delivery_date": {
+            "type": "string"
+          },
+          "quantity_declared": {
+            "type": "string"
+          },
+          "harvest_period": {
+            "$ref": "#/components/schemas/HarvestPeriodDto"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      },
+      "DeliveryCorrectionDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "expected_version": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "fields": {
+            "$ref": "#/components/schemas/DeliveryCorrectionFieldsDto"
+          }
+        },
+        "required": [
+          "operation_id",
+          "expected_version",
+          "reason",
+          "fields"
+        ]
+      },
+      "ReceptionCorrectionDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "expected_version": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "weighing": {
+            "$ref": "#/components/schemas/WeighingDto"
+          }
+        },
+        "required": [
+          "operation_id",
+          "expected_version",
+          "reason",
+          "weighing"
+        ]
+      },
+      "AfterSampleDto": {
+        "type": "object",
+        "properties": {
+          "sample_reference": {
+            "type": "string"
+          },
+          "result": {
+            "$ref": "#/components/schemas/QualityResultFieldsDto"
+          },
+          "operation_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id"
+        ]
+      },
+      "QualityResultDto": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string"
+          },
+          "measurements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MeasurementDto"
+            }
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "RELEASED",
+              "REJECTED"
+            ]
+          },
+          "limits_version": {
+            "type": "string"
+          },
+          "decision_reason": {
+            "type": "string"
+          },
+          "operation_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "operation_id"
         ]
       }
     }

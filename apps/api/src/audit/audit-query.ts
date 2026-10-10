@@ -41,6 +41,8 @@ const ALLOWED: Record<string, string[]> = {
   evidence: ['entity_id', 'document_version_id', 'relationship', 'source_id'],
   event_delivery: ['event_id', 'consumer', 'attempts'],
   audit: ['format_version', 'row_count', 'sha256', 'filters'],
+  delivery: ['delivery_code', 'reception_id', 'sample_id', 'result_id', 'quantity', 'unit', 'location_id', 'product_id', 'support_id', 'document_version_id', 'support_kind', 'moment', 'decision', 'limits_version', 'pending', 'corrected_event_id', 'version'],
+  location: ['code', 'name', 'location_type'],
 };
 /** Nunca se presentan, aunque un registro antiguo los contuviera (secretos, enlaces, coordenadas, contenido). */
 const NEVER = /token|password|secret|hash(?!.*sha)|key|link|url|coordinates|geometry|^lat|^lon|latitude|longitude|vertices|content$/i;
@@ -102,6 +104,10 @@ export class AuditQueryService {
       ? sql<boolean>`EXISTS (SELECT 1 FROM evidence e WHERE e.id = a.entity_id AND e.organization_id = ${org}
           AND ((e.entity_type = 'producer' AND ${producerVisible(sql`e.entity_id`)}) OR (e.entity_type = 'plot' AND ${plotVisible(sql`e.entity_id`)})))`
       : sql<boolean>`FALSE`;
+    const deliveryVisible = has('delivery:read') ? sql<boolean>`TRUE`
+      : has('delivery:read_assigned') ? sql<boolean>`EXISTS (SELECT 1 FROM deliveries dl JOIN producers p ON p.id = dl.producer_id AND p.organization_id = dl.organization_id
+          WHERE dl.id = a.entity_id AND dl.organization_id = ${org} AND p.assigned_membership_id = ${me})`
+      : sql<boolean>`FALSE`;
     return sql<boolean>`(CASE a.entity_type
       WHEN 'producer' THEN ${producerVisible(sql`a.entity_id`)}
       WHEN 'producer_match_review' THEN ${has('producer:read') ? sql`TRUE` : sql`FALSE`}
@@ -109,6 +115,7 @@ export class AuditQueryService {
       WHEN 'document' THEN ${documentVisible}
       WHEN 'evidence' THEN ${evidenceVisible}
       WHEN 'product' THEN ${has('product:read') ? sql`TRUE` : sql`FALSE`}
+      WHEN 'delivery' THEN ${deliveryVisible}
       ELSE TRUE END)`;
   }
 
@@ -177,6 +184,7 @@ export class AuditQueryService {
         if (k === 'email' && !can('membership:read')) { omitted.add(k); continue; }
         if (k === 'relations' && !can('plot:read')) { omitted.add(k); continue; }
         if (r.entity_type === 'evidence' && (k === 'document_version_id' || k === 'source_id') && !readable.has(String(v))) { omitted.add(k); continue; }
+        if (r.entity_type === 'delivery' && k === 'document_version_id' && !can('document:read')) { omitted.add(k); continue; }
         if (r.entity_type === 'evidence' && k === 'reason' && typeof (part as Record<string, unknown>).source_id === 'string' && !readable.has(String((part as Record<string, unknown>).source_id))) { omitted.add(k); continue; }
         if (v !== null && typeof v === 'object' && !Array.isArray(v) && !OBJECT_KEYS.has(k)) { omitted.add(k); continue; }
         if (Array.isArray(v) && v.some((x) => x !== null && typeof x === 'object')) { omitted.add(k); continue; }

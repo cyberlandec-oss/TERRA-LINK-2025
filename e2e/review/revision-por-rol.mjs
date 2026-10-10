@@ -14,6 +14,7 @@ import { reviewEvents } from './eventos.mjs';
 import { reviewDocuments } from './documentos.mjs';
 import { reviewEvidence } from './evidencias.mjs';
 import { reviewAudit } from './auditoria.mjs';
+import { reviewDeliveries } from './entregas.mjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -168,7 +169,10 @@ try {
       }
 
       // Denegación coherente: otra organización DEMO de la que no es miembro.
-      const myOrgs = accounts.filter((x) => x.email === a.email).map((x) => x.organizacion);
+      // Membresías reales desde la API (el CSV puede estar desactualizado si Excel lo tiene abierto).
+      const tok = await page.evaluate(() => sessionStorage.getItem('tl_token'));
+      const apiOrgs = r === 'SUPER_ADMIN' ? [] : await (await fetch(`${API}/api/v1/organizations`, { headers: { authorization: `Bearer ${tok}` } })).json().catch(() => []);
+      const myOrgs = [...new Set([...accounts.filter((x) => x.email === a.email).map((x) => x.organizacion), ...(Array.isArray(apiOrgs) ? apiOrgs.map((o) => o.name) : [])])];
       const foreign = DEMO_ORGS.find((o) => !myOrgs.includes(o));
       if (r !== 'SUPER_ADMIN' && foreign && orgIdByName[foreign]) {
         await page.goto(`${BASE}/organizaciones/${orgIdByName[foreign]}`);
@@ -227,6 +231,7 @@ try {
   results.push(await reviewDocuments({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewEvidence({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewAudit({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewDeliveries({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
 
   // Adaptación móvil (390 px): menú en panel y contenido legible.
   for (const a of accounts.filter((x) => ['tecnico1.cooperativa', 'admin.cooperativa'].includes(x.email.split('@')[0]))) {
@@ -273,6 +278,7 @@ for (const c of results.find((r) => r.tipo === 'cte')?.casos ?? []) console.log(
 for (const c of results.find((r) => r.tipo === 'eventos')?.casos ?? []) console.log(` [eventos] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'documentos')?.casos ?? []) console.log(` [documentos] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'evidencias')?.casos ?? []) console.log(` [evidencias] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'entregas')?.casos ?? []) console.log(` [entregas] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'auditoria')?.casos ?? []) console.log(` [auditoria] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 console.log(`Revisión: ${results.length} entradas; con incidencias: ${issues.length}`);
 for (const i of issues) console.log(` - ${i.cuenta ?? i.tipo} @ ${i.organizacion ?? ''}: ${(i.incidencias ?? []).join(' | ') || JSON.stringify(i)}`);

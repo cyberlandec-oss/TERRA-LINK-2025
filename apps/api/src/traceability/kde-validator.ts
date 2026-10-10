@@ -11,8 +11,9 @@ import { PENDING_ENTITIES, type Condition, type Requirement, type Validation, ty
 // Compuerta: una operación futura solo puede avanzar si `gate.transition_allowed`; cualquier dato
 // REQUIRED_MISSING, PRESENT_INVALID, PRESENT_NOT_VERIFIABLE o CONDITION_NOT_EVALUABLE la bloquea.
 
-export type KdeResult = 'PRESENT_VALID' | 'PRESENT_INVALID' | 'PRESENT_NOT_VERIFIABLE' | 'REQUIRED_MISSING' | 'OPTIONAL_MISSING' | 'NOT_APPLICABLE' | 'CONDITION_NOT_EVALUABLE';
-export const BLOCKING: KdeResult[] = ['REQUIRED_MISSING', 'PRESENT_INVALID', 'PRESENT_NOT_VERIFIABLE', 'CONDITION_NOT_EVALUABLE'];
+export type KdeResult = 'PRESENT_VALID' | 'PRESENT_INVALID' | 'PRESENT_NOT_VERIFIABLE' | 'REQUIRED_MISSING' | 'OPTIONAL_MISSING' | 'NOT_APPLICABLE' | 'CONDITION_NOT_EVALUABLE' | 'DECLARED_UNKNOWN';
+// DECLARED_UNKNOWN (P0-012, D-34): el dato se declaró expresamente como desconocido. Es un pendiente, no un valor válido.
+export const BLOCKING: KdeResult[] = ['REQUIRED_MISSING', 'PRESENT_INVALID', 'PRESENT_NOT_VERIFIABLE', 'CONDITION_NOT_EVALUABLE', 'DECLARED_UNKNOWN'];
 
 export interface KdeDef {
   id: string; code: string; version: number; value_type: ValueType; requirement: Requirement;
@@ -77,6 +78,22 @@ function checkValue(type: ValueType, v: unknown, val: Validation): Check {
       const r = v as { start?: unknown; end?: unknown };
       if (!r || typeof r !== 'object' || typeof r.start !== 'string' || typeof r.end !== 'string' || !validDate(r.start) || !validDate(r.end)) return bad('DATE_RANGE_INVALID', 'Debe ser { "start": "AAAA-MM-DD", "end": "AAAA-MM-DD" }.', 'Indica inicio y fin.');
       return r.start <= r.end ? { ok: true } : bad('DATE_RANGE_INVERTED', 'El inicio es posterior al fin.', 'Corrige el periodo.');
+    }
+    case 'HARVEST_PERIOD': {
+      // Precisión declarada (D-34): DAY = fechas civiles; MONTH = AAAA-MM o intervalo de meses; UNKNOWN = sin fechas.
+      const r = v as { precision?: unknown; start?: unknown; end?: unknown };
+      if (!r || typeof r !== 'object' || Array.isArray(r)) return bad('HARVEST_PERIOD_SHAPE', 'Debe ser { "precision": "DAY" | "MONTH" | "UNKNOWN", "start", "end" }.', 'Indica la precisión del periodo.');
+      if (r.precision === 'UNKNOWN') return isAbsent(r.start) && isAbsent(r.end) ? { ok: true } : bad('HARVEST_PERIOD_UNKNOWN_WITH_DATES', 'Un periodo desconocido no lleva fechas.', 'Quita las fechas o elige la precisión correspondiente.');
+      if (r.precision === 'DAY') {
+        if (typeof r.start !== 'string' || typeof r.end !== 'string' || !validDate(r.start) || !validDate(r.end)) return bad('HARVEST_PERIOD_DAY_INVALID', 'Con precisión de día, inicio y fin deben ser fechas válidas AAAA-MM-DD.', 'Corrige las fechas.');
+        return r.start <= r.end ? { ok: true } : bad('HARVEST_PERIOD_INVERTED', 'El inicio es posterior al fin.', 'Corrige el periodo.');
+      }
+      if (r.precision === 'MONTH') {
+        const M = /^\d{4}-(0[1-9]|1[0-2])$/;
+        if (typeof r.start !== 'string' || typeof r.end !== 'string' || !M.test(r.start) || !M.test(r.end)) return bad('HARVEST_PERIOD_MONTH_INVALID', 'Con precisión de mes, inicio y fin deben ser AAAA-MM (un mes: inicio = fin).', 'Corrige los meses; no se completan días.');
+        return r.start <= r.end ? { ok: true } : bad('HARVEST_PERIOD_INVERTED', 'El mes inicial es posterior al final.', 'Corrige el periodo.');
+      }
+      return bad('HARVEST_PERIOD_PRECISION', 'Precisión no admitida (DAY, MONTH o UNKNOWN).', 'Elige la precisión declarada.');
     }
     case 'ENUM': return typeof v === 'string' && val.values?.includes(v) ? { ok: true } : bad('ENUM_INVALID', `Valor no admitido (admitidos: ${val.values?.join(', ')}).`, 'Elige un valor del catálogo.');
     case 'ENTITY_REF': return typeof v === 'string' && UUID.test(v) ? { ok: true } : bad('REFERENCE_FORMAT', 'Debe ser un identificador válido.', 'Selecciona el registro de la lista.');
@@ -157,6 +174,10 @@ export async function validateKde(defs: KdeDef[], values: Record<string, unknown
     const r = await validityOf(d.code);
     if (r === 'PRESENT_NOT_VERIFIABLE') { items.push({ code: d.code, reference, result: 'PRESENT_NOT_VERIFIABLE', error_code: 'REFERENCE_TYPE_NOT_AVAILABLE', message: `La referencia no se puede verificar todavía (entidad prevista en ${PENDING_ENTITIES[d.validation.entity!] ?? 'una historia futura'}).`, action: 'No cuenta como válida hasta que la entidad exista.' }); continue; }
     const c = r as Check;
+    if (c.ok && d.value_type === 'HARVEST_PERIOD' && (v as { precision?: string }).precision === 'UNKNOWN') {
+      items.push({ code: d.code, reference, result: 'DECLARED_UNKNOWN', error_code: 'DECLARED_UNKNOWN', message: 'Declarado como desconocido: queda pendiente.', action: 'Complétalo cuando se conozca; no se infiere de otros datos.' });
+      continue;
+    }
     items.push(c.ok
       ? { code: d.code, reference, result: 'PRESENT_VALID', error_code: null, message: 'Correcto.', action: null }
       : { code: d.code, reference, result: 'PRESENT_INVALID', error_code: c.code!, message: c.message!, action: c.action! });
@@ -167,7 +188,7 @@ export async function validateKde(defs: KdeDef[], values: Record<string, unknown
     gate: {
       transition_allowed: blocking.length === 0,
       blocking: blocking.map((i) => ({ code: i.code, result: i.result, error_code: i.error_code })),
-      outcome: blocking.some((i) => i.result === 'PRESENT_INVALID') ? 'INVALID' : blocking.some((i) => i.result === 'REQUIRED_MISSING') ? 'INCOMPLETE' : blocking.length ? 'UNDETERMINED' : 'COMPLETE',
+      outcome: blocking.some((i) => i.result === 'PRESENT_INVALID') ? 'INVALID' : blocking.some((i) => i.result === 'REQUIRED_MISSING' || i.result === 'DECLARED_UNKNOWN') ? 'INCOMPLETE' : blocking.length ? 'UNDETERMINED' : 'COMPLETE',
     },
   };
 }

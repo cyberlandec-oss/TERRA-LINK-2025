@@ -151,3 +151,27 @@ Eventos emitidos hoy: `ProducerRegistered`, `ProducerUpdated`, `ProducerAssigned
 **Auditoría frente a eventos:** `audit_logs` responde «quién hizo qué» (incluye accesos denegados, logins y administración) y no alimenta procesos. `domain_events` expresa hechos de dominio para consumidores. Ambos se escriben en la misma transacción; ninguno sustituye al otro. Organizaciones, membresías e invitaciones todavía solo auditan (no emiten eventos de dominio).
 
 Pendientes separados: catálogo CTE/KDE y su validación (doc 08), ledger de inventario (ADR-0003), P0-015 (vista causal de eventos para auditor), framework de reglas (doc 13), DLQ con herramienta de reproceso.
+
+## P0-012 — Operaciones integradas y compuertas por transición (2026-10-10)
+
+CTE 1.1.0: DELIVERY, RECEPTION, WEIGHING y CLASSIFICATION pasan a **INTEGRATED** (versión 2 de cada definición; la 1 sigue resoluble). KDE 1.1.0 republica sus datos sobre esas versiones:
+
+| KDE | Cambio 1.1.0 | Motivo |
+| --- | --- | --- |
+| DELIVERY_PRODUCTION_PERIOD | `HARVEST_PERIOD` (DAY/MONTH/UNKNOWN), REQUIRED para completitud; UNKNOWN → `DECLARED_UNKNOWN` (pendiente, no válido) | D-34 MVP |
+| DELIVERY_SUPPORT | `ENTITY_REF_LIST` de documentos (varios soportes) | D-35 MVP |
+| RECEPTION_DIFFERENCE_REASON | condición `undefined_in_contract`: con parciales la diferencia solo se evalúa al cerrar, y el cierre no está definido | D-33 MVP |
+| WEIGHING_* | entidad `weighings`; sujeto = recepción | P0-012 |
+
+Compuertas (`kde_transition_gates` 1.1.0, append-only). BLOCKING = presente y válido; PENDING_ALLOWED = si falta o es desconocido queda como pendiente visible (nunca como válido); NOT_EVALUATED = regla no definida, se informa.
+
+| Transición | BLOCKING | PENDING_ALLOWED | NOT_EVALUATED |
+| --- | --- | --- | --- |
+| DELIVERY_DRAFT_SAVE | proveedor | resto de DELIVERY (un valor presente se valida al guardar) | — |
+| DELIVERY_REGISTER | proveedor, producto, fecha, peso declarado | parcelas, soporte, periodo | — |
+| RECEPTION_CONFIRM | entrega, centro, receptor (sesión), momento, peso recibido, pesaje (sujeto, método, valor, fecha, responsable) | soporte, periodo, parcelas | diferencia (cierre) |
+| QUALITY_DECISION_RECORD | muestra, método, decisión, versión de límites si libera | humedad | — |
+| TRACEABILITY_COMPLETENESS | todos los KDE de entrega, recepción y pesaje | — | diferencia |
+| DOWNSTREAM_READINESS | — | — | lotes/procesamiento/inventario (P0-016/017) |
+
+Eventos emitidos (misma transacción que dominio, compuerta, outbox y auditoría): `DeliveryRegistered`, `DeliveryCorrected` (correction_of), `ReceptionConfirmed`, `ReceptionCorrected` (correction_of), `WeightRecorded` (uno por pesaje; el corregido enlaza el anterior), `QualityDecisionRecorded` (solo con decisión). El borrador y las muestras sin decisión no emiten eventos (auditoría sí). La recepción **no** crea stock: el ledger es P0-017.

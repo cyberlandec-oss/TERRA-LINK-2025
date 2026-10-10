@@ -140,3 +140,17 @@ Completitud, validez, consistencia, unicidad y vigencia son resultados separados
 | draft_vertex_exclusions | 0010 | P0-008: «deshacer» excluye un vértice sin borrar ni alterar la muestra. Composición vigente = vértices no excluidos por `acquisition_seq`. Append-only |
 
 Clasificación de la identidad del productor: documento, teléfono y dirección se cifran y solo se devuelven con `producer:read_identity`. Nombre, razón social y ubicación administrativa quedan en claro porque la operación los necesita para buscar e identificar; su exposición se controla por permisos de lectura.
+
+| Tabla (P0-012) | Migración | Notas |
+| --- | --- | --- |
+| locations | 0021 | Centro/bodega/otro con código único por organización; sin coordenadas; desactivar conserva historia |
+| deliveries | 0021 | Borrador → registrada (inmutable; trigger). Periodo de cosecha: precisión declarada (`DAY`/`MONTH`/`UNKNOWN`) + límites derivados marcados como derivados (CHECK de forma). Cantidad `numeric(20,6)` KG. Código `ENT-AAAA-NNNNN` por organización |
+| delivery_origins | 0021 | Parcelas del mismo productor (trigger); cantidad por origen opcional (no se inventa); solo editable en borrador |
+| delivery_supports / delivery_support_withdrawals | 0021 | Versión exacta de documento del mismo tenant; varios; retirar = fila aparte; append-only |
+| delivery_corrections | 0021 | Instantánea de los campos corregibles con motivo y eventos enlazados; el original queda en `deliveries` |
+| receptions | 0021 | Recepción física (receptor = membresía de la sesión, centro, momento con zona, cantidad del pesaje). Append-only; parciales permitidas |
+| weighings | 0021 | Pesaje (método, valor KG, fecha, responsable); el corregido enlaza el anterior (`corrects_weighing_id`) |
+| reception_adjustments | 0021 | Corrección de peso con cantidad anterior/nueva, motivo y eventos; no reescribe la recepción |
+| quality_samples / quality_results / quality_measurements | 0021 | Muestra (durante la recepción o después del pesaje), resultado con decisión PENDING/RELEASED/REJECTED (liberar exige versión de límites; rechazar, motivo), mediciones con unidad explícita |
+| gate_evaluations | 0021 | Resultado de la compuerta de cada transición (códigos, sin valores); append-only |
+| kde_transition_gates | 0021 | Catálogo de sistema de compuertas por transición, versionado |

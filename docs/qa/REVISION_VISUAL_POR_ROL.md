@@ -164,3 +164,13 @@ Defecto encontrado y corregido: `geometry_visible` llegaba como texto `"false"` 
 | tecnico1.cooperativa (390 px, teclado) | Acceso denegado explícito (no «sin datos»); sin enlace en el menú; sin desborde; foco con Tab | `auditoria--tecnico1-390.png` |
 
 Resultado global de la revisión: 31 entradas, 0 incidencias.
+
+## P0-012 Entregas y recepción (2026-10-10, datos DEMO en `terra_link`, Cooperativa Río Verde)
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| admin.cooperativa | ENT-2026-00001: periodo «Mes: septiembre de 2026» sin días; nota de entrega vinculada (sin aprobar); recepción parcial 200 de 350 kg; calidad pendiente; aviso de no conformidad | `entregas--admin-detalle.png` |
+| tecnico1.cooperativa (390 px) | Solo entregas de productores asignados; su borrador visible; no puede recibir; sin desborde | `entregas--tecnico1-390.png` |
+| recepcion.acopio (membresía en la Cooperativa, teclado) | ENT-2026-00002: origen faltante y periodo desconocido visibles; sin identidad del productor; revisión previa con Enter (no se confirmó sobre datos DEMO) | `entregas--recepcion-revision.png` |
+
+Resultado global: 32 entradas, 0 incidencias.

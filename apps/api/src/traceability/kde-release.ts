@@ -71,3 +71,20 @@ export async function publishKdeRelease(db: Db, r: KdeReleaseInput) {
     await sql`INSERT INTO kde_definition_retirements (definition_id, release_version, reason) VALUES (${cur.rows[0].id}, ${r.version}, ${x.reason})`.execute(db);
   }
 }
+
+export interface KdeGateInput { transition: string; kde: string | null; mode: 'BLOCKING' | 'PENDING_ALLOWED' | 'NOT_EVALUATED'; note: string }
+
+/**
+ * P0-012 — compuertas por transición: qué comprueba cada operación sobre los KDE vigentes.
+ * BLOCKING: debe estar presente y válido. PENDING_ALLOWED: si falta o es desconocido queda como pendiente
+ * visible (nunca como válido). NOT_EVALUATED: la regla no está definida; se informa, no se decide.
+ */
+export async function publishKdeGates(db: Db, version: string, gates: KdeGateInput[]) {
+  for (const g of gates) {
+    if (g.kde) {
+      const exists = await sql<{ n: number }>`SELECT count(*)::int AS n FROM kde_definitions WHERE code = ${g.kde}`.execute(db);
+      if (!exists.rows[0].n) throw new Error(`Compuerta ${g.transition}: el KDE ${g.kde} no existe`);
+    }
+    await sql`INSERT INTO kde_transition_gates (release_version, transition, kde_code, mode, note) VALUES (${version}, ${g.transition}, ${g.kde}, ${g.mode}, ${g.note})`.execute(db);
+  }
+}

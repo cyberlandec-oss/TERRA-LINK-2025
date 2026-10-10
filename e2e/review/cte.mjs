@@ -41,13 +41,13 @@ export async function reviewCte({ browser, BASE, accounts, DEMO_ORGS, orgIdByNam
     const kde = page.getByRole('table', { name: 'Datos mínimos del hito' });
     await kde.waitFor({ timeout: 15000 });
     const kdeRows = await kde.locator('tbody tr').count();
-    const kg = await kde.locator('tbody tr').filter({ hasText: 'DELIVERY_DECLARED_WEIGHT@1' }).getByText('KG (masa)', { exact: true }).count();
+    const kg = await kde.locator('tbody tr').filter({ hasText: 'DELIVERY_DECLARED_WEIGHT@2' }).getByText('KG (masa)', { exact: true }).count();
     const forms = await page.locator('form').count();
     const kdeOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     await page.screenshot({ path: join(shots, 'kde--admin-entrega-390.png'), fullPage: true });
     casos.push({ cuenta: 'admin.cooperativa — KDE de Entrega (390 px, teclado)', resultado: `${kdeRows} datos mínimos; cantidades en KG=${kg}; formularios=${forms}; desborde=${kdeOverflow}`, ok: kdeRows === 7 && kg === 1 && forms === 0 && !kdeOverflow });
     casos.push({ cuenta: 'admin.cooperativa (390 px, teclado)', resultado: `${r.rows} hitos; pendientes=${r.pending}; integradas=${r.integrated}; botones operativos=${r.actions}; desborde=${overflow}`,
-      ok: r.rows === 11 && r.pending === 11 && r.integrated === 0 && r.actions === 0 && !overflow });
+      ok: r.rows === 11 && r.pending === 7 && r.integrated === 4 && r.actions === 0 && !overflow }); // P0-012 integró 4 operaciones (CTE 1.1.0)
     await ctx.close();
   }
   {

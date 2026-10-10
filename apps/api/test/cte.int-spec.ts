@@ -32,18 +32,20 @@ describeDb('P0-013 catálogo de hitos críticos (CTE)', () => {
   });
   afterAll(async () => h?.close());
 
-  it('catálogo 1.0.0: hitos de las fuentes con versión, etapa y vínculos PENDIENTES; sin hitos fabricados', async () => {
+  it('catálogo vigente 1.1.0: hitos de las fuentes; P0-012 integra entrega, recepción, pesaje y clasificación; el resto sigue PENDIENTE', async () => {
     const r = (await cat('trazabilidad@test.local').expect(200)).body;
-    expect(r).toMatchObject({ scope: 'SYSTEM', current_release: { version: '1.0.0' } });
+    expect(r).toMatchObject({ scope: 'SYSTEM', current_release: { version: '1.1.0' } });
     const codes = r.definitions.map((d: { code: string }) => d.code);
     expect(codes.sort()).toEqual([...S1, 'CLASSIFICATION'].sort());
     expect(new Set(codes).size).toBe(codes.length); // únicos en el ámbito
+    const P0012 = ['DELIVERY', 'RECEPTION', 'WEIGHING', 'CLASSIFICATION'];
     for (const d of r.definitions) {
-      expect(d).toMatchObject({ version: 1, status: 'ACTIVE', reference: `${d.code}@1`, kde: { status: 'PENDING_DEFINITION', story: 'P0-014' } });
+      const v = P0012.includes(d.code) ? 2 : 1;
+      expect(d).toMatchObject({ version: v, status: 'ACTIVE', reference: `${d.code}@${v}` });
       expect(d.operations.length).toBeGreaterThan(0);
-      expect(d.operations.every((o: { integration_status: string }) => o.integration_status === 'PENDING')).toBe(true);
+      expect(d.operations.every((o: { integration_status: string }) => o.integration_status === (P0012.includes(d.code) ? 'INTEGRATED' : 'PENDING'))).toBe(true);
     }
-    expect(r.summary).toMatchObject({ definitions: 11, integrated_operations: 0, pending_operations: 11 });
+    expect(r.summary).toMatchObject({ definitions: 11, integrated_operations: 4, pending_operations: 7 });
     const blob = JSON.stringify(r);
     for (const masterData of ['ProducerCreated', 'PlotGeometryVersionCreated', 'ProductCreated', 'PlotCreated']) expect(blob).not.toContain(masterData);
     expect(r.definitions.find((d: { code: string }) => d.code === 'DELIVERY').operations[0]).toMatchObject({ event_type: 'DeliveryRegistered', story: 'P0-012' });
@@ -67,27 +69,27 @@ describeDb('P0-013 catálogo de hitos críticos (CTE)', () => {
     const v1 = (await cat('admin-a@test.local').expect(200)).body.definitions.find((d: { code: string }) => d.code === 'WEIGHING');
     const pack1 = (await cat('admin-a@test.local').expect(200)).body.definitions.find((d: { code: string }) => d.code === 'PACKAGING');
     await h.db.transaction().execute((trx) => publishCteRelease(trx as unknown as Kysely<unknown>, {
-      version: '1.1.0', source: 'prueba', notes: 'Redefinición de pesaje y retirada de envasado (solo prueba)',
+      version: '2.1.0', source: 'prueba', notes: 'Redefinición de pesaje y retirada de envasado (solo prueba)',
       publish: [{ code: 'WEIGHING', name: 'Pesaje', description: 'Descripción revisada (prueba).', stage: 'INTERNAL', source: 'prueba',
         links: [{ operation: 'WEIGHT_RECORD', event_type: 'WeightRecorded', status: 'PENDING', story: 'P0-012', note: 'prueba' }] }],
       retire: [{ code: 'PACKAGING', reason: 'Retirada de prueba' }],
     }));
     const now = (await cat('admin-a@test.local').expect(200)).body;
-    expect(now.current_release.version).toBe('1.1.0');
+    expect(now.current_release.version).toBe('2.1.0');
     const w = now.definitions.find((d: { code: string }) => d.code === 'WEIGHING');
-    expect(w).toMatchObject({ version: 2, reference: 'WEIGHING@2', supersedes_id: v1.id });
+    expect(w).toMatchObject({ version: 3, reference: 'WEIGHING@3', supersedes_id: v1.id });
     expect(now.definitions.map((d: { code: string }) => d.code)).not.toContain('PACKAGING');
     // las referencias anteriores siguen resolubles y con su significado original
     const old = (await http().get(`/api/v1/organizations/${orgA}/cte-definitions/${v1.id}`).set(as('admin-a@test.local')).expect(200)).body;
-    expect(old).toMatchObject({ version: 1, description: v1.description, status: 'RETIRED', retirement: { release: '1.1.0', superseded_by: w.id } });
+    expect(old).toMatchObject({ version: v1.version, description: v1.description, status: 'RETIRED', retirement: { release: '2.1.0', superseded_by: w.id } });
     const pk = (await http().get(`/api/v1/organizations/${orgA}/cte-definitions/${pack1.id}`).set(as('admin-a@test.local')).expect(200)).body;
-    expect(pk).toMatchObject({ status: 'RETIRED', retirement: { release: '1.1.0', reason: 'Retirada de prueba', superseded_by: null } });
+    expect(pk).toMatchObject({ status: 'RETIRED', retirement: { release: '2.1.0', reason: 'Retirada de prueba', superseded_by: null } });
     const all = (await cat('admin-a@test.local', orgA, '?include_retired=true').expect(200)).body.definitions;
-    expect(all.filter((d: { code: string }) => d.code === 'WEIGHING').map((d: { version: number; status: string }) => [d.version, d.status])).toEqual([[1, 'RETIRED'], [2, 'ACTIVE']]);
+    expect(all.filter((d: { code: string }) => d.code === 'WEIGHING').map((d: { version: number; status: string }) => [d.version, d.status])).toEqual([[1, 'RETIRED'], [2, 'RETIRED'], [3, 'ACTIVE']]);
     const rel = (await http().get(`/api/v1/organizations/${orgA}/cte-catalog/releases`).set(as('admin-a@test.local')).expect(200)).body;
-    expect(rel.map((x: { version: string }) => x.version)).toEqual(['1.1.0', '1.0.0']);
+    expect(rel.map((x: { version: string }) => x.version)).toEqual(['2.1.0', '1.1.0', '1.0.0']);
     // códigos únicos por versión en el ámbito
-    await expect(sql`INSERT INTO cte_definitions (id, code, version, name, description, stage, source, release_version) VALUES (gen_random_uuid(), 'WEIGHING', 2, 'x', 'x', 'INTERNAL', 'x', '1.1.0')`.execute(h.db)).rejects.toThrow(/cte_definitions_code_version_uq/);
+    await expect(sql`INSERT INTO cte_definitions (id, code, version, name, description, stage, source, release_version) VALUES (gen_random_uuid(), 'WEIGHING', 3, 'x', 'x', 'INTERNAL', 'x', '2.1.0')`.execute(h.db)).rejects.toThrow(/cte_definitions_code_version_uq/);
   });
 
   it('rollback: una publicación que falla no deja versión, definiciones ni retiradas parciales', async () => {
@@ -96,23 +98,23 @@ describeDb('P0-013 catálogo de hitos críticos (CTE)', () => {
              (SELECT count(*)::int FROM cte_definition_retirements) AS t, (SELECT count(*)::int FROM cte_operation_links) AS l`.execute(h.db)).rows[0];
     const before = await count();
     await expect(h.db.transaction().execute((trx) => publishCteRelease(trx as unknown as Kysely<unknown>, {
-      version: '1.2.0', source: 'prueba', notes: 'falla',
+      version: '2.2.0', source: 'prueba', notes: 'falla',
       publish: [{ code: 'SALE', name: 'Venta', description: 'nueva', stage: 'OUTBOUND', source: 'prueba', links: [] }],
       retire: [{ code: 'NO_EXISTE', reason: 'x' }],
     }))).rejects.toThrow(/no tiene una definición vigente/);
     expect(await count()).toEqual(before);
-    expect((await cat('admin-a@test.local').expect(200)).body.current_release.version).toBe('1.1.0');
+    expect((await cat('admin-a@test.local').expect(200)).body.current_release.version).toBe('2.1.0');
   });
 
   it('operación integrada frente a vínculo pendiente: el modelo distingue ambos estados', async () => {
     await h.db.transaction().execute((trx) => publishCteRelease(trx as unknown as Kysely<unknown>, {
-      version: '1.3.0', source: 'prueba', notes: 'Vínculo integrado simulado SOLO en la base de pruebas',
+      version: '2.3.0', source: 'prueba', notes: 'Vínculo integrado simulado SOLO en la base de pruebas',
       publish: [{ code: 'SHIPMENT', name: 'Embarque', description: 'prueba', stage: 'OUTBOUND', source: 'prueba',
         links: [{ operation: 'SHIPMENT_DISPATCH', event_type: 'ShipmentDispatched', status: 'INTEGRATED', story: 'P0-029', note: 'prueba' }] }],
     }));
     const r = (await cat('admin-a@test.local').expect(200)).body;
     expect(r.definitions.find((d: { code: string }) => d.code === 'SHIPMENT').operations[0].integration_status).toBe('INTEGRATED');
-    expect(r.definitions.find((d: { code: string }) => d.code === 'DELIVERY').operations[0].integration_status).toBe('PENDING');
-    expect(r.summary.integrated_operations).toBe(1);
+    expect(r.definitions.find((d: { code: string }) => d.code === 'FERMENTATION').operations[0].integration_status).toBe('PENDING');
+    expect(r.summary.integrated_operations).toBe(4); // DELIVERY, RECEPTION, CLASSIFICATION + SHIPMENT simulado (WEIGHING redefinido PENDING en la prueba 2.1.0)
   });
 });

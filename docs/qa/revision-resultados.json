@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-10T22:05:21.100Z",
+  "fecha": "2026-10-10T23:28:53.661Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -94,11 +94,13 @@
         "Productores",
         "Parcelas",
         "Posibles duplicados",
+        "Entregas",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
         "Evidencias",
         "Miembros e invitaciones",
+        "Centros de acopio",
         "Auditoría",
         "Entregas de eventos",
         "Mis organizaciones"
@@ -113,7 +115,7 @@
       "datos_ajenos": "ninguno",
       "tarea": {
         "tarea": "Consultar miembros y formulario de invitación",
-        "resultado": "7 miembros; invitar disponible",
+        "resultado": "9 miembros; invitar disponible",
         "ok": true
       }
     },
@@ -152,6 +154,7 @@
         "Productores",
         "Parcelas",
         "Posibles duplicados",
+        "Entregas",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -207,6 +210,7 @@
         "Resumen de la organización",
         "Productores",
         "Parcelas",
+        "Entregas",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -261,6 +265,7 @@
         "Resumen de la organización",
         "Productores",
         "Parcelas",
+        "Entregas",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -364,6 +369,7 @@
         "Resumen de la organización",
         "Productores",
         "Parcelas",
+        "Entregas",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -420,11 +426,13 @@
         "Productores",
         "Parcelas",
         "Posibles duplicados",
+        "Entregas",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
         "Evidencias",
         "Miembros e invitaciones",
+        "Centros de acopio",
         "Auditoría",
         "Entregas de eventos",
         "Mis organizaciones"
@@ -475,13 +483,14 @@
       "organizacion_activa": "DEMO · Acopio San Isidro",
       "navegacion": [
         "Resumen de la organización",
+        "Entregas",
         "Productos",
         "Hitos (CTE)",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Acopio San Isidro",
       "denegacion": {
-        "destino": "DEMO · Cooperativa Río Verde",
+        "destino": "DEMO · Exportadora Pacífico",
         "resultado": "Recurso no disponible; sin datos de la otra organización",
         "ok": true
       },
@@ -526,13 +535,14 @@
       "organizacion_activa": "DEMO · Acopio San Isidro",
       "navegacion": [
         "Resumen de la organización",
+        "Entregas",
         "Productos",
         "Hitos (CTE)",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Acopio San Isidro",
       "denegacion": {
-        "destino": "DEMO · Cooperativa Río Verde",
+        "destino": "DEMO · Exportadora Pacífico",
         "resultado": "Recurso no disponible; sin datos de la otra organización",
         "ok": true
       },
@@ -580,11 +590,13 @@
         "Productores",
         "Parcelas",
         "Posibles duplicados",
+        "Entregas",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
         "Evidencias",
         "Miembros e invitaciones",
+        "Centros de acopio",
         "Auditoría",
         "Entregas de eventos",
         "Mis organizaciones"
@@ -637,6 +649,7 @@
         "Resumen de la organización",
         "Productores",
         "Parcelas",
+        "Entregas",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -691,6 +704,7 @@
         "Resumen de la organización",
         "Productores",
         "Parcelas",
+        "Entregas",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -796,6 +810,7 @@
         "Resumen de la organización",
         "Productores",
         "Parcelas",
+        "Entregas",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -852,11 +867,13 @@
         "Productores",
         "Parcelas",
         "Posibles duplicados",
+        "Entregas",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
         "Evidencias",
         "Miembros e invitaciones",
+        "Centros de acopio",
         "Auditoría",
         "Entregas de eventos",
         "Mis organizaciones"
@@ -959,6 +976,7 @@
         "Productores",
         "Parcelas",
         "Posibles duplicados",
+        "Entregas",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -1014,6 +1032,7 @@
         "Resumen de la organización",
         "Productores",
         "Parcelas",
+        "Entregas",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -1153,7 +1172,7 @@
         },
         {
           "cuenta": "admin.cooperativa (390 px, teclado)",
-          "resultado": "11 hitos; pendientes=11; integradas=0; botones operativos=0; desborde=false",
+          "resultado": "11 hitos; pendientes=7; integradas=4; botones operativos=0; desborde=false",
           "ok": true
         },
         {
@@ -1252,7 +1271,7 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "Mostrando 25 de 279 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
+          "resultado": "Mostrando 25 de 354 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
           "ok": true
         },
         {
@@ -1263,6 +1282,27 @@
         {
           "cuenta": "tecnico1.cooperativa (390 px, teclado)",
           "resultado": "acceso denegado explícito=true; sin enlace en menú=true; desborde=false; foco con Tab=true",
+          "ok": true
+        }
+      ],
+      "ok": true
+    },
+    {
+      "tipo": "entregas",
+      "casos": [
+        {
+          "cuenta": "admin.cooperativa",
+          "resultado": "periodo por mes sin días; soporte vinculado (sin aprobar); recepción parcial; calidad pendiente; aviso de no conformidad=true",
+          "ok": true
+        },
+        {
+          "cuenta": "tecnico1.cooperativa (390 px)",
+          "resultado": "solo entregas de productores asignados=true; borrador visible; puede recibir=0; desborde=false",
+          "ok": true
+        },
+        {
+          "cuenta": "recepcion.acopio (membresía en la Cooperativa, teclado)",
+          "resultado": "origen faltante y periodo desconocido visibles=true; sin identidad del productor=true; revisión previa con Enter=true",
           "ok": true
         }
       ],

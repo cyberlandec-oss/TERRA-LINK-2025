@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Inject, Injectable, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsObject, IsOptional, IsUUID } from 'class-validator';
-import { sql, type Kysely } from 'kysely';
+import { sql, type Kysely, type Transaction } from 'kysely';
 import { DB } from '../db/database';
 import type { Database } from '../db/schema';
 import { AppError, conflict, forbidden, notFound } from '../common/errors';
@@ -33,7 +33,7 @@ interface Row {
 
 const TYPE_LABEL: Record<string, string> = {
   QUANTITY: 'Cantidad con unidad', DECIMAL: 'Número decimal', INTEGER: 'Número entero', TEXT: 'Texto', BOOLEAN: 'Sí/No', DATE: 'Fecha',
-  DATETIME: 'Fecha y hora con zona', DATE_RANGE: 'Periodo (inicio–fin)', ENUM: 'Opción de catálogo', ENTITY_REF: 'Referencia a un registro', ENTITY_REF_LIST: 'Lista de referencias',
+  DATETIME: 'Fecha y hora con zona', DATE_RANGE: 'Periodo (inicio–fin)', ENUM: 'Opción de catálogo', ENTITY_REF: 'Referencia a un registro', ENTITY_REF_LIST: 'Lista de referencias', HARVEST_PERIOD: 'Periodo con precisión declarada (día, mes o desconocido)',
 };
 const ENTITY_LABEL: Record<string, string> = {
   producer: 'productor', plot: 'parcela', plot_version: 'versión geométrica de parcela', product: 'producto activo', membership: 'miembro activo',
@@ -54,6 +54,7 @@ export function describeRule(t: string, v: Validation): string {
   if (v.entity) parts.push(`${ENTITY_LABEL[v.entity] ?? v.entity} de tu organización${v.entity in PENDING_ENTITIES ? ` (no verificable hasta ${PENDING_ENTITIES[v.entity]})` : ''}`);
   if (v.min_items) parts.push(`al menos ${v.min_items}`);
   if (t === 'DATE_RANGE') parts.push('inicio ≤ fin');
+  if (t === 'HARVEST_PERIOD') parts.push('día (AAAA-MM-DD), mes o intervalo de meses (AAAA-MM) o desconocido declarado; inicio ≤ fin; sin completar días');
   if (t === 'DATETIME') parts.push('con zona horaria');
   return parts.join('; ');
 }
@@ -126,7 +127,8 @@ export class KdeService {
       scope: 'SYSTEM', current_release: release, definitions: await this.view(rows),
       flow_requirement: { status: 'PENDING', decision: 'D-33', note: 'Esto define si un DATO es obligatorio dentro de su hito. Qué hitos son obligatorios en cada flujo sigue pendiente (D-33).' },
       legal_configuration: { status: 'NOT_ACTIVE', note: 'No hay configuración jurídica activa: los datos mínimos provienen de las fuentes técnicas.' },
-      results_contract: ['PRESENT_VALID', 'PRESENT_INVALID', 'PRESENT_NOT_VERIFIABLE', 'REQUIRED_MISSING', 'OPTIONAL_MISSING', 'NOT_APPLICABLE', 'CONDITION_NOT_EVALUABLE'],
+      results_contract: ['PRESENT_VALID', 'PRESENT_INVALID', 'PRESENT_NOT_VERIFIABLE', 'REQUIRED_MISSING', 'OPTIONAL_MISSING', 'NOT_APPLICABLE', 'CONDITION_NOT_EVALUABLE', 'DECLARED_UNKNOWN'],
+      transition_gates: await this.gates(),
     };
   }
 
@@ -138,7 +140,7 @@ export class KdeService {
   }
 
   /** Resolución de referencias dentro de la organización y del alcance del usuario. */
-  private resolver(ctx: TenantContext): RefResolver {
+  private resolver(ctx: TenantContext, dbh: Kysely<Database> | Transaction<Database> = this.db): RefResolver {
     const has = (p: string) => (ctx.permissions as string[]).includes(p);
     return async (entity, ids) => {
       const found = new Set<string>();
@@ -147,16 +149,16 @@ export class KdeService {
       const org = ctx.organizationId;
       const scope = (perm: string) => has(`${perm}:read`) ? sql`TRUE` : has(`${perm}:read_assigned`) ? sql`pr.assigned_membership_id = ${ctx.membershipId}` : sql`FALSE`;
       let rows: Array<{ id: string; active: boolean }> = [];
-      if (entity === 'producer') rows = (await sql<{ id: string; active: boolean }>`SELECT pr.id, pr.status = 'ACTIVE' AS active FROM producers pr WHERE pr.organization_id = ${org} AND pr.id = ANY(${ids}) AND ${scope('producer')}`.execute(this.db)).rows;
-      else if (entity === 'plot') rows = (await sql<{ id: string; active: boolean }>`SELECT p.id, p.status = 'ACTIVE' AS active FROM plots p JOIN producers pr ON pr.id = p.producer_id AND pr.organization_id = p.organization_id WHERE p.organization_id = ${org} AND p.id = ANY(${ids}) AND ${scope('plot')}`.execute(this.db)).rows;
-      else if (entity === 'plot_version') rows = (await sql<{ id: string; active: boolean }>`SELECT v.id, p.status = 'ACTIVE' AS active FROM plot_versions v JOIN plots p ON p.id = v.plot_id AND p.organization_id = v.organization_id JOIN producers pr ON pr.id = p.producer_id AND pr.organization_id = p.organization_id WHERE v.organization_id = ${org} AND v.id = ANY(${ids}) AND ${scope('plot')}`.execute(this.db)).rows;
+      if (entity === 'producer') rows = (await sql<{ id: string; active: boolean }>`SELECT pr.id, pr.status = 'ACTIVE' AS active FROM producers pr WHERE pr.organization_id = ${org} AND pr.id = ANY(${ids}) AND ${scope('producer')}`.execute(dbh)).rows;
+      else if (entity === 'plot') rows = (await sql<{ id: string; active: boolean }>`SELECT p.id, p.status = 'ACTIVE' AS active FROM plots p JOIN producers pr ON pr.id = p.producer_id AND pr.organization_id = p.organization_id WHERE p.organization_id = ${org} AND p.id = ANY(${ids}) AND ${scope('plot')}`.execute(dbh)).rows;
+      else if (entity === 'plot_version') rows = (await sql<{ id: string; active: boolean }>`SELECT v.id, p.status = 'ACTIVE' AS active FROM plot_versions v JOIN plots p ON p.id = v.plot_id AND p.organization_id = v.organization_id JOIN producers pr ON pr.id = p.producer_id AND pr.organization_id = p.organization_id WHERE v.organization_id = ${org} AND v.id = ANY(${ids}) AND ${scope('plot')}`.execute(dbh)).rows;
       else if (entity === 'product') {
         if (!has('product:read')) return { found, inactive, verifiable: true };
-        rows = (await sql<{ id: string; active: boolean }>`SELECT id, status = 'ACTIVE' AS active FROM products WHERE organization_id = ${org} AND id = ANY(${ids})`.execute(this.db)).rows;
+        rows = (await sql<{ id: string; active: boolean }>`SELECT id, status = 'ACTIVE' AS active FROM products WHERE organization_id = ${org} AND id = ANY(${ids})`.execute(dbh)).rows;
       } else if (entity === 'membership') {
         // Sin membership:read solo puede referirse a sí mismo (no se revela quién más es miembro).
         const allowed = has('membership:read') ? ids : ids.filter((id) => id === ctx.membershipId);
-        rows = allowed.length ? (await sql<{ id: string; active: boolean }>`SELECT id, status = 'ACTIVE' AS active FROM memberships WHERE organization_id = ${org} AND id = ANY(${allowed})`.execute(this.db)).rows : [];
+        rows = allowed.length ? (await sql<{ id: string; active: boolean }>`SELECT id, status = 'ACTIVE' AS active FROM memberships WHERE organization_id = ${org} AND id = ANY(${allowed})`.execute(dbh)).rows : [];
       } else if (entity === 'document') {
         // Verifica la REFERENCIA (existe, organización, alcance del titular) y la disponibilidad técnica
         // (último análisis CLEAN). No aprueba el contenido: la revisión humana es aparte (P0-018).
@@ -164,17 +166,69 @@ export class KdeService {
         const docs = (await sql<{ id: string; owner_type: string; owner_id: string; available: boolean }>`
           SELECT d.id, d.owner_type, d.owner_id,
                  coalesce((SELECT s.result = 'CLEAN' FROM document_version_scans s WHERE s.version_id = d.current_version_id ORDER BY s.id DESC LIMIT 1), false) AS available
-          FROM documents d WHERE d.organization_id = ${org} AND d.id = ANY(${ids})`.execute(this.db)).rows;
+          FROM documents d WHERE d.organization_id = ${org} AND d.id = ANY(${ids})`.execute(dbh)).rows;
         for (const d of docs) {
           const scopeOk = d.owner_type === 'producer'
-            ? (await sql<{ n: number }>`SELECT count(*)::int AS n FROM producers pr WHERE pr.id = ${d.owner_id} AND pr.organization_id = ${org} AND ${scope('producer')}`.execute(this.db)).rows[0].n > 0
-            : (await sql<{ n: number }>`SELECT count(*)::int AS n FROM plots p JOIN producers pr ON pr.id = p.producer_id AND pr.organization_id = p.organization_id WHERE p.id = ${d.owner_id} AND p.organization_id = ${org} AND ${scope('plot')}`.execute(this.db)).rows[0].n > 0;
+            ? (await sql<{ n: number }>`SELECT count(*)::int AS n FROM producers pr WHERE pr.id = ${d.owner_id} AND pr.organization_id = ${org} AND ${scope('producer')}`.execute(dbh)).rows[0].n > 0
+            : (await sql<{ n: number }>`SELECT count(*)::int AS n FROM plots p JOIN producers pr ON pr.id = p.producer_id AND pr.organization_id = p.organization_id WHERE p.id = ${d.owner_id} AND p.organization_id = ${org} AND ${scope('plot')}`.execute(dbh)).rows[0].n > 0;
           if (scopeOk) rows.push({ id: d.id, active: d.available });
         }
+      } else if (entity === 'delivery' || entity === 'weighable' || entity === 'sample') {
+        const dscope = has('delivery:read') ? sql`TRUE` : has('delivery:read_assigned') ? sql`pr.assigned_membership_id = ${ctx.membershipId}` : sql`FALSE`;
+        const base = entity === 'delivery' ? sql`SELECT d.id, d.status = 'REGISTERED' AS active FROM deliveries d`
+          : entity === 'weighable' ? sql`SELECT r.id, TRUE AS active FROM receptions r JOIN deliveries d ON d.id = r.delivery_id AND d.organization_id = r.organization_id`
+            : sql`SELECT s.id, TRUE AS active FROM quality_samples s JOIN receptions r ON r.id = s.reception_id AND r.organization_id = s.organization_id JOIN deliveries d ON d.id = r.delivery_id AND d.organization_id = r.organization_id`;
+        const col = entity === 'delivery' ? sql`d.id` : entity === 'weighable' ? sql`r.id` : sql`s.id`;
+        rows = (await sql<{ id: string; active: boolean }>`${base} JOIN producers pr ON pr.id = d.producer_id AND pr.organization_id = d.organization_id
+          WHERE d.organization_id = ${org} AND ${col} = ANY(${ids}) AND ${dscope}`.execute(dbh)).rows;
+      } else if (entity === 'location') {
+        if (!has('location:read')) return { found, inactive, verifiable: true };
+        rows = (await sql<{ id: string; active: boolean }>`SELECT id, status = 'ACTIVE' AS active FROM locations WHERE organization_id = ${org} AND id = ANY(${ids})`.execute(dbh)).rows;
       } else return { found, inactive, verifiable: false };
       for (const r of rows) { found.add(r.id); if (!r.active) inactive.add(r.id); }
       return { found, inactive, verifiable: true };
     };
+  }
+
+  /** Compuertas vigentes por transición (última versión publicada de cada transición). */
+  async gates() {
+    const rows = (await sql<{ transition: string; kde_code: string | null; mode: string; note: string; release_version: string }>`
+      SELECT g.transition, g.kde_code, g.mode, g.note, g.release_version FROM kde_transition_gates g
+      WHERE g.release_version = (SELECT x.release_version FROM kde_transition_gates x WHERE x.transition = g.transition ORDER BY x.id DESC LIMIT 1)
+      ORDER BY g.transition, g.id`.execute(this.db)).rows;
+    const out: Record<string, { release: string; checks: Array<{ kde: string | null; mode: string; note: string }> }> = {};
+    for (const r of rows) (out[r.transition] ??= { release: r.release_version, checks: [] }).checks.push({ kde: r.kde_code, mode: r.mode, note: r.note });
+    return out;
+  }
+
+  /**
+   * P0-012 — evalúa la compuerta de una transición con los KDE vigentes. BLOCKING exige PRESENT_VALID
+   * (o NOT_APPLICABLE / OPTIONAL_MISSING); PENDING_ALLOWED nunca bloquea pero todo lo que no sea válido queda
+   * como pendiente visible; NOT_EVALUATED se informa sin decidir. Los valores no se registran ni se devuelven.
+   */
+  async evaluateTransition(ctx: TenantContext, transition: string, values: Record<string, unknown>, dbh: Kysely<Database> | Transaction<Database> = this.db) {
+    const gate = (await this.gates())[transition];
+    if (!gate) throw new Error(`Compuerta ${transition} no publicada`);
+    const active = await this.rows(sql`r.definition_id IS NULL`);
+    const toDef = (r: Row): KdeDef => ({ id: r.id, code: r.code, version: r.version, value_type: r.value_type, requirement: r.requirement, condition: r.condition, validation: r.validation });
+    const all = new Map(active.map((r) => [r.code, toDef(r)]));
+    const names = new Map(active.map((r) => [r.code, r.name]));
+    const checks = gate.checks.filter((c) => c.kde);
+    const defs = checks.filter((c) => c.mode !== 'NOT_EVALUATED').map((c) => all.get(c.kde!)).filter((d): d is KdeDef => !!d);
+    const { items } = await validateKde(defs, values, this.resolver(ctx, dbh), all);
+    const byCode = new Map(items.map((i) => [i.code, i]));
+    const ok = (r: string) => r === 'PRESENT_VALID' || r === 'NOT_APPLICABLE' || r === 'OPTIONAL_MISSING';
+    const blocking: Array<{ code: string; name: string; result: string; error_code: string | null; message: string }> = [];
+    const pending: typeof blocking = [];
+    const notEvaluated: Array<{ code: string | null; name: string | null; note: string }> = [];
+    for (const c of gate.checks) {
+      if (c.mode === 'NOT_EVALUATED') { notEvaluated.push({ code: c.kde, name: c.kde ? names.get(c.kde) ?? c.kde : null, note: c.note }); continue; }
+      const i = byCode.get(c.kde!);
+      if (!i || ok(i.result)) continue;
+      const entry = { code: i.code, name: names.get(i.code) ?? i.code, result: i.result, error_code: i.error_code, message: i.message };
+      (c.mode === 'BLOCKING' ? blocking : pending).push(entry);
+    }
+    return { transition, release: gate.release, allowed: blocking.length === 0, blocking, pending, not_evaluated: notEvaluated, evaluated_at: new Date().toISOString() };
   }
 
   async validate(user: AuthUser, orgId: string, dto: ValidateDto) {

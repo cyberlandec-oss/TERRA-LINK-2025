@@ -60,7 +60,9 @@ export default function KdePage() {
         <p className="muted">{data.legal_configuration.note} Un dato condicional cuya condición no puede evaluarse se trata como desconocido, nunca como «no aplica».</p>
         {active[0]?.integration && (
           <p className="muted">Integración: <StatusBadge tone={active[0].integration.status === 'INTEGRATED' ? 'process' : 'review'}>{active[0].integration.status === 'INTEGRATED' ? 'Integrada' : 'Pendiente'}</StatusBadge>{' '}
-            {active[0].integration.story ? `prevista en ${active[0].integration.story}` : 'sin historia asignada (D-33)'}. Ninguna operación usa todavía estos datos.</p>
+            {active[0].integration.status === 'INTEGRATED'
+              ? `en ${active[0].integration.story}: la operación comprueba estos datos con su compuerta por transición (faltantes permitidos quedan como pendientes visibles).`
+              : `${active[0].integration.story ? `prevista en ${active[0].integration.story}` : 'sin historia asignada (D-33)'}. Ninguna operación usa todavía estos datos.`}</p>
         )}
       </section>
       {active.length === 0 ? <p className="muted">Este hito no tiene datos mínimos vigentes.</p> : (

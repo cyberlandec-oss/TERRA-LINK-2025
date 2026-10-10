@@ -22,6 +22,7 @@ import type { Database } from './db/schema';
 import { ErrorFilter } from './common/errors';
 import { AuditService } from './audit/audit.service';
 import { AuditController, AuditQueryService } from './audit/audit-query';
+import { DeliveriesController, DeliveriesService } from './deliveries/deliveries';
 import { AuthController, AuthGuard, CurrentUser, Public, type AuthUser, type AuthedRequest } from './auth/auth';
 import { AuthorizationService } from './authz/authorization.service';
 import { PLATFORM_PERMISSIONS, RBAC_CATALOG_VERSION, ROLE_PERMISSIONS } from './authz/catalog';
@@ -174,7 +175,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
-        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController, KdeController, EventHistoryController, DocumentsController, EvidenceController, AuditController,
+        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController, KdeController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController,
       ],
       providers: [
         { provide: APP_CONFIG, useValue: config },
@@ -212,6 +213,7 @@ export class AppModule implements NestModule {
         { provide: APP_FILTER, useClass: ErrorFilter },
         AuditService,
         AuditQueryService,
+        DeliveriesService,
         AuthorizationService,
         OrganizationsService,
       ],

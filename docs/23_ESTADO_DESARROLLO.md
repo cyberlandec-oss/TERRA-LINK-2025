@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-012 Entregas y recepción | **DONE_LOCAL** para el alcance comprobado (entrega, recepción física parcial, pesaje, soportes, calidad separada, correcciones, compuertas por transición) con decisiones de diseño MVP D-33/34/35 no validadas en campo; cierre por debajo de lo declarado, tolerancias, catálogo de límites, centros asignados e inventario (P0-017) pendientes | Ver criterios abajo |
 | P0-025 Auditoría | **DONE_LOCAL** (criterios de la historia sobre los módulos existentes); auditoría de riesgo, entregas, procesamiento, expediente y concesiones pendiente de sus historias; formato de exportación provisional (D-38) | Ver criterios abajo |
 | P0-019 Evidencias | **DONE_LOCAL** (criterios de la historia); afirmaciones de lote, análisis ambiental y mitigación esperan sus entidades; uso en riesgo/expediente es P0-020/P0-022 | Ver criterios abajo |
 | P0-018 Documentos | **DONE_LOCAL** (criterios de la historia); usa auditoría ya verificada; P0-025 y P0-019 ya cerradas en local | Ver criterios abajo |
@@ -254,6 +255,25 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 | **Concesiones externas y elevación** | **Pendientes en P0-003** | — |
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
+
+### P0-012 — criterios
+
+Validación: `npm run validate` APROBADA (registro en «Validación final» de la sesión). Corridas previas fallidas conservadas: `2026-10-10T22-50-19-671Z` (E2E de hitos esperaba el catálogo 1.0.0: expectativa desactualizada; además la pantalla KDE decía «Ninguna operación usa todavía estos datos» para hitos ya integrados → **texto corregido**) y `2026-10-10T22-57-07-369Z` (la sección «Nueva entrega» se nombraba a sí misma con `aria-labelledby` → **defecto de accesibilidad corregido**). Revisión por rol: 32 entradas, 0 incidencias (tras corregir dos supuestos del script: membresías leídas del CSV bloqueado por Excel y conteo de integraciones CTE).
+
+| Criterio (backlog / orden) | Resultado | Evidencia (`deliveries.int-spec.ts`; E2E; revisión) |
+| --- | --- | --- |
+| Entrega declarada | Borrador → registrada con compuerta DELIVERY_REGISTER (producto, fecha, peso KG bloquean; parcelas, soporte y periodo quedan pendientes); registrada inmutable (trigger) | «compuertas KDE reales…» |
+| Periodo de cosecha (D-34) | Día, mes, intervalo de meses y desconocido; precisión conservada, sin días ficticios; derivados marcados; no se deriva de la fecha de entrega | «periodo de cosecha…», E2E |
+| Peso recibido / pesaje | Recepción exige pesaje válido (método, valor KG, fecha, responsable = sesión); declarado y recibido separados | «entrega y recepción sin documento…» |
+| Recepción parcial/completa | Parciales con historia propia; sin cierre automático ni ajuste de la declaración; exceso señalado | «recepciones parciales…» |
+| Diferencias con causa | NO EVALUADO: con parciales la diferencia solo se evalúa al cierre, y el cierre no está definido (D-33); queda visible como «no evaluado» | — (pendiente explícito) |
+| Vínculos válidos | Productor, parcela (mismo productor), producto activo, centro, documento: mismo tenant y alcance; ajeno = inexistente (404) | varios casos |
+| Soportes (D-35) | Varios por versión exacta; disponibilidad, vigencia y revisión visibles; sin aprobación automática; ausencia no impide la recepción | «varios soportes…» |
+| Calidad básica (D-33) | Muestra durante o después del pesaje; «Pendiente de evaluación»; liberar exige versión de límites (declarada); decisión con `quality:decide`; estado separado | «calidad…» |
+| Confirmar repetido no crea doble stock | Reintento y doble envío concurrente → una sola recepción y cantidad; operación reutilizada con otro contenido → 409; rollback completo si falla la auditoría. (No hay stock: P0-017) | «reintentos…» |
+| Correcciones | DeliveryCorrected / ReceptionCorrected con correction_of; originales y pesajes conservados; fecha posterior a una recepción rechazada; conflicto de versión | «correcciones…» |
+| Aislamiento y roles | Otra organización 404; técnico solo asignados; recepción sin identidad ni soportes; calidad/auditor sin recibir | «aislamiento…», revisión |
+| UI §14, teclado y 390 px | Registro, revisión previa, recepción, soportes, pendientes, calidad, correcciones, historia | E2E P0-012, revisión `entregas.mjs` |
 
 ### P0-025 — criterios (y contenido incrustado del escáner)
 

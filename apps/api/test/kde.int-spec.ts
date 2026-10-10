@@ -52,17 +52,24 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
   });
   afterAll(async () => h?.close());
 
-  it('catálogo 1.0.0: cada KDE con hito exacto, contrato, tipo, unidad, obligatoriedad, regla, responsable y fuente', async () => {
+  it('catálogo vigente 1.1.0 (P0-012): cada KDE con hito exacto, contrato, tipo, unidad, obligatoriedad, regla, responsable y fuente', async () => {
     const r = (await http().get(`${base(orgA)}/kde-catalog`).set(as('trazabilidad@test.local')).expect(200)).body;
-    expect(r).toMatchObject({ scope: 'SYSTEM', current_release: { version: '1.0.0' }, flow_requirement: { status: 'PENDING', decision: 'D-33' }, legal_configuration: { status: 'NOT_ACTIVE' } });
+    expect(r).toMatchObject({ scope: 'SYSTEM', current_release: { version: '1.1.0' }, flow_requirement: { status: 'PENDING', decision: 'D-33' }, legal_configuration: { status: 'NOT_ACTIVE' } });
     const codes = r.definitions.map((d: { code: string }) => d.code);
     expect(new Set(codes).size).toBe(codes.length);
     const w = r.definitions.find((d: { code: string }) => d.code === 'DELIVERY_DECLARED_WEIGHT');
-    expect(w).toMatchObject({ reference: 'DELIVERY_DECLARED_WEIGHT@1', cte: { reference: 'DELIVERY@1' }, contract: { entity: 'deliveries', field: 'quantity_declared/unit' }, value_type: 'QUANTITY', unit: { allowed: ['KG'], dimension: 'MASS' }, requirement: 'REQUIRED', responsible_roles: ['PRODUCER', 'FIELD_TECHNICIAN'], integration: { status: 'PENDING', story: 'P0-012' } });
+    expect(w).toMatchObject({ reference: 'DELIVERY_DECLARED_WEIGHT@2', cte: { reference: 'DELIVERY@2' }, contract: { entity: 'deliveries', field: 'quantity_declared/unit' }, value_type: 'QUANTITY', unit: { allowed: ['KG'], dimension: 'MASS' }, requirement: 'REQUIRED', responsible_roles: ['PRODUCER', 'FIELD_TECHNICIAN'], integration: { status: 'INTEGRATED', story: 'P0-012' } });
     expect(w.rule_text).toMatch(/mayor que cero/);
     expect(w.integration.proof).toMatch(/P0-012: DELIVERY_REGISTER debe rechazar la transición/);
     const reason = r.definitions.find((d: { code: string }) => d.code === 'RECEPTION_DIFFERENCE_REASON');
-    expect(reason).toMatchObject({ requirement: 'CONDITIONAL', condition: { kind: 'quantities_differ' } });
+    expect(reason).toMatchObject({ requirement: 'CONDITIONAL', condition: { kind: 'undefined_in_contract' } }); // 1.1.0: con parciales se evalúa al cierre (no definido)
+    expect(r.definitions.find((d: { code: string }) => d.code === 'DELIVERY_PRODUCTION_PERIOD')).toMatchObject({ value_type: 'HARVEST_PERIOD', requirement: 'REQUIRED', condition: null });
+    expect(r.definitions.find((d: { code: string }) => d.code === 'DELIVERY_SUPPORT')).toMatchObject({ value_type: 'ENTITY_REF_LIST', validation: { entity: 'document', min_items: 1 } });
+    expect(r.transition_gates.RECEPTION_CONFIRM.checks.find((c: { kde: string }) => c.kde === 'DELIVERY_SUPPORT').mode).toBe('PENDING_ALLOWED');
+    expect(r.transition_gates.DOWNSTREAM_READINESS.checks).toEqual([expect.objectContaining({ kde: null, mode: 'NOT_EVALUATED' })]);
+    // la versión 1.0.0 sigue resoluble y con su significado original
+    const all = (await http().get(`${base(orgA)}/kde-catalog?include_retired=true`).set(as('trazabilidad@test.local')).expect(200)).body.definitions;
+    expect(all.find((d: { code: string; version: number }) => d.code === 'RECEPTION_DIFFERENCE_REASON' && d.version === 1)).toMatchObject({ status: 'RETIRED', condition: { kind: 'quantities_differ' } });
     const harvest = r.definitions.find((d: { code: string }) => d.code === 'HARVEST_QUANTITY');
     expect(harvest.integration.story).toBeNull(); // D-33: sin historia, sin numeración inventada
     expect(r.definitions.find((d: { code: string }) => d.code === 'DELIVERY_PLOTS').difference).toMatch(/docs\/06 deliveries no tiene parcela/);
@@ -83,9 +90,9 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
     expect(item(r, 'DELIVERY_SUPPLIER').result).toBe('PRESENT_VALID');
     expect(item(r, 'DELIVERY_PLOTS').result).toBe('PRESENT_VALID');
     expect(item(r, 'DELIVERY_SUPPORT').result).toBe('REQUIRED_MISSING');
-    expect(item(r, 'DELIVERY_PRODUCTION_PERIOD').result).toBe('CONDITION_NOT_EVALUABLE');
+    expect(item(r, 'DELIVERY_PRODUCTION_PERIOD').result).toBe('REQUIRED_MISSING'); // 1.1.0 (D-34): requerido para completitud
     expect(r.gate).toMatchObject({ transition_allowed: false, outcome: 'INCOMPLETE' });
-    expect(r).toMatchObject({ persisted: false, cte: { reference: 'DELIVERY@1' }, kde_release: '1.0.0' });
+    expect(r).toMatchObject({ persisted: false, cte: { reference: 'DELIVERY@2' }, kde_release: '1.1.0' });
     // parcela de otro productor (fuera del alcance del técnico), de otra organización e inexistente: mismo resultado
     for (const id of [plotOther, plotB, randomUUID()]) {
       const x = (await validate('tecnico1@test.local', delivery, { ...values, DELIVERY_PLOTS: [id] }).expect(200)).body;
@@ -93,8 +100,8 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
     }
     // el administrador sí ve la parcela de P-2
     expect(item((await validate('admin-a@test.local', delivery, { ...values, DELIVERY_PLOTS: [plotOther] }).expect(200)).body, 'DELIVERY_PLOTS').result).toBe('PRESENT_VALID');
-    // documento (P0-018): verificable; un id inexistente se rechaza sin revelar nada
-    expect(item((await validate('admin-a@test.local', delivery, { ...values, DELIVERY_SUPPORT: randomUUID() }).expect(200)).body, 'DELIVERY_SUPPORT')).toMatchObject({ result: 'PRESENT_INVALID', error_code: 'REFERENCE_NOT_FOUND' });
+    // documento (P0-018): verificable; un id inexistente se rechaza sin revelar nada (1.1.0: lista de soportes)
+    expect(item((await validate('admin-a@test.local', delivery, { ...values, DELIVERY_SUPPORT: [randomUUID()] }).expect(200)).body, 'DELIVERY_SUPPORT')).toMatchObject({ result: 'PRESENT_INVALID', error_code: 'REFERENCE_NOT_FOUND' });
   });
 
   it('respuestas sin valores ni datos sensibles; claves desconocidas solo por nombre', async () => {
@@ -114,7 +121,7 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
     await validate('productor@test.local', delivery, {}).expect(403);
   });
 
-  it('condición entre hitos: diferencia de recepción frente al peso declarado', async () => {
+  it('diferencia de recepción (1.1.0): con recepciones parciales no se decide por recepción; condición no evaluable, nunca «no aplica»', async () => {
     const reception = await cteId('RECEPTION');
     const self = await mid('trazabilidad@test.local');
     const common = { RECEPTION_DELIVERY: randomUUID(), RECEPTION_LOCATION: randomUUID(), RECEPTION_RECEIVER: self, RECEPTION_TIME: '2026-10-02T10:00:00-05:00', RECEPTION_RECEIVED_WEIGHT: { value: '480', unit: 'KG' } };
@@ -122,9 +129,9 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
     expect(item(unknown, 'RECEPTION_DIFFERENCE_REASON').result).toBe('CONDITION_NOT_EVALUABLE');
     expect(item(unknown, 'RECEPTION_RECEIVER').result).toBe('PRESENT_VALID'); // sin membership:read solo puede referirse a sí mismo
     const differs = (await validate('trazabilidad@test.local', reception, { ...common, DELIVERY_DECLARED_WEIGHT: { value: '500', unit: 'KG' } }).expect(200)).body;
-    expect(item(differs, 'RECEPTION_DIFFERENCE_REASON').result).toBe('REQUIRED_MISSING');
+    expect(item(differs, 'RECEPTION_DIFFERENCE_REASON').result).toBe('CONDITION_NOT_EVALUABLE');
     const equal = (await validate('trazabilidad@test.local', reception, { ...common, DELIVERY_DECLARED_WEIGHT: { value: '480.0', unit: 'KG' } }).expect(200)).body;
-    expect(item(equal, 'RECEPTION_DIFFERENCE_REASON').result).toBe('NOT_APPLICABLE');
+    expect(item(equal, 'RECEPTION_DIFFERENCE_REASON').result).toBe('CONDITION_NOT_EVALUABLE');
     const other = (await validate('trazabilidad@test.local', reception, { ...common, RECEPTION_RECEIVER: await mid('tecnico1@test.local') }).expect(200)).body;
     expect(item(other, 'RECEPTION_RECEIVER').error_code).toBe('REFERENCE_NOT_FOUND');
   });
@@ -133,16 +140,16 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
     const w1 = (await http().get(`${base(orgA)}/kde-catalog`).set(as('admin-a@test.local')).expect(200)).body.definitions.find((d: { code: string }) => d.code === 'WEIGHING_METHOD');
     const oldCte = await cteId('WEIGHING');
     await h.db.transaction().execute(async (trx) => {
-      await publishCteRelease(trx as unknown as Kysely<unknown>, { version: '1.1.0', source: 'prueba', notes: 'nueva versión de pesaje (prueba)',
+      await publishCteRelease(trx as unknown as Kysely<unknown>, { version: '2.1.0', source: 'prueba', notes: 'nueva versión de pesaje (prueba)',
         publish: [{ code: 'WEIGHING', name: 'Pesaje', description: 'prueba', stage: 'INTERNAL', source: 'prueba', links: [{ operation: 'WEIGHT_RECORD', event_type: 'WeightRecorded', status: 'PENDING', story: 'P0-012', note: 'prueba' }] }] });
-      await publishKdeRelease(trx as unknown as Kysely<unknown>, { version: '1.1.0', source: 'prueba', notes: 'KDE de pesaje sobre WEIGHING@2 (prueba)',
+      await publishKdeRelease(trx as unknown as Kysely<unknown>, { version: '2.1.0', source: 'prueba', notes: 'KDE de pesaje sobre WEIGHING@3 (prueba)',
         publish: [{ code: 'WEIGHING_METHOD', cte: 'WEIGHING', name: 'Método de pesaje', entity: '—', field: '—', value_type: 'TEXT', requirement: 'REQUIRED', condition: null, validation: { max_length: 60 }, responsible_roles: ['RECEPTION_OPERATOR'], responsible_note: '', source: 'prueba', difference: null }] });
     });
     const now = (await http().get(`${base(orgA)}/kde-catalog`).set(as('admin-a@test.local')).expect(200)).body;
     const w2 = now.definitions.find((d: { code: string }) => d.code === 'WEIGHING_METHOD');
-    expect(w2).toMatchObject({ version: 2, cte: { reference: 'WEIGHING@2' }, supersedes_id: w1.id, validation: { max_length: 60 } });
+    expect(w2).toMatchObject({ version: 3, cte: { reference: 'WEIGHING@3' }, supersedes_id: w1.id, validation: { max_length: 60 } });
     const old = (await http().get(`${base(orgA)}/kde-definitions/${w1.id}`).set(as('admin-a@test.local')).expect(200)).body;
-    expect(old).toMatchObject({ version: 1, cte: { reference: 'WEIGHING@1', retired: true }, status: 'RETIRED', validation: { max_length: 120 } });
+    expect(old).toMatchObject({ version: 2, cte: { reference: 'WEIGHING@2', retired: true }, status: 'RETIRED', validation: { max_length: 120 } });
     const retired = await validate('admin-a@test.local', oldCte, {}).expect(409);
     expect(retired.body.error.code).toBe('CTE_DEFINITION_RETIRED');
     await expect(sql`UPDATE kde_definitions SET name = 'x' WHERE id = ${w1.id}`.execute(h.db)).rejects.toThrow(/append-only/);
@@ -151,13 +158,13 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
   it('publicación fallida: sin versión ni definiciones parciales; esquema cerrado', async () => {
     const count = async () => (await sql<{ r: number; d: number }>`SELECT (SELECT count(*)::int FROM kde_catalog_releases) AS r, (SELECT count(*)::int FROM kde_definitions) AS d`.execute(h.db)).rows[0];
     const before = await count();
-    await expect(h.db.transaction().execute((trx) => publishKdeRelease(trx as unknown as Kysely<unknown>, { version: '1.2.0', source: 'prueba', notes: 'falla',
+    await expect(h.db.transaction().execute((trx) => publishKdeRelease(trx as unknown as Kysely<unknown>, { version: '2.2.0', source: 'prueba', notes: 'falla',
       publish: [
         { code: 'SALE_NOTE', cte: 'SALE', name: 'n', entity: '—', field: '—', value_type: 'TEXT', requirement: 'OPTIONAL', condition: null, validation: {}, responsible_roles: [], responsible_note: '', source: 'prueba', difference: null },
         { code: 'SALE_BAD', cte: 'SALE', name: 'n', entity: '—', field: '—', value_type: 'TEXT', requirement: 'CONDITIONAL', condition: { kind: 'present', kde: 'NO_EXISTE' }, validation: {}, responsible_roles: [], responsible_note: '', source: 'prueba', difference: null },
       ] }))).rejects.toThrow(/NO_EXISTE/);
     expect(await count()).toEqual(before);
-    await expect(h.db.transaction().execute((trx) => publishKdeRelease(trx as unknown as Kysely<unknown>, { version: '1.2.1', source: 'prueba', notes: 'falla',
+    await expect(h.db.transaction().execute((trx) => publishKdeRelease(trx as unknown as Kysely<unknown>, { version: '2.2.1', source: 'prueba', notes: 'falla',
       publish: [{ code: 'SALE_SCRIPT', cte: 'SALE', name: 'n', entity: '—', field: '—', value_type: 'TEXT', requirement: 'OPTIONAL', condition: null, validation: { eval: 'process.exit()' } as never, responsible_roles: [], responsible_note: '', source: 'prueba', difference: null }] }))).rejects.toThrow(/fuera del esquema/);
     expect(await count()).toEqual(before);
   });

@@ -42,8 +42,14 @@ const USERS: UserSpec[] = [
   { local: 'auditor.cooperativa', first: 'Silvia', last: 'Andrade (demo)', memberships: [{ org: 'coop', role: 'AUDITOR',
     note: 'Lee parcelas sin coordenadas exactas (clasificación de geometría, D-24).' }] },
   { local: 'admin.acopio', first: 'Patricia', last: 'Intriago (demo)', memberships: [{ org: 'acopio', role: 'ORG_ADMIN' }] },
-  { local: 'recepcion.acopio', first: 'Kevin', last: 'Macías (demo)', memberships: [{ org: 'acopio', role: 'RECEPTION_OPERATOR', note: 'Recepción y pesaje pendientes (P0-012).' }] },
-  { local: 'calidad.acopio', first: 'Diana', last: 'Pinargote (demo)', memberships: [{ org: 'acopio', role: 'QUALITY_OPERATOR', note: 'Cola de calidad pendiente (UX-D12).' }] },
+  { local: 'recepcion.acopio', first: 'Kevin', last: 'Macías (demo)', memberships: [
+    { org: 'acopio', role: 'RECEPTION_OPERATOR', note: 'El acopio aún no tiene productores DEMO: el recorrido de recepción está en la Cooperativa.' },
+    { org: 'coop', role: 'RECEPTION_OPERATOR', note: 'Recorrido P0-012 (misma cuenta, segunda membresía): recibir, pesar y registrar muestra.' },
+  ] },
+  { local: 'calidad.acopio', first: 'Diana', last: 'Pinargote (demo)', memberships: [
+    { org: 'acopio', role: 'QUALITY_OPERATOR', note: 'El acopio aún no tiene productores DEMO: el recorrido de calidad está en la Cooperativa.' },
+    { org: 'coop', role: 'QUALITY_OPERATOR', note: 'Recorrido P0-012 (misma cuenta, segunda membresía): resultados y decisión de calidad.' },
+  ] },
   { local: 'admin.exportadora', first: 'Fernando', last: 'Alcívar (demo)', memberships: [{ org: 'export', role: 'ORG_ADMIN' }] },
   { local: 'trazabilidad.exportadora', first: 'Gabriela', last: 'Moreira (demo)', memberships: [{ org: 'export', role: 'TRACEABILITY_MANAGER', note: 'Lotes y explorador de trazabilidad pendientes (P0-013 a P0-017).' }] },
   { local: 'eudr.exportadora', first: 'Andrés', last: 'Vera (demo)', memberships: [{ org: 'export', role: 'EUDR_MANAGER', note: 'Riesgo, evidencias y debida diligencia pendientes (P0-018 a P0-022).' }] },
@@ -369,6 +375,51 @@ async function main(): Promise<void> {
       }
     }
 
+    // 4f) Recorrido DEMO de entregas (P0-012) dentro de la Cooperativa: centro, una entrega con soporte y una
+    // recepción parcial con muestra (calidad pendiente), una entrega sin documento ni origen con periodo
+    // desconocido recibida completa, y un borrador del técnico. Datos SINTÉTICOS; sin decisiones de calidad.
+    // Idempotente por la marca «DEMO-ENT» en las observaciones.
+    const recEmail = `recepcion.acopio@${DOMAIN}`;
+    if (passwords.has(coopAdmin) && passwords.has(recEmail)) {
+      const t = await tokenOf(coopAdmin);
+      const tr = await tokenOf(recEmail);
+      const coopId = orgIds.get('coop')!;
+      const o = `/api/v1/organizations/${coopId}`;
+      const existing = (await call<Array<{ id: string; delivery_code: string }>>('GET', `${o}/deliveries?q=ENT-`, t)).data;
+      const marked = existing.length ? (await Promise.all(existing.map((d) => call<{ notes: string | null }>('GET', `${o}/deliveries/${d.id}`, t)))).some((r) => r.data.notes?.includes('DEMO-ENT')) : false;
+      if (!marked) {
+        let centers = (await call<Array<{ id: string; code: string }>>('GET', `${o}/locations`, t)).data;
+        if (!centers.some((c) => c.code === 'DEMO-CA-01')) await call('POST', `${o}/locations`, t, { code: 'DEMO-CA-01', name: 'Centro de acopio Calceta (demo)', location_type: 'COLLECTION_CENTER' });
+        centers = (await call<Array<{ id: string; code: string }>>('GET', `${o}/locations`, t)).data;
+        const center = centers.find((c) => c.code === 'DEMO-CA-01')!.id;
+        const prods = (await call<{ items: Array<{ id: string; code: string }> }>('GET', `${o}/products?limit=100`, t)).data.items;
+        const baba = prods.find((p) => p.code === 'CACAO_BABA')!.id;
+        const producer = async (code: string) => (await call<{ items: Array<{ id: string; producer_code: string }> }>('GET', `${o}/producers?status=ALL&q=${code}`, t)).data.items.find((x) => x.producer_code === code)!.id;
+        const p1 = await producer('DEMO-RV-001');
+        const plots = (await call<{ items: Array<{ id: string; plot_code: string }> }>('GET', `${o}/plots?limit=100`, t)).data.items;
+        const today = new Date().toISOString().slice(0, 10);
+        // A) con origen, periodo por mes y soporte; recepción parcial con muestra durante la recepción
+        const a = (await call<{ delivery: { id: string } }>('POST', `${o}/deliveries`, t, { operation_id: randomUUID(), producer_id: p1, product_id: baba, location_id: center, delivery_date: today,
+          quantity_declared: '350', unit: 'KG', harvest_period: { precision: 'MONTH', start: '2026-09', end: '2026-09' }, origins: [{ plot_id: plots.find((x) => x.plot_code === 'DEMO-PAR-001')!.id }],
+          notes: 'DEMO-ENT · entrega sintética con soporte', register: true })).data.delivery;
+        const cands = (await call<Array<{ version_id: string; title: string; availability: string }>>('GET', `${o}/deliveries/${a.id}/support-candidates`, t)).data;
+        const guide = cands.find((c) => c.title === 'Guía de entrega DEMO-RV-001 (sintética)');
+        if (guide) await call('POST', `${o}/deliveries/${a.id}/supports`, t, { operation_id: randomUUID(), document_version_id: guide.version_id, support_kind: 'DELIVERY_NOTE' });
+        await call('POST', `${o}/deliveries/${a.id}/receptions`, tr, { operation_id: randomUUID(), location_id: center, received_at: new Date().toISOString(),
+          weighing: { method: 'Báscula de plataforma (demo)', quantity: '200', unit: 'KG', weighed_on: today },
+          quality_sample: { sample_reference: 'DEMO-M-001', result: { method: 'Prueba de corte (demo)', measurements: [{ parameter: 'MOISTURE', value: '7.5', unit: '%' }] } } });
+        // B) sin origen ni documento, periodo desconocido; recepción completa
+        const p5 = await producer('DEMO-RV-005');
+        const b = (await call<{ delivery: { id: string } }>('POST', `${o}/deliveries`, t, { operation_id: randomUUID(), producer_id: p5, product_id: baba, location_id: center, delivery_date: today,
+          quantity_declared: '120', unit: 'KG', harvest_period: { precision: 'UNKNOWN' }, notes: 'DEMO-ENT · sin documento ni origen; periodo desconocido', register: true })).data.delivery;
+        await call('POST', `${o}/deliveries/${b.id}/receptions`, tr, { operation_id: randomUUID(), location_id: center, received_at: new Date().toISOString(),
+          weighing: { method: 'Báscula de plataforma (demo)', quantity: '120', unit: 'KG', weighed_on: today } });
+        // C) borrador del técnico (sin cantidad)
+        const tech = `tecnico1.cooperativa@${DOMAIN}`;
+        if (passwords.has(tech)) await call('POST', `${o}/deliveries`, await tokenOf(tech), { operation_id: randomUUID(), producer_id: await producer('DEMO-RV-002'), notes: 'DEMO-ENT · borrador del técnico' });
+      }
+    }
+
     // 5) Verificación: login real de cada cuenta con contraseña conocida.
     const verified = new Map<string, boolean>();
     for (const [mail, pwd] of passwords) {
@@ -404,7 +455,11 @@ async function main(): Promise<void> {
         const pending = resolve(ROOT, 'CREDENCIALES.pendiente.csv');
         // Si el pendiente ya tiene exactamente este contenido, no se reescribe (puede estar abierto en Excel).
         const pendingCurrent = existsSync(pending) ? readFileSync(pending, 'utf8') : null;
-        if (pendingCurrent !== csv) writeFileSync(pending, csv, { encoding: 'utf8' });
+        try {
+          if (pendingCurrent !== csv) writeFileSync(pending, csv, { encoding: 'utf8' });
+        } catch {
+          console.error('CREDENCIALES.pendiente.csv también está abierto: las contraseñas no cambiaron; solo cambian las filas de membresías.');
+        }
         console.error(`No se pudo escribir CREDENCIALES.csv (${(err as NodeJS.ErrnoException).code ?? 'error'}): ciérralo y renombra CREDENCIALES.pendiente.csv.`);
         process.exitCode = 1;
       }

@@ -68,6 +68,7 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     if (origen.length) groups.push({ title: 'Origen', items: origen });
     // Operación (UX_UI §8): solo módulos conectados a operaciones reales.
     const operacion: NavItem[] = [];
+    if (ws.can('delivery:read') || ws.can('delivery:read_assigned')) operacion.push({ href: `${base}/entregas`, label: 'Entregas', match: (p) => p.startsWith(`${base}/entregas`) && !p.startsWith(`${base}/entregas-eventos`) });
     if (ws.can('product:read')) operacion.push({ href: `${base}/productos`, label: 'Productos', match: (p) => p.startsWith(`${base}/productos`) });
     if (operacion.length) groups.push({ title: 'Operación', items: operacion });
     const trazabilidad: NavItem[] = [];
@@ -80,6 +81,7 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     if (ws.can('membership:read') || onboardingOnly) {
       admin.push({ href: `${base}/miembros`, label: onboardingOnly ? 'Incorporar administrador' : 'Miembros e invitaciones', match: (p) => p.startsWith(`${base}/miembros`) });
     }
+    if (ws.can('location:manage')) admin.push({ href: `${base}/centros`, label: 'Centros de acopio', match: (p) => p.startsWith(`${base}/centros`) });
     if (ws.can('audit:read')) admin.push({ href: `${base}/auditoria`, label: 'Auditoría', match: (p) => p.startsWith(`${base}/auditoria`) });
     if (ws.can('events:reprocess')) admin.push({ href: `${base}/entregas-eventos`, label: 'Entregas de eventos', match: (p) => p.startsWith(`${base}/entregas-eventos`) });
     if (admin.length) groups.push({ title: 'Administración', items: admin });

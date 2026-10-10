@@ -489,6 +489,42 @@ export interface EvidenceDecisionsTable {
   actor_id: string; decided_at: Generated<Timestamp>;
 }
 
+// P0-012 Entregas y recepción
+export interface LocationsTable { id: string; organization_id: string; code: string; name: string; location_type: 'COLLECTION_CENTER' | 'WAREHOUSE' | 'OTHER'; status: 'ACTIVE' | 'INACTIVE'; row_version: Generated<string>; created_by: string; created_at: Generated<Timestamp> }
+export interface DeliveriesTable {
+  id: string; organization_id: string; delivery_code: string; status: 'DRAFT' | 'REGISTERED'; producer_id: string; product_id: string | null; location_id: string | null;
+  delivery_date: string | null; quantity_declared: string | null; unit: string | null; harvest_precision: 'DAY' | 'MONTH' | 'UNKNOWN' | null; harvest_start: string | null; harvest_end: string | null;
+  harvest_derived_start: string | null; harvest_derived_end: string | null; notes: string | null; created_by: string; registered_by: string | null; registered_at: Timestamp | null;
+  operation_id: string; row_version: Generated<string>; created_at: Generated<Timestamp>; updated_at: Generated<Timestamp>;
+}
+export interface DeliveryOriginsTable { id: string; organization_id: string; delivery_id: string; plot_id: string; origin_quantity: string | null; created_at: Generated<Timestamp> }
+export interface DeliverySupportsTable { id: string; organization_id: string; delivery_id: string; document_id: string; document_version_id: string; support_kind: string; added_by: string; added_at: Generated<Timestamp>; operation_id: string }
+export interface DeliverySupportWithdrawalsTable { support_id: string; organization_id: string; reason: string; withdrawn_by: string; withdrawn_at: Generated<Timestamp> }
+export interface DeliveryCorrectionsTable {
+  id: string; organization_id: string; delivery_id: string; correction_number: number; corrected_event_id: string; correction_event_id: string; reason: string; changed_fields: string[];
+  delivery_date: string; quantity_declared: string; harvest_precision: string | null; harvest_start: string | null; harvest_end: string | null; harvest_derived_start: string | null; harvest_derived_end: string | null;
+  notes: string | null; created_by: string; created_at: Generated<Timestamp>; operation_id: string;
+}
+export interface ReceptionsTable {
+  id: string; organization_id: string; delivery_id: string; location_id: string; receiver_membership_id: string; receiver_user_id: string; received_at: Timestamp;
+  quantity_received: string; unit: string; notes: string | null; operation_id: string; created_at: Generated<Timestamp>;
+}
+export interface WeighingsTable {
+  id: string; organization_id: string; reception_id: string; method: string; quantity: string; unit: string; weighed_on: string; responsible_membership_id: string; responsible_user_id: string;
+  corrects_weighing_id: string | null; created_at: Generated<Timestamp>;
+}
+export interface ReceptionAdjustmentsTable {
+  id: string; organization_id: string; reception_id: string; adjustment_number: number; weighing_id: string; previous_quantity: string; new_quantity: string; reason: string;
+  corrected_event_id: string; correction_event_id: string; created_by: string; created_at: Generated<Timestamp>; operation_id: string;
+}
+export interface QualitySamplesTable { id: string; organization_id: string; reception_id: string; moment: 'DURING_RECEPTION' | 'AFTER_WEIGHING'; sample_reference: string | null; sampled_at: Timestamp; sampled_by_membership_id: string; sampled_by: string; operation_id: string; created_at: Generated<Timestamp> }
+export interface QualityResultsTable {
+  id: string; organization_id: string; sample_id: string; method: string; decision: 'PENDING' | 'RELEASED' | 'REJECTED'; limits_version: string | null; decision_reason: string | null;
+  recorded_by_membership_id: string; recorded_by: string; recorded_at: Generated<Timestamp>; operation_id: string;
+}
+export interface QualityMeasurementsTable { id: string; organization_id: string; result_id: string; parameter: 'MOISTURE' | 'FERMENTATION' | 'IMPURITIES'; value: string; unit: string }
+export interface GateEvaluationsTable { id: string; organization_id: string; entity_type: 'delivery' | 'reception' | 'quality_result'; entity_id: string; transition: string; release_version: string; allowed: boolean; result: unknown; evaluated_by: string; evaluated_at: Generated<Timestamp> }
+
 export interface Database {
   evidence_claim_types: EvidenceClaimTypesTable;
   evidence: EvidenceTable;
@@ -533,4 +569,17 @@ export interface Database {
   roles: RolesTable;
   role_assignments: RoleAssignmentsTable;
   audit_logs: AuditLogsTable;
+  locations: LocationsTable;
+  deliveries: DeliveriesTable;
+  delivery_origins: DeliveryOriginsTable;
+  delivery_supports: DeliverySupportsTable;
+  delivery_support_withdrawals: DeliverySupportWithdrawalsTable;
+  delivery_corrections: DeliveryCorrectionsTable;
+  receptions: ReceptionsTable;
+  weighings: WeighingsTable;
+  reception_adjustments: ReceptionAdjustmentsTable;
+  quality_samples: QualitySamplesTable;
+  quality_results: QualityResultsTable;
+  quality_measurements: QualityMeasurementsTable;
+  gate_evaluations: GateEvaluationsTable;
 }

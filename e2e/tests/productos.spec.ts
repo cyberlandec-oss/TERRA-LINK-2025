@@ -125,18 +125,18 @@ test('usuario sin permiso: sin enlace en el menú y acceso directo denegado', as
   await bctx.close();
 });
 
-test('P0-013 hitos (CTE): consulta de solo lectura con versión, vigencia e integración pendiente; sin acciones operativas', async ({ browser }) => {
+test('P0-013 hitos (CTE): consulta de solo lectura con versión, vigencia e integración (P0-012 integrada); sin acciones operativas', async ({ browser }) => {
   const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
   await page.goto(`${orgUrl}/trazabilidad/hitos`);
   const table = page.getByRole('table', { name: 'Hitos de trazabilidad' });
   await expect(table.locator('tbody tr')).toHaveCount(11);
-  await expect(page.getByText(/Catálogo versión 1\.0\.0/)).toBeVisible();
-  await expect(table).toContainText('DELIVERY@1');
+  await expect(page.getByText(/Catálogo versión 1\.1\.0/)).toBeVisible();
+  await expect(table).toContainText('DELIVERY@2');
   await expect(table).toContainText('DeliveryRegistered');
-  await expect(page.getByText(/0 operación\(es\) integrada\(s\) y 11 pendiente\(s\)/)).toBeVisible();
+  await expect(page.getByText(/4 operación\(es\) integrada\(s\) y 7 pendiente\(s\)/)).toBeVisible();
   await expect(page.getByRole('button', { name: /cosecha|entrega|recepción|procesar|registrar/i })).toHaveCount(0);
   await page.getByLabel('Mostrar definiciones retiradas o sustituidas').press('Space');
-  await expect(table.locator('tbody tr')).toHaveCount(11); // sin retiradas en 1.0.0
+  await expect(table.locator('tbody tr')).toHaveCount(15); // las 4 versiones 1 sustituidas en 1.1.0 siguen consultables
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });
@@ -147,12 +147,12 @@ test('P0-014 datos mínimos (KDE) de un hito: tipo, unidad, obligatoriedad, cond
   await page.getByRole('link', { name: 'Ver datos mínimos de Recepción' }).focus();
   await page.keyboard.press('Enter');
   const table = page.getByRole('table', { name: 'Datos mínimos del hito' });
-  await expect(table).toContainText('RECEPTION_RECEIVED_WEIGHT@1');
+  await expect(table).toContainText('RECEPTION_RECEIVED_WEIGHT@2');
   await expect(table).toContainText('KG (masa)');
   await expect(table).toContainText('Requerido');
-  await expect(table).toContainText('Se exige cuando RECEPTION_RECEIVED_WEIGHT y DELIVERY_DECLARED_WEIGHT difieren');
+  await expect(table).toContainText('Condición no definida en el contrato'); // 1.1.0: la diferencia se evalúa al cierre (no definido, D-33)
   await expect(table).toContainText('Operador de recepción');
-  await expect(page.getByText(/prevista en P0-012\. Ninguna operación usa todavía estos datos/)).toBeVisible();
+  await expect(page.getByText(/en P0-012: la operación comprueba estos datos con su compuerta por transición/)).toBeVisible();
   await expect(page.getByText(/Qué hitos son obligatorios en cada flujo sigue pendiente \(D-33\)/)).toBeVisible();
   await expect(page.locator('form')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
@@ -312,5 +312,52 @@ test('P0-025 auditoría: sin audit:read la sección muestra acceso denegado, no 
   await page.goto(`${orgUrl}/auditoria`);
   await expect(page.getByText('Tu rol no permite consultar la auditoría de esta organización.')).toBeVisible();
   await expect(page.getByText('Aún no hay registros a tu alcance.')).toHaveCount(0);
+  await ctx.close();
+});
+
+test('P0-012 entregas: registrar con periodo por mes, recibir sin documento con revisión previa; pendientes visibles; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  const orgId = orgUrl.split('/organizaciones/')[1];
+  const h = { authorization: `Bearer ${token}` };
+  const o = `${API_URL}/api/v1/organizations/${orgId}`;
+  const producer = await (await page.request.post(`${o}/producers`, { headers: h, data: { producer_code: 'ENT-E2E-1', legal_name: 'Finca Entregas E2E' } })).json();
+  await page.request.post(`${o}/plots`, { headers: h, data: { producer_id: producer.id, plot_code: 'ENT-E2E-P1', crop: 'Cacao' } });
+  await page.request.post(`${o}/products`, { headers: h, data: { code: 'CACAO_BABA_E2E', name: 'Cacao en baba E2E', product_state: 'CACAO_BABA', unit: 'KG' } });
+  expect((await page.request.post(`${o}/locations`, { headers: h, data: { code: 'CA-E2E', name: 'Centro E2E', location_type: 'COLLECTION_CENTER' } })).status()).toBe(201);
+  await page.goto(`${orgUrl}/entregas`);
+  await expect(page.getByText('Aún no hay entregas a tu alcance.')).toBeVisible();
+  await page.getByLabel('Productor', { exact: true }).selectOption({ label: 'ENT-E2E-1 · Finca Entregas E2E' });
+  await page.getByRole('checkbox', { name: 'ENT-E2E-P1' }).check();
+  await page.getByLabel('Producto', { exact: true }).selectOption({ label: 'Cacao en baba E2E (CACAO_BABA_E2E)' });
+  await page.getByLabel('Cantidad declarada').fill('300');
+  await page.getByLabel('Centro de acopio (opcional)').selectOption({ label: 'Centro E2E (CA-E2E)' });
+  await expect(page.getByRole('radio', { name: 'Mes o meses' })).toBeChecked(); // modalidad principal: meses (D-34)
+  await page.getByLabel('Mes inicial').fill('2026-09');
+  await page.getByRole('button', { name: 'Registrar entrega' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: /Entrega ENT-/ })).toBeVisible();
+  await expect(page.getByText('Mes: septiembre de 2026')).toBeVisible();
+  await expect(page.getByText('Evidencia documental pendiente').first()).toBeVisible();
+  await expect(page.getByText(/no es un expediente completo, producto liberado ni cumplimiento EUDR/)).toBeVisible();
+  // recepción física sin documento, con revisión previa a confirmar
+  await page.getByLabel('Peso recibido (kg)').fill('120');
+  await page.getByLabel('Método de pesaje').fill('Báscula E2E');
+  await page.getByRole('button', { name: 'Revisar recepción' }).click();
+  await expect(page.getByText('Revisa antes de confirmar')).toBeVisible();
+  await expect(page.getByText(/Sin soporte documental: la recepción se registra y la evidencia queda pendiente/)).toBeVisible();
+  await page.getByRole('button', { name: 'Confirmar recepción' }).focus();
+  await page.keyboard.press('Enter');
+  const rec = page.getByRole('article', { name: 'Recepción 1' });
+  await expect(rec).toContainText('120 kg');
+  await expect(rec).toContainText('Pendiente de evaluación');
+  await expect(rec).toContainText('Soporte documental');
+  await expect(page.getByText('Recepción parcial').first()).toBeVisible();
+  await expect(page.getByText(/no se cierra automáticamente ni se ajusta su declaración/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  // la lista muestra declarado y recibido por separado
+  await page.goto(`${orgUrl}/entregas`);
+  const row = page.getByRole('table', { name: 'Entregas' }).locator('tbody tr').first();
+  await expect(row).toContainText('300 kg');
+  await expect(row).toContainText('120 kg');
   await ctx.close();
 });
