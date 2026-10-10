@@ -2,10 +2,12 @@ import { Kysely, Migrator, PostgresDialect, type Migration, type MigrationProvid
 import { Pool } from 'pg';
 import type { Database } from './schema';
 import * as m0001 from './migrations/0001_identity_organizations';
+import * as m0002 from './migrations/0002_invitations_sessions';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
   '0001_identity_organizations': m0001,
+  '0002_invitations_sessions': m0002,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

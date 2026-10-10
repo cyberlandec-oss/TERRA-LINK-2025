@@ -1,4 +1,4 @@
-import { PLATFORM_PERMISSIONS, ROLE_PERMISSIONS, permissionsForRoles } from './catalog';
+import { PLATFORM_PERMISSIONS, ROLE_PERMISSIONS, assignableRoles, canGrantRole, permissionsForRoles } from './catalog';
 
 describe('catálogo RBAC', () => {
   it('cubre los 11 roles de organización documentados y ninguno más', () => {
@@ -26,5 +26,17 @@ describe('catálogo RBAC', () => {
 
   it('une permisos de varios roles sin duplicados y desconoce roles no catalogados', () => {
     expect(permissionsForRoles(['MANAGER', 'AUDITOR', 'INVENTED'])).toEqual(['membership:read', 'organization:read']);
+  });
+
+  it('anti-escalamiento: solo se conceden roles cuyos permisos posee el actor', () => {
+    const admin = permissionsForRoles(['ORG_ADMIN']);
+    const manager = permissionsForRoles(['MANAGER']);
+    expect(canGrantRole(admin, 'ORG_ADMIN')).toBe(true);
+    expect(canGrantRole(admin, 'FIELD_TECHNICIAN')).toBe(true);
+    expect(canGrantRole(manager, 'FIELD_TECHNICIAN')).toBe(false); // sin membership:assign
+    expect(canGrantRole(admin, 'SUPER_ADMIN')).toBe(false);
+    expect(canGrantRole(admin, 'INVENTED')).toBe(false);
+    expect(assignableRoles(admin)).toContain('ORG_ADMIN');
+    expect(assignableRoles(manager)).toEqual([]);
   });
 });

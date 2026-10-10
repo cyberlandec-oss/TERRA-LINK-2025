@@ -40,6 +40,52 @@ export interface Me {
   platform_role: 'SUPER_ADMIN' | null;
 }
 
+export interface Member {
+  membership_id: string;
+  user_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  email_verified_at: string | null;
+  status: 'ACTIVE' | 'INACTIVE';
+  status_reason: string | null;
+  user_status: 'ACTIVE' | 'INACTIVE';
+  roles: string[];
+}
+
+export interface Invitation {
+  id: string;
+  email: string;
+  role_code: string;
+  status: 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED';
+  expires_at: string;
+  created_at: string;
+}
+
+export const ROLE_LABELS: Record<string, string> = {
+  ORG_ADMIN: 'Administrador de organización',
+  MANAGER: 'Supervisor',
+  FIELD_TECHNICIAN: 'Técnico de campo',
+  RECEPTION_OPERATOR: 'Operador de recepción',
+  QUALITY_OPERATOR: 'Operador de calidad',
+  TRACEABILITY_MANAGER: 'Responsable de trazabilidad',
+  EUDR_MANAGER: 'Responsable EUDR',
+  EXPORT_MANAGER: 'Responsable de exportación',
+  BUYER: 'Comprador',
+  AUDITOR: 'Auditor',
+  PRODUCER: 'Productor',
+};
+
+/** Enlace de invitación: el token va en el fragmento (#), que el navegador no envía al servidor ni en Referer. */
+export function invitationLink(origin: string, token: string): string {
+  return `${origin}/invitacion#token=${encodeURIComponent(token)}`;
+}
+
+export function tokenFromHash(hash: string): string | null {
+  const m = /(?:^#|&)token=([A-Za-z0-9_-]{43})(?:&|$)/.exec(hash);
+  return m ? m[1] : null;
+}
+
 export const session = {
   get(): string | null {
     try {
@@ -99,6 +145,23 @@ export function recoveryHint(err: ApiError): string {
       return 'Solicita el permiso al administrador de tu organización.';
     case 'NOT_FOUND':
       return 'Verifica el enlace o elige otra organización.';
+    case 'TOO_MANY_ATTEMPTS':
+      return 'Por seguridad se pausaron los intentos. Espera unos minutos antes de reintentar.';
+    case 'INVITATION_EXPIRED':
+    case 'INVITATION_REVOKED':
+      return 'Pide al administrador de la organización una invitación nueva.';
+    case 'INVITATION_USED':
+      return 'Si ya aceptaste, inicia sesión con tu correo y contraseña.';
+    case 'INVITATION_RECIPIENT_MISMATCH':
+      return 'Cierra sesión e ingresa con la cuenta del correo invitado.';
+    case 'INVITATION_PENDING':
+      return 'Revoca la invitación pendiente en la lista y emite una nueva.';
+    case 'ALREADY_MEMBER':
+      return 'Esa persona ya tiene acceso; revisa la lista de miembros.';
+    case 'ROLE_NOT_GRANTABLE':
+      return 'Elige un rol con permisos que tú tengas.';
+    case 'SELF_MEMBERSHIP_CHANGE':
+      return 'Pide a otro administrador que realice el cambio.';
     default:
       return err.body.request_id ? `Si persiste, comparte este código con soporte: ${err.body.request_id}` : 'Reintenta en unos minutos.';
   }

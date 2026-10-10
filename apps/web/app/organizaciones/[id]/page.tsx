@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ApiError, api, can, recoveryHint, session, type Me, type Organization } from '../../../lib/api';
+import { MembersSection } from './miembros';
 
 export default function OrganizationDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -63,6 +64,9 @@ export default function OrganizationDetailPage() {
                 <dd>{[org.province, org.canton, org.parish].map((v) => v ?? '—').join(' / ')}</dd>
               </dl>
             </section>
+          )}
+          {(me?.platform_role === 'SUPER_ADMIN' || can(org, 'membership:read')) && (
+            <MembersSection org={org} canManage={me?.platform_role === 'SUPER_ADMIN' || can(org, 'membership:assign')} />
           )}
           {me?.platform_role === 'SUPER_ADMIN' && <StatusControl org={org} onChanged={setOrg} />}
         </>

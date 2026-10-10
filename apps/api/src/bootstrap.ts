@@ -13,6 +13,7 @@ export async function createApp(config: AppConfig, db: Kysely<Database>): Promis
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   app.enableCors({ origin: config.webOrigin, credentials: false });
   app.useBodyParser('json', { limit: '1mb' });
+  app.set('trust proxy', config.trustProxy);
   return app;
 }
 

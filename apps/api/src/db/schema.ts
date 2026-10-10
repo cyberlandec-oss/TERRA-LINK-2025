@@ -16,6 +16,8 @@ export interface UsersTable {
   status: UserStatus;
   platform_role: 'SUPER_ADMIN' | null;
   last_login_at: Timestamp | null;
+  token_version: Generated<number>;
+  email_verified_at: Timestamp | null;
   created_at: Timestamp;
   updated_at: Timestamp;
 }
@@ -44,6 +46,7 @@ export interface MembershipsTable {
   organization_id: string;
   user_id: string;
   status: MembershipStatus;
+  status_reason: string | null;
   created_at: Timestamp;
   created_by: string;
   updated_at: Timestamp;
@@ -80,7 +83,26 @@ export interface AuditLogsTable {
   occurred_at: Timestamp;
 }
 
+export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REVOKED';
+
+export interface InvitationsTable {
+  id: Generated<string>;
+  organization_id: string;
+  email: string;
+  role_code: string;
+  token_hash: string;
+  status: InvitationStatus;
+  expires_at: Timestamp;
+  created_at: Timestamp;
+  created_by: string;
+  accepted_at: Timestamp | null;
+  accepted_by: string | null;
+  revoked_at: Timestamp | null;
+  revoked_by: string | null;
+}
+
 export interface Database {
+  invitations: InvitationsTable;
   users: UsersTable;
   organizations: OrganizationsTable;
   memberships: MembershipsTable;
