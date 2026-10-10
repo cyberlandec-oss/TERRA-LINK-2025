@@ -22,6 +22,25 @@ Estas cuestiones no bloquean la lectura ni preparación del paquete. Bloquean ú
 | D-16 | Tarifas/planes y titularidad de datos | Comercial/legal | Hipótesis validadas/contrato, no precios de benchmark |
 | D-17 | OpenAPI y enlaces tipados | Backend | Schema executable validado + integridad DB |
 | D-18 | Catálogo de `organization_type` (hoy código libre `^[A-Z_]{2,40}$`) | Producto | Catálogo aprobado y migración con CHECK/FK |
+| D-19 | Mecanismo definitivo de invitación y verificación de correo (hoy enlace provisional) | Producto/seguridad | Canal elegido (correo transaccional u OIDC), ADR-0005 aceptado |
+| D-20 | Umbrales del límite de login (5/20/50 por 15 min) y tolerancia al bloqueo temporal por terceros | Seguridad | Valores aprobados o ajustados con datos del piloto |
+
+### D-18: propuesta de catálogo (NO ratificada)
+
+Las fuentes no enumeran `organization_type`: S1 §10 solo nombra el campo. Sí mencionan estos actores de la cadena: asociación/cooperativa de productores (S1 guía de asociaciones, S3), acopiador y centro de acopio (S2), procesamiento/industria (S2, GUIA en S3), exportador (S1, S2), importador UE y fabricante/retail (S2). Propuesta para revisión de producto:
+
+| Código | Actor | Origen en fuentes |
+| --- | --- | --- |
+| ASSOCIATION | Asociación de productores | S1, S3 |
+| COOPERATIVE | Cooperativa | S2, S3 |
+| COLLECTOR | Acopiador / centro de acopio | S2, GUIA (S3) |
+| PROCESSOR | Procesador / industria | S2, GUIA (S3) |
+| EXPORTER | Exportador | S1, S2 |
+| IMPORTER | Importador (UE) | S2 |
+| MANUFACTURER | Fabricante / retail | S2 |
+| OTHER | Otro (requiere descripción) | Propuesta |
+
+Hasta su ratificación, el campo sigue siendo un código libre validado por formato; no se añadió CHECK ni FK y la UI solo muestra ejemplos.
 
 Resueltas el 2026-10-09: **D-01** (stack NestJS/Next.js/PostGIS, ADR-0001, adoptado por delegación del usuario) y **D-02** (monorepo nuevo `cyberlandec-oss/TERRA-LINK-2025`). Pendiente: ratificación del responsable técnico.
 
