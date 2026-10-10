@@ -1,4 +1,4 @@
-import { crc32, deflateRawSync } from 'zlib';
+import { crc32, deflateRawSync, deflateSync } from 'zlib';
 import { ClamdScanner, interpretReply } from '../src/storage/scanner';
 import { describeDb } from './helpers';
 
@@ -50,6 +50,19 @@ describeDb('escáner real: límites efectivos', () => {
     const r = await scanner().scan(data);
     expect(r).toMatchObject({ result: 'FAILED', error_code: 'SCAN_INCOMPLETE_LIMITS' });
     expect(r.signature).toBe('Heuristics.Limits.Exceeded.MaxRecursion');
+  });
+
+  // Formato admitido (PDF): un flujo FlateDecode pequeño en el envío (~110 KiB) que se descomprime por encima de
+  // MaxFileSize (100 MiB) no queda «limpio» parcialmente: clamd lo informa como límite excedido → incompleto.
+  it('PDF con flujo comprimido que se infla sobre MaxFileSize → análisis incompleto, no limpio', async () => {
+    const data = deflateSync(Buffer.alloc(110 * 1024 * 1024, 0x20), { level: 9 });
+    const pdf = Buffer.concat([
+      Buffer.from(`%PDF-1.4\n1 0 obj\n<< /Length ${data.length} /Filter /FlateDecode >>\nstream\n`), data,
+      Buffer.from('\nendstream\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n'),
+    ]);
+    expect(pdf.length).toBeLessThan(10 * 1024 * 1024); // cabe en el límite de subida
+    const r = await scanner().scan(pdf);
+    expect(r).toMatchObject({ result: 'FAILED', error_code: 'SCAN_INCOMPLETE_LIMITS', signature: 'Heuristics.Limits.Exceeded.MaxFileSize' });
   });
 
   it('archivo pequeño sintético → limpio', async () => {

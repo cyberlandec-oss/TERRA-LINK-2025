@@ -1,6 +1,6 @@
 // Catálogo RBAC versionado (docs/07_RBAC_Y_GOBERNANZA.md). Se amplía por historia; no inferir
 // privilegios comparando nombres de rol fuera de este módulo.
-export const RBAC_CATALOG_VERSION = '2026-10-10.11';
+export const RBAC_CATALOG_VERSION = '2026-10-10.12';
 
 export type Permission =
   | 'organization:read'
@@ -8,6 +8,8 @@ export type Permission =
   | 'membership:read'
   | 'membership:assign'
   | 'audit:read'
+  // P0-025: exportar la bitácora con el mismo alcance y redacción que la consulta.
+  | 'audit:export'
   // P0-004. `_assigned` = solo productores asignados a la membresía del usuario.
   | 'producer:read'
   | 'producer:read_assigned'
@@ -74,7 +76,7 @@ const PLOT_ALL: Permission[] = [
 // Permisos de productor: propuesta provisional derivada de S1 §9 (FIELD_TECHNICIAN producer:create/read)
 // y doc 07/14 («solo asignaciones» para el técnico). Pendiente de ratificación con el resto de la matriz.
 export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  ORG_ADMIN: ['audit:read', 'organization:read', 'organization:update', 'membership:read', 'membership:assign', ...PRODUCER_ALL, ...PLOT_ALL, 'product:read', 'traceability:read_catalog', 'product:manage', 'events:reprocess', 'document:read', 'document:upload', 'document:review', 'evidence:read', 'evidence:link', 'evidence:verify'],
+  ORG_ADMIN: ['audit:read', 'audit:export', 'organization:read', 'organization:update', 'membership:read', 'membership:assign', ...PRODUCER_ALL, ...PLOT_ALL, 'product:read', 'traceability:read_catalog', 'product:manage', 'events:reprocess', 'document:read', 'document:upload', 'document:review', 'evidence:read', 'evidence:link', 'evidence:verify'],
   MANAGER: [...ALL_MEMBER_READ, 'membership:read', 'producer:read', 'producer:read_identity', 'producer:create', 'producer:update', 'producer:assign', 'producer:archive', 'producer:review_duplicates', 'plot:read', 'plot:create', 'plot:update', 'plot:archive', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'evidence:read', 'evidence:link'],
   FIELD_TECHNICIAN: [...ALL_MEMBER_READ, 'producer:read_assigned', 'producer:read_identity', 'producer:create', 'producer:update_assigned',
     'plot:read_assigned', 'plot:create_assigned', 'plot:update_assigned', 'plot:read_geometry', 'plot:evaluate_gis_assigned', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'evidence:read', 'evidence:link'],
@@ -84,7 +86,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   EUDR_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'producer:read_identity', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'document:review', 'evidence:read', 'evidence:link', 'evidence:verify'],
   EXPORT_MANAGER: [...ALL_MEMBER_READ, 'product:read', 'traceability:read_catalog'],
   BUYER: [],
-  AUDITOR: [...ALL_MEMBER_READ, 'audit:read', 'producer:read', 'plot:read', 'product:read', 'traceability:read_catalog', 'document:read', 'evidence:read'],
+  AUDITOR: [...ALL_MEMBER_READ, 'audit:read', 'audit:export', 'producer:read', 'plot:read', 'product:read', 'traceability:read_catalog', 'document:read', 'evidence:read'],
   PRODUCER: [],
 };
 

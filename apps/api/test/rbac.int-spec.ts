@@ -125,14 +125,14 @@ describeDb('P0-003 RBAC y aislamiento (PostgreSQL real)', () => {
 
   it('bitácora: solo filas de la organización, actor de plataforma anonimizado, permisos por rol', async () => {
     const res = await http().get(`/api/v1/organizations/${orgA}/audit-logs?limit=100`).set(as('auditor@test.local')).expect(200);
-    expect(res.body.length).toBeGreaterThan(0);
-    const ids = new Set(res.body.map((r: { id: string }) => r.id));
+    expect(res.body.items.length).toBeGreaterThan(0);
+    const ids = new Set(res.body.items.map((r: { id: string }) => r.id));
     const rowsA = await h.db.selectFrom('audit_logs').select('id').where('organization_id', '=', orgA).execute();
     expect(rowsA.every((r) => ids.has(r.id))).toBe(true);
     expect(JSON.stringify(res.body)).not.toContain(orgB);
     expect(JSON.stringify(res.body)).not.toContain('admin-b@test.local');
     expect(JSON.stringify(res.body)).not.toContain('super@test.local');
-    expect(res.body.find((r: { action: string }) => r.action === 'organization.create').actor).toBe('PLATFORM');
+    expect(res.body.items.find((r: { action: string }) => r.action === 'organization.create').actor.key).toBe('PLATFORM');
     await http().get(`/api/v1/organizations/${orgA}/audit-logs`).set(as('tecnico@test.local')).expect(403);
     await http().get(`/api/v1/organizations/${orgA}/audit-logs`).set(as('admin-b@test.local')).expect(404);
     await http().get(`/api/v1/organizations/${orgA}/audit-logs?limit=1000`).set(as('auditor@test.local')).expect(400);

@@ -115,6 +115,11 @@ describeDb('P0-018 documentos privados, escaneo y versiones', () => {
     expect((await upload('admin-a@test.local', land(), Buffer.from('texto plano sintético'), { name: 'a.pdf' }).expect(422)).body.error.code).toBe('FILE_TYPE_NOT_ALLOWED');
     expect((await upload('admin-a@test.local', land(), png(), { name: 'foto.pdf', mime: 'application/pdf' }).expect(422)).body.error.code).toBe('FILE_TYPE_MISMATCH');
     expect((await upload('admin-a@test.local', land(), Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(70 * 1024, 0x20)])).expect(422)).body.error.code).toBe('FILE_TOO_LARGE');
+    // políglota PDF+ZIP: clamd omitiría sin aviso el objeto interno si supera MaxFileSize → rechazo detectable, sin almacenar
+    const before = await versionCount();
+    const zipTail = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(40), Buffer.from([0x50, 0x4b, 0x05, 0x06]), Buffer.alloc(18)]);
+    expect((await upload('admin-a@test.local', land(), Buffer.concat([pdf(), zipTail])).expect(422)).body.error.code).toBe('EMBEDDED_ARCHIVE_NOT_ALLOWED');
+    expect(await versionCount()).toBe(before);
     const ok = await upload('admin-a@test.local', land(), png(), { name: 'plano.png', mime: 'image/png' }).expect(201);
     expect(ok.body.document.versions[0].mime_type).toBe('image/png');
   });

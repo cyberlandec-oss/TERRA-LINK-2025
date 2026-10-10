@@ -13,6 +13,7 @@ import { reviewCte } from './cte.mjs';
 import { reviewEvents } from './eventos.mjs';
 import { reviewDocuments } from './documentos.mjs';
 import { reviewEvidence } from './evidencias.mjs';
+import { reviewAudit } from './auditoria.mjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -77,9 +78,9 @@ async function realTask(page, a, orgUrl) {
   }
   if (r === 'AUDITOR') {
     await page.goto(`${orgUrl}/auditoria`);
-    await page.getByRole('heading', { name: 'Actividad reciente' }).waitFor();
-    await page.getByRole('list', { name: 'Actividad' }).or(page.getByText('Sin actividad registrada.')).first().waitFor({ timeout: 15000 });
-    const n = await page.getByRole('list', { name: 'Actividad' }).getByRole('listitem').count();
+    await page.getByRole('heading', { name: 'Registros' }).waitFor();
+    await page.getByRole('table', { name: 'Registros de auditoría' }).or(page.getByText('Aún no hay registros a tu alcance.')).first().waitFor({ timeout: 15000 });
+    const n = await page.getByRole('table', { name: 'Registros de auditoría' }).locator('tbody tr').count();
     return { tarea: 'Consultar la auditoría de su organización', resultado: `${n} registros visibles`, ok: n >= 1 };
   }
   if (r === 'TRACEABILITY_MANAGER' || r === 'EUDR_MANAGER') {
@@ -225,6 +226,7 @@ try {
   results.push(await reviewEvents({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewDocuments({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewEvidence({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewAudit({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
 
   // Adaptación móvil (390 px): menú en panel y contenido legible.
   for (const a of accounts.filter((x) => ['tecnico1.cooperativa', 'admin.cooperativa'].includes(x.email.split('@')[0]))) {
@@ -271,5 +273,6 @@ for (const c of results.find((r) => r.tipo === 'cte')?.casos ?? []) console.log(
 for (const c of results.find((r) => r.tipo === 'eventos')?.casos ?? []) console.log(` [eventos] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'documentos')?.casos ?? []) console.log(` [documentos] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'evidencias')?.casos ?? []) console.log(` [evidencias] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'auditoria')?.casos ?? []) console.log(` [auditoria] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 console.log(`Revisión: ${results.length} entradas; con incidencias: ${issues.length}`);
 for (const i of issues) console.log(` - ${i.cuenta ?? i.tipo} @ ${i.organizacion ?? ''}: ${(i.incidencias ?? []).join(' | ') || JSON.stringify(i)}`);

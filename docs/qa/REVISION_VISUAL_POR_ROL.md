@@ -154,3 +154,13 @@ Defecto encontrado y corregido: `geometry_visible` llegaba como texto `"false"` 
 - tecnico1.cooperativa (390 px, teclado): ve la afirmación de su productor, no puede verificar; orden de tabulación correcto en el alta; sin desborde.
 - auditor.cooperativa: consulta sin acciones; el soporte de tenencia indica «contenido restringido para tu rol».
 - Capturas `evidencias--*.png`. Resultado: 30 entradas, 0 incidencias.
+
+## P0-025 Auditoría (2026-10-10, `node e2e/review/revision-por-rol.mjs`, datos DEMO en `terra_link`)
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| admin.cooperativa | 25 de 279 registros a su alcance; exportación CSV con metadatos `TL_AUDIT_CSV 0.1`, SHA-256 visible, sin secretos | `auditoria--admin.png` |
+| auditor.cooperativa | Consulta sin correos de actores; puede exportar; detalle «Qué cambió» sin acciones de edición | `auditoria--auditor-detalle.png` |
+| tecnico1.cooperativa (390 px, teclado) | Acceso denegado explícito (no «sin datos»); sin enlace en el menú; sin desborde; foco con Tab | `auditoria--tecnico1-390.png` |
+
+Resultado global de la revisión: 31 entradas, 0 incidencias.

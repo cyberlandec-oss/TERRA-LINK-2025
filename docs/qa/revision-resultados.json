@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-10T21:16:31.916Z",
+  "fecha": "2026-10-10T22:05:21.100Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -381,7 +381,7 @@
       "datos_ajenos": "ninguno",
       "tarea": {
         "tarea": "Consultar la auditoría de su organización",
-        "resultado": "50 registros visibles",
+        "resultado": "25 registros visibles",
         "ok": true
       }
     },
@@ -1242,6 +1242,27 @@
         {
           "cuenta": "auditor.cooperativa",
           "resultado": "consulta sin acciones (0); contenido restringido indicado=true",
+          "ok": true
+        }
+      ],
+      "ok": true
+    },
+    {
+      "tipo": "auditoria",
+      "casos": [
+        {
+          "cuenta": "admin.cooperativa",
+          "resultado": "Mostrando 25 de 279 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
+          "ok": true
+        },
+        {
+          "cuenta": "auditor.cooperativa",
+          "resultado": "consulta sin correos de actores=true; puede exportar=true; detalle sin edición (0)",
+          "ok": true
+        },
+        {
+          "cuenta": "tecnico1.cooperativa (390 px, teclado)",
+          "resultado": "acceso denegado explícito=true; sin enlace en menú=true; desborde=false; foco con Tab=true",
           "ok": true
         }
       ],

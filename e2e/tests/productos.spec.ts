@@ -258,3 +258,59 @@ test('P0-019 evidencias: afirmación → soporte por versión → envío → ver
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });
+
+test('P0-025 auditoría: filtros, detalle con campos y exportación verificable; estados distintos; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  await page.goto(`${orgUrl}/auditoria`);
+  const table = page.getByRole('table', { name: 'Registros de auditoría' });
+  await expect(table).toBeVisible();
+  await expect(page.getByText(/Mostrando \d+ de \d+ registros a tu alcance/)).toBeVisible();
+  // filtro por operación con teclado: elegir y aplicar con Enter sobre el botón
+  await page.getByLabel('Operación').selectOption({ label: 'Producto creado' });
+  await page.getByRole('button', { name: 'Aplicar filtros' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(table.locator('tbody tr').first()).toContainText('Producto creado');
+  expect(await table.locator('tbody tr').filter({ hasNotText: 'Producto creado' }).count()).toBe(0);
+  // vacío con filtros (distinto de denegado y de error)
+  await page.getByLabel('Desde').fill('2099-01-01');
+  await page.getByRole('button', { name: 'Aplicar filtros' }).click();
+  await expect(page.getByText('Ningún registro a tu alcance coincide con estos filtros.')).toBeVisible();
+  await page.getByRole('button', { name: 'Quitar filtros' }).click();
+  await expect(table).toBeVisible();
+  // detalle: qué cambió, historia y aviso de solo lectura
+  await page.getByLabel('Operación').selectOption({ label: 'Producto creado' });
+  await page.getByRole('button', { name: 'Aplicar filtros' }).click();
+  await table.getByRole('link', { name: 'Producto creado' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Qué cambió' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Campos del registro' })).toContainText('code');
+  await expect(page.getByRole('list', { name: 'Historia del registro' })).toContainText('este registro');
+  await expect(page.getByText('Registro de solo lectura · no se puede editar ni borrar.')).toBeVisible();
+  expect(await page.getByRole('button', { name: /Editar|Borrar|Eliminar/ }).count()).toBe(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  // exportación con los mismos filtros: archivo con metadatos y hash informado
+  await page.goBack();
+  await expect(table).toBeVisible();
+  await expect(page.getByLabel('Operación')).toHaveValue('product.created'); // filtros conservados en la URL
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Exportar CSV' }).click();
+  const file = await download;
+  const text = (await import('fs')).readFileSync((await file.path())!, 'utf8');
+  expect(text).toContain('# formato,TL_AUDIT_CSV 0.1 (provisional)');
+  expect(text).toContain('product.created');
+  expect(text).not.toContain('product.updated'); // mismos filtros que la pantalla
+  await expect(page.getByText('Exportación descargada')).toBeVisible();
+  await expect(page.locator('code.hash').last()).toHaveText(/^[0-9a-f]{64}$/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await ctx.close();
+});
+
+test('P0-025 auditoría: sin audit:read la sección muestra acceso denegado, no «sin datos»', async ({ browser }) => {
+  const login = await (await browser.newContext()).request.post(`${API_URL}/api/v1/auth/login`, { data: { email: BUYER.email, password: BUYER.password } });
+  test.skip(!login.ok(), 'requiere la cuenta de comprador creada en las pruebas anteriores');
+  const t = (await login.json()).access_token as string;
+  const { ctx, page } = await open(browser, t);
+  await page.goto(`${orgUrl}/auditoria`);
+  await expect(page.getByText('Tu rol no permite consultar la auditoría de esta organización.')).toBeVisible();
+  await expect(page.getByText('Aún no hay registros a tu alcance.')).toHaveCount(0);
+  await ctx.close();
+});

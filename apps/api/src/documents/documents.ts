@@ -40,6 +40,20 @@ export function sniffMime(b: Buffer): string | null {
   return null;
 }
 const ALLOWED_MIME = ['application/pdf', 'image/jpeg', 'image/png'];
+
+/**
+ * Contenedor de archivo incrustado (políglota): clamd omite sin aviso los objetos de un ZIP mayores que MaxFileSize y
+ * responde OK, aunque el envío pese poco. Los formatos admitidos no necesitan archivos comprimidos incrustados, así
+ * que se rechazan de forma detectable en lugar de quedar parcialmente sin analizar y «disponibles».
+ */
+export function embeddedArchive(b: Buffer): string | null {
+  const zipLocal = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+  const zipEnd = Buffer.from([0x50, 0x4b, 0x05, 0x06]);
+  if (b.includes(zipLocal) && b.includes(zipEnd)) return 'ZIP';
+  if (b.includes(Buffer.from([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07]))) return 'RAR';
+  if (b.includes(Buffer.from([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c]))) return '7Z';
+  return null;
+}
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 class ReviewDto {
@@ -116,6 +130,9 @@ export class DocumentsService {
     }
     if (file?.mimetype && !ALLOWED_MIME.includes(file.mimetype) && file.mimetype !== 'application/octet-stream') {
       throw new AppError(422, 'FILE_TYPE_MISMATCH', 'El tipo declarado no coincide con el contenido del archivo.', [{ field: 'file', reason: 'MIME_MISMATCH' }]);
+    }
+    if (embeddedArchive(file!.buffer)) {
+      throw new AppError(422, 'EMBEDDED_ARCHIVE_NOT_ALLOWED', 'El archivo contiene un archivo comprimido incrustado que no puede analizarse por completo. Exporta el documento de nuevo como PDF, JPEG o PNG sin adjuntos.', [{ field: 'file', reason: 'EMBEDDED_ARCHIVE' }]);
     }
     const name = (file?.originalname ?? 'documento').replace(/[\\/\0]/g, '_').slice(0, 255) || 'documento';
     return { real, name };

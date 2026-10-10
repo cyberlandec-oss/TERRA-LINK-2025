@@ -22,8 +22,9 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-025 Auditoría | **DONE_LOCAL** (criterios de la historia sobre los módulos existentes); auditoría de riesgo, entregas, procesamiento, expediente y concesiones pendiente de sus historias; formato de exportación provisional (D-38) | Ver criterios abajo |
 | P0-019 Evidencias | **DONE_LOCAL** (criterios de la historia); afirmaciones de lote, análisis ambiental y mitigación esperan sus entidades; uso en riesgo/expediente es P0-020/P0-022 | Ver criterios abajo |
-| P0-018 Documentos | **DONE_LOCAL** (criterios de la historia); usa auditoría ya verificada; P0-025 (lectura/export de auditoría por alcance) y P0-019 (evidencia) siguen pendientes | Ver criterios abajo |
+| P0-018 Documentos | **DONE_LOCAL** (criterios de la historia); usa auditoría ya verificada; P0-025 y P0-019 ya cerradas en local | Ver criterios abajo |
 | P0-015 Eventos | **DONE_LOCAL** para los criterios internos de la organización (correction_of con efecto real en productor, historial autorizado, reproceso DEAD, fencing); concesiones externas y elevación siguen en P0-003 | Ver criterios abajo |
 | P0-014 KDE | **DONE_LOCAL** para catálogo y servicio de validación; 0 compuertas integradas (cada operación lo demuestra en su historia); D-33, D-34 y configuración jurídica pendientes | Ver criterios abajo |
 | P0-013 CTE | **DONE_LOCAL** (catálogo versionado y mapeo de lo existente; la integración de cada operación es criterio de su propia historia) | Ver criterios abajo |
@@ -253,6 +254,23 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 | **Concesiones externas y elevación** | **Pendientes en P0-003** | — |
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
+
+### P0-025 — criterios (y contenido incrustado del escáner)
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T21-52-03-657Z`): API 237/237 (30 suites), web 4/4, E2E 49/49, OpenAPI 90 rutas. Corridas previas fallidas conservadas: `2026-10-10T21-39-05-402Z` (los filtros se perdían al volver del detalle y la exportación salía sin filtrar → **defecto real**, corregido conservando los filtros en la URL) y `2026-10-10T21-46-27-217Z` (localizador ambiguo en la prueba). Revisión por rol: 31 entradas, 0 incidencias.
+
+Escáner: políglota PDF+ZIP con objeto interno > MaxFileSize respondía `OK` (omitido sin aviso) → **brecha corregida** con rechazo `EMBEDDED_ARCHIVE_NOT_ALLOWED` antes de analizar; PDF con flujo inflado > MaxFileSize ya se detectaba como incompleto (prueba añadida). Detalle en docs/12 y `docs/sesiones/2026-10-10-p0-025-auditoria.md`.
+
+| Criterio | Resultado | Evidencia (`audit.int-spec.ts`; E2E; revisión) |
+| --- | --- | --- |
+| Alcance de la auditoría | Misma tabla `audit_logs`; cubre alta/edición, corrección, revisiones, descargas, exportaciones (incluida `audit.export`) y permisos; worker en sus tablas propias | sesión §2 |
+| Consulta con filtros y paginación estable | Período, tipo, id, operación, actor, resultado, correlación; cursor en SQL sin duplicados ni saltos | «filtros… y paginación estable» |
+| Alcance por recurso aun con `audit:read` | Filtro SQL; totales, facetas, detalle y cursor sin fugas; reasignación y revocación inmediatas (técnico con contexto simulado: ningún rol de técnico tiene `audit:read`) | «alcance por recurso…» |
+| Redacción | Lista blanca por tipo; sin secretos, enlaces, coordenadas, contenido ni identidad; original intacto y append-only | «redacción de presentación…» |
+| Correcciones y versiones | Corrección enlaza evento original y de corrección; historia del registro conserva ambos | «historia inmutable…» |
+| Exportación | Mismos filtros/alcance/redacción; metadatos; SHA-256 verificable; límite 5000; auditada; sin enlaces; fórmulas neutralizadas solo en el archivo | «exportación autorizada…», «celdas CSV…», E2E |
+| UI §20.1 | Filtros, resultados, detalle, exportación; carga/vacío/error/denegado distintos; teclado y 390 px | E2E P0-025 ×2; revisión |
+| Pendiente | Formato definitivo, retención, auditor externo por encargo, auditar consultas (D-38); dominios futuros | — |
 
 ### P0-019 — criterios (y comprobación del escáner)
 
