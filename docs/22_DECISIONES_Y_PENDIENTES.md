@@ -9,6 +9,8 @@ Estas cuestiones no bloquean la lectura ni preparación del paquete. Bloquean ú
 | D-03 | 12 roles fuente vs catálogo ampliado previo | Backend/producto | Catálogo/migraciones/permisos; no inventar códigos |
 | D-04 | Política de elevación SUPER_ADMIN y grants | Seguridad/dueño datos | Matriz aprobada y QA-02 |
 | D-05 | Umbral GIS, borde =4 ha, precisión/formato de destino. **Propuesta no aprobada**: `docs/decisiones/D-05-PROPUESTA.md` | GIS/regulatorio | Texto consolidado + perfil versionado y pruebas boundary |
+| D-31 | Contrato de productos (provisional, P0-011): catálogo por organización (S1: `organization_id`); estados/presentaciones de sistema solo los 4 de las fuentes; código, estado y unidad inmutables desde la creación; gestión solo ORG_ADMIN | Producto/Data Steward | Ratificado; nuevos estados o permisos con migración |
+| D-32 | Unidades y conversiones: solo KG está definido en las fuentes. ¿Se requieren quintal, libra u otras, y con qué factor exacto y redondeo? Hoy no hay conversiones ni unidades adicionales | Producto/operación | Lista de unidades y factores exactos aprobados, con regla de redondeo |
 | D-30 | Regla técnica `TL_GIS_TECH 1.0.0` (provisional): comparación dentro de la organización con parcelas activas; «punto dentro de otra parcela» fuera de V1; igualdad/solape → REVIEW_REQUIRED; comparaciones con geometrías inválidas → WARNING | GIS/Data Steward | Regla ratificada; cambios crean otra versión de regla |
 | D-06 | Stock negativo y ajustes | Operaciones/traceability | ADR-0003 y QA-06; no bypass de consumo |
 | D-07 | Severidad/proceso/conclusión riesgo | Producto/regulatorio | Enums reales, mapping y regla aprobada |

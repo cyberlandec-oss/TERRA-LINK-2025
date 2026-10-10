@@ -1,6 +1,6 @@
 // Catálogo RBAC versionado (docs/07_RBAC_Y_GOBERNANZA.md). Se amplía por historia; no inferir
 // privilegios comparando nombres de rol fuera de este módulo.
-export const RBAC_CATALOG_VERSION = '2026-10-10.6';
+export const RBAC_CATALOG_VERSION = '2026-10-10.7';
 
 export type Permission =
   | 'organization:read'
@@ -32,7 +32,10 @@ export type Permission =
   | 'plot:read_geometry'
   // P0-010: ejecutar la evaluación GIS técnica (consultar resultados usa plot:read/plot:read_assigned).
   | 'plot:evaluate_gis'
-  | 'plot:evaluate_gis_assigned';
+  | 'plot:evaluate_gis_assigned'
+  // P0-011: catálogo de productos de la organización. Administrar = alta, edición y baja lógica.
+  | 'product:read'
+  | 'product:manage';
 
 // Permisos de plataforma: solo SUPER_ADMIN (users.platform_role), nunca por membresía.
 export type PlatformPermission =
@@ -57,17 +60,17 @@ const PLOT_ALL: Permission[] = [
 // Permisos de productor: propuesta provisional derivada de S1 §9 (FIELD_TECHNICIAN producer:create/read)
 // y doc 07/14 («solo asignaciones» para el técnico). Pendiente de ratificación con el resto de la matriz.
 export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  ORG_ADMIN: ['audit:read', 'organization:read', 'organization:update', 'membership:read', 'membership:assign', ...PRODUCER_ALL, ...PLOT_ALL],
-  MANAGER: [...ALL_MEMBER_READ, 'membership:read', 'producer:read', 'producer:read_identity', 'producer:create', 'producer:update', 'producer:assign', 'producer:archive', 'producer:review_duplicates', 'plot:read', 'plot:create', 'plot:update', 'plot:archive', 'plot:read_geometry', 'plot:evaluate_gis'],
+  ORG_ADMIN: ['audit:read', 'organization:read', 'organization:update', 'membership:read', 'membership:assign', ...PRODUCER_ALL, ...PLOT_ALL, 'product:read', 'product:manage'],
+  MANAGER: [...ALL_MEMBER_READ, 'membership:read', 'producer:read', 'producer:read_identity', 'producer:create', 'producer:update', 'producer:assign', 'producer:archive', 'producer:review_duplicates', 'plot:read', 'plot:create', 'plot:update', 'plot:archive', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read'],
   FIELD_TECHNICIAN: [...ALL_MEMBER_READ, 'producer:read_assigned', 'producer:read_identity', 'producer:create', 'producer:update_assigned',
-    'plot:read_assigned', 'plot:create_assigned', 'plot:update_assigned', 'plot:read_geometry', 'plot:evaluate_gis_assigned'],
-  RECEPTION_OPERATOR: ALL_MEMBER_READ,
-  QUALITY_OPERATOR: ALL_MEMBER_READ,
-  TRACEABILITY_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis'],
-  EUDR_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'producer:read_identity', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis'],
-  EXPORT_MANAGER: ALL_MEMBER_READ,
+    'plot:read_assigned', 'plot:create_assigned', 'plot:update_assigned', 'plot:read_geometry', 'plot:evaluate_gis_assigned', 'product:read'],
+  RECEPTION_OPERATOR: [...ALL_MEMBER_READ, 'product:read'],
+  QUALITY_OPERATOR: [...ALL_MEMBER_READ, 'product:read'],
+  TRACEABILITY_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read'],
+  EUDR_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'producer:read_identity', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read'],
+  EXPORT_MANAGER: [...ALL_MEMBER_READ, 'product:read'],
   BUYER: [],
-  AUDITOR: [...ALL_MEMBER_READ, 'audit:read', 'producer:read', 'plot:read'],
+  AUDITOR: [...ALL_MEMBER_READ, 'audit:read', 'producer:read', 'plot:read', 'product:read'],
   PRODUCER: [],
 };
 

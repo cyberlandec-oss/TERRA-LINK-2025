@@ -8,7 +8,7 @@ import { ErrorPanel, StatusBadge, type Tone } from './ui';
 // P0-010 Evaluación GIS técnica (UX_UI §13.3). El estado es TÉCNICO: «Válida» no es conformidad EUDR.
 // Tres bloques separados: validez técnica, calidad/cobertura de captura y perfil de destino (D-05).
 
-interface Check { code: string; outcome: 'PASS' | 'FAIL' | 'REVIEW' | 'WARNING' | 'NOT_APPLICABLE' | 'NOT_EXECUTED'; reason_code: string | null; message: string; details?: Record<string, unknown> }
+interface Check { code: string; outcome: 'PASS' | 'FAIL' | 'REVIEW' | 'WARNING' | 'NOT_APPLICABLE' | 'NOT_EXECUTED' | 'RESTRICTED'; reason_code: string | null; message: string; details?: Record<string, unknown> }
 interface Evaluation {
   id: string; version_number: number; plot_version_id: string; evaluated_at: string;
   rule: { id: string; version: string };
@@ -17,7 +17,7 @@ interface Evaluation {
   capture_quality: { status: string; label: string; threshold_note: string };
   destination_profile: { status: string; label: string; not_evaluated: string[] };
   relations: Array<{ plot_id: string; plot_code: string; version_number: number; relation: 'EQUAL' | 'OVERLAP' | 'TOUCH'; same_hash: boolean; shared_area_m2: string | null }>;
-  relations_outside_scope: Array<{ relation: string; count: number; message: string }>;
+  comparison_scope: 'ORGANIZATION' | 'EVALUATOR_ASSIGNED';
   error_location_visible: boolean; error_location: { type: string; coordinates: number[] } | null;
   stale: boolean; stale_reasons: string[]; limits: string[];
 }
@@ -29,7 +29,7 @@ export const GIS_STATUS: Record<Evaluation['status'], { label: string; tone: Ton
   REVIEW_REQUIRED: { label: 'REVIEW_REQUIRED · requiere revisión', tone: 'review' },
 };
 const OUTCOME: Record<Check['outcome'], string> = {
-  PASS: 'Correcta', FAIL: 'Falla', REVIEW: 'Requiere revisión', WARNING: 'Advertencia', NOT_APPLICABLE: 'No aplica', NOT_EXECUTED: 'No ejecutada',
+  PASS: 'Correcta', FAIL: 'Falla', REVIEW: 'Requiere revisión', WARNING: 'Advertencia', NOT_APPLICABLE: 'No aplica', NOT_EXECUTED: 'No ejecutada', RESTRICTED: 'Reservada',
 };
 const CHECK_LABEL: Record<string, string> = {
   GEOMETRY_PRESENT: 'Geometría presente', GEOMETRY_TYPE: 'Tipo de geometría', SRID: 'Sistema de referencia (WGS84)',
@@ -92,6 +92,7 @@ export function GisEvaluation({ orgId, plotId, canEvaluate, hasVersion }: { orgI
             <dt>Estado técnico</dt><dd><StatusBadge tone={GIS_STATUS[latest.status].tone}>{GIS_STATUS[latest.status].label}</StatusBadge> <span className="muted">{latest.status_note}</span></dd>
             <dt>Versión evaluada</dt><dd>v{latest.version_number}</dd>
             <dt>Reglas</dt><dd>{latest.rule.id} · versión {latest.rule.version}</dd>
+            <dt>Alcance de comparación</dt><dd>{latest.comparison_scope === 'ORGANIZATION' ? 'Todas las parcelas activas de la organización' : 'Solo las parcelas asignadas a quien evaluó'}</dd>
             <dt>Fecha</dt><dd>{new Date(latest.evaluated_at).toLocaleString('es-EC')}</dd>
             <dt>Siguiente acción</dt><dd>{latest.next_action}</dd>
           </dl>
@@ -114,7 +115,7 @@ export function GisEvaluation({ orgId, plotId, canEvaluate, hasVersion }: { orgI
           {latest.error_location_visible && latest.error_location?.type === 'Point' && (
             <p className="muted">Ubicación del problema: latitud {latest.error_location.coordinates[1]}, longitud {latest.error_location.coordinates[0]}.</p>
           )}
-          {(latest.relations.length > 0 || latest.relations_outside_scope.length > 0) && (
+          {latest.relations.length > 0 && (
             <>
               <h4>Relaciones con otras parcelas</h4>
               <p className="muted">Una coincidencia o solapamiento no prueba ilegalidad ni autoriza fusionar parcelas.</p>
@@ -129,9 +130,6 @@ export function GisEvaluation({ orgId, plotId, canEvaluate, hasVersion }: { orgI
                   ))}
                 </ul>
               )}
-              {latest.relations_outside_scope.map((r) => (
-                <p key={r.relation} className="muted" role="note">{RELATION[r.relation] ?? r.relation} ({r.count}): {r.message}</p>
-              ))}
             </>
           )}
 

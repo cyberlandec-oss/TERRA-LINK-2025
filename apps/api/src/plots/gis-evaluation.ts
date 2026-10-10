@@ -28,7 +28,7 @@ export const GIS_RULE = {
   parameters: {
     srid: 4326,
     coordinate_ranges: { longitude: [-180, 180], latitude: [-90, 90] },
-    comparison_scope: 'ORGANIZATION_ACTIVE_PLOTS_CURRENT_VERSIONS',
+    comparison_scope: 'ORGANIZATION (evaluador con plot:read) o EVALUATOR_ASSIGNED (solo parcelas asignadas al evaluador); otras parcelas activas, versión vigente',
     equality: 'ST_Equals (igualdad topológica; independiente del orden o del punto inicial de los vértices)',
     overlap: 'intersección con superficie (DE-9IM 2********)',
     touch: 'contacto solo por borde o vértice (ST_Touches)',
@@ -60,7 +60,7 @@ export const GIS_RULE = {
 
 const RULE_TAG = `${GIS_RULE.id}@${GIS_RULE.version}`;
 
-type Outcome = 'PASS' | 'FAIL' | 'REVIEW' | 'WARNING' | 'NOT_APPLICABLE' | 'NOT_EXECUTED';
+type Outcome = 'PASS' | 'FAIL' | 'REVIEW' | 'WARNING' | 'NOT_APPLICABLE' | 'NOT_EXECUTED' | 'RESTRICTED';
 interface Check { code: string; category: 'TECHNICAL'; outcome: Outcome; reason_code: string | null; message: string; details?: Record<string, unknown> }
 type EvalRow = Selectable<GisEvaluationsTable>;
 
@@ -108,6 +108,7 @@ const MESSAGES: Record<string, string> = {
   TOUCH_ONLY: 'Solo hay contacto por borde o vértice con otras parcelas; no se comparte superficie.',
   COMPARISONS_INCOMPLETE: 'Algunas parcelas no se compararon porque su geometría no es válida técnicamente.',
   POINT_OVERLAP_NOT_IN_RULE: 'No se ejecutó: «punto dentro de otra parcela» no forma parte de esta versión de la regla.',
+  COMPARISON_RESTRICTED: 'Reservada: la comparación con otras parcelas solo se muestra a usuarios con acceso a todas las parcelas de la organización.',
   PASS: 'Correcto.',
 };
 const ACTIONS: Record<string, string> = {
@@ -143,12 +144,19 @@ export class GisEvaluationService {
     return ctx;
   }
 
-  /** Huella del conjunto comparable (otras parcelas activas con geometría vigente). */
-  private async comparedSet(db: Kysely<Database> | Transaction<Database>, orgId: string, plotId: string) {
+  /** Filtro del alcance efectivo de comparación (doc 09: no revelar recursos fuera del alcance). */
+  private scopeFilter(scopeMembership: string | null) {
+    return scopeMembership
+      ? sql`AND EXISTS (SELECT 1 FROM producers pr WHERE pr.id = p.producer_id AND pr.organization_id = p.organization_id AND pr.assigned_membership_id = ${scopeMembership})`
+      : sql``;
+  }
+
+  /** Huella del conjunto comparable (otras parcelas activas con geometría vigente, dentro del alcance). */
+  private async comparedSet(db: Kysely<Database> | Transaction<Database>, orgId: string, plotId: string, scopeMembership: string | null) {
     const r = await sql<{ agg: string | null; n: number }>`
       SELECT string_agg(p.id || ':' || v.id || ':' || v.geometry_hash, ',' ORDER BY p.id) AS agg, count(*)::int AS n
       FROM plots p JOIN plot_versions v ON v.id = p.current_version_id AND v.organization_id = p.organization_id
-      WHERE p.organization_id = ${orgId} AND p.id <> ${plotId} AND p.status = 'ACTIVE' AND v.geometry IS NOT NULL`.execute(db);
+      WHERE p.organization_id = ${orgId} AND p.id <> ${plotId} AND p.status = 'ACTIVE' AND v.geometry IS NOT NULL ${this.scopeFilter(scopeMembership)}`.execute(db);
     return { hash: createHash('sha256').update(r.rows[0].agg ?? '').digest('hex'), count: r.rows[0].n };
   }
 
@@ -165,6 +173,9 @@ export class GisEvaluationService {
       return { replayed: true, evaluation: await this.view(this.db, ctx, prior) };
     }
     const versionId = dto.plot_version_id ?? plot.current_version_id;
+    // Alcance efectivo: quien no lee toda la organización compara solo con sus parcelas asignadas.
+    const scopeMembership = this.plots.has(ctx, 'plot:read') ? null : ctx.membershipId;
+    const comparisonScope = scopeMembership ? 'EVALUATOR_ASSIGNED' : 'ORGANIZATION';
     if (!versionId) throw new AppError(422, 'PLOT_WITHOUT_VERSION', 'La parcela no tiene versiones geométricas que evaluar.');
 
     try {
@@ -190,7 +201,7 @@ export class GisEvaluationService {
         const comparisons: Array<{ plot_id: string; version_id: string; hash: string; relation: 'EQUAL' | 'OVERLAP' | 'TOUCH'; same_hash: boolean; shared_m2: string | null }> = [];
         let locationSql = sql`NULL::geometry`;
         let status: EvalRow['status'];
-        const set = await this.comparedSet(trx, orgId, plotId);
+        const set = await this.comparedSet(trx, orgId, plotId, scopeMembership);
 
         if (g.missing) {
           checks.push(chk('GEOMETRY_PRESENT', 'FAIL', 'GEOMETRY_MISSING'));
@@ -225,7 +236,7 @@ export class GisEvaluationService {
                 SELECT p.id AS plot_id, v.id AS version_id, v.geometry_hash AS hash, v.geometry, (ST_IsValidDetail(v.geometry)).valid AS valid
                 FROM plots p JOIN plot_versions v ON v.id = p.current_version_id AND v.organization_id = p.organization_id
                 WHERE p.organization_id = ${orgId} AND p.id <> ${plotId} AND p.status = 'ACTIVE' AND v.geometry IS NOT NULL
-                  AND v.geometry && (SELECT geometry FROM me))
+                  AND v.geometry && (SELECT geometry FROM me) ${this.scopeFilter(scopeMembership)})
               SELECT c.plot_id, c.version_id, c.hash, c.valid,
                      CASE WHEN c.valid THEN ST_Equals(c.geometry, me.geometry) END AS equal,
                      CASE WHEN c.valid AND ${polygonal} AND GeometryType(c.geometry) IN ('POLYGON','MULTIPOLYGON') THEN ST_Relate(c.geometry, me.geometry, '2********') END AS overlap,
@@ -258,10 +269,12 @@ export class GisEvaluationService {
         const id = randomUUID();
         const inserted = await sql<EvalRow>`
           INSERT INTO gis_evaluations (id, organization_id, plot_id, plot_version_id, geometry_hash, rule_id, rule_version, parameters, status,
-            checks, capture_quality, destination_profile, error_location, compared_set_hash, compared_count, operation_id, evaluated_by)
-          VALUES (${id}, ${orgId}, ${plotId}, ${versionId}, ${g.geometry_hash}, ${GIS_RULE.id}, ${GIS_RULE.version}, ${JSON.stringify(GIS_RULE.parameters)}::jsonb, ${status},
+            checks, capture_quality, destination_profile, error_location, compared_set_hash, compared_count, operation_id, evaluated_by,
+            comparison_scope, scope_membership_id)
+          VALUES (${id}, ${orgId}, ${plotId}, ${versionId}, ${g.geometry_hash}, ${GIS_RULE.id}, ${GIS_RULE.version},
+            ${JSON.stringify({ ...GIS_RULE.parameters, comparison_scope: comparisonScope })}::jsonb, ${status},
             ${JSON.stringify(checks)}::jsonb, ${JSON.stringify(capture)}::jsonb, ${JSON.stringify(destination)}::jsonb, ${locationSql},
-            ${set.hash}, ${set.count}, ${dto.operation_id}, ${user.id})
+            ${set.hash}, ${set.count}, ${dto.operation_id}, ${user.id}, ${comparisonScope}, ${scopeMembership})
           RETURNING *`.execute(trx);
         for (const c of comparisons) {
           await trx.insertInto('gis_evaluation_comparisons').values({
@@ -313,46 +326,90 @@ export class GisEvaluationService {
     return { ...base, status: s.complete ? 'COMPLETE' : s.with_accuracy === 0 ? 'ABSENT' : 'PARTIAL', reason_code: null, label: s.label, summary: s, samples: values.length };
   }
 
-  private async view(db: Kysely<Database> | Transaction<Database>, ctx: TenantContext, row: EvalRow) {
+  /**
+   * Proyección por lector (doc 09: «no revelar counts o identidades ocultas»):
+   * - Lector con plot:read ve el registro completo.
+   * - Lector restringido (solo _assigned) ve las comparaciones únicamente si la evaluación se hizo con SU
+   *   alcance asignado; aun así se recalculan solo con las parcelas que hoy puede leer.
+   * - En cualquier otro caso el bloque de comparación se muestra como RESERVADO SIEMPRE, con el mismo texto
+   *   haya o no coincidencias, y el estado se calcula solo con las comprobaciones de la propia geometría.
+   *   Así ni el estado, ni los conteos, ni los tipos de relación permiten inferir parcelas ocultas.
+   */
+  private async view(db: Kysely<Database> | Transaction<Database>, ctx: TenantContext, row: EvalRow & { comparison_scope?: string; scope_membership_id?: string | null }) {
+    const full = this.plots.has(ctx, 'plot:read');
+    const scope = row.comparison_scope ?? 'ORGANIZATION';
+    const scopeMembership = row.scope_membership_id ?? null;
+    const comparisonsVisible = full || (scope === 'EVALUATOR_ASSIGNED' && scopeMembership === ctx.membershipId);
     const plot = await db.selectFrom('plots').select(['current_version_id']).where('organization_id', '=', row.organization_id).where('id', '=', row.plot_id).executeTakeFirstOrThrow();
     const version = await db.selectFrom('plot_versions').select(['version_number']).where('id', '=', row.plot_version_id).executeTakeFirstOrThrow();
-    const set = await this.comparedSet(db, row.organization_id, row.plot_id);
     const stale: string[] = [];
     if (plot.current_version_id !== row.plot_version_id) stale.push('GEOMETRY_CHANGED');
     if (row.rule_version !== GIS_RULE.version || row.rule_id !== GIS_RULE.id) stale.push('RULES_CHANGED');
-    if (set.hash !== row.compared_set_hash) stale.push('COMPARED_PLOTS_CHANGED');
+    if (comparisonsVisible) {
+      const set = await this.comparedSet(db, row.organization_id, row.plot_id, scopeMembership);
+      if (set.hash !== row.compared_set_hash) stale.push('COMPARED_PLOTS_CHANGED');
+    }
     const geometry = this.plots.geometryAllowed(ctx);
     const loc = geometry && row.error_location
       ? (await sql<{ g: unknown }>`SELECT ST_AsGeoJSON(error_location, 17)::jsonb AS g FROM gis_evaluations WHERE id = ${row.id}`.execute(db)).rows[0].g
       : null;
-    // Relaciones con otras parcelas: identidad solo si el usuario puede leer esa parcela; si no, salida segura.
-    const cmps = await db.selectFrom('gis_evaluation_comparisons as c')
-      .innerJoin('plots as p', (j) => j.onRef('p.id', '=', 'c.compared_plot_id').onRef('p.organization_id', '=', 'c.organization_id'))
-      .innerJoin('plot_versions as v', 'v.id', 'c.compared_version_id')
-      .select(['c.compared_plot_id', 'c.relation', 'c.same_hash', 'c.shared_area_m2', 'p.plot_code', 'v.version_number'])
-      .where('c.evaluation_id', '=', row.id).execute();
-    const visible: unknown[] = [];
-    const hidden: Record<string, number> = {};
-    for (const c of cmps) {
-      const can = await this.plots.load(db, ctx, c.compared_plot_id, 'read').then(() => true, () => false);
-      if (can) visible.push({ plot_id: c.compared_plot_id, plot_code: c.plot_code, version_number: c.version_number, relation: c.relation, same_hash: c.same_hash, shared_area_m2: c.shared_area_m2 });
-      else hidden[c.relation] = (hidden[c.relation] ?? 0) + 1;
+
+    let checks = row.checks as Check[];
+    let status = row.status;
+    const relations: unknown[] = [];
+    if (comparisonsVisible) {
+      const cmps = await db.selectFrom('gis_evaluation_comparisons as c')
+        .innerJoin('plots as p', (j) => j.onRef('p.id', '=', 'c.compared_plot_id').onRef('p.organization_id', '=', 'c.organization_id'))
+        .innerJoin('plot_versions as v', 'v.id', 'c.compared_version_id')
+        .select(['c.compared_plot_id', 'c.relation', 'c.same_hash', 'c.shared_area_m2', 'p.plot_code', 'v.version_number'])
+        .where('c.evaluation_id', '=', row.id).execute();
+      for (const c of cmps) {
+        const can = full || (await this.plots.load(db, ctx, c.compared_plot_id, 'read').then(() => true, () => false));
+        if (can) relations.push({ plot_id: c.compared_plot_id, plot_code: c.plot_code, version_number: c.version_number, relation: c.relation, same_hash: c.same_hash, shared_area_m2: c.shared_area_m2 });
+      }
+      if (!full) {
+        // recalcular con lo visible (una reasignación posterior no debe filtrar relaciones ocultas)
+        const vis = relations as Array<{ relation: string }>;
+        const equal = vis.filter((r) => r.relation === 'EQUAL').length;
+        const overlap = vis.filter((r) => r.relation === 'OVERLAP').length;
+        const touch = vis.filter((r) => r.relation === 'TOUCH').length;
+        checks = checks.map((c) => {
+          if (c.code === 'GEOMETRIC_EQUALITY' && (c.outcome === 'REVIEW' || c.outcome === 'PASS')) return equal ? chk(c.code, 'REVIEW', 'EQUAL_GEOMETRY_FOUND', { count: equal }) : chk(c.code, 'PASS', 'NO_MATCHES');
+          if (c.code === 'OVERLAP' && (c.outcome === 'REVIEW' || c.outcome === 'PASS')) return overlap ? chk(c.code, 'REVIEW', 'OVERLAP_FOUND', { count: overlap, touch_only: touch }) : chk(c.code, 'PASS', touch ? 'TOUCH_ONLY' : 'NO_MATCHES', { touch_only: touch });
+          return c;
+        });
+        status = this.statusOf(checks);
+      }
+    } else {
+      checks = checks.map((c) => (c.code === 'GEOMETRIC_EQUALITY' || c.code === 'OVERLAP') && c.outcome !== 'NOT_APPLICABLE' && c.outcome !== 'NOT_EXECUTED'
+        ? { code: c.code, category: 'TECHNICAL', outcome: 'RESTRICTED' as Outcome, reason_code: 'COMPARISON_RESTRICTED', message: MESSAGES.COMPARISON_RESTRICTED }
+        : c);
+      status = this.statusOf(checks);
     }
-    const status = row.status;
+    const viewScope = full ? 'FULL' : comparisonsVisible ? 'ASSIGNED_SCOPE' : 'GEOMETRY_ONLY';
     return {
       id: row.id, plot_id: row.plot_id, plot_version_id: row.plot_version_id, version_number: version.version_number,
       rule: { id: row.rule_id, version: row.rule_version }, parameters: row.parameters, evaluated_at: row.evaluated_at,
-      status, status_scope: 'TECHNICAL', status_note: 'Estado técnico de la geometría bajo esta regla; no es conformidad EUDR ni aprobación regulatoria.',
-      next_action: ACTIONS[status === 'VALID' ? 'VALID' : status === 'INVALID' ? 'INVALID' : status === 'WARNING' ? 'WARNING' : (row.checks as Check[])[0]?.reason_code === 'GEOMETRY_MISSING' ? 'GEOMETRY_MISSING' : 'REVIEW'],
-      checks: row.checks, capture_quality: row.capture_quality, destination_profile: row.destination_profile,
-      relations: visible,
-      relations_outside_scope: Object.entries(hidden).map(([relation, count]) => ({
-        relation, count, message: 'Hay una relación con una parcela fuera de tu alcance. No se muestran su identidad ni sus datos: un usuario con acceso a toda la organización debe revisarla.',
-      })),
+      comparison_scope: scope,
+      status, status_scope: 'TECHNICAL', view_scope: viewScope,
+      status_note: viewScope === 'FULL'
+        ? 'Estado técnico de la geometría bajo esta regla; no es conformidad EUDR ni aprobación regulatoria.'
+        : viewScope === 'ASSIGNED_SCOPE'
+          ? 'Estado técnico calculado con las parcelas de tu alcance; no es conformidad EUDR ni aprobación regulatoria.'
+          : 'Estado técnico de la propia geometría; la comparación con otras parcelas está reservada. No es conformidad EUDR ni aprobación regulatoria.',
+      next_action: ACTIONS[status === 'VALID' ? 'VALID' : status === 'INVALID' ? 'INVALID' : status === 'WARNING' ? 'WARNING' : checks[0]?.reason_code === 'GEOMETRY_MISSING' ? 'GEOMETRY_MISSING' : 'REVIEW'],
+      checks, capture_quality: row.capture_quality, destination_profile: row.destination_profile,
+      relations,
       error_location: loc, error_location_visible: geometry && !!row.error_location,
       stale: stale.length > 0, stale_reasons: stale,
       limits: GIS_RULE.not_in_scope,
     };
+  }
+
+  private statusOf(checks: Check[]): EvalRow['status'] {
+    if (checks[0]?.reason_code === 'GEOMETRY_MISSING') return 'REVIEW_REQUIRED';
+    const o = checks.map((c) => c.outcome);
+    return o.includes('FAIL') ? 'INVALID' : o.includes('REVIEW') ? 'REVIEW_REQUIRED' : o.includes('WARNING') ? 'WARNING' : 'VALID';
   }
 
   async list(user: AuthUser, orgId: string, plotId: string) {

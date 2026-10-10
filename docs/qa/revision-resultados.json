@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-10T17:48:15.008Z",
+  "fecha": "2026-10-10T18:14:42.746Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -94,6 +94,7 @@
         "Productores",
         "Parcelas",
         "Posibles duplicados",
+        "Productos",
         "Miembros e invitaciones",
         "Auditoría",
         "Mis organizaciones"
@@ -147,6 +148,7 @@
         "Productores",
         "Parcelas",
         "Posibles duplicados",
+        "Productos",
         "Miembros e invitaciones",
         "Mis organizaciones"
       ],
@@ -198,6 +200,7 @@
         "Resumen de la organización",
         "Productores",
         "Parcelas",
+        "Productos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Cooperativa Río Verde",
@@ -248,6 +251,7 @@
         "Resumen de la organización",
         "Productores",
         "Parcelas",
+        "Productos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Cooperativa Río Verde",
@@ -347,6 +351,7 @@
         "Resumen de la organización",
         "Productores",
         "Parcelas",
+        "Productos",
         "Auditoría",
         "Mis organizaciones"
       ],
@@ -399,6 +404,7 @@
         "Productores",
         "Parcelas",
         "Posibles duplicados",
+        "Productos",
         "Miembros e invitaciones",
         "Auditoría",
         "Mis organizaciones"
@@ -449,6 +455,7 @@
       "organizacion_activa": "DEMO · Acopio San Isidro",
       "navegacion": [
         "Resumen de la organización",
+        "Productos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Acopio San Isidro",
@@ -498,6 +505,7 @@
       "organizacion_activa": "DEMO · Acopio San Isidro",
       "navegacion": [
         "Resumen de la organización",
+        "Productos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Acopio San Isidro",
@@ -550,6 +558,7 @@
         "Productores",
         "Parcelas",
         "Posibles duplicados",
+        "Productos",
         "Miembros e invitaciones",
         "Auditoría",
         "Mis organizaciones"
@@ -602,6 +611,7 @@
         "Resumen de la organización",
         "Productores",
         "Parcelas",
+        "Productos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -652,6 +662,7 @@
         "Resumen de la organización",
         "Productores",
         "Parcelas",
+        "Productos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -700,6 +711,7 @@
       "organizacion_activa": "DEMO · Exportadora Pacífico",
       "navegacion": [
         "Resumen de la organización",
+        "Productos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -751,6 +763,7 @@
         "Resumen de la organización",
         "Productores",
         "Parcelas",
+        "Productos",
         "Auditoría",
         "Mis organizaciones"
       ],
@@ -764,7 +777,7 @@
       "datos_ajenos": "ninguno",
       "tarea": {
         "tarea": "Consultar la auditoría de su organización",
-        "resultado": "13 registros visibles",
+        "resultado": "17 registros visibles",
         "ok": true
       }
     },
@@ -803,6 +816,7 @@
         "Productores",
         "Parcelas",
         "Posibles duplicados",
+        "Productos",
         "Miembros e invitaciones",
         "Auditoría",
         "Mis organizaciones"
@@ -905,6 +919,7 @@
         "Productores",
         "Parcelas",
         "Posibles duplicados",
+        "Productos",
         "Miembros e invitaciones",
         "Mis organizaciones"
       ],
@@ -956,6 +971,7 @@
         "Resumen de la organización",
         "Productores",
         "Parcelas",
+        "Productos",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -1055,6 +1071,27 @@
         {
           "cuenta": "auditor.cooperativa",
           "resultado": "botón de evaluación=0; ve el resultado=true; coordenadas o ubicación del problema=false",
+          "ok": true
+        }
+      ],
+      "ok": true
+    },
+    {
+      "tipo": "productos",
+      "casos": [
+        {
+          "cuenta": "admin.cooperativa (390 px, teclado)",
+          "resultado": "4 productos; unidades explícitas=true; formulario de alta=1; estados desde la API=4; confirmación explica efectos=1; desborde=false",
+          "ok": true
+        },
+        {
+          "cuenta": "recepcion.acopio (operador autorizado a consultar)",
+          "resultado": "enlace en el menú=1; 4 productos; formulario de alta=0",
+          "ok": true
+        },
+        {
+          "cuenta": "productor.cooperativa (sin permiso)",
+          "resultado": "enlace en el menú=0; acceso directo denegado=1",
           "ok": true
         }
       ],

@@ -67,20 +67,13 @@ describeDb('P0-010 evaluación GIS técnica (PostGIS real)', () => {
   });
   afterAll(async () => h?.close());
 
-  it('igualdad topológica con distinto orden ≠ igualdad de hash; solapamiento vs contacto de borde; técnico sin alcance no ve identidades', async () => {
-    const res = await evaluate('tecnico1@test.local', plots.A).expect(201);
-    const ev = res.body.evaluation;
-    expect(ev).toMatchObject({ status: 'REVIEW_REQUIRED', status_scope: 'TECHNICAL', rule: { id: 'TL_GIS_TECH', version: '1.0.0' }, stale: false, relations: [] });
-    expect(ev.status_note).toMatch(/no es conformidad EUDR/);
-    expect(check(ev, 'GEOMETRIC_EQUALITY')).toMatchObject({ outcome: 'REVIEW', reason_code: 'EQUAL_GEOMETRY_FOUND' });
-    expect(check(ev, 'OVERLAP')).toMatchObject({ outcome: 'REVIEW', reason_code: 'OVERLAP_FOUND' });
-    expect(ev.relations_outside_scope).toEqual(expect.arrayContaining([
-      expect.objectContaining({ relation: 'EQUAL', count: 2 }), expect.objectContaining({ relation: 'OVERLAP', count: 1 }), expect.objectContaining({ relation: 'TOUCH', count: 1 }),
-    ]));
-    const blob = JSON.stringify(res.body);
-    for (const code of ['"B"', '"C"', '"D"', '"H"', plots.B, plots.C]) expect(blob).not.toContain(code); // salida segura
-
-    const admin = (await http().get(`${org()}/gis-evaluations/${ev.id}`).set(as('admin-a@test.local')).expect(200)).body;
+  it('igualdad topológica con distinto orden ≠ igualdad de hash; solapamiento vs contacto de borde (evaluador con toda la organización)', async () => {
+    const res = await evaluate('admin-a@test.local', plots.A).expect(201);
+    const admin = res.body.evaluation;
+    expect(admin).toMatchObject({ status: 'REVIEW_REQUIRED', status_scope: 'TECHNICAL', view_scope: 'FULL', comparison_scope: 'ORGANIZATION', rule: { id: 'TL_GIS_TECH', version: '1.0.0' }, stale: false });
+    expect(admin.status_note).toMatch(/no es conformidad EUDR/);
+    expect(check(admin, 'GEOMETRIC_EQUALITY')).toMatchObject({ outcome: 'REVIEW', reason_code: 'EQUAL_GEOMETRY_FOUND' });
+    expect(check(admin, 'OVERLAP')).toMatchObject({ outcome: 'REVIEW', reason_code: 'OVERLAP_FOUND' });
     const byCode = Object.fromEntries(admin.relations.map((r: { plot_code: string }) => [r.plot_code, r]));
     expect(byCode.B).toMatchObject({ relation: 'EQUAL', same_hash: false });
     expect(byCode.H).toMatchObject({ relation: 'EQUAL', same_hash: true });
@@ -88,7 +81,41 @@ describeDb('P0-010 evaluación GIS técnica (PostGIS real)', () => {
     expect(Number(byCode.C.shared_area_m2)).toBeGreaterThan(0);
     expect(byCode.D).toMatchObject({ relation: 'TOUCH', shared_area_m2: null });
     expect(byCode.E).toBeUndefined();
-    expect(admin.relations_outside_scope).toEqual([]);
+    expect(admin).not.toHaveProperty('relations_outside_scope');
+  });
+
+  it('privacidad: el técnico no puede inferir coincidencias con parcelas fuera de su alcance (ni identidad, ni tipo, ni cantidad, ni estado)', async () => {
+    const z = await mkPlot('Z', p1, { type: 'Polygon', coordinates: [sq(-60.0, -1.0)] }); // asignada y sin coincidencias
+    // 1) Evaluaciones hechas por el administrador (alcance de organización), consultadas por el técnico
+    const withHidden = (await evaluate('admin-a@test.local', plots.A).expect(201)).body.evaluation; // A tiene B/H/C/D ocultas para tecnico1
+    const without = (await evaluate('admin-a@test.local', z).expect(201)).body.evaluation;
+    expect(withHidden.status).toBe('REVIEW_REQUIRED'); // el registro real sí lo tiene
+    const techA = (await http().get(`${org()}/gis-evaluations/${withHidden.id}`).set(as('tecnico1@test.local')).expect(200)).body;
+    const techZ = (await http().get(`${org()}/gis-evaluations/${without.id}`).set(as('tecnico1@test.local')).expect(200)).body;
+    const shape = (e: { status: string; view_scope: string; status_note: string; next_action: string; relations: unknown[]; stale_reasons: string[]; checks: Array<{ code: string; outcome: string; reason_code: string | null; message: string; details?: unknown }> }) => ({
+      status: e.status, view_scope: e.view_scope, status_note: e.status_note, next_action: e.next_action, relations: e.relations, stale_reasons: e.stale_reasons,
+      checks: e.checks.filter((c) => c.code !== 'AREA').map((c) => ({ code: c.code, outcome: c.outcome, reason_code: c.reason_code, message: c.message, details: c.details ?? null })),
+    });
+    expect(shape(techA)).toEqual(shape(techZ)); // indistinguibles
+    expect(techA).toMatchObject({ status: 'VALID', view_scope: 'GEOMETRY_ONLY', relations: [] });
+    expect(check(techA, 'GEOMETRIC_EQUALITY')).toMatchObject({ outcome: 'RESTRICTED', reason_code: 'COMPARISON_RESTRICTED' });
+    const blob = JSON.stringify(techA);
+    expect(techA).not.toHaveProperty('relations_outside_scope');
+    const LEAKS = ['"relation"', 'REVIEW_REQUIRED', 'EQUAL_GEOMETRY_FOUND', 'OVERLAP_FOUND', 'TOUCH_ONLY', 'COMPARISONS_INCOMPLETE', 'NO_MATCHES', '"count"', 'touch_only', 'skipped'];
+    for (const leak of [...LEAKS, plots.B, plots.C, plots.D, plots.H]) expect(blob).not.toContain(leak);
+    // también en el historial visible
+    const list = (await http().get(`${org()}/plots/${plots.A}/gis-evaluations`).set(as('tecnico1@test.local')).expect(200)).body;
+    for (const leak of LEAKS) expect(JSON.stringify(list)).not.toContain(leak);
+    // 2) Evaluación del propio técnico: compara solo con su alcance asignado
+    const own = (await evaluate('tecnico1@test.local', plots.A).expect(201)).body.evaluation;
+    expect(own).toMatchObject({ comparison_scope: 'EVALUATOR_ASSIGNED', view_scope: 'ASSIGNED_SCOPE', status: 'VALID', relations: [] });
+    expect(own.parameters.comparison_scope).toBe('EVALUATOR_ASSIGNED');
+    for (const leak of ['"relation"', 'REVIEW_REQUIRED', 'EQUAL_GEOMETRY_FOUND', 'OVERLAP_FOUND']) expect(JSON.stringify(own)).not.toContain(leak);
+    // el administrador ve que esa evaluación tuvo alcance limitado (no la confunde con una de organización)
+    const adminView = (await http().get(`${org()}/gis-evaluations/${own.id}`).set(as('admin-a@test.local')).expect(200)).body;
+    expect(adminView).toMatchObject({ comparison_scope: 'EVALUATOR_ASSIGNED', view_scope: 'FULL', relations: [] });
+    // 3) Otro técnico no ve las comparaciones de la evaluación de tecnico1 (tampoco tiene la parcela: 404)
+    await http().get(`${org()}/gis-evaluations/${own.id}`).set(as('tecnico2@test.local')).expect(404);
   });
 
   it('solo contacto por borde → VALID; sin intersección → VALID; perfil de destino NO EVALUADO; precisión no disponible', async () => {

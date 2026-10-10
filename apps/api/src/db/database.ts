@@ -13,6 +13,8 @@ import * as m0009 from './migrations/0009_location_samples';
 import * as m0010 from './migrations/0010_polygon_drafts';
 import * as m0011 from './migrations/0011_geometry_imports';
 import * as m0012 from './migrations/0012_gis_evaluations_cleanup';
+import * as m0013 from './migrations/0013_gis_comparison_scope';
+import * as m0014 from './migrations/0014_products';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -28,6 +30,8 @@ const MIGRATIONS: Record<string, Migration> = {
   '0010_polygon_drafts': m0010,
   '0011_geometry_imports': m0011,
   '0012_gis_evaluations_cleanup': m0012,
+  '0013_gis_comparison_scope': m0013,
+  '0014_products': m0014,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

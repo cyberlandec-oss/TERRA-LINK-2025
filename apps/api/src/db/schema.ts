@@ -388,6 +388,8 @@ export interface GisEvaluationsTable {
   compared_count: number;
   operation_id: string;
   evaluated_by: string;
+  comparison_scope: Generated<'ORGANIZATION' | 'EVALUATOR_ASSIGNED'>;
+  scope_membership_id: string | null;
   evaluated_at: ColumnType<Date, Date | string | undefined, Date | string>;
 }
 
@@ -402,7 +404,42 @@ export interface GisEvaluationComparisonsTable {
   shared_area_m2: string | null;
 }
 
+export interface ProductStatesTable { code: string; label: string; sort_order: number; source: string }
+export interface MeasurementUnitsTable { code: string; label: string; symbol: string; dimension: 'MASS'; source: string }
+export interface ProductsTable {
+  id: string;
+  organization_id: string;
+  code: string;
+  name: string;
+  product_state: string;
+  unit: string;
+  scientific_name: string | null;
+  variety: string | null;
+  status: 'ACTIVE' | 'INACTIVE';
+  status_reason: string | null;
+  row_version: Generated<string>;
+  created_at: Timestamp;
+  created_by: string;
+  updated_at: Timestamp;
+  updated_by: string;
+}
+export interface ProductVersionsTable {
+  product_id: string;
+  organization_id: string;
+  version: string;
+  change_type: 'CREATED' | 'UPDATED' | 'DEACTIVATED' | 'ACTIVATED';
+  changed_fields: string[];
+  snapshot: unknown;
+  reason: string | null;
+  changed_by: string;
+  changed_at: Timestamp;
+}
+
 export interface Database {
+  product_states: ProductStatesTable;
+  measurement_units: MeasurementUnitsTable;
+  products: ProductsTable;
+  product_versions: ProductVersionsTable;
   object_deletions: ObjectDeletionsTable;
   gis_evaluations: GisEvaluationsTable;
   gis_evaluation_comparisons: GisEvaluationComparisonsTable;

@@ -66,6 +66,10 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
       origen.push({ href: `${base}/productores/coincidencias`, label: 'Posibles duplicados', match: (p) => p.endsWith('/coincidencias') });
     }
     if (origen.length) groups.push({ title: 'Origen', items: origen });
+    // Operación (UX_UI §8): solo módulos conectados a operaciones reales.
+    const operacion: NavItem[] = [];
+    if (ws.can('product:read')) operacion.push({ href: `${base}/productos`, label: 'Productos', match: (p) => p.startsWith(`${base}/productos`) });
+    if (operacion.length) groups.push({ title: 'Operación', items: operacion });
     const admin: NavItem[] = [];
     const onboardingOnly = ws.isPlatformAdmin && !ws.activePerms;
     if (ws.can('membership:read') || onboardingOnly) {

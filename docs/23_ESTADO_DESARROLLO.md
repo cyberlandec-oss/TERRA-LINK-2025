@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-011 Productos | **ABIERTA**: catálogo, unidades, permisos, historia y UI-09 verificados localmente; queda 1 criterio que depende de P0-016/017 («transformación cambia estado con evento/rendimiento») | Ver criterios abajo |
 | P0-010 Validación GIS | **ABIERTA**: parte técnica verificada localmente (`TL_GIS_TECH 1.0.0`); umbral debajo/igual/encima y perfil de destino dependen de D-05 (propuesta no aprobada) | Ver criterios abajo |
 | P0-009 GeoJSON | **ABIERTA**: alcance independiente verificado localmente; «perfil destino» depende de P0-010/D-05 (dependencia del backlog conservada) | Ver criterios abajo |
 | P0-008 Polígono | **DONE_LOCAL** con evidencia de integración (PostGIS real) y navegador **[SIMULADA]**; captura real de campo pendiente | Ver criterios abajo |
@@ -176,6 +177,24 @@ Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T17-37-1
 | **Umbral debajo/igual/encima** | **Pendiente de D-05** (propuesta en `docs/decisiones/D-05-PROPUESTA.md`, no aprobada) | — |
 | Barrido programado (P0-009/D-29) | Worker: huérfanos con gracia y descartados; protección de referenciados bajo bloqueo; tareas reintentables; varios workers sin duplicar | `storage-sweeper.int-spec.ts` 6/6 |
 
+### P0-011 — criterios
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T18-06-40-557Z`): API 178/178, web 4/4, E2E 42/42, OpenAPI 60 rutas. Revisión visual 26 entradas, 0 incidencias. Contrato en docs/06 y D-31/D-32.
+
+| Criterio | Resultado | Evidencia (`products.int-spec.ts`, E2E `productos.spec.ts`) |
+| --- | --- | --- |
+| Catálogo de cacao y unidades | Estados de sistema de las fuentes (4) y KG (masa); opciones servidas por la API; sin variedades, calidades, códigos regulatorios ni unidades inventadas | «opciones desde la API…» |
+| Códigos por ámbito | Único por organización (mismo código válido en otra); unicidad bajo concurrencia (201 + 409 + 409) | «validaciones…», «consulta y administración…» |
+| Unidades explícitas, sin conversión implícita | Respuestas con código, etiqueta, símbolo y dimensión; `conversions: []`; unidad desconocida 422 | «opciones…», «validaciones…» |
+| Consulta/administración por rol; entre organizaciones | Recepción consulta, MANAGER no administra, BUYER 403, otra organización 404, suspendida 403 | «consulta y administración…», «organización suspendida…» |
+| Edición concurrente e inmutables | `expected_version` (200 + 409); código/estado/unidad → 422 y trigger en BD | «edición concurrente…» |
+| Inactivos, historia y referencias protegidas | Desactivar/activar con motivo; inactivo no se edita; sin borrado; historial append-only con instantáneas | «desactivar y activar…» |
+| Rollback | Fallo forzado → sin producto, evento ni auditoría | «rollback…» |
+| UI-09 | Listado, búsqueda, filtros, alta, edición con conflicto y borrador conservado, confirmación de desactivación, 403 sin enlace, 390 px y teclado | E2E 5/5; revisión por rol |
+| **Transformación con evento/rendimiento** | **Pendiente de P0-016/017**: el catálogo impide cambiar estado o unidad por edición; el proceso con evento y rendimiento llega con procesamiento | — |
+
+Corrección de privacidad P0-010 (misma entrega): las evaluaciones ya no devuelven tipo ni cantidad de relaciones fuera del alcance; prueba negativa «privacidad: el técnico no puede inferir…» (vistas indistinguibles con y sin coincidencias ocultas).
+
 ## Interfaz según docs/UX_UI.md (2026-10-10)
 
 Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1/UX-V1 únicos en `apps/web/app/globals.css`; shell adaptable (organización activa con selector, usuario y rol efectivo, navegación por permisos, migas, «Saltar al contenido», menú móvil); login (UI-01) con mostrar/ocultar y mensajes distintos para 401/429/503/red; organizaciones (UI-02); miembros, invitaciones y roles (UI-03) en página propia; auditoría (UI-18) en página propia; productores y revisión de duplicados (UI-05) con tabla, filtros y estados diferenciados (carga, vacío, filtro sin resultados, error, 403, 404, conflicto 409 con recarga). Sin menús de módulos futuros; las capacidades pendientes por rol aparecen rotuladas en una tarjeta aparte. Revisión por rol: `docs/qa/REVISION_VISUAL_POR_ROL.md` (0 incidencias abiertas; 4 corregidas).
@@ -189,7 +208,7 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 - Android/offline, integraciones, despliegue: no iniciados.
 - Logotipo oficial y verificación de licencia de Inter (UX-D01/UX-D02). Evaluación de accesibilidad completa (lector de pantalla, zoom 200 %) no realizada: solo foco por teclado y móvil comprobados.
 
-## Próxima acción: P0-011 Productos (independiente de D-05; propuesta en `sesiones/2026-10-10-p0-010-gis-tecnico.md`)
+## Próxima acción: P0-013 CTE (depende solo de TECH-001; análisis en `sesiones/2026-10-10-p0-011-productos.md`)
 
 ## Anterior: P0-006 Parcela
 

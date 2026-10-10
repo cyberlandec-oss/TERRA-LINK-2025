@@ -110,6 +110,11 @@ Completitud, validez, consistencia, unicidad y vigencia son resultados separados
 | gis_evaluations | 0012 | P0-010: evaluación técnica inmutable de una versión (regla, versión, parámetros, estado, comprobaciones, calidad de captura, perfil de destino no evaluado, `error_location` protegida, huella del conjunto comparado, actor, fecha, `operation_id`). Append-only |
 | gis_evaluation_comparisons | 0012 | Versiones de otras parcelas relacionadas (EQUAL/OVERLAP/TOUCH, mismo hash sí/no, superficie compartida m²). Append-only |
 | object_deletions | 0012 | Tareas de borrado del almacenamiento privado (DISCARDED u ORPHAN): estado, intentos, código de error controlado, próxima ejecución y lease |
+| product_states | 0014 | Catálogo de SISTEMA de estados/presentaciones del cacao definidos en las fuentes (S1 §17, doc 06): CACAO_BABA, CACAO_FERMENTADO, CACAO_SECO, CACAO_CLASIFICADO. Solo lectura (cambia con migración) |
+| measurement_units | 0014 | Catálogo de SISTEMA de unidades con dimensión. Las fuentes solo definen KG (masa). Sin conversiones (D-32). Solo lectura |
+| products | 0014 | P0-011: catálogo por ORGANIZACIÓN. `code` único por organización (mayúsculas, 2–40); `name`; `product_state` y `unit` (FK a catálogos de sistema); `scientific_name`/`variety` opcionales; ACTIVE/INACTIVE con motivo; `row_version`. Código, estado y unidad **inmutables** (trigger); sin borrado |
+| product_versions | 0014 | Historial append-only por versión (alta, edición, desactivación, activación) con instantánea y motivo |
+| gis_evaluations.comparison_scope / scope_membership_id | 0013 | Alcance efectivo de comparación de cada evaluación (ORGANIZATION o EVALUATOR_ASSIGNED) |
 | draft_vertex_exclusions | 0010 | P0-008: «deshacer» excluye un vértice sin borrar ni alterar la muestra. Composición vigente = vértices no excluidos por `acquisition_seq`. Append-only |
 
 Clasificación de la identidad del productor: documento, teléfono y dirección se cifran y solo se devuelven con `producer:read_identity`. Nombre, razón social y ubicación administrativa quedan en claro porque la operación los necesita para buscar e identificar; su exposición se controla por permisos de lectura.

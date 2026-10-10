@@ -116,3 +116,9 @@ Defecto encontrado y corregido: `geometry_visible` llegaba como texto `"false"` 
 - tecnico1.cooperativa (DEMO-PAR-002, 390 px, teclado): botón de evaluación disponible, resultado visible, sin desborde. DEMO-PAR-003 no muestra el botón porque no tiene versión.
 - auditor.cooperativa: consulta el resultado sin botón de evaluación ni ubicación del problema.
 - Capturas `gis--*.png`. Resultado: 25 entradas, 0 incidencias.
+
+## P0-011 Productos (2026-10-10)
+- admin.cooperativa (390 px, teclado): 4 productos con «Kilogramo (kg, masa)», formulario de alta con 4 estados desde la API, confirmación de desactivación que explica efectos (cancelada; catálogo DEMO intacto), sin desborde.
+- recepcion.acopio: enlace «Productos», consulta de 4 productos, sin formulario de alta.
+- productor.cooperativa: sin enlace y acceso directo denegado («Tu rol no permite consultar el catálogo de productos.»).
+- Capturas `productos--*.png`. Resultado: 26 entradas, 0 incidencias.

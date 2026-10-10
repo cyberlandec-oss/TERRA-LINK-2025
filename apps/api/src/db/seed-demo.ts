@@ -293,6 +293,27 @@ async function main(): Promise<void> {
       }
     }
 
+    // 4c) Productos DEMO (P0-011): uno por estado/presentación definido en las fuentes (S1 §17), unidad KG,
+    // en cada organización con administrador conocido. Por la API (historial, eventos, auditoría); idempotente.
+    // Sin variedades ni clasificaciones de calidad inventadas.
+    const DEMO_PRODUCTS = [
+      { code: 'CACAO_BABA', name: 'Cacao en baba', product_state: 'CACAO_BABA' },
+      { code: 'CACAO_FERMENTADO', name: 'Cacao fermentado', product_state: 'CACAO_FERMENTADO' },
+      { code: 'CACAO_SECO', name: 'Cacao seco', product_state: 'CACAO_SECO' },
+      { code: 'CACAO_CLASIFICADO', name: 'Cacao clasificado', product_state: 'CACAO_CLASIFICADO' },
+    ];
+    for (const o of ORGS) {
+      const admin = USERS.find((u) => u.memberships.some((m) => m.org === o.key && m.role === 'ORG_ADMIN'));
+      if (!admin || !passwords.has(email(admin))) continue;
+      const t = await tokenOf(email(admin));
+      const orgId = orgIds.get(o.key)!;
+      const existing = (await call<{ items: Array<{ code: string }> }>('GET', `/api/v1/organizations/${orgId}/products?status=ALL&limit=100`, t)).data.items.map((x) => x.code);
+      for (const pr of DEMO_PRODUCTS) {
+        if (existing.includes(pr.code)) continue;
+        await call('POST', `/api/v1/organizations/${orgId}/products`, t, { ...pr, unit: 'KG', scientific_name: 'Theobroma cacao' });
+      }
+    }
+
     // 5) Verificación: login real de cada cuenta con contraseña conocida.
     const verified = new Map<string, boolean>();
     for (const [mail, pwd] of passwords) {
@@ -326,7 +347,9 @@ async function main(): Promise<void> {
       } catch (err) {
         // Archivo abierto en otro programa (p. ej. Excel): no se pierden credenciales nuevas.
         const pending = resolve(ROOT, 'CREDENCIALES.pendiente.csv');
-        writeFileSync(pending, csv, { encoding: 'utf8' });
+        // Si el pendiente ya tiene exactamente este contenido, no se reescribe (puede estar abierto en Excel).
+        const pendingCurrent = existsSync(pending) ? readFileSync(pending, 'utf8') : null;
+        if (pendingCurrent !== csv) writeFileSync(pending, csv, { encoding: 'utf8' });
         console.error(`No se pudo escribir CREDENCIALES.csv (${(err as NodeJS.ErrnoException).code ?? 'error'}): ciérralo y renombra CREDENCIALES.pendiente.csv.`);
         process.exitCode = 1;
       }
