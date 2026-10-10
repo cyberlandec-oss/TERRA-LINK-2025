@@ -258,7 +258,7 @@ Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` 
 
 ### P0-012 — criterios
 
-Validación: `npm run validate` APROBADA (registro en «Validación final» de la sesión). Corridas previas fallidas conservadas: `2026-10-10T22-50-19-671Z` (E2E de hitos esperaba el catálogo 1.0.0: expectativa desactualizada; además la pantalla KDE decía «Ninguna operación usa todavía estos datos» para hitos ya integrados → **texto corregido**) y `2026-10-10T22-57-07-369Z` (la sección «Nueva entrega» se nombraba a sí misma con `aria-labelledby` → **defecto de accesibilidad corregido**). Revisión por rol: 32 entradas, 0 incidencias (tras corregir dos supuestos del script: membresías leídas del CSV bloqueado por Excel y conteo de integraciones CTE).
+Validación: `npm run validate` APROBADA sobre el commit 58ee6fe (`validation-results/2026-10-10T23-29-45-285Z`): API 246/246, web 4/4, E2E 50/50, OpenAPI 104 rutas. Corridas previas fallidas conservadas: `2026-10-10T22-50-19-671Z` (E2E de hitos esperaba el catálogo 1.0.0: expectativa desactualizada; además la pantalla KDE decía «Ninguna operación usa todavía estos datos» para hitos ya integrados → **texto corregido**) y `2026-10-10T22-57-07-369Z` (la sección «Nueva entrega» se nombraba a sí misma con `aria-labelledby` → **defecto de accesibilidad corregido**). Revisión por rol: 32 entradas, 0 incidencias (tras corregir dos supuestos del script: membresías leídas del CSV bloqueado por Excel y conteo de integraciones CTE).
 
 | Criterio (backlog / orden) | Resultado | Evidencia (`deliveries.int-spec.ts`; E2E; revisión) |
 | --- | --- | --- |
