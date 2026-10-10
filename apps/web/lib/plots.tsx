@@ -47,6 +47,7 @@ export interface Plot {
   can_update?: boolean;
   can_archive?: boolean;
   can_capture_location?: boolean;
+  can_evaluate_gis?: boolean;
   geometry_access?: boolean;
 }
 

@@ -126,3 +126,25 @@ test('autointersección: no válida sin superficie; recarga y retoma la revisió
   await expect(page.getByText('Importación descartada. No se creó ninguna versión.')).toBeVisible();
   await ctx.close();
 });
+
+test('evaluación GIS técnica: estado con alcance técnico, precisión no disponible, perfil de destino no evaluado; teclado y 390 px', async ({ browser }) => {
+  const { ctx, page } = await open(browser, { width: 390, height: 844 });
+  const section = page.getByRole('region', { name: 'Evaluación GIS (técnica)' });
+  await section.getByRole('button', { name: /Evaluar geometría|Volver a evaluar/ }).focus();
+  await page.keyboard.press('Enter');
+  await expect(section).toContainText('VALID · técnicamente válida');
+  await expect(section).toContainText('no es conformidad EUDR');
+  await expect(section).toContainText('TL_GIS_TECH · versión 1.0.0');
+  await expect(section).toContainText('Precisión de captura no disponible');
+  await expect(section).toContainText('No evaluado: el perfil de destino requiere definición (D-05)');
+  await expect(section.getByRole('table', { name: 'Comprobaciones técnicas' })).toContainText('Validez técnica');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  // una versión nueva deja la evaluación anterior como historial desactualizado
+  await page.getByLabel('Archivo GeoJSON (.geojson o .json)').setInputFiles({ name: 'nueva.geojson', mimeType: 'application/geo+json', buffer: fileOf({ type: 'Polygon', coordinates: [SQUARE.map(([x, y]) => [x + 0.002, y])] }) });
+  await page.getByRole('button', { name: 'Analizar archivo' }).click();
+  await page.getByRole('button', { name: 'Confirmar nueva versión' }).click();
+  await expect(page.getByText(/Geometría importada como versión \d+/)).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Evaluación GIS (técnica)' })).toContainText('Evaluación desactualizada');
+  await ctx.close();
+});

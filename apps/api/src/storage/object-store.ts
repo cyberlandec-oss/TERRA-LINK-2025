@@ -23,7 +23,7 @@ export interface ObjectStore {
   get(key: string): Promise<Buffer>;
   exists(key: string): Promise<boolean>;
   delete(key: string): Promise<void>;
-  list(prefix: string): Promise<string[]>;
+  list(prefix: string): Promise<Array<{ key: string; lastModified: Date | null }>>;
   close(): void;
 }
 
@@ -90,11 +90,11 @@ export class S3ObjectStore implements ObjectStore {
 
   async list(prefix: string) {
     await this.ensureBucket();
-    const keys: string[] = [];
+    const keys: Array<{ key: string; lastModified: Date | null }> = [];
     let token: string | undefined;
     do {
       const r = await this.client.send(new ListObjectsV2Command({ Bucket: this.cfg.bucket, Prefix: prefix, ContinuationToken: token }));
-      for (const o of r.Contents ?? []) if (o.Key) keys.push(o.Key);
+      for (const o of r.Contents ?? []) if (o.Key) keys.push({ key: o.Key, lastModified: o.LastModified ?? null });
       token = r.IsTruncated ? r.NextContinuationToken : undefined;
     } while (token);
     return keys;

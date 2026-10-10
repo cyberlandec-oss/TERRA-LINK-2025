@@ -110,3 +110,9 @@ Defecto encontrado y corregido: `geometry_visible` llegaba como texto `"false"` 
 - tecnico1.cooperativa (DEMO-PAR-003, 390 px, teclado): autointersección no válida sin superficie, confirmar bloqueado, retomada tras recargar y descartada; sin desborde.
 - auditor.cooperativa: sin panel de importación ni descargas; API de exportación e importaciones 403.
 - Capturas `geojson--*.png`. Resultado: 24 entradas, 0 incidencias. Archivos sintéticos.
+
+## P0-010 Evaluación GIS técnica (2026-10-10)
+- admin.cooperativa (DEMO-PAR-001): evaluada VALID con alcance técnico, perfil de destino «No evaluado (D-05)», precisión de captura no disponible (coordenadas ingresadas).
+- tecnico1.cooperativa (DEMO-PAR-002, 390 px, teclado): botón de evaluación disponible, resultado visible, sin desborde. DEMO-PAR-003 no muestra el botón porque no tiene versión.
+- auditor.cooperativa: consulta el resultado sin botón de evaluación ni ubicación del problema.
+- Capturas `gis--*.png`. Resultado: 25 entradas, 0 incidencias.

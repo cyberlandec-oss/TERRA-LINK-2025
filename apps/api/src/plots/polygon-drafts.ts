@@ -111,8 +111,8 @@ export class PolygonDraftsService {
       if (distinct >= 3) {
         const r = await sql<{ valid: boolean; reason: string; area: string | null }>`
           WITH g AS (SELECT ST_SetSRID(ST_GeomFromGeoJSON(${JSON.stringify(geo)}), 4326) AS geom)
-          SELECT ST_IsValid(geom) AS valid, ST_IsValidReason(geom) AS reason,
-                 CASE WHEN ST_IsValid(geom) THEN round((ST_Area(geom::geography) / 10000)::numeric, 6)::text ELSE NULL END AS area
+          SELECT (ST_IsValidDetail(geom)).valid AS valid, (ST_IsValidDetail(geom)).reason AS reason,
+                 CASE WHEN (ST_IsValidDetail(geom)).valid THEN round((ST_Area(geom::geography) / 10000)::numeric, 6)::text ELSE NULL END AS area
           FROM g`.execute(db);
         valid = r.rows[0].valid;
         reason = valid ? null : reasonWithoutCoordinates(r.rows[0].reason);
@@ -288,7 +288,7 @@ export class PolygonDraftsService {
           previous_version_id, notes, created_by)
         SELECT ${versionId}, ${orgId}, ${plot.id}, ${last.n + 1}, g.geom, 'POLYGON', encode(sha256(ST_AsBinary(g.geom)), 'hex'),
           ${previous?.area_declared_ha ?? null}::numeric,
-          CASE WHEN ST_IsValid(g.geom) THEN round((ST_Area(g.geom::geography) / 10000)::numeric, 6) ELSE NULL END,
+          CASE WHEN (ST_IsValidDetail(g.geom)).valid THEN round((ST_Area(g.geom::geography) / 10000)::numeric, 6) ELSE NULL END,
           'BROWSER_GEOLOCATION', ${surveyedAt.toISOString()}::timestamptz, NULL, 'NOT_VALIDATED', ${STRUCTURAL_RULE},
           ${plot.current_version_id}, ${notes}, ${user.id}
         FROM g`.execute(trx);

@@ -8,7 +8,8 @@ Estas cuestiones no bloquean la lectura ni preparación del paquete. Bloquean ú
 | D-02 | Repo existente/vacío, monorepo o repos separados | Tech lead | Layout real; estrategia de integración sin duplicación |
 | D-03 | 12 roles fuente vs catálogo ampliado previo | Backend/producto | Catálogo/migraciones/permisos; no inventar códigos |
 | D-04 | Política de elevación SUPER_ADMIN y grants | Seguridad/dueño datos | Matriz aprobada y QA-02 |
-| D-05 | Umbral GIS, borde =4 ha, precisión/formato de destino | GIS/regulatorio | Texto consolidado + perfil versionado y pruebas boundary |
+| D-05 | Umbral GIS, borde =4 ha, precisión/formato de destino. **Propuesta no aprobada**: `docs/decisiones/D-05-PROPUESTA.md` | GIS/regulatorio | Texto consolidado + perfil versionado y pruebas boundary |
+| D-30 | Regla técnica `TL_GIS_TECH 1.0.0` (provisional): comparación dentro de la organización con parcelas activas; «punto dentro de otra parcela» fuera de V1; igualdad/solape → REVIEW_REQUIRED; comparaciones con geometrías inválidas → WARNING | GIS/Data Steward | Regla ratificada; cambios crean otra versión de regla |
 | D-06 | Stock negativo y ajustes | Operaciones/traceability | ADR-0003 y QA-06; no bypass de consumo |
 | D-07 | Severidad/proceso/conclusión riesgo | Producto/regulatorio | Enums reales, mapping y regla aprobada |
 | D-08 | Estados expediente vs DDS existente | Backend/EUDR | Contrato y migración no destructiva; QA-12 |
@@ -31,7 +32,7 @@ Estas cuestiones no bloquean la lectura ni preparación del paquete. Bloquean ú
 | D-26 | Geometría técnicamente no válida (p. ej. autointersección) «conservada para revisión» (P0-008, provisional): solo con confirmación expresa, sin superficie, `NOT_VALIDATED` y motivo en `notes`; sin reparación automática. ¿Se admite en operación o se bloquea siempre? | Producto/GIS | Política aprobada junto con la validación GIS (P0-010) |
 | D-27 | Política de vértices repetidos consecutivos (hoy se advierten y se cuentan; ≥3 distintos es el mínimo) y tolerancia de distancia mínima entre vértices | GIS/campo | Regla aprobada con datos de campo |
 | D-28 | Perfil de importación GeoJSON `GEOJSON_IMPORT_V1` (provisional): FeatureCollection de una sola feature aceptada; EPSG:4326 declarado rechazado por ambigüedad de ejes; altitud rechazada; límites por defecto 1 MiB / 5000 posiciones / 50 componentes | GIS/Producto | Perfil aprobado junto con el «perfil destino» (P0-010/D-05) |
-| D-29 | Retención de originales importados: los descartados se borran; los confirmados se conservan sin plazo. El barrido de huérfanos (`sweepOrphans`) existe y está probado, pero aún no está programado en el worker | Operación/legal | Plazo de retención aprobado y barrido programado |
+| D-29 | Retención de originales importados: los descartados se borran; los confirmados se conservan sin plazo (sin caducidad). El barrido está programado en el worker (huérfanos con gracia de 1 h y descartados; tareas reintentables) | Operación/legal | Plazo de retención aprobado y barrido programado |
 | D-23 | Catálogo de `survey_method` (provisional: DECLARED, MANUAL_COORDINATES, BROWSER_GEOLOCATION y FILE_IMPORT en uso desde P0-009; reservados GPS_POINT para el GPS nativo de la app móvil y GPS_POLYGON) y estados de parcela (ACTIVE/INACTIVE por la convención de baja lógica) | Producto/GIS | Catálogo aprobado; nuevos valores con migración |
 
 ### Decisiones UX (docs/UX_UI.md §27.2) aplicadas en la interfaz

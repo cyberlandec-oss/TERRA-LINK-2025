@@ -25,7 +25,7 @@ describe('catálogo RBAC', () => {
   });
 
   it('une permisos de varios roles sin duplicados y desconoce roles no catalogados', () => {
-    expect(permissionsForRoles(['TRACEABILITY_MANAGER', 'AUDITOR', 'INVENTED'])).toEqual(['audit:read', 'organization:read', 'plot:read', 'plot:read_geometry', 'producer:read']);
+    expect(permissionsForRoles(['TRACEABILITY_MANAGER', 'AUDITOR', 'INVENTED'])).toEqual(['audit:read', 'organization:read', 'plot:evaluate_gis', 'plot:read', 'plot:read_geometry', 'producer:read']);
   });
 
   it('anti-escalamiento: solo se conceden roles cuyos permisos posee el actor', () => {

@@ -12,6 +12,7 @@ import * as m0008 from './migrations/0008_plots';
 import * as m0009 from './migrations/0009_location_samples';
 import * as m0010 from './migrations/0010_polygon_drafts';
 import * as m0011 from './migrations/0011_geometry_imports';
+import * as m0012 from './migrations/0012_gis_evaluations_cleanup';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -26,6 +27,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0009_location_samples': m0009,
   '0010_polygon_drafts': m0010,
   '0011_geometry_imports': m0011,
+  '0012_gis_evaluations_cleanup': m0012,
 };
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -34,9 +36,14 @@ class StaticMigrationProvider implements MigrationProvider {
   }
 }
 
+/** Opciones de sesión de cada conexión (ver createDb). */
+export const PG_SESSION_OPTIONS = { options: '-c client_min_messages=warning' };
+
 export function createDb(connectionString: string): Kysely<Database> {
   return new Kysely<Database>({
-    dialect: new PostgresDialect({ pool: new Pool({ connectionString, max: 10 }) }),
+    // client_min_messages=warning: PostGIS emite NOTICE con coordenadas (p. ej. ST_IsValid ante una
+    // autointersección). Sin esto llegarían al cliente; además se usa ST_IsValidDetail, que no emite NOTICE.
+    dialect: new PostgresDialect({ pool: new Pool({ connectionString, max: 10, ...PG_SESSION_OPTIONS }) }),
   });
 }
 

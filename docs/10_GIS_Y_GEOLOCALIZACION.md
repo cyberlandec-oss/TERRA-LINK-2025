@@ -42,6 +42,30 @@ Cuatro niveles distintos: **intercambio** (este perfil, RFC 7946), **estructura*
 
 Pendiente de P0-010/D-05: «perfil destino» (especificación GeoJSON del sistema receptor y reglas de exportación regulatoria), validación GIS, umbral de 4 ha y cobertura.
 
+## Evaluación GIS técnica (P0-010, `TL_GIS_TECH` 1.0.0, implementada)
+
+Evalúa una versión geométrica **sin modificarla** y guarda un registro inmutable (`gis_evaluations`). Reevaluar crea otro registro. Tres bloques que no se mezclan:
+
+1. **Validez técnica** → estado `VALID` / `WARNING` / `INVALID` / `REVIEW_REQUIRED`, siempre con alcance técnico («VALID» no es conformidad EUDR).
+2. **Calidad y cobertura de captura** → informativa: COMPLETE / PARTIAL / ABSENT (resumen de precisión) o NOT_AVAILABLE («Precisión de captura no disponible» para importadas o sin muestras; nunca se infiere de decimales). Sin umbrales (D-25).
+3. **Perfil de destino / regulatorio** → siempre «No evaluado: requiere definición (D-05)». Propuesta: `docs/decisiones/D-05-PROPUESTA.md` (no aprobada).
+
+| Comprobación | Resultado posible | Nota |
+| --- | --- | --- |
+| GEOMETRY_PRESENT | PASS / FAIL (`GEOMETRY_MISSING` → REVIEW_REQUIRED) | Versión solo con superficie declarada |
+| GEOMETRY_TYPE, SRID, COORDINATE_RANGE, NOT_EMPTY | PASS / FAIL | SRID 4326; rangos lon/lat |
+| NOT_DEGENERATE | PASS / FAIL / NOT_APPLICABLE (punto) | Polígono sin superficie |
+| TECHNICAL_VALIDITY | PASS / FAIL con código controlado (`SELF_INTERSECTION`, `HOLE_OUTSIDE_SHELL`…) | Ubicación del problema guardada aparte; solo con `plot:read_geometry` |
+| AREA | PASS (ha geodésicas) / NOT_APPLICABLE (punto) / NOT_EXECUTED (no válida) | Sin área mínima |
+| GEOMETRIC_EQUALITY | PASS / REVIEW / WARNING (comparaciones incompletas) | `ST_Equals`: igual aunque cambie el orden o inicio de vértices; se informa aparte si coincide el hash |
+| OVERLAP | PASS (sin relación o solo contacto) / REVIEW / WARNING / NOT_EXECUTED (punto: fuera de V1) | Superficie compartida = DE-9IM `2********`; contacto por borde/vértice = TOUCH, no cuenta |
+
+Estado: FAIL → INVALID; si no, REVIEW (igualdad/solape o sin geometría) → REVIEW_REQUIRED; si no, WARNING → WARNING; si no, VALID. Alcance de comparación: otras parcelas ACTIVAS de la organización, versión vigente, geometrías válidas; nunca las versiones históricas de la misma parcela. Una coincidencia no prueba ilegalidad ni autoriza fusionar parcelas.
+
+Desactualización (sin tocar el registro): `GEOMETRY_CHANGED` (hay versión más nueva), `RULES_CHANGED` (otra versión de regla), `COMPARED_PLOTS_CHANGED` (cambió la huella del conjunto comparado).
+
+Privacidad: relaciones con parcelas fuera del alcance del usuario se muestran como «relación con una parcela fuera de tu alcance» (tipo y cantidad), sin identidad, superficie ni coordenadas. PostGIS emite `NOTICE` con coordenadas (p. ej. `ST_IsValid`): las conexiones usan `client_min_messages=warning` y el código usa `ST_IsValidDetail`; los errores de base se registran solo con SQLSTATE. El servidor PostgreSQL local registra desde WARNING (`log_min_messages=warning`), así que los NOTICE no llegan a su registro; las sentencias usan parámetros y `log_parameter_max_length_on_error=0`, por lo que los valores no se registran. Riesgo residual: el registro del servidor sí guarda el **mensaje** de un ERROR de base de datos; la aplicación evita operaciones GEOS sobre geometrías inválidas y valida GeoJSON antes de PostGIS para no provocar errores con coordenadas. El acceso a ese registro debe restringirse en operación.
+
 ## Umbral pendiente
 
 La fuente técnica escribe `<4 ha` y `>4 ha`, dejando indefinido `=4`. El paquete no convierte esa omisión en norma. Modelar `threshold_ha`, operador de comparación, producto, jurisdicción, vigencia y fuente legal en el perfil. Antes de activarlo, validar texto consolidado y especificación GeoJSON del destino con responsable regulatorio. Probar casos por debajo, igual y por encima; sin perfil aprobado la preparación regulatoria queda pendiente.

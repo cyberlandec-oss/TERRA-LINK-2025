@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-010 Validación GIS | **ABIERTA**: parte técnica verificada localmente (`TL_GIS_TECH 1.0.0`); umbral debajo/igual/encima y perfil de destino dependen de D-05 (propuesta no aprobada) | Ver criterios abajo |
 | P0-009 GeoJSON | **ABIERTA**: alcance independiente verificado localmente; «perfil destino» depende de P0-010/D-05 (dependencia del backlog conservada) | Ver criterios abajo |
 | P0-008 Polígono | **DONE_LOCAL** con evidencia de integración (PostGIS real) y navegador **[SIMULADA]**; captura real de campo pendiente | Ver criterios abajo |
 
@@ -155,6 +156,26 @@ Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T17-00-2
 
 Correcciones laterales: (1) el motivo de `ST_IsValidReason` incluía una coordenada y P0-008 lo guardaba en `notes` (visible sin `plot:read_geometry`); ahora se elimina en notas, eventos, auditoría y errores. (2) Las vistas de versiones usaban `ST_AsGeoJSON` con 9 decimales; ahora 17 (ida y vuelta exacta).
 
+### P0-010 — criterios (parte técnica)
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T17-37-17-103Z`): API 168/168, web 4/4, E2E 37/37, OpenAPI 54 rutas. Revisión visual 25 entradas, 0 incidencias. Perfil documentado en docs/10 §«Evaluación GIS técnica».
+
+| Criterio | Resultado | Evidencia (`gis-evaluation.int-spec.ts`, `storage-sweeper.int-spec.ts`) |
+| --- | --- | --- |
+| Geometría, CRS, coordenadas, vacía/degenerada, validez con motivos seguros | Comprobaciones con códigos controlados; ubicación del error solo con `plot:read_geometry` | «inválida…», «vacía y degenerada…» |
+| Área solo cuando corresponde | Polígono válido → ha geodésicas; punto → no aplica; inválida → no ejecutada; huecos descontados | «punto sin área; huecos y MultiPolygon…» |
+| Duplicados | Igualdad topológica (`ST_Equals`) distinta de igualdad de hash; distinto orden de vértices detectado | «igualdad topológica…» |
+| Solapamiento vs contacto | Superficie compartida (DE-9IM) → REVIEW_REQUIRED; solo borde → VALID; sin intersección → VALID | «igualdad topológica…», «solo contacto…» |
+| Cobertura de precisión | Completa, mixta, ausente, no disponible (importada) y no aplica | «punto sin área…», «vacía…» |
+| Estados y versión de regla | VALID/WARNING/INVALID/REVIEW_REQUIRED con alcance técnico; regla y parámetros guardados | todos |
+| Inmutable, versionado y desactualización | Append-only; reevaluar crea otro registro; GEOMETRY_CHANGED, COMPARED_PLOTS_CHANGED, RULES_CHANGED; sin compararse con su propio historial | «resultados inmutables…» |
+| Acceso y privacidad | Auditor consulta sin evaluar ni coordenadas; técnico fuera de alcance 404; relaciones fuera de alcance sin identidad; otra organización 404; suspendida 403 | «acceso…», «igualdad topológica…» |
+| Reintentos y rollback | `operation_id` concurrente → un registro; fallo forzado → sin evaluación, evento ni auditoría | «reintentos idempotentes…» |
+| Errores, logs y NOTICE | NOTICE de PostGIS bloqueado (`client_min_messages=warning`, `ST_IsValidDetail`); errores de base registrados solo con SQLSTATE | «NOTICE de PostGIS…», «reintentos…» |
+| Sin reparación destructiva | La evaluación no modifica versiones (plot_versions append-only) | — |
+| **Umbral debajo/igual/encima** | **Pendiente de D-05** (propuesta en `docs/decisiones/D-05-PROPUESTA.md`, no aprobada) | — |
+| Barrido programado (P0-009/D-29) | Worker: huérfanos con gracia y descartados; protección de referenciados bajo bloqueo; tareas reintentables; varios workers sin duplicar | `storage-sweeper.int-spec.ts` 6/6 |
+
 ## Interfaz según docs/UX_UI.md (2026-10-10)
 
 Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1/UX-V1 únicos en `apps/web/app/globals.css`; shell adaptable (organización activa con selector, usuario y rol efectivo, navegación por permisos, migas, «Saltar al contenido», menú móvil); login (UI-01) con mostrar/ocultar y mensajes distintos para 401/429/503/red; organizaciones (UI-02); miembros, invitaciones y roles (UI-03) en página propia; auditoría (UI-18) en página propia; productores y revisión de duplicados (UI-05) con tabla, filtros y estados diferenciados (carga, vacío, filtro sin resultados, error, 403, 404, conflicto 409 con recarga). Sin menús de módulos futuros; las capacidades pendientes por rol aparecen rotuladas en una tarjeta aparte. Revisión por rol: `docs/qa/REVISION_VISUAL_POR_ROL.md` (0 incidencias abiertas; 4 corregidas).
@@ -168,7 +189,7 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 - Android/offline, integraciones, despliegue: no iniciados.
 - Logotipo oficial y verificación de licencia de Inter (UX-D01/UX-D02). Evaluación de accesibilidad completa (lector de pantalla, zoom 200 %) no realizada: solo foco por teclado y móvil comprobados.
 
-## Próxima acción: P0-010 Validación GIS (propuesta en `sesiones/2026-10-10-p0-009-geojson.md`)
+## Próxima acción: P0-011 Productos (independiente de D-05; propuesta en `sesiones/2026-10-10-p0-010-gis-tecnico.md`)
 
 ## Anterior: P0-006 Parcela
 

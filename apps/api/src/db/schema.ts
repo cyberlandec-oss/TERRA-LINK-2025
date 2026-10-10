@@ -351,13 +351,61 @@ export interface GeometryImportsTable {
   confirm_operation_id: string | null;
   confirmed_version_id: string | null;
   row_version: Generated<string>;
-  created_at: Generated<Timestamp>;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
   created_by: string;
   closed_at: Timestamp | null;
   closed_by: string | null;
 }
 
+export interface ObjectDeletionsTable {
+  object_key: string;
+  reason: 'DISCARDED' | 'ORPHAN';
+  status: 'PENDING' | 'FAILED' | 'DONE' | 'SKIPPED_REFERENCED';
+  attempts: Generated<number>;
+  last_error_code: string | null;
+  next_attempt_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  leased_by: string | null;
+  lease_until: Timestamp | null;
+  created_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  completed_at: Timestamp | null;
+}
+
+export interface GisEvaluationsTable {
+  id: string;
+  organization_id: string;
+  plot_id: string;
+  plot_version_id: string;
+  geometry_hash: string | null;
+  rule_id: string;
+  rule_version: string;
+  parameters: unknown;
+  status: 'VALID' | 'WARNING' | 'INVALID' | 'REVIEW_REQUIRED';
+  checks: unknown;
+  capture_quality: unknown;
+  destination_profile: unknown;
+  error_location: unknown;
+  compared_set_hash: string;
+  compared_count: number;
+  operation_id: string;
+  evaluated_by: string;
+  evaluated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
+export interface GisEvaluationComparisonsTable {
+  evaluation_id: string;
+  organization_id: string;
+  compared_plot_id: string;
+  compared_version_id: string;
+  compared_geometry_hash: string;
+  relation: 'EQUAL' | 'OVERLAP' | 'TOUCH';
+  same_hash: boolean;
+  shared_area_m2: string | null;
+}
+
 export interface Database {
+  object_deletions: ObjectDeletionsTable;
+  gis_evaluations: GisEvaluationsTable;
+  gis_evaluation_comparisons: GisEvaluationComparisonsTable;
   geometry_imports: GeometryImportsTable;
   polygon_drafts: PolygonDraftsTable;
   draft_vertices: DraftVerticesTable;

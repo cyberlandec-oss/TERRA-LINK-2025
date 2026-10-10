@@ -16,6 +16,7 @@ import { AuthorizationService, type TenantContext } from '../authz/authorization
 import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { EVENT_STORE, type EventStore } from '../events/events';
 import { OBJECT_STORE, sha256, type ObjectStore } from '../storage/object-store';
+import { DEFAULT_SWEEPER, StorageSweeper, type SweeperOptions } from '../storage/sweeper';
 import { PlotsService, STRUCTURAL_RULE } from './plots';
 import { reasonWithoutCoordinates } from './geometry';
 import { GEOJSON_PROFILE_VERSION, ProfileError, parseGeoJson, type ProfileWarning } from './geojson-profile';
@@ -187,7 +188,8 @@ export class GeometryImportsService {
     try {
       await this.store.delete(key);
     } catch {
-      this.logger.warn('Compensación pendiente: objeto huérfano a eliminar por el barrido');
+      this.logger.warn('Compensación pendiente: se registra una tarea de borrado reintentable');
+      await new StorageSweeper(this.db, this.store).enqueue(key, 'ORPHAN').catch(() => undefined); // si la base tampoco responde, lo descubre el barrido
     }
   }
 
@@ -243,7 +245,7 @@ export class GeometryImportsService {
             previous_version_id, notes, created_by, source_import_id)
           SELECT ${versionId}, ${orgId}, ${plot.id}, ${last.n + 1}, gi.geometry, gi.geometry_type, encode(sha256(ST_AsBinary(gi.geometry)), 'hex'),
             ${previous?.area_declared_ha ?? null}::numeric,
-            CASE WHEN ST_IsValid(gi.geometry) THEN round((ST_Area(gi.geometry::geography) / 10000)::numeric, 6) ELSE NULL END,
+            CASE WHEN (ST_IsValidDetail(gi.geometry)).valid THEN round((ST_Area(gi.geometry::geography) / 10000)::numeric, 6) ELSE NULL END,
             'FILE_IMPORT', NULL, NULL, 'NOT_VALIDATED', ${STRUCTURAL_RULE}, ${plot.current_version_id}, ${notes}, ${user.id}, gi.id
           FROM geometry_imports gi WHERE gi.id = ${row.id} AND gi.organization_id = ${orgId}`.execute(trx);
         const plotAfter = await trx.updateTable('plots')
@@ -285,10 +287,12 @@ export class GeometryImportsService {
       const after = await trx.updateTable('geometry_imports')
         .set({ status: 'DISCARDED', closed_at: new Date(), closed_by: user.id, row_version: sql`row_version + 1` })
         .where('id', '=', id).where('organization_id', '=', orgId).returningAll().executeTakeFirstOrThrow();
+      await new StorageSweeper(trx as unknown as Kysely<Database>, this.store).enqueue(row.object_key, 'DISCARDED', trx as unknown as Kysely<Database>);
       await this.audit.record(trx, { organizationId: orgId, actorUserId: user.id, action: 'plot.geometry_import_discard', entityType: 'plot', entityId: row.plot_id, requestId, result: 'SUCCESS', after: { import_id: id } });
       return after;
     });
-    await this.compensate(row.object_key); // después del commit; un fallo lo retoma el barrido
+    // después del commit: intento inmediato de la tarea registrada; un fallo queda FAILED y se reintenta
+    await new StorageSweeper(this.db, this.store).process([row.object_key]).catch(() => undefined);
     return { id: row.id, status: row.status };
   }
 
@@ -314,7 +318,7 @@ export class GeometryImportsService {
     const plot = await this.plots.load(this.db, ctx, plotId, 'read');
     const r = await sql<{ geometry: unknown; version_number: number; geometry_type: string; survey_method: string; validation_status: string; technically_valid: boolean; area_declared_ha: string | null; area_calculated_ha: string | null; geometry_hash: string; source_import_sha256: string | null }>`
       SELECT ST_AsGeoJSON(v.geometry, 17)::jsonb AS geometry, v.version_number, v.geometry_type, v.survey_method, v.validation_status,
-             ST_IsValid(v.geometry) AS technically_valid, v.area_declared_ha::text, v.area_calculated_ha::text, v.geometry_hash,
+             (ST_IsValidDetail(v.geometry)).valid AS technically_valid, v.area_declared_ha::text, v.area_calculated_ha::text, v.geometry_hash,
              gi.sha256 AS source_import_sha256
       FROM plot_versions v LEFT JOIN geometry_imports gi ON gi.id = v.source_import_id AND gi.organization_id = v.organization_id
       WHERE v.organization_id = ${orgId} AND v.plot_id = ${plotId} AND v.id = ${versionId}`.execute(this.db);
@@ -335,17 +339,9 @@ export class GeometryImportsService {
     return { feature, filename: `${plot.plot_code}-v${v.version_number}.geojson` };
   }
 
-  /**
-   * Barrido de huérfanos: borra objetos de importación sin fila o de importaciones DISCARDED.
-   * Nunca toca objetos de importaciones ANALYZED/CONFIRMED. Idempotente.
-   */
-  async sweepOrphans(): Promise<{ deleted: number }> {
-    const keys = (await this.store.list(IMPORT_PREFIX)).filter((k) => k.includes('/geometry-imports/'));
-    if (keys.length === 0) return { deleted: 0 };
-    const keep = new Set((await this.db.selectFrom('geometry_imports').select('object_key').where('object_key', 'in', keys).where('status', '<>', 'DISCARDED').execute()).map((r) => r.object_key));
-    let deleted = 0;
-    for (const k of keys) if (!keep.has(k)) { await this.store.delete(k); deleted++; }
-    return { deleted };
+  /** Barrido bajo demanda (el worker lo programa); misma lógica y garantías que en el worker. */
+  async sweepOrphans(opts?: Partial<SweeperOptions>) {
+    return new StorageSweeper(this.db, this.store, { ...DEFAULT_SWEEPER, ...opts }).runOnce();
   }
 }
 

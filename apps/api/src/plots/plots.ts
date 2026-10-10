@@ -130,7 +130,7 @@ const versionColumns = (withGeometry: boolean) => sql`
   ${withGeometry ? sql`ST_AsGeoJSON(v.geometry, 17)::jsonb` : sql`NULL::jsonb`} AS geometry,
   v.geometry_hash, v.area_declared_ha::text, v.area_calculated_ha::text, v.survey_method, v.surveyed_at, v.accuracy_m::text,
   v.validation_status, v.validation_rule_version, v.previous_version_id, v.notes, v.created_at,
-  CASE WHEN v.geometry IS NULL THEN NULL ELSE ST_IsValid(v.geometry) END AS technically_valid,
+  CASE WHEN v.geometry IS NULL THEN NULL ELSE (ST_IsValidDetail(v.geometry)).valid END AS technically_valid,
   ${withGeometry}::boolean AS geometry_visible,
   v.source_import_id,
   (SELECT gi.sha256 FROM geometry_imports gi WHERE gi.id = v.source_import_id AND gi.organization_id = v.organization_id) AS source_import_sha256,
@@ -327,6 +327,7 @@ export class PlotsService {
       geometry_access: this.geometryAllowed(ctx),
       can_update: active && p.status === 'ACTIVE' && this.inScope(ctx, p.producer_assignee, 'update'),
       can_capture_location: active && p.status === 'ACTIVE' && this.inScope(ctx, p.producer_assignee, 'update') && this.geometryAllowed(ctx),
+      can_evaluate_gis: active && (this.has(ctx, 'plot:evaluate_gis') || (this.has(ctx, 'plot:evaluate_gis_assigned') && this.inScope(ctx, p.producer_assignee, 'read'))),
       can_archive: active && this.has(ctx, 'plot:archive'),
     };
   }
@@ -402,7 +403,7 @@ export class PlotsService {
         SELECT ${versionId}, ${orgId}, ${id}, ${last.n + 1}, g.geom, ${typeCode}::text,
           CASE WHEN g.geom IS NULL THEN NULL ELSE encode(sha256(ST_AsBinary(g.geom)), 'hex') END,
           ${dto.area_declared_ha ?? null}::numeric,
-          CASE WHEN ${typeCode}::text IN ('POLYGON','MULTIPOLYGON') AND ST_IsValid(g.geom) THEN round((ST_Area(g.geom::geography) / 10000)::numeric, 6) ELSE NULL END,
+          CASE WHEN ${typeCode}::text IN ('POLYGON','MULTIPOLYGON') AND (ST_IsValidDetail(g.geom)).valid THEN round((ST_Area(g.geom::geography) / 10000)::numeric, 6) ELSE NULL END,
           ${dto.survey_method}, ${dto.surveyed_at ?? null}::timestamptz, NULL, 'NOT_VALIDATED', ${STRUCTURAL_RULE},
           ${plot.current_version_id}, ${dto.notes ?? null}, ${user.id}
         FROM g`.execute(trx);

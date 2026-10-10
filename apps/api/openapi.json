@@ -2206,6 +2206,150 @@
           "plots"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/gis-rules/current": {
+      "get": {
+        "operationId": "GisEvaluationController_rule",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/plots/{plotId}/gis-evaluations": {
+      "post": {
+        "operationId": "GisEvaluationController_evaluate",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      },
+      "get": {
+        "operationId": "GisEvaluationController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/gis-evaluations/{evaluationId}": {
+      "get": {
+        "operationId": "GisEvaluationController_get",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "evaluationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
     }
   },
   "info": {
@@ -2823,6 +2967,21 @@
         "required": [
           "operation_id",
           "plot_expected_version"
+        ]
+      },
+      "EvaluateDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "plot_version_id": {
+            "type": "string",
+            "description": "Versión a evaluar; por omisión la vigente"
+          }
+        },
+        "required": [
+          "operation_id"
         ]
       }
     }

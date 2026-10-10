@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-10T17:15:17.245Z",
+  "fecha": "2026-10-10T17:48:15.008Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -1034,6 +1034,27 @@
         {
           "cuenta": "auditor.cooperativa",
           "resultado": "panel de importación=0; botones de descarga=0; API exportación/importaciones=403/403",
+          "ok": true
+        }
+      ],
+      "ok": true
+    },
+    {
+      "tipo": "gis",
+      "casos": [
+        {
+          "cuenta": "admin.cooperativa",
+          "resultado": "DEMO-PAR-001 evaluada: estado VALID; alcance técnico y perfil de destino no evaluado=true; calidad de captura «Precisión de captura no disponible (sin muestras de captura para este método).»",
+          "ok": true
+        },
+        {
+          "cuenta": "tecnico1.cooperativa (asignado, 390 px, teclado)",
+          "resultado": "botón de evaluación=1; resultado visible=true; desborde=false",
+          "ok": true
+        },
+        {
+          "cuenta": "auditor.cooperativa",
+          "resultado": "botón de evaluación=0; ve el resultado=true; coordenadas o ubicación del problema=false",
           "ok": true
         }
       ],

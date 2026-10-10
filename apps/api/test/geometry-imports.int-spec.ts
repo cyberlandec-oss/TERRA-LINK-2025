@@ -279,7 +279,10 @@ describeDb('P0-009 GeoJSON: importación con revisión, original privado y expor
     expect(await store.exists(discardedKey)).toBe(true);
     await store.put(`organizations/${orgA}/geometry-imports/${randomUUID()}.geojson`, Buffer.from('{}'), 'application/geo+json'); // huérfano sin fila
     jest.restoreAllMocks();
-    const swept = await h.app.get(GeometryImportsService).sweepOrphans();
+    const task = await h.db.selectFrom('object_deletions').selectAll().where('object_key', '=', discardedKey).executeTakeFirstOrThrow();
+    expect(task).toMatchObject({ reason: 'DISCARDED', status: 'FAILED', attempts: 1, last_error_code: 'STORAGE_DELETE_FAILED' }); // fallo registrado
+    await h.db.updateTable('object_deletions').set({ next_attempt_at: new Date(0) }).where('object_key', '=', discardedKey).execute(); // vence la espera
+    const swept = await h.app.get(GeometryImportsService).sweepOrphans({ orphanGraceSeconds: 0 });
     expect(swept.deleted).toBeGreaterThanOrEqual(2);
     expect(await store.exists(discardedKey)).toBe(false);
     for (const r of refs) expect(await store.exists(r.object_key)).toBe(true);

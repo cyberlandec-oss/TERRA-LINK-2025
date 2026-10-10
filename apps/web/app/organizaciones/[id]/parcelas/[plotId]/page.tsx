@@ -10,6 +10,7 @@ import { LocationCapture, accuracyLabel } from '../../../../../lib/location-capt
 import { PolygonCapture } from '../../../../../lib/polygon-capture';
 import { GeometryImport } from '../../../../../lib/geometry-import';
 import { VersionDownloads } from '../../../../../lib/geometry-downloads';
+import { GisEvaluation } from '../../../../../lib/gis-evaluation';
 import { GEOMETRY_STATUS, GEOMETRY_TYPE_LABEL, GeometrySketch, METHOD_LABEL, ha, positions, type Plot, type PlotVersion } from '../../../../../lib/plots';
 
 interface HistoryRow { version: number; change_type: string; changed_fields: string[]; reason: string | null; changed_at: string; actor: string }
@@ -128,6 +129,8 @@ export default function PlotDetailPage() {
             {plot.can_capture_location && <GeometryImport orgId={orgId} plotId={plot.id} plotVersion={plot.row_version} onConfirmed={load} />}
             {plot.can_update && <DeclaredAreaForm orgId={orgId} plot={plot} onSaved={load} />}
           </section>
+
+          <GisEvaluation orgId={orgId} plotId={plot.id} canEvaluate={!!plot.can_evaluate_gis} hasVersion={!!plot.current_version} />
 
           <section className="card" aria-labelledby="versions-title">
             <h2 id="versions-title">Versiones geométricas</h2>
