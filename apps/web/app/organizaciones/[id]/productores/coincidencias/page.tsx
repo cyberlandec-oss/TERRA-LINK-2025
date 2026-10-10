@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { ApiError, api, recoveryHint, session } from '../../../../../lib/api';
+import { ApiError, api, session } from '../../../../../lib/api';
+import { useWorkspace } from '../../../../../lib/workspace';
+import { Breadcrumb, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../../lib/ui';
 
 interface Side {
   id: string;
@@ -28,6 +30,7 @@ interface Review {
   producer_b: Side;
 }
 
+const PRODUCER_STATUS: Record<string, string> = { DRAFT: 'Borrador', ACTIVE: 'Activo', INACTIVE: 'De baja' };
 const STATUS: Record<Review['status'], string> = { PENDING: 'Pendiente', NOT_DUPLICATE: 'No es duplicado', DUPLICATE_CONFIRMED: 'Duplicado confirmado' };
 const RULE: Record<string, string> = { IDENTITY_DOCUMENT: 'Mismo tipo y número de documento' };
 
@@ -35,11 +38,14 @@ const RULE: Record<string, string> = { IDENTITY_DOCUMENT: 'Mismo tipo y número 
 export default function MatchReviewsPage() {
   const { id: orgId } = useParams<{ id: string }>();
   const router = useRouter();
+  const ws = useWorkspace();
   const [status, setStatus] = useState('PENDING');
   const [rows, setRows] = useState<Review[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
+  const allowed = ws.can('producer:review_duplicates');
   const load = useCallback(async () => {
+    if (!allowed) return;
     setError(null);
     try {
       setRows(await api<Review[]>(`/api/v1/organizations/${orgId}/producer-match-reviews?status=${status}`));
@@ -51,33 +57,32 @@ export default function MatchReviewsPage() {
       }
       setError(err as ApiError);
     }
-  }, [orgId, status, router]);
+  }, [orgId, status, router, allowed]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  // Coherente con el resto de módulos: sin permiso efectivo se explica la denegación (UX_UI §9.2).
+  if (!allowed) {
+    return <ErrorPanel error={new ApiError(403, { code: 'PERMISSION_DENIED', message: 'Tu rol no permite revisar posibles duplicados.', request_id: null })} />;
+  }
   return (
     <>
-      <p><Link href={`/organizaciones/${orgId}/productores`}>← Productores</Link></p>
-      <h1>Posibles duplicados</h1>
-      <p className="muted">Resolver un caso solo registra la decisión: los productores no se fusionan ni se modifican.</p>
+      <Breadcrumb items={[{ label: ws.activeOrg?.name ?? 'Organización', href: `/organizaciones/${orgId}` }, { label: 'Productores', href: `/organizaciones/${orgId}/productores` }, { label: 'Posibles duplicados' }]} />
+      <PageHeader title="Posibles duplicados" meta="Resolver un caso solo registra la decisión: los productores no se fusionan ni se modifican." />
       <label htmlFor="status">Estado</label>
-      <select id="status" value={status} onChange={(e) => setStatus(e.target.value)}>
+      <select id="status" style={{ maxWidth: 320 }} value={status} onChange={(e) => setStatus(e.target.value)}>
         <option value="PENDING">Pendientes</option>
         <option value="DUPLICATE_CONFIRMED">Duplicados confirmados</option>
         <option value="NOT_DUPLICATE">No duplicados</option>
         <option value="ALL">Todos</option>
       </select>
       {error && (
-        <div className="error" role="alert">
-          <p>{error.message}</p>
-          <p>{recoveryHint(error)}</p>
-          <button onClick={load}>Reintentar</button>
-        </div>
+        <ErrorPanel error={error} onRetry={load} />
       )}
-      {!rows && !error && <p className="muted">Cargando…</p>}
-      {rows && rows.length === 0 && <p className="card">No hay casos en este estado.</p>}
+      {!rows && !error && <Loading label="Cargando casos…" />}
+      {rows && rows.length === 0 && <EmptyState title="No hay casos en este estado." />}
       {rows?.map((r) => <ReviewCard key={r.id} orgId={orgId} review={r} onDone={load} />)}
     </>
   );
@@ -85,9 +90,9 @@ export default function MatchReviewsPage() {
 
 function SideView({ orgId, side, identity }: { orgId: string; side: Side; identity: boolean }) {
   return (
-    <div style={{ flex: 1, minWidth: 220 }}>
+    <div>
       <Link href={`/organizaciones/${orgId}/productores/${side.id}`}>{side.producer_code} · {side.display_name}</Link>
-      <div className="muted">{[side.community, side.parish].filter(Boolean).join(' · ') || 'Sin ubicación'} · {side.status}</div>
+      <div className="muted">{[side.community, side.parish].filter(Boolean).join(' · ') || 'Sin ubicación'} · {PRODUCER_STATUS[side.status] ?? side.status}</div>
       {identity && side.document_number && <div className="muted">{side.document_type} {side.document_number}</div>}
     </div>
   );
@@ -116,8 +121,8 @@ function ReviewCard({ orgId, review, onDone }: { orgId: string; review: Review; 
 
   return (
     <section className="card" aria-label={`Caso ${review.producer_a.producer_code} y ${review.producer_b.producer_code}`}>
-      <p><span className="badge">{STATUS[review.status]}</span> <span className="muted">{RULE[review.rule_code] ?? review.rule_code} · {new Date(review.detected_at).toLocaleString('es-EC')}</span></p>
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+      <p><StatusBadge tone={review.status === 'PENDING' ? 'review' : review.status === 'DUPLICATE_CONFIRMED' ? 'blocked' : 'valid'}>{STATUS[review.status]}</StatusBadge> <span className="muted">{RULE[review.rule_code] ?? review.rule_code} · {new Date(review.detected_at).toLocaleString('es-EC')}</span></p>
+      <div className="grid-2">
         <SideView orgId={orgId} side={review.producer_a} identity={review.identity_visible} />
         <SideView orgId={orgId} side={review.producer_b} identity={review.identity_visible} />
       </div>
@@ -130,7 +135,7 @@ function ReviewCard({ orgId, review, onDone }: { orgId: string; review: Review; 
           <button type="button" className="secondary" disabled={busy || note.trim().length < 3} onClick={(e) => resolve(e as unknown as FormEvent, 'DUPLICATE_CONFIRMED')}>
             Es duplicado (sin fusionar)
           </button>
-          {error && <p className="error" role="alert">{error.message} {recoveryHint(error)}</p>}
+          {error && <ErrorPanel error={error} />}
         </form>
       )}
     </section>

@@ -50,6 +50,15 @@ No imprimir ni versionar `.env` (está en `.gitignore`).
 
 Las variables (`JWT_SECRET`, credenciales de PostgreSQL) se leen de `.env` al ejecutar; `.dockerignore` excluye `.env*` y nunca se copian a las imágenes. Puertos configurables con `API_HOST_PORT` y `WEB_HOST_PORT`. No arrancar a la vez que `dev:api`/`dev:web` en los mismos puertos.
 
+## Datos DEMO y revisión por rol (solo desarrollo local)
+
+| Acción | Comando | Efecto | Resultado 2026-10-10 |
+| --- | --- | --- | --- |
+| Seed DEMO/QA | `npm run seed:demo -w apps/api` | Crea (si faltan) 4 organizaciones «DEMO ·», 17 cuentas (los 12 roles; un ORG_ADMIN por empresa; 1 SUPER_ADMIN de revisión; 1 usuario con roles en dos organizaciones) y 9 productores sintéticos con un caso de posible duplicado. Usa los flujos reales de la API (invitación, aceptación, cifrado, eventos, auditoría). Idempotente; conserva datos existentes; se niega a correr contra bases `*_test`/`*_e2e` | 17/17 logins verificados; segunda ejecución sin cambios |
+| Credenciales locales | `CREDENCIALES.csv` (raíz) | UTF-8 con BOM, una fila por usuario + organización + rol. **Ignorado por git.** Contraseñas solo ahí (hash argon2id en la base); se reutilizan entre ejecuciones y nunca se resetean cuentas existentes | 18 filas |
+| Aplicación para revisión | `docker compose --profile app up -d --build --wait` | Web :3000 y API :4000 sobre la base de desarrollo `terra_link` | api, web, worker activos |
+| Revisión visual por rol | `node e2e/review/revision-por-rol.mjs http://localhost:3000` | Sesión aislada por fila del CSV; rutas, tarea real, denegación, datos ajenos, teclado y móvil; capturas en `docs/qa/capturas/`, resultados en `docs/qa/revision-resultados.json` | 21 entradas, 0 incidencias (informe `docs/qa/REVISION_VISUAL_POR_ROL.md`) |
+
 ## Validación local (criterio de esta etapa)
 
 ```bash

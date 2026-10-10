@@ -1,5 +1,7 @@
 # UX por rol, workflows y pantallas
 
+> **Relación con `docs/UX_UI.md` (2026-10-10):** UX_UI.md es la referencia para identidad visual, tokens, componentes, estados de presentación, accesibilidad y experiencia de los 12 roles. Este documento conserva los workflows y la matriz de pantallas por rol. Si discrepan, prevalecen los permisos y contratos reales del backend (doc 07, OpenAPI); después, UX_UI.md para la presentación y este documento para la secuencia del workflow. Registrar cualquier diferencia en lugar de mantener dos versiones.
+
 FUENTE: S4 completo; mejoras de S3 §§18–23. Estado objetivo, no pantallas verificadas. Reutilizar My Work, Lot Hub y navegación contextual existentes si repo los acredita.
 
 ## Reglas de experiencia

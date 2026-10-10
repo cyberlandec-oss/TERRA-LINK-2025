@@ -15,11 +15,12 @@ test('preparación: organización y administrador', async ({ browser }) => {
   await superPage.goto('/');
   await superPage.getByLabel('Correo').fill(SUPER_EMAIL);
   await superPage.getByLabel('Contraseña').fill(process.env.E2E_SUPER_PASSWORD!);
-  await superPage.getByRole('button', { name: 'Ingresar' }).click();
+  await superPage.getByRole('button', { name: 'Iniciar sesión' }).click();
   await superPage.getByLabel('Nombre').fill('Cooperativa Productores');
   await superPage.getByLabel('Tipo de organización (catálogo provisional, no concede permisos)').selectOption({ label: 'Cooperativa' });
   await superPage.getByRole('button', { name: 'Crear organización' }).click();
   await superPage.getByRole('link', { name: 'Cooperativa Productores' }).click();
+  await superPage.getByRole('link', { name: 'Incorporar administrador' }).click();
   await superPage.getByLabel('Correo', { exact: true }).last().fill(ADMIN.email);
   await superPage.getByLabel('Rol').selectOption({ label: 'Administrador de organización' });
   await superPage.getByRole('button', { name: 'Generar enlace de invitación' }).click();
@@ -40,7 +41,7 @@ test('preparación: organización y administrador', async ({ browser }) => {
 });
 
 test('alta con validación y código duplicado recuperable', async () => {
-  await expect(adminPage.getByText('No hay productores que coincidan')).toBeVisible();
+  await expect(adminPage.getByText('Aún no hay productores registrados.')).toBeVisible();
   await adminPage.getByLabel('Código de productor', { exact: true }).fill('COOP-001');
   await adminPage.getByLabel('Nombre', { exact: true }).fill('Julio');
   await adminPage.getByLabel('Apellido', { exact: true }).fill('Vera');
@@ -85,7 +86,7 @@ test('posible duplicado: aviso al registrar, revisión asistida y ningún cambio
 
   // Los productores siguen intactos (versión 1, activos).
   await adminPage.goto(producersUrl);
-  await adminPage.getByRole('list', { name: 'Productores' }).getByRole('link', { name: 'COOP-001 · Julio Vera' }).click();
+  await adminPage.getByRole('table', { name: 'Productores' }).getByRole('link', { name: 'COOP-001 · Julio Vera' }).click();
   await expect(adminPage.getByText('versión 1')).toBeVisible();
 });
 
@@ -93,8 +94,8 @@ test('búsqueda por comunidad y apertura del detalle', async () => {
   await adminPage.goto(producersUrl);
   await adminPage.getByLabel('Buscar por código, nombre o comunidad').fill('río chico');
   await adminPage.getByRole('button', { name: 'Buscar' }).click();
-  const list = adminPage.getByRole('list', { name: 'Productores' });
-  await expect(list.getByRole('listitem')).toHaveCount(1);
+  const list = adminPage.getByRole('table', { name: 'Productores' });
+  await expect(list.locator('tbody tr')).toHaveCount(1);
   await list.getByRole('link', { name: 'COOP-001 · Julio Vera' }).click();
   await expect(adminPage.getByRole('heading', { name: 'COOP-001 · Julio Vera' })).toBeVisible();
   await expect(adminPage.getByRole('list', { name: 'Historial' })).toContainText('v1 · Registro');
@@ -132,7 +133,7 @@ test('baja lógica: sale del listado por defecto y conserva historial', async ()
   await expect(adminPage.getByRole('list', { name: 'Historial' })).toContainText('v1 · Registro');
 
   await adminPage.goto(producersUrl);
-  const list = adminPage.getByRole('list', { name: 'Productores' });
+  const list = adminPage.getByRole('table', { name: 'Productores' });
   await expect(list).not.toContainText('COOP-001');
   await adminPage.getByLabel('Estado').selectOption({ label: 'De baja' });
   await adminPage.getByRole('button', { name: 'Buscar' }).click();

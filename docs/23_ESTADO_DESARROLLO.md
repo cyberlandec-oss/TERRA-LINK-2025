@@ -68,6 +68,10 @@ Doc 06 exige «identidad **cifrada**/restringida». Antes solo estaba restringid
 | UI en español | Aviso al registrar; página de revisión con identidad según permiso | E2E «posible duplicado…» |
 | Fuera de alcance | Fusión de registros (sin contrato) y reglas no documentadas (D-22) | docs/22 |
 
+## Interfaz según docs/UX_UI.md (2026-10-10)
+
+Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1/UX-V1 únicos en `apps/web/app/globals.css`; shell adaptable (organización activa con selector, usuario y rol efectivo, navegación por permisos, migas, «Saltar al contenido», menú móvil); login (UI-01) con mostrar/ocultar y mensajes distintos para 401/429/503/red; organizaciones (UI-02); miembros, invitaciones y roles (UI-03) en página propia; auditoría (UI-18) en página propia; productores y revisión de duplicados (UI-05) con tabla, filtros y estados diferenciados (carga, vacío, filtro sin resultados, error, 403, 404, conflicto 409 con recarga). Sin menús de módulos futuros; las capacidades pendientes por rol aparecen rotuladas en una tarjeta aparte. Revisión por rol: `docs/qa/REVISION_VISUAL_POR_ROL.md` (0 incidencias abiertas; 4 corregidas).
+
 ## Brechas reales
 
 - P0-003: grants y elevación (decisiones/contratos ausentes).
@@ -75,6 +79,7 @@ Doc 06 exige «identidad **cifrada**/restringida». Antes solo estaba restringid
 - Invitaciones: entrega por canal verificado y verificación de correo (D-19) antes de operación real.
 - Fallo intermitente E2E del 2026-10-10 (reload sin respuesta): causa no determinada, evidencia perdida; `validate` conserva trazas desde ahora.
 - Android/offline, integraciones, despliegue: no iniciados.
+- Logotipo oficial y verificación de licencia de Inter (UX-D01/UX-D02). Evaluación de accesibilidad completa (lector de pantalla, zoom 200 %) no realizada: solo foco por teclado y móvil comprobados.
 
 ## Próxima acción: P0-006 Parcela
 

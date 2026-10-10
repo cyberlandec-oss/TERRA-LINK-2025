@@ -27,6 +27,10 @@ Estas cuestiones no bloquean la lectura ni preparación del paquete. Bloquean ú
 | D-21 | ¿`producer_code` distingue mayúsculas/minúsculas? | Producto/Data Steward | Regla aprobada; si se unifican, migración con detección previa de colisiones |
 | D-22 | Reglas de coincidencia adicionales a la identidad (nombre + comunidad, teléfono…) | Producto/Data Steward | Reglas aprobadas con umbral y tasa de falsos positivos medida |
 
+### Decisiones UX (docs/UX_UI.md §27.2) aplicadas en la interfaz
+
+UX-D01 logotipo: sin activos oficiales en el proyecto → identificación textual «TERRA LINK» (no se redibuja el logo). UX-D02 Inter: se usa si está instalada; si no, fuente del sistema (no se distribuye). UX-D03 tokens auxiliares y títulos operativos: aplicados como propuesta UX-V1. UX-D08 (PRODUCER) y UX-D09 (BUYER/concesiones): cuentas creadas solo con membresía propia; experiencias rotuladas como pendientes. Ninguna bloquea criterios de P0-001 a P0-005.
+
 ### Efecto de cada decisión abierta sobre los criterios (2026-10-10)
 
 Ninguna decisión es un bloqueo global. Solo bloquea la historia cuyo criterio de aceptación la necesita.

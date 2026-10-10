@@ -1,9 +1,10 @@
 'use client';
 
-import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { ApiError, api, recoveryHint, session, type Member } from '../../../../../lib/api';
+import { ApiError, api, session, type Member } from '../../../../../lib/api';
+import { useWorkspace } from '../../../../../lib/workspace';
+import { Alert, Breadcrumb, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../../lib/ui';
 import { ProducerFields, STATUS_LABEL, toPayload, type Producer } from '../page';
 
 type ProducerDetail = Producer & { can_update: boolean; can_assign: boolean; can_archive: boolean };
@@ -30,6 +31,7 @@ const EDITABLE = ['first_name', 'last_name', 'legal_name', 'document_type', 'doc
 export default function ProducerDetailPage() {
   const { id: orgId, pid } = useParams<{ id: string; pid: string }>();
   const router = useRouter();
+  const ws = useWorkspace();
   const possibleDuplicate = useSearchParams().get('coincidencia') === '1';
   const [p, setP] = useState<ProducerDetail | null>(null);
   const [history, setHistory] = useState<Version[]>([]);
@@ -60,28 +62,26 @@ export default function ProducerDetailPage() {
 
   return (
     <>
-      <p><Link href={`/organizaciones/${orgId}/productores`}>← Productores</Link></p>
+      <Breadcrumb items={[{ label: ws.activeOrg?.name ?? 'Organización', href: `/organizaciones/${orgId}` }, { label: 'Productores', href: `/organizaciones/${orgId}/productores` }, { label: p ? p.producer_code : 'Productor' }]} />
       {error && (
-        <div className="error" role="alert">
-          <p>{error.message}</p>
-          <p>{recoveryHint(error)}</p>
-          <button onClick={load}>Reintentar</button>
-        </div>
+        <ErrorPanel error={error} onRetry={load} />
       )}
-      {!p && !error && <p className="muted">Cargando…</p>}
+      {!p && !error && <Loading label="Cargando productor…" />}
       {p && (
         <>
-          <h1>{p.producer_code} · {p.display_name}</h1>
-          <p>
-            <span className={`badge ${p.status === 'INACTIVE' ? 'suspended' : ''}`}>{STATUS_LABEL[p.status]}</span>{' '}
-            <span className="muted">versión {p.row_version}</span>
-          </p>
+          <PageHeader
+            title={`${p.producer_code} · ${p.display_name}`}
+            meta={<>
+              <StatusBadge tone={p.status === 'ACTIVE' ? 'valid' : p.status === 'DRAFT' ? 'review' : 'blocked'}>{STATUS_LABEL[p.status]}</StatusBadge>
+              <span>versión {p.row_version}</span>
+            </>}
+          />
           {possibleDuplicate && (
-            <p className="notice" role="status">
-              Se detectó una posible coincidencia de identidad con otro productor. Un responsable la revisará; no se fusionó ni modificó ningún registro.
-            </p>
+            <Alert tone="review" title="Posible coincidencia de identidad">
+              <p>Se detectó una posible coincidencia de identidad con otro productor. Un responsable la revisará; no se fusionó ni modificó ningún registro.</p>
+            </Alert>
           )}
-          {p.status === 'INACTIVE' && <p className="notice">Productor de baja: {p.deletion_reason}. Su historial se conserva.</p>}
+          {p.status === 'INACTIVE' && <Alert tone="review" title={`Productor de baja: ${p.deletion_reason ?? ''}.`}><p>Su historial se conserva.</p></Alert>}
           {!p.identity_visible && <p className="muted">Los datos de identidad y contacto no están disponibles para tu rol.</p>}
           {p.can_update ? <EditProducer orgId={orgId} producer={p} onSaved={load} /> : <ReadOnly producer={p} />}
           {p.can_assign && p.status !== 'INACTIVE' && <AssignProducer orgId={orgId} producer={p} onSaved={load} />}
@@ -150,16 +150,13 @@ function EditProducer({ orgId, producer, onSaved }: { orgId: string; producer: P
   }
 
   return (
-    <section className="card">
+    <section className="card form">
       <h2>Datos del productor</h2>
       <form onSubmit={submit}>
         <ProducerFields value={fields} onChange={setFields} showIdentity={producer.identity_visible} />
         {saved && <p className="muted" role="status">Cambios guardados.</p>}
         {error && (
-          <div className="error" role="alert">
-            <p>{error.message} {recoveryHint(error)}</p>
-            {error.body.code === 'VERSION_CONFLICT' && <button type="button" onClick={onSaved}>Recargar</button>}
-          </div>
+          <ErrorPanel error={error} onReload={onSaved} />
         )}
         <button type="submit" disabled={busy}>{busy ? 'Guardando…' : 'Guardar cambios'}</button>
       </form>
@@ -198,7 +195,7 @@ function AssignProducer({ orgId, producer, onSaved }: { orgId: string; producer:
           <option value="">Sin asignar</option>
           {members.map((m) => <option key={m.membership_id} value={m.membership_id}>{m.first_name} {m.last_name} ({m.email})</option>)}
         </select>
-        {error && <p className="error" role="alert">{error.message} {recoveryHint(error)}</p>}
+        {error && <ErrorPanel error={error} />}
         <button type="submit">Guardar responsable</button>
       </form>
     </section>
@@ -232,7 +229,7 @@ function StatusProducer({ orgId, producer, onSaved }: { orgId: string; producer:
       <form onSubmit={submit}>
         <label htmlFor="p-reason">Motivo (queda en el historial)</label>
         <input id="p-reason" required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} />
-        {error && <p className="error" role="alert">{error.message} {recoveryHint(error)}</p>}
+        {error && <ErrorPanel error={error} />}
         <button type="submit" className={archiving ? 'danger' : ''}>{archiving ? 'Dar de baja' : 'Reactivar'}</button>
       </form>
     </section>

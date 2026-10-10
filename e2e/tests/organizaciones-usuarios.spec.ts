@@ -13,11 +13,14 @@ async function login(page: Page, email: string, password: string) {
   await page.goto('/');
   await page.getByLabel('Correo').fill(email);
   await page.getByLabel('Contraseña').fill(password);
-  await page.getByRole('button', { name: 'Ingresar' }).click();
-  await expect(page.getByRole('heading', { name: 'Organizaciones' })).toBeVisible();
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: /organizaciones/i })).toBeVisible();
 }
 
 async function inviteAndGetLink(page: Page, email: string, roleLabel: string): Promise<string> {
+  // Miembros e invitaciones viven en su propia página de administración (UI-03).
+  await page.getByRole('link', { name: /Incorporar administrador|Miembros e invitaciones/ }).click();
+  await expect(page.getByRole('button', { name: 'Generar enlace de invitación' })).toBeVisible();
   await page.getByLabel('Correo', { exact: true }).last().fill(email);
   await page.getByLabel('Rol').selectOption({ label: roleLabel });
   await page.getByRole('button', { name: 'Generar enlace de invitación' }).click();
@@ -52,8 +55,8 @@ test('login con credenciales incorrectas muestra error recuperable', async ({ pa
   await page.goto('/');
   await page.getByLabel('Correo').fill(SUPER_EMAIL);
   await page.getByLabel('Contraseña').fill('incorrecta');
-  await page.getByRole('button', { name: 'Ingresar' }).click();
-  await expect(page.locator('.error[role="alert"]')).toContainText('Email o contraseña incorrectos.');
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+  await expect(page.locator('.error[role="alert"]')).toContainText('Correo o contraseña incorrectos.');
 });
 
 test('SUPER_ADMIN crea organizaciones e invita al administrador', async ({ browser }) => {
@@ -72,12 +75,12 @@ test('SUPER_ADMIN crea organizaciones e invita al administrador', async ({ brows
   await superPage.getByRole('link', { name: 'Asociación E2E' }).click();
   await expect(superPage.getByRole('heading', { name: 'Asociación E2E' })).toBeVisible();
   orgAUrl = superPage.url();
+  adminLink = await inviteAndGetLink(superPage, ADMIN.email, 'Administrador de organización');
   // Plataforma sin membresía: solo incorporación del ORG_ADMIN, sin lista de miembros (D-04).
   await expect(superPage.getByRole('heading', { name: 'Incorporación del administrador' })).toBeVisible();
   await expect(superPage.getByText('requiere una elevación auditada')).toBeVisible();
   await expect(superPage.getByRole('list', { name: 'Miembros' })).toHaveCount(0);
   await expect(superPage.getByLabel('Rol').locator('option')).toHaveText(['Elige un rol…', 'Administrador de organización']);
-  adminLink = await inviteAndGetLink(superPage, ADMIN.email, 'Administrador de organización');
   expect(adminLink).toMatch(/\/invitacion#token=[A-Za-z0-9_-]{43}$/);
 });
 
@@ -99,6 +102,7 @@ test('un enlace ya usado muestra el motivo y cómo continuar', async ({ browser 
 });
 
 test('un miembro sin permiso ve la organización en solo lectura y no accede a otra', async ({ browser }) => {
+  await adminPage.goto(orgAUrl);
   const link = await inviteAndGetLink(adminPage, TECH.email, 'Técnico de campo');
   ({ page: techPage } = await acceptInvitation(browser, link, TECH));
   await expect(techPage.getByRole('button', { name: 'Guardar cambios' })).toHaveCount(0);
@@ -110,21 +114,22 @@ test('un miembro sin permiso ve la organización en solo lectura y no accede a o
 test('cambiar roles muestra u oculta acciones según el permiso efectivo, sin volver a iniciar sesión', async () => {
   await techPage.goto(orgAUrl);
   await expect(techPage.getByRole('heading', { name: 'Asociación E2E' })).toBeVisible();
-  await expect(techPage.getByRole('heading', { name: 'Actividad reciente' })).toHaveCount(0);
-  await expect(techPage.getByRole('button', { name: 'Cambiar roles' })).toHaveCount(0);
-  await adminPage.reload();
+  await expect(techPage.getByRole('link', { name: 'Auditoría' })).toHaveCount(0);
+  await expect(techPage.getByRole('link', { name: 'Miembros e invitaciones' })).toHaveCount(0);
+  await adminPage.goto(`${orgAUrl}/miembros`);
   const row = adminPage.getByRole('list', { name: 'Miembros' }).getByRole('listitem').filter({ hasText: TECH.email });
   await row.getByRole('button', { name: 'Cambiar roles' }).click();
   await row.getByRole('checkbox', { name: 'Auditor' }).check();
   await row.getByLabel('Motivo del cambio (queda en la auditoría)').fill('Apoyo en auditoría interna');
   await row.getByRole('button', { name: 'Guardar roles' }).click();
   await expect(row).toContainText('Auditor, Técnico de campo');
-  // Misma sesión del técnico: al recargar aparece la bitácora (audit:read) con el cambio registrado.
+  // Misma sesión del técnico: al recargar aparece Auditoría (audit:read) con el cambio registrado.
   await techPage.reload();
   await expect(techPage.getByRole('heading', { name: 'Asociación E2E' })).toBeVisible();
+  await expect(techPage.getByRole('button', { name: 'Guardar cambios' })).toHaveCount(0);
+  await techPage.getByRole('link', { name: 'Auditoría' }).click();
   await expect(techPage.getByRole('heading', { name: 'Actividad reciente' })).toBeVisible();
   await expect(techPage.getByRole('list', { name: 'Actividad' })).toContainText('Roles modificados');
-  await expect(techPage.getByRole('button', { name: 'Guardar cambios' })).toHaveCount(0);
 });
 
 test('suspensión bloquea cambios con aviso; reactivación los restablece', async () => {
@@ -136,7 +141,9 @@ test('suspensión bloquea cambios con aviso; reactivación los restablece', asyn
   await adminPage.goto(orgAUrl);
   await expect(adminPage.getByText('Organización suspendida: Revisión documental')).toBeVisible();
   await expect(adminPage.getByRole('button', { name: 'Guardar cambios' })).toBeDisabled();
+  await adminPage.goto(`${orgAUrl}/miembros`);
   await expect(adminPage.getByText('no se pueden invitar ni modificar miembros')).toBeVisible();
+  await adminPage.goto(orgAUrl);
 
   await superPage.getByLabel('Motivo (queda en la auditoría)').last().fill('Documentos completos');
   await superPage.getByRole('button', { name: 'Reactivar' }).click();
@@ -149,6 +156,7 @@ test('suspensión bloquea cambios con aviso; reactivación los restablece', asyn
 });
 
 test('desactivar a un miembro corta su acceso de inmediato', async () => {
+  await adminPage.goto(`${orgAUrl}/miembros`);
   const row = adminPage.getByRole('list', { name: 'Miembros' }).getByRole('listitem').filter({ hasText: TECH.email });
   await row.getByRole('button', { name: 'Desactivar' }).click();
   await row.getByLabel('Motivo (queda en la auditoría)').fill('Fin de temporada');

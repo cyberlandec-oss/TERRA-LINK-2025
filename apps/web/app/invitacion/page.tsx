@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
-import { ApiError, ROLE_LABELS, api, recoveryHint, session, tokenFromHash } from '../../lib/api';
+import { ApiError, ROLE_LABELS, api, session, tokenFromHash } from '../../lib/api';
+import { Alert, ErrorPanel, Loading } from '../../lib/ui';
 
 interface Preview {
   organization_name: string;
@@ -64,16 +65,17 @@ export default function InvitationPage() {
   const field = (key: keyof typeof form) => ({ value: form[key], onChange: (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value }) });
 
   return (
-    <section className="card" style={{ maxWidth: 520 }}>
+    <main className="tl-access"><div className="tl-access-card">
+    <p className="tl-access-brand" aria-label="Terra Link">TERRA LINK</p>
+    <section className="card">
       <h1>Invitación</h1>
       {error && (
-        <div className="error" role="alert">
-          <p>{error.message}</p>
-          <p>{recoveryHint(error)}</p>
+        <>
+          <ErrorPanel error={error} />
           <Link href="/">Ir a iniciar sesión</Link>
-        </div>
+        </>
       )}
-      {!preview && !error && <p className="muted">Comprobando invitación…</p>}
+      {!preview && !error && <Loading label="Comprobando invitación…" />}
       {preview && (
         <>
           <p>
@@ -81,9 +83,9 @@ export default function InvitationPage() {
           </p>
           <p className="muted">Correo invitado: {preview.email} · vence {new Date(preview.expires_at).toLocaleString('es-EC')}</p>
           {preview.requires_login && !preview.signed_in_as_recipient ? (
-            <p className="notice">
-              Ya existe una cuenta con este correo. <Link href="/">Inicia sesión</Link> con ella y vuelve a abrir el enlace para aceptar.
-            </p>
+            <Alert tone="info" title="Ya existe una cuenta con este correo.">
+              <p><Link href="/">Inicia sesión</Link> con ella y vuelve a abrir el enlace para aceptar.</p>
+            </Alert>
           ) : (
             <form onSubmit={submit}>
               {!preview.requires_login && (
@@ -103,5 +105,6 @@ export default function InvitationPage() {
         </>
       )}
     </section>
+    </div></main>
   );
 }

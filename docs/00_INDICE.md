@@ -18,6 +18,7 @@
 | [12_DOCUMENTOS_Y_EVIDENCIA.md](12_DOCUMENTOS_Y_EVIDENCIA.md) | Archivos, afirmaciones y relaciones | Evidence Center |
 | [13_RIESGO_LEGALIDAD_Y_DD.md](13_RIESGO_LEGALIDAD_Y_DD.md) | Reglas, mitigación, expedientes | EUDR Manager |
 | [14_UX_ROLES_Y_WORKFLOWS.md](14_UX_ROLES_Y_WORKFLOWS.md) | Pantallas, tareas, navegación | Web/móvil |
+| [UX_UI.md](UX_UI.md) | Especificación UX/UI: marca, tokens, componentes, estados, 12 roles, accesibilidad | Antes de modificar cualquier pantalla |
 | [15_INTEGRACIONES_Y_BENCHMARK.md](15_INTEGRACIONES_Y_BENCHMARK.md) | Referentes e interfaces externas | Integraciones/P1 |
 | [16_PLAN_QA.md](16_PLAN_QA.md) | Escenarios, evidencia y DoD | Pruebas/revisión |
 | [17_DEVOPS_Y_OPERACION.md](17_DEVOPS_Y_OPERACION.md) | CI, despliegue, recuperación | Infraestructura |

@@ -51,6 +51,7 @@ Monorepo npm (`apps/api` NestJS + Kysely, `apps/web` Next.js). Comandos verifica
 - `npm run typecheck` · `npm run lint` · `npm test` (la integración recrea el esquema de la base `*_test`) · `npm run build`
 - `npm run dev:api` (4000, Swagger `/api/docs`) · `npm run dev:web` (3000)
 - `docker compose --profile app up -d --build --wait` (API y web en contenedores; `rm -sf api web migrate` para detenerlos)
+- Datos DEMO para revisión: `npm run seed:demo -w apps/api` (credenciales en `CREDENCIALES.csv`, ignorado por git) · revisión por rol: `node e2e/review/revision-por-rol.mjs`
 - Worker del outbox: `npm run worker -w apps/api` (o servicio `worker` del perfil `app`)
 - `npm run test:e2e` (Playwright; requiere `npm run build -w apps/api` e `infra:up`; usa base `terra_link_e2e` y puertos 4100/3100)
 No ejecutes migraciones sobre producción, reinicios destructivos, borrado de volúmenes ni envíos regulatorios como parte de una tarea local.
@@ -58,5 +59,5 @@ Trabaja en una rama de tarea; conserva cambios ajenos y solicita el dato o autor
 
 ## Documentación por tarea
 Dominio/datos: documentos 04–06. Autorización: 07. Eventos/API: 08–09.
-GIS/offline: 10–11. Evidencia/riesgo/DD: 12–13. UI: 14. Integraciones: 15.
+GIS/offline: 10–11. Evidencia/riesgo/DD: 12–13. UI: **`docs/UX_UI.md`** (identidad visual, tokens, componentes, estados, experiencia por rol; consultar antes de modificar cada pantalla) y 14 (workflows por rol). Integraciones: 15.
 QA/operación: 16–17. Plan: 18–19. Inicio en Claude: 21. Decisiones abiertas: 22.

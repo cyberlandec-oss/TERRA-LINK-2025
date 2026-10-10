@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
-  ApiError, ROLE_LABELS, api, invitationLink, recoveryHint,
+  ApiError, ROLE_LABELS, api, invitationLink,
   type Invitation, type Member, type Organization,
-} from '../../../lib/api';
+} from '../../../../lib/api';
+import { ErrorPanel, Loading, StatusBadge } from '../../../../lib/ui';
 
 const INVITATION_STATUS: Record<Invitation['status'], string> = {
   PENDING: 'Pendiente', ACCEPTED: 'Aceptada', REVOKED: 'Revocada', EXPIRED: 'Vencida',
@@ -56,13 +57,8 @@ export function MembersSection({ org, canManage }: { org: Organization; canManag
           miembros requiere una elevación auditada que aún no está definida (decisión D-04).
         </p>
       )}
-      {error && (
-        <div className="error" role="alert">
-          <p>{error.message} {recoveryHint(error)}</p>
-          <button onClick={load}>Reintentar</button>
-        </div>
-      )}
-      {!members && !error && !onboardingOnly && <p className="muted">Cargando…</p>}
+      {error && <ErrorPanel error={error} onRetry={load} />}
+      {!members && !error && !onboardingOnly && <Loading label="Cargando miembros…" />}
       {members && (
         <ul className="plain" aria-label="Miembros">
           {members.map((m) => (
@@ -78,7 +74,7 @@ export function MembersSection({ org, canManage }: { org: Organization; canManag
           <ul className="plain" aria-label="Invitaciones">
             {invitations.map((i) => (
               <li key={i.id}>
-                {i.email} · {ROLE_LABELS[i.role_code] ?? i.role_code} · <span className="badge">{INVITATION_STATUS[i.status]}</span>
+                {i.email} · {ROLE_LABELS[i.role_code] ?? i.role_code} · <StatusBadge tone={i.status === 'PENDING' ? 'process' : i.status === 'ACCEPTED' ? 'valid' : 'neutral'}>{INVITATION_STATUS[i.status]}</StatusBadge>
                 {i.status === 'PENDING' && <span className="muted"> · vence {new Date(i.expires_at).toLocaleString('es-EC')}</span>}
                 {canManage && active && i.status === 'PENDING' && <RevokeButton orgId={org.id} invitationId={i.id} onDone={load} />}
               </li>
@@ -117,7 +113,7 @@ function MemberRow({ orgId, member, canManage, assignable, onChanged }: {
   return (
     <li>
       <strong>{member.first_name} {member.last_name}</strong> <span className="muted">{member.email}</span>{' '}
-      <span className={`badge ${member.status === 'INACTIVE' ? 'suspended' : ''}`}>{member.status === 'ACTIVE' ? 'Activo' : 'Desactivado'}</span>
+      <StatusBadge tone={member.status === 'ACTIVE' ? 'valid' : 'blocked'}>{member.status === 'ACTIVE' ? 'Activo' : 'Desactivado'}</StatusBadge>
       <div className="muted">
         {member.roles.map((r) => ROLE_LABELS[r] ?? r).join(', ') || 'Sin rol'}
         {!member.email_verified_at && ' · correo no verificado'}
@@ -141,7 +137,7 @@ function MemberRow({ orgId, member, canManage, assignable, onChanged }: {
           <input id={`reason-${member.membership_id}`} required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} />
           <button type="submit" className={deactivating ? 'danger' : ''}>{deactivating ? 'Confirmar desactivación' : 'Confirmar reactivación'}</button>{' '}
           <button type="button" className="secondary" onClick={() => setOpen(false)}>Cancelar</button>
-          {error && <p className="error" role="alert">{error.message} {recoveryHint(error)}</p>}
+          {error && <ErrorPanel error={error} />}
         </form>
       )}
     </li>
@@ -172,11 +168,11 @@ function RolesEditor({ orgId, member, assignable, onDone, onCancel }: {
 
   return (
     <form onSubmit={submit} aria-label={`Roles de ${member.email}`}>
-      <fieldset style={{ border: 0, padding: 0 }}>
+      <fieldset>
         <legend className="muted">Roles (el cambio aplica de inmediato)</legend>
         {assignable.map((r) => (
-          <label key={r} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input type="checkbox" style={{ width: 'auto' }} checked={selected.includes(r)}
+          <label key={r} className="checkbox-row">
+            <input type="checkbox" checked={selected.includes(r)}
               onChange={(e) => setSelected(e.target.checked ? [...selected, r] : selected.filter((x) => x !== r))} />
             {ROLE_LABELS[r] ?? r}
           </label>
@@ -187,7 +183,7 @@ function RolesEditor({ orgId, member, assignable, onDone, onCancel }: {
       {selected.length === 0 && <p className="muted">Selecciona al menos un rol; para quitar todo el acceso, desactiva la membresía.</p>}
       <button type="submit" disabled={busy || selected.length === 0}>{busy ? 'Guardando…' : 'Guardar roles'}</button>{' '}
       <button type="button" className="secondary" onClick={onCancel}>Cancelar</button>
-      {error && <p className="error" role="alert">{error.message} {recoveryHint(error)}</p>}
+      {error && <ErrorPanel error={error} />}
     </form>
   );
 }
@@ -255,7 +251,7 @@ function InviteForm({ orgId, roles, onCreated }: { orgId: string; roles: string[
           {roles.map((r) => <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>)}
         </select>
         <button type="submit" disabled={busy}>{busy ? 'Generando…' : 'Generar enlace de invitación'}</button>
-        {error && <p className="error" role="alert">{error.message} {recoveryHint(error)}</p>}
+        {error && <ErrorPanel error={error} />}
       </form>
       {link && (
         <div className="notice" role="status">

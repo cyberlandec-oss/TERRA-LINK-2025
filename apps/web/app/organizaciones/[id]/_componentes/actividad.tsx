@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError, api, recoveryHint } from '../../../lib/api';
+import { ApiError, api } from '../../../../lib/api';
+import { EmptyState, ErrorPanel, Loading } from '../../../../lib/ui';
 
 interface AuditRow {
   id: string;
@@ -35,7 +36,7 @@ export function AuditSection({ orgId }: { orgId: string }) {
   const load = useCallback(async () => {
     setError(null);
     try {
-      setRows(await api<AuditRow[]>(`/api/v1/organizations/${orgId}/audit-logs?limit=20`));
+      setRows(await api<AuditRow[]>(`/api/v1/organizations/${orgId}/audit-logs?limit=50`));
     } catch (err) {
       setError(err as ApiError);
     }
@@ -48,14 +49,9 @@ export function AuditSection({ orgId }: { orgId: string }) {
   return (
     <section className="card">
       <h2>Actividad reciente</h2>
-      {error && (
-        <div className="error" role="alert">
-          <p>{error.message} {recoveryHint(error)}</p>
-          <button onClick={load}>Reintentar</button>
-        </div>
-      )}
-      {!rows && !error && <p className="muted">Cargando…</p>}
-      {rows && rows.length === 0 && <p className="muted">Sin actividad registrada.</p>}
+      {error && <ErrorPanel error={error} onRetry={load} />}
+      {!rows && !error && <Loading label="Cargando actividad…" />}
+      {rows && rows.length === 0 && <EmptyState title="Sin actividad registrada." />}
       {rows && rows.length > 0 && (
         <ul className="plain" aria-label="Actividad">
           {rows.map((r) => (
