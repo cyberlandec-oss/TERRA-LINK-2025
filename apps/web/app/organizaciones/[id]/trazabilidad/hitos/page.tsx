@@ -13,7 +13,7 @@ interface Definition {
   id: string; code: string; version: number; reference: string; name: string; description: string; stage: string; stage_label: string;
   source: string; published_in: string; status: 'ACTIVE' | 'RETIRED';
   retirement: { release: string; reason: string; at: string; superseded_by: string | null } | null;
-  operations: Operation[]; kde: { status: string; story: string; note: string };
+  operations: Operation[]; kde?: unknown;
 }
 interface Catalog {
   scope_note: string; not_milestones: string;
@@ -73,7 +73,7 @@ export default function CtePage() {
                         <div className="muted">{o.note}</div>
                       </div>
                     ))}</td>
-                    <td><span className="muted">{d.kde.note}</span></td>
+                    <td>{d.status === 'ACTIVE' ? <a href={`/organizaciones/${orgId}/trazabilidad/hitos/${d.id}`} aria-label={`Ver datos mínimos de ${d.name}`}>Ver datos mínimos</a> : <span className="muted">—</span>}</td>
                   </tr>
                 ))}
               </tbody>

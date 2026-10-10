@@ -94,6 +94,29 @@ Catálogo de sistema versionado (migración 0015). Distinción explícita: **hit
 
 Cambios: una nueva versión del catálogo crea la versión siguiente de la definición (la anterior queda retirada y resoluble) o retira una definición con motivo. Al integrar una operación se publica una versión con el vínculo INTEGRATED.
 
+## Catálogo KDE implementado (P0-014, versión 1.0.0)
+
+Migración 0016; 62 definiciones sobre las 11 versiones de hito de CTE 1.0.0. Lectura de las fuentes: un dato listado como «KDE mínimo» en la tabla de este documento es **REQUIRED dentro de su hito**, salvo calificador explícito («si medida» → CONDITIONAL; «si disponible» → OPTIONAL). Un campo «C» de docs/06 sin condición escrita se publica como CONDITIONAL con `undefined_in_contract` (no evaluable → bloquea; D-34). La obligatoriedad del **hito** en cada flujo es otra cosa y sigue pendiente (D-33). No hay configuración jurídica activa.
+
+Diferencias registradas en cada definición (campo `difference`), entre ellas: docs/06 `deliveries` sin parcela (docs/09 sí; arreglo tipado propuesto), `production_records` sin productor ni bandera «medida», sin entidad de pesaje, método y límites de calidad con obligatoriedad distinta entre docs/08 y docs/06, unidad de humedad no definida, «operación» y «gestión» como actores que no son roles.
+
+**Servicio de validación** (`traceability/kde-validator.ts`): resultados PRESENT_VALID, PRESENT_INVALID, PRESENT_NOT_VERIFIABLE (referencia a entidad futura), REQUIRED_MISSING, OPTIONAL_MISSING, NOT_APPLICABLE, CONDITION_NOT_EVALUABLE. Ausente = omitido o null; `0`, `false` y `""` son valores presentes validados por tipo. Decimales como texto (hasta 6 decimales), cantidades con unidad explícita (solo KG), sin conversión ni normalización. Condiciones cerradas: `equals`, `present`, `quantities_differ` (misma unidad), `undefined_in_contract`.
+
+**Compuerta para operaciones futuras**: `gate.transition_allowed` es falso si algún dato resulta REQUIRED_MISSING, PRESENT_INVALID, PRESENT_NOT_VERIFIABLE o CONDITION_NOT_EVALUABLE; `gate.outcome` = COMPLETE / INCOMPLETE / INVALID / UNDETERMINED. Una validación contra una versión de hito retirada se rechaza (`CTE_DEFINITION_RETIRED`). **Ninguna compuerta está integrada**: 0 operaciones integradas.
+
+| Hito | KDE | Historia que lo usará | Prueba de integración exigida |
+| --- | --- | --- | --- |
+| HARVEST | 6 | Sin historia (D-33) | La operación de cosecha rechaza la transición ante cualquier resultado bloqueante |
+| DELIVERY | 7 | P0-012 | DELIVERY_REGISTER sin peso declarado, con unidad no KG o con parcela ajena se rechaza; repetición idempotente |
+| RECEPTION | 6 | P0-012 | RECEPTION_CONFIRM con diferencia frente al declarado exige causa |
+| WEIGHING | 5 | P0-012 | WEIGHT_RECORD sin método, valor o responsable se rechaza |
+| CLASSIFICATION | 5 | P0-012 | QUALITY_DECISION «RELEASED» exige versión de límites |
+| FERMENTATION, DRYING | 6 + 5 | P0-016 | PROCESSING_RUN_CLOSE sin entradas, salida o merma (0 admitido) se rechaza |
+| STORAGE | 5 | P0-017 | STOCK_MOVEMENT sin lote, ubicación, cantidad o dirección se rechaza |
+| PACKAGING | 5 | Sin historia (D-33) | — |
+| SALE | 5 | Sin historia (D-33) | Precio sin moneda se rechaza |
+| SHIPMENT | 7 | P0-029 | SHIPMENT_DISPATCH con condiciones no definidas queda bloqueado hasta D-34 |
+
 ## Implementación vigente (TECH-001, 2026-10-10)
 
 Código: `apps/api/src/events/` y migración `0004_domain_events_outbox`. **No cierra** CTE/KDE, P0-015 (historial causal completo) ni el framework de reglas: es la base técnica que esas historias usarán.

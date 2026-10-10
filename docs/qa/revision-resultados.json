@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-10T18:33:13.281Z",
+  "fecha": "2026-10-10T19:07:02.570Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -1117,8 +1117,18 @@
       "tipo": "cte",
       "casos": [
         {
+          "cuenta": "admin.cooperativa — KDE de Entrega (390 px, teclado)",
+          "resultado": "7 datos mínimos; cantidades en KG=1; formularios=0; desborde=false",
+          "ok": true
+        },
+        {
           "cuenta": "admin.cooperativa (390 px, teclado)",
           "resultado": "11 hitos; pendientes=11; integradas=0; botones operativos=0; desborde=false",
+          "ok": true
+        },
+        {
+          "cuenta": "coordinador.multi — KDE de Recepción",
+          "resultado": "6 datos mínimos",
           "ok": true
         },
         {

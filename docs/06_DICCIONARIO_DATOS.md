@@ -115,6 +115,9 @@ Completitud, validez, consistencia, unicidad y vigencia son resultados separados
 | products | 0014 | P0-011: catálogo por ORGANIZACIÓN. `code` único por organización (mayúsculas, 2–40); `name`; `product_state` y `unit` (FK a catálogos de sistema); `scientific_name`/`variety` opcionales; ACTIVE/INACTIVE con motivo; `row_version`. Código, estado y unidad **inmutables** (trigger); sin borrado |
 | product_versions | 0014 | Historial append-only por versión (alta, edición, desactivación, activación) con instantánea y motivo |
 | gis_evaluations.comparison_scope / scope_membership_id | 0013 | Alcance efectivo de comparación de cada evaluación (ORGANIZATION o EVALUATOR_ASSIGNED) |
+| kde_catalog_releases | 0016 | P0-014: versiones publicadas del catálogo de datos mínimos (auditoría de cada cambio). Append-only |
+| kde_definitions | 0016 | Dato mínimo `code@version` ligado a la versión EXACTA de un hito (`cte_definition_id`): entidad y campo del contrato, tipo, unidad/dimensión (en `validation`), obligatoriedad REQUIRED/CONDITIONAL/OPTIONAL, condición y validación en un **esquema cerrado** (sin código ejecutable), roles responsables, fuente y diferencia con el modelo. Inmutable |
+| kde_definition_retirements | 0016 | Retirada o sustitución de un KDE con motivo; sigue resoluble para consultar historia. Append-only |
 | cte_catalog_releases | 0015 | P0-013: versiones publicadas del catálogo de sistema de hitos (versión, fuente, notas, fecha). Registro de auditoría de cada cambio permitido. Append-only |
 | cte_definitions | 0015 | Hito crítico: `code` + `version` (referencia estable `CODE@n`), nombre, descripción, etapa (ORIGIN/INTERNAL/OUTBOUND), fuente, versión de catálogo, `supersedes_id`. Inmutable |
 | cte_definition_retirements | 0015 | Retirada o sustitución de una definición en una versión del catálogo, con motivo; la definición sigue resoluble. Append-only |

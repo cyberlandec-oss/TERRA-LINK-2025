@@ -37,6 +37,7 @@ import { GeometryImportsController, GeometryImportsService } from './plots/geome
 import { GisEvaluationController, GisEvaluationService } from './plots/gis-evaluation';
 import { ProductsController, ProductsService } from './products/products';
 import { CteController, CteService } from './traceability/cte';
+import { KdeController, KdeService } from './traceability/kde';
 import { PRODUCTION_CONSUMERS } from './events/consumers';
 import { LOGIN_RATE_LIMITER, LoginRateLimiter, REDIS, RedisAttemptStore } from './auth/login-rate-limit';
 
@@ -168,7 +169,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
-        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController,
+        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController, KdeController,
       ],
       providers: [
         { provide: APP_CONFIG, useValue: config },
@@ -197,6 +198,7 @@ export class AppModule implements NestModule {
         GisEvaluationService,
         ProductsService,
         CteService,
+        KdeService,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },
         AuditService,

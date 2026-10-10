@@ -36,6 +36,16 @@ export async function reviewCte({ browser, BASE, accounts, DEMO_ORGS, orgIdByNam
     await page.waitForTimeout(500);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     await page.screenshot({ path: join(shots, 'cte--admin-390.png'), fullPage: true });
+    await page.getByRole('link', { name: 'Ver datos mínimos de Entrega' }).focus();
+    await page.keyboard.press('Enter');
+    const kde = page.getByRole('table', { name: 'Datos mínimos del hito' });
+    await kde.waitFor({ timeout: 15000 });
+    const kdeRows = await kde.locator('tbody tr').count();
+    const kg = await kde.locator('tbody tr').filter({ hasText: 'DELIVERY_DECLARED_WEIGHT@1' }).getByText('KG (masa)', { exact: true }).count();
+    const forms = await page.locator('form').count();
+    const kdeOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+    await page.screenshot({ path: join(shots, 'kde--admin-entrega-390.png'), fullPage: true });
+    casos.push({ cuenta: 'admin.cooperativa — KDE de Entrega (390 px, teclado)', resultado: `${kdeRows} datos mínimos; cantidades en KG=${kg}; formularios=${forms}; desborde=${kdeOverflow}`, ok: kdeRows === 7 && kg === 1 && forms === 0 && !kdeOverflow });
     casos.push({ cuenta: 'admin.cooperativa (390 px, teclado)', resultado: `${r.rows} hitos; pendientes=${r.pending}; integradas=${r.integrated}; botones operativos=${r.actions}; desborde=${overflow}`,
       ok: r.rows === 11 && r.pending === 11 && r.integrated === 0 && r.actions === 0 && !overflow });
     await ctx.close();
@@ -44,6 +54,12 @@ export async function reviewCte({ browser, BASE, accounts, DEMO_ORGS, orgIdByNam
     const { ctx, page } = await loginAs(acc('coordinador.multi'));
     const r = await inspect(page, orgOf('Exportadora'));
     await page.screenshot({ path: join(shots, 'cte--trazabilidad.png'), fullPage: true });
+    await page.getByRole('link', { name: 'Ver datos mínimos de Recepción' }).click();
+    const kdeTable = page.getByRole('table', { name: 'Datos mínimos del hito' });
+    await kdeTable.waitFor({ timeout: 15000 });
+    const kdeT = await kdeTable.locator('tbody tr').count();
+    await page.screenshot({ path: join(shots, 'kde--trazabilidad-recepcion.png'), fullPage: true });
+    casos.push({ cuenta: 'coordinador.multi — KDE de Recepción', resultado: `${kdeT} datos mínimos`, ok: kdeT === 6 });
     casos.push({ cuenta: 'coordinador.multi (responsable de trazabilidad, exportadora)', resultado: `enlace=${r.link}; ${r.rows} hitos; botones operativos=${r.actions}`, ok: r.link === 1 && r.rows === 11 && r.actions === 0 });
     await ctx.close();
   }
@@ -53,6 +69,8 @@ export async function reviewCte({ browser, BASE, accounts, DEMO_ORGS, orgIdByNam
     await page.getByText('Tu rol no permite consultar el catálogo de hitos de trazabilidad.').waitFor({ timeout: 15000 });
     const link = await page.getByRole('link', { name: 'Hitos (CTE)' }).count();
     await page.screenshot({ path: join(shots, 'cte--productor-sin-permiso.png'), fullPage: true });
+    await page.goto(`${BASE}/organizaciones/${orgOf('Cooperativa')}/trazabilidad/hitos/00000000-0000-4000-8000-000000000000`);
+    await page.getByText('Tu rol no permite consultar los datos mínimos de trazabilidad.').waitFor({ timeout: 15000 });
     casos.push({ cuenta: 'productor.cooperativa (sin permiso)', resultado: `enlace=${link}; acceso directo denegado=1`, ok: link === 0 });
     await ctx.close();
   }

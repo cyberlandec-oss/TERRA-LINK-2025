@@ -140,3 +140,21 @@ test('P0-013 hitos (CTE): consulta de solo lectura con versión, vigencia e inte
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });
+
+test('P0-014 datos mínimos (KDE) de un hito: tipo, unidad, obligatoriedad, condición y responsable; sin formularios operativos', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  await page.goto(`${orgUrl}/trazabilidad/hitos`);
+  await page.getByRole('link', { name: 'Ver datos mínimos de Recepción' }).focus();
+  await page.keyboard.press('Enter');
+  const table = page.getByRole('table', { name: 'Datos mínimos del hito' });
+  await expect(table).toContainText('RECEPTION_RECEIVED_WEIGHT@1');
+  await expect(table).toContainText('KG (masa)');
+  await expect(table).toContainText('Requerido');
+  await expect(table).toContainText('Se exige cuando RECEPTION_RECEIVED_WEIGHT y DELIVERY_DECLARED_WEIGHT difieren');
+  await expect(table).toContainText('Operador de recepción');
+  await expect(page.getByText(/prevista en P0-012\. Ninguna operación usa todavía estos datos/)).toBeVisible();
+  await expect(page.getByText(/Qué hitos son obligatorios en cada flujo sigue pendiente \(D-33\)/)).toBeVisible();
+  await expect(page.locator('form')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await ctx.close();
+});

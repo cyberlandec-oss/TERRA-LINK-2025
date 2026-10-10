@@ -2742,6 +2742,108 @@
           "traceability"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/kde-catalog": {
+      "get": {
+        "operationId": "KdeController_catalog",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "traceability"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/kde-definitions/{id}": {
+      "get": {
+        "operationId": "KdeController_definition",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "traceability"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/kde/validate": {
+      "post": {
+        "operationId": "KdeController_validate",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "traceability"
+        ]
+      }
     }
   },
   "info": {
@@ -3438,6 +3540,22 @@
         },
         "required": [
           "expected_version"
+        ]
+      },
+      "ValidateDto": {
+        "type": "object",
+        "properties": {
+          "cte_definition_id": {
+            "type": "string"
+          },
+          "values": {
+            "type": "object",
+            "description": "Valores por código KDE. Ausente = omitido o null."
+          }
+        },
+        "required": [
+          "cte_definition_id",
+          "values"
         ]
       }
     }

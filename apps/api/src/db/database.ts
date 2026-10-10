@@ -16,6 +16,7 @@ import * as m0012 from './migrations/0012_gis_evaluations_cleanup';
 import * as m0013 from './migrations/0013_gis_comparison_scope';
 import * as m0014 from './migrations/0014_products';
 import * as m0015 from './migrations/0015_cte_catalog';
+import * as m0016 from './migrations/0016_kde_catalog';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -34,6 +35,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0013_gis_comparison_scope': m0013,
   '0014_products': m0014,
   '0015_cte_catalog': m0015,
+  '0016_kde_catalog': m0016,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

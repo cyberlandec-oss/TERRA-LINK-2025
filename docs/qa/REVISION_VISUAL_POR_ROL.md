@@ -128,3 +128,9 @@ Defecto encontrado y corregido: `geometry_visible` llegaba como texto `"false"` 
 - coordinador.multi (responsable de trazabilidad en la exportadora): enlace «Hitos (CTE)» y catálogo completo, sin acciones.
 - productor.cooperativa: sin enlace; acceso directo denegado.
 - Capturas `cte--*.png`. Resultado: 27 entradas, 0 incidencias.
+
+## P0-014 Datos mínimos KDE (2026-10-10)
+- admin.cooperativa (390 px, teclado): «Ver datos mínimos de Entrega» → 7 datos con tipo, unidad (peso declarado en KG, masa), obligatoriedad, regla y responsable; sin formularios; sin desborde.
+- coordinador.multi (responsable de trazabilidad): datos mínimos de Recepción (6), incluida la causa de diferencia condicional.
+- productor.cooperativa: sin acceso al catálogo ni a los datos mínimos (mensaje de permiso).
+- Capturas `kde--*.png`. Resultado: 27 entradas, 0 incidencias.

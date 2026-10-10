@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-014 KDE | **DONE_LOCAL** para catálogo y servicio de validación; 0 compuertas integradas (cada operación lo demuestra en su historia); D-33, D-34 y configuración jurídica pendientes | Ver criterios abajo |
 | P0-013 CTE | **DONE_LOCAL** (catálogo versionado y mapeo de lo existente; la integración de cada operación es criterio de su propia historia) | Ver criterios abajo |
 | P0-011 Productos | **ABIERTA**: catálogo, unidades, permisos, historia y UI-09 verificados localmente; queda 1 criterio que depende de P0-016/017 («transformación cambia estado con evento/rendimiento») | Ver criterios abajo |
 | P0-010 Validación GIS | **ABIERTA**: parte técnica verificada localmente (`TL_GIS_TECH 1.0.0`); umbral debajo/igual/encima y perfil de destino dependen de D-05 (propuesta no aprobada) | Ver criterios abajo |
@@ -214,6 +215,23 @@ Justificación de DONE_LOCAL: la aceptación pide el catálogo y el mapeo de los
 
 GIS: `TL_GIS_TECH 1.0.1` publicada como versión de corrección (el alcance por evaluador cambia el conjunto comparado); registros 1.0.0 inmutables y marcados desactualizados.
 
+### P0-014 — criterios
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T18-57-26-508Z`): API 195/195, web 4/4, E2E 44/44, OpenAPI 66 rutas. Revisión visual 27 entradas, 0 incidencias.
+Fallo intermitente previo (`validation-results/2026-10-10T18-49-29-397Z`): `producers.int-spec.ts` superó 60 s en «búsqueda y paginación…» (la suite tardó 291 s; aislada tarda 12 s). Causa no determinada: sin conexiones pendientes en la base al revisar; hipótesis de contención del equipo durante la corrida. Se conserva la evidencia; no se declara resuelto.
+
+| Criterio | Resultado | Evidencia (`kde-validator.spec.ts` [fixtures], `kde.int-spec.ts`) |
+| --- | --- | --- |
+| Definición | 62 KDE con código, versión, hito exacto, entidad/campo, tipo, unidad/dimensión, obligatoriedad y condición, regla tipada, responsable, fuente y diferencias | «catálogo 1.0.0…» |
+| Validación | Válido, inválido, requerido/opcional ausente, no aplica, condición no evaluable y referencia no verificable; 0/false/""/null distinguidos; sin conversión | unitarias 6/6; «validación con referencias…», «condición entre hitos…» |
+| Condición | Verdadera, falsa, desconocida (no equivale a falsa) y no definida en el contrato | unitarias; «condición entre hitos…» |
+| Faltantes como faltantes e impedir la transición | `gate.transition_allowed=false` ante bloqueantes; nada se completa | unitarias; «validación…» |
+| Versión y responsable | Referencia `CODE@n` a la versión exacta del hito; nueva versión preserva la anterior; hito retirado → 409 para operaciones nuevas | «versionado…» |
+| Publicación atómica y esquema cerrado | Publicación fallida sin efectos; reglas fuera del esquema rechazadas | «publicación fallida…»; unitaria de esquema |
+| Autorización y privacidad | Productor 403, no miembro 404, referencias fuera de alcance/organización/inexistentes con el mismo código, respuestas sin valores ni datos sensibles | «validación…», «respuestas sin valores…» |
+| UI | Consulta por hito (tipo, unidad, obligatoriedad, condición, regla, responsable, fuente, integración) sin formularios; 390 px y teclado | E2E; revisión por rol |
+| **Integración en operaciones** | **0 integradas**; cada historia (P0-012, P0-016, P0-017, P0-029) debe demostrar el bloqueo | — |
+
 ## Interfaz según docs/UX_UI.md (2026-10-10)
 
 Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1/UX-V1 únicos en `apps/web/app/globals.css`; shell adaptable (organización activa con selector, usuario y rol efectivo, navegación por permisos, migas, «Saltar al contenido», menú móvil); login (UI-01) con mostrar/ocultar y mensajes distintos para 401/429/503/red; organizaciones (UI-02); miembros, invitaciones y roles (UI-03) en página propia; auditoría (UI-18) en página propia; productores y revisión de duplicados (UI-05) con tabla, filtros y estados diferenciados (carga, vacío, filtro sin resultados, error, 403, 404, conflicto 409 con recarga). Sin menús de módulos futuros; las capacidades pendientes por rol aparecen rotuladas en una tarjeta aparte. Revisión por rol: `docs/qa/REVISION_VISUAL_POR_ROL.md` (0 incidencias abiertas; 4 corregidas).
@@ -227,7 +245,7 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 - Android/offline, integraciones, despliegue: no iniciados.
 - Logotipo oficial y verificación de licencia de Inter (UX-D01/UX-D02). Evaluación de accesibilidad completa (lector de pantalla, zoom 200 %) no realizada: solo foco por teclado y móvil comprobados.
 
-## Próxima acción: P0-014 KDE (alcance en `sesiones/2026-10-10-p0-013-cte.md`); después, criterios de P0-015 dentro del tenant, incluido `correction_of`
+## Próxima acción: P0-015 dentro de la organización, incluido `correction_of` (alcance en `sesiones/2026-10-10-p0-014-kde.md`)
 
 ## Anterior: P0-006 Parcela
 
