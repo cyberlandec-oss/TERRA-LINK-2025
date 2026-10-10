@@ -36,6 +36,7 @@ import { OBJECT_STORE, S3ObjectStore, type ObjectStore } from './storage/object-
 import { GeometryImportsController, GeometryImportsService } from './plots/geometry-imports';
 import { GisEvaluationController, GisEvaluationService } from './plots/gis-evaluation';
 import { ProductsController, ProductsService } from './products/products';
+import { CteController, CteService } from './traceability/cte';
 import { PRODUCTION_CONSUMERS } from './events/consumers';
 import { LOGIN_RATE_LIMITER, LoginRateLimiter, REDIS, RedisAttemptStore } from './auth/login-rate-limit';
 
@@ -167,7 +168,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
-        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController,
+        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController,
       ],
       providers: [
         { provide: APP_CONFIG, useValue: config },
@@ -195,6 +196,7 @@ export class AppModule implements NestModule {
         GeometryImportsService,
         GisEvaluationService,
         ProductsService,
+        CteService,
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },
         AuditService,

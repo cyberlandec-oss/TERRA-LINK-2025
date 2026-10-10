@@ -24,7 +24,10 @@ import { summarizeAccuracy } from './accuracy-summary';
 
 export const GIS_RULE = {
   id: 'TL_GIS_TECH',
-  version: '1.0.0',
+  // 1.0.0: comparación siempre con toda la organización (registros anteriores a la migración 0013).
+  // 1.0.1 (corrección de privacidad): el conjunto comparado depende del alcance del evaluador
+  // (ORGANIZATION o EVALUATOR_ASSIGNED, guardado en cada registro). Mismas comprobaciones geométricas.
+  version: '1.0.1',
   parameters: {
     srid: 4326,
     coordinate_ranges: { longitude: [-180, 180], latitude: [-90, 90] },

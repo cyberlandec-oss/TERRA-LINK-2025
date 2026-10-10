@@ -124,3 +124,19 @@ test('usuario sin permiso: sin enlace en el menú y acceso directo denegado', as
   await expect(bp.getByRole('link', { name: 'Productos', exact: true })).toHaveCount(0);
   await bctx.close();
 });
+
+test('P0-013 hitos (CTE): consulta de solo lectura con versión, vigencia e integración pendiente; sin acciones operativas', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  await page.goto(`${orgUrl}/trazabilidad/hitos`);
+  const table = page.getByRole('table', { name: 'Hitos de trazabilidad' });
+  await expect(table.locator('tbody tr')).toHaveCount(11);
+  await expect(page.getByText(/Catálogo versión 1\.0\.0/)).toBeVisible();
+  await expect(table).toContainText('DELIVERY@1');
+  await expect(table).toContainText('DeliveryRegistered');
+  await expect(page.getByText(/0 operación\(es\) integrada\(s\) y 11 pendiente\(s\)/)).toBeVisible();
+  await expect(page.getByRole('button', { name: /cosecha|entrega|recepción|procesar|registrar/i })).toHaveCount(0);
+  await page.getByLabel('Mostrar definiciones retiradas o sustituidas').press('Space');
+  await expect(table.locator('tbody tr')).toHaveCount(11); // sin retiradas en 1.0.0
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await ctx.close();
+});

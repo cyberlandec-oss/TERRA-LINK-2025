@@ -75,6 +75,25 @@ Unique `(organization_id, operation_id)` para comando idempotente; unique `(orga
 
 Si el repositorio ya usa nombres como `RunClosed` u `OutputLotMaterialized`, mapearlos sin renombrar por estética. Versionar payload antes de introducir un cambio incompatible.
 
+## Catálogo CTE implementado (P0-013, versión 1.0.0)
+
+Catálogo de sistema versionado (migración 0015). Distinción explícita: **hito definido** (`cte_definitions`), **operación que lo genera** y **evento emitido** (`cte_operation_links`, INTEGRATED/PENDING) y **datos mínimos** (P0-014, pendientes). Las 11 definiciones (10 de S1 §19 + CLASSIFICATION de este documento) tienen su operación **PENDING**: ninguna operación de cosecha, entrega, recepción, pesaje, clasificación, proceso, almacenamiento, envasado, venta o embarque existe todavía. Los eventos existentes (`ProducerCreated`, `PlotGeometryVersionCreated`, `ProductCreated`…) son datos maestros y no se vinculan como hitos.
+
+| CTE | Operación / evento previsto | Historia |
+| --- | --- | --- |
+| HARVEST | HARVEST_RECORD / HarvestRecorded | Sin asignar (D-33) |
+| DELIVERY | DELIVERY_REGISTER / DeliveryRegistered | P0-012 |
+| RECEPTION | RECEPTION_CONFIRM / ReceptionConfirmed | P0-012 |
+| WEIGHING | WEIGHT_RECORD / WeightRecorded | P0-012 |
+| CLASSIFICATION | QUALITY_DECISION / QualityDecisionRecorded | P0-012 |
+| FERMENTATION, DRYING | PROCESSING_RUN_CLOSE / ProcessingRunClosed | P0-016 |
+| STORAGE | STOCK_MOVEMENT / StockMovementRecorded | P0-017 |
+| PACKAGING | PACKAGING_RECORD / PackagingRecorded | Sin asignar (D-33) |
+| SALE | SALE_RECORD / SaleRecorded | Sin asignar (D-33) |
+| SHIPMENT | SHIPMENT_DISPATCH / ShipmentDispatched | P0-029 |
+
+Cambios: una nueva versión del catálogo crea la versión siguiente de la definición (la anterior queda retirada y resoluble) o retira una definición con motivo. Al integrar una operación se publica una versión con el vínculo INTEGRATED.
+
 ## Implementación vigente (TECH-001, 2026-10-10)
 
 Código: `apps/api/src/events/` y migración `0004_domain_events_outbox`. **No cierra** CTE/KDE, P0-015 (historial causal completo) ni el framework de reglas: es la base técnica que esas historias usarán.

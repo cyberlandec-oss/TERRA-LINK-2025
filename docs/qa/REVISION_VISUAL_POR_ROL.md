@@ -122,3 +122,9 @@ Defecto encontrado y corregido: `geometry_visible` llegaba como texto `"false"` 
 - recepcion.acopio: enlace «Productos», consulta de 4 productos, sin formulario de alta.
 - productor.cooperativa: sin enlace y acceso directo denegado («Tu rol no permite consultar el catálogo de productos.»).
 - Capturas `productos--*.png`. Resultado: 26 entradas, 0 incidencias.
+
+## P0-013 Hitos de trazabilidad (2026-10-10)
+- admin.cooperativa (390 px, teclado): 11 hitos, 11 operaciones pendientes, 0 integradas, sin botones operativos, sin desborde.
+- coordinador.multi (responsable de trazabilidad en la exportadora): enlace «Hitos (CTE)» y catálogo completo, sin acciones.
+- productor.cooperativa: sin enlace; acceso directo denegado.
+- Capturas `cte--*.png`. Resultado: 27 entradas, 0 incidencias.

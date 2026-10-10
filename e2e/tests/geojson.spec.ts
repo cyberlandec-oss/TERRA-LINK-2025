@@ -134,7 +134,7 @@ test('evaluación GIS técnica: estado con alcance técnico, precisión no dispo
   await page.keyboard.press('Enter');
   await expect(section).toContainText('VALID · técnicamente válida');
   await expect(section).toContainText('no es conformidad EUDR');
-  await expect(section).toContainText('TL_GIS_TECH · versión 1.0.0');
+  await expect(section).toContainText('TL_GIS_TECH · versión 1.0.1');
   await expect(section).toContainText('Precisión de captura no disponible');
   await expect(section).toContainText('No evaluado: el perfil de destino requiere definición (D-05)');
   await expect(section.getByRole('table', { name: 'Comprobaciones técnicas' })).toContainText('Validez técnica');

@@ -70,7 +70,7 @@ describeDb('P0-010 evaluación GIS técnica (PostGIS real)', () => {
   it('igualdad topológica con distinto orden ≠ igualdad de hash; solapamiento vs contacto de borde (evaluador con toda la organización)', async () => {
     const res = await evaluate('admin-a@test.local', plots.A).expect(201);
     const admin = res.body.evaluation;
-    expect(admin).toMatchObject({ status: 'REVIEW_REQUIRED', status_scope: 'TECHNICAL', view_scope: 'FULL', comparison_scope: 'ORGANIZATION', rule: { id: 'TL_GIS_TECH', version: '1.0.0' }, stale: false });
+    expect(admin).toMatchObject({ status: 'REVIEW_REQUIRED', status_scope: 'TECHNICAL', view_scope: 'FULL', comparison_scope: 'ORGANIZATION', rule: { id: 'TL_GIS_TECH', version: '1.0.1' }, stale: false });
     expect(admin.status_note).toMatch(/no es conformidad EUDR/);
     expect(check(admin, 'GEOMETRIC_EQUALITY')).toMatchObject({ outcome: 'REVIEW', reason_code: 'EQUAL_GEOMETRY_FOUND' });
     expect(check(admin, 'OVERLAP')).toMatchObject({ outcome: 'REVIEW', reason_code: 'OVERLAP_FOUND' });
@@ -232,7 +232,7 @@ describeDb('P0-010 evaluación GIS técnica (PostGIS real)', () => {
     // regla distinta (registro histórico de otra versión de regla) → RULES_CHANGED
     const legacy = randomUUID();
     await sql`INSERT INTO gis_evaluations (id, organization_id, plot_id, plot_version_id, geometry_hash, rule_id, rule_version, parameters, status, checks, capture_quality, destination_profile, compared_set_hash, compared_count, operation_id, evaluated_by)
-      SELECT ${legacy}, organization_id, plot_id, plot_version_id, geometry_hash, rule_id, '0.9.0', parameters, status, checks, capture_quality, destination_profile, compared_set_hash, compared_count, gen_random_uuid(), evaluated_by FROM gis_evaluations WHERE id = ${third.id}`.execute(h.db);
+      SELECT ${legacy}, organization_id, plot_id, plot_version_id, geometry_hash, rule_id, '1.0.0', parameters, status, checks, capture_quality, destination_profile, compared_set_hash, compared_count, gen_random_uuid(), evaluated_by FROM gis_evaluations WHERE id = ${third.id}`.execute(h.db);
     expect((await http().get(`${org()}/gis-evaluations/${legacy}`).set(as('admin-a@test.local')).expect(200)).body.stale_reasons).toEqual(['RULES_CHANGED']);
     const list = (await http().get(`${org()}/plots/${plots.E}/gis-evaluations`).set(as('admin-a@test.local')).expect(200)).body;
     expect(list.length).toBeGreaterThanOrEqual(4);
@@ -250,7 +250,7 @@ describeDb('P0-010 evaluación GIS técnica (PostGIS real)', () => {
     expect((await evaluate('admin-a@test.local', plots.A).expect(403)).body.error.code).toBe('ORGANIZATION_SUSPENDED');
     await http().post(`/api/v1/organizations/${orgA}/reactivate`).set(as('super@test.local')).send({ reason: 'Fin' }).expect(200);
     const rule = (await http().get(`${org()}/gis-rules/current`).set(as('auditor@test.local')).expect(200)).body;
-    expect(rule).toMatchObject({ id: 'TL_GIS_TECH', version: '1.0.0', parameters: { area_threshold_ha: null } });
+    expect(rule).toMatchObject({ id: 'TL_GIS_TECH', version: '1.0.1', parameters: { area_threshold_ha: null } });
   });
 
   it('reintentos idempotentes y rollback sin efectos parciales; eventos y auditoría sin coordenadas', async () => {

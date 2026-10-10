@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-013 CTE | **DONE_LOCAL** (catálogo versionado y mapeo de lo existente; la integración de cada operación es criterio de su propia historia) | Ver criterios abajo |
 | P0-011 Productos | **ABIERTA**: catálogo, unidades, permisos, historia y UI-09 verificados localmente; queda 1 criterio que depende de P0-016/017 («transformación cambia estado con evento/rendimiento») | Ver criterios abajo |
 | P0-010 Validación GIS | **ABIERTA**: parte técnica verificada localmente (`TL_GIS_TECH 1.0.0`); umbral debajo/igual/encima y perfil de destino dependen de D-05 (propuesta no aprobada) | Ver criterios abajo |
 | P0-009 GeoJSON | **ABIERTA**: alcance independiente verificado localmente; «perfil destino» depende de P0-010/D-05 (dependencia del backlog conservada) | Ver criterios abajo |
@@ -195,6 +196,24 @@ Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T18-06-4
 
 Corrección de privacidad P0-010 (misma entrega): las evaluaciones ya no devuelven tipo ni cantidad de relaciones fuera del alcance; prueba negativa «privacidad: el técnico no puede inferir…» (vistas indistinguibles con y sin coincidencias ocultas).
 
+### P0-013 — criterios
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T18-26-11-088Z`): API 183/183, web 4/4, E2E 43/43, OpenAPI 63 rutas. Revisión visual 27 entradas, 0 incidencias.
+
+| Criterio | Resultado | Evidencia (`cte.int-spec.ts`, E2E en `productos.spec.ts`) |
+| --- | --- | --- |
+| Catálogo versionado de los hitos de las fuentes | 10 hitos de S1 §19 + CLASSIFICATION (docs/08), versión de catálogo 1.0.0, códigos únicos por versión | «catálogo 1.0.0…» |
+| Ámbito, consulta y administración | Sistema; consulta con `traceability:read_catalog`; productor 403; no miembro 404; sin rutas de administración (no hay facultad definida) | «permisos y aislamiento…» |
+| Referencias estables, vigencia y retirada | `CODE@n` e id; nueva versión retira la anterior sin cambiarla; retirada con motivo; referencias antiguas resolubles | «nueva versión del catálogo…» |
+| Auditoría de cambios | Cada publicación queda en `cte_catalog_releases` (inmutable); tablas append-only | «permisos…», «nueva versión…» |
+| Rollback | Publicación fallida sin versión, definiciones ni retiradas parciales | «rollback…» |
+| Hechos operativos mapeados a eventos existentes | Ningún evento existente es un hito (datos maestros); las 11 operaciones quedan PENDING con evento e historia previstos; el modelo distingue INTEGRATED | «catálogo 1.0.0…», «operación integrada frente a vínculo pendiente…» |
+| UI | Consulta de solo lectura con código, descripción, versión, vigencia e integración; sin botones operativos; 390 px y teclado | E2E; revisión por rol |
+
+Justificación de DONE_LOCAL: la aceptación pide el catálogo y el mapeo de los hechos **existentes**; ambos están verificados. La integración de cada operación futura queda como criterio explícito de P0-012/016/017/029 (backlog) y HARVEST/PACKAGING/SALE sin historia se registran en D-33. Mantener P0-013 abierta por operaciones futuras recrearía el ciclo con P0-012, que necesita la capacidad «catálogo de hitos».
+
+GIS: `TL_GIS_TECH 1.0.1` publicada como versión de corrección (el alcance por evaluador cambia el conjunto comparado); registros 1.0.0 inmutables y marcados desactualizados.
+
 ## Interfaz según docs/UX_UI.md (2026-10-10)
 
 Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1/UX-V1 únicos en `apps/web/app/globals.css`; shell adaptable (organización activa con selector, usuario y rol efectivo, navegación por permisos, migas, «Saltar al contenido», menú móvil); login (UI-01) con mostrar/ocultar y mensajes distintos para 401/429/503/red; organizaciones (UI-02); miembros, invitaciones y roles (UI-03) en página propia; auditoría (UI-18) en página propia; productores y revisión de duplicados (UI-05) con tabla, filtros y estados diferenciados (carga, vacío, filtro sin resultados, error, 403, 404, conflicto 409 con recarga). Sin menús de módulos futuros; las capacidades pendientes por rol aparecen rotuladas en una tarjeta aparte. Revisión por rol: `docs/qa/REVISION_VISUAL_POR_ROL.md` (0 incidencias abiertas; 4 corregidas).
@@ -208,7 +227,7 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 - Android/offline, integraciones, despliegue: no iniciados.
 - Logotipo oficial y verificación de licencia de Inter (UX-D01/UX-D02). Evaluación de accesibilidad completa (lector de pantalla, zoom 200 %) no realizada: solo foco por teclado y móvil comprobados.
 
-## Próxima acción: P0-013 CTE (depende solo de TECH-001; análisis en `sesiones/2026-10-10-p0-011-productos.md`)
+## Próxima acción: P0-014 KDE (alcance en `sesiones/2026-10-10-p0-013-cte.md`); después, criterios de P0-015 dentro del tenant, incluido `correction_of`
 
 ## Anterior: P0-006 Parcela
 

@@ -9,6 +9,7 @@ import { reviewPlots } from './parcelas.mjs';
 import { reviewGeoJson } from './geojson.mjs';
 import { reviewGis } from './gis.mjs';
 import { reviewProducts } from './productos.mjs';
+import { reviewCte } from './cte.mjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -217,6 +218,7 @@ try {
   results.push(await reviewGeoJson({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewGis({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewProducts({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewCte({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
 
   // Adaptación móvil (390 px): menú en panel y contenido legible.
   for (const a of accounts.filter((x) => ['tecnico1.cooperativa', 'admin.cooperativa'].includes(x.email.split('@')[0]))) {
@@ -259,5 +261,6 @@ for (const c of results.find((r) => r.tipo === 'parcelas')?.casos ?? []) console
 for (const c of results.find((r) => r.tipo === 'geojson')?.casos ?? []) console.log(` [geojson] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'gis')?.casos ?? []) console.log(` [gis] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'productos')?.casos ?? []) console.log(` [productos] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'cte')?.casos ?? []) console.log(` [cte] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 console.log(`Revisión: ${results.length} entradas; con incidencias: ${issues.length}`);
 for (const i of issues) console.log(` - ${i.cuenta ?? i.tipo} @ ${i.organizacion ?? ''}: ${(i.incidencias ?? []).join(' | ') || JSON.stringify(i)}`);

@@ -2650,6 +2650,98 @@
           "products"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/cte-catalog": {
+      "get": {
+        "operationId": "CteController_catalog",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "traceability"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/cte-catalog/releases": {
+      "get": {
+        "operationId": "CteController_releases",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "traceability"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/cte-definitions/{id}": {
+      "get": {
+        "operationId": "CteController_definition",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "traceability"
+        ]
+      }
     }
   },
   "info": {

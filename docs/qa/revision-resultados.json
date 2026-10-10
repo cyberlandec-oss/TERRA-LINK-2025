@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-10T18:14:42.746Z",
+  "fecha": "2026-10-10T18:33:13.281Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -95,6 +95,7 @@
         "Parcelas",
         "Posibles duplicados",
         "Productos",
+        "Hitos (CTE)",
         "Miembros e invitaciones",
         "Auditoría",
         "Mis organizaciones"
@@ -149,6 +150,7 @@
         "Parcelas",
         "Posibles duplicados",
         "Productos",
+        "Hitos (CTE)",
         "Miembros e invitaciones",
         "Mis organizaciones"
       ],
@@ -201,6 +203,7 @@
         "Productores",
         "Parcelas",
         "Productos",
+        "Hitos (CTE)",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Cooperativa Río Verde",
@@ -252,6 +255,7 @@
         "Productores",
         "Parcelas",
         "Productos",
+        "Hitos (CTE)",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Cooperativa Río Verde",
@@ -352,6 +356,7 @@
         "Productores",
         "Parcelas",
         "Productos",
+        "Hitos (CTE)",
         "Auditoría",
         "Mis organizaciones"
       ],
@@ -405,6 +410,7 @@
         "Parcelas",
         "Posibles duplicados",
         "Productos",
+        "Hitos (CTE)",
         "Miembros e invitaciones",
         "Auditoría",
         "Mis organizaciones"
@@ -456,6 +462,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Productos",
+        "Hitos (CTE)",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Acopio San Isidro",
@@ -506,6 +513,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Productos",
+        "Hitos (CTE)",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Acopio San Isidro",
@@ -559,6 +567,7 @@
         "Parcelas",
         "Posibles duplicados",
         "Productos",
+        "Hitos (CTE)",
         "Miembros e invitaciones",
         "Auditoría",
         "Mis organizaciones"
@@ -612,6 +621,7 @@
         "Productores",
         "Parcelas",
         "Productos",
+        "Hitos (CTE)",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -663,6 +673,7 @@
         "Productores",
         "Parcelas",
         "Productos",
+        "Hitos (CTE)",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -712,6 +723,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Productos",
+        "Hitos (CTE)",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -764,6 +776,7 @@
         "Productores",
         "Parcelas",
         "Productos",
+        "Hitos (CTE)",
         "Auditoría",
         "Mis organizaciones"
       ],
@@ -817,6 +830,7 @@
         "Parcelas",
         "Posibles duplicados",
         "Productos",
+        "Hitos (CTE)",
         "Miembros e invitaciones",
         "Auditoría",
         "Mis organizaciones"
@@ -920,6 +934,7 @@
         "Parcelas",
         "Posibles duplicados",
         "Productos",
+        "Hitos (CTE)",
         "Miembros e invitaciones",
         "Mis organizaciones"
       ],
@@ -972,6 +987,7 @@
         "Productores",
         "Parcelas",
         "Productos",
+        "Hitos (CTE)",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -1092,6 +1108,27 @@
         {
           "cuenta": "productor.cooperativa (sin permiso)",
           "resultado": "enlace en el menú=0; acceso directo denegado=1",
+          "ok": true
+        }
+      ],
+      "ok": true
+    },
+    {
+      "tipo": "cte",
+      "casos": [
+        {
+          "cuenta": "admin.cooperativa (390 px, teclado)",
+          "resultado": "11 hitos; pendientes=11; integradas=0; botones operativos=0; desborde=false",
+          "ok": true
+        },
+        {
+          "cuenta": "coordinador.multi (responsable de trazabilidad, exportadora)",
+          "resultado": "enlace=1; 11 hitos; botones operativos=0",
+          "ok": true
+        },
+        {
+          "cuenta": "productor.cooperativa (sin permiso)",
+          "resultado": "enlace=0; acceso directo denegado=1",
           "ok": true
         }
       ],

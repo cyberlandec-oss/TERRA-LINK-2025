@@ -70,6 +70,9 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     const operacion: NavItem[] = [];
     if (ws.can('product:read')) operacion.push({ href: `${base}/productos`, label: 'Productos', match: (p) => p.startsWith(`${base}/productos`) });
     if (operacion.length) groups.push({ title: 'Operación', items: operacion });
+    const trazabilidad: NavItem[] = [];
+    if (ws.can('traceability:read_catalog')) trazabilidad.push({ href: `${base}/trazabilidad/hitos`, label: 'Hitos (CTE)', match: (p) => p.startsWith(`${base}/trazabilidad/hitos`) });
+    if (trazabilidad.length) groups.push({ title: 'Trazabilidad', items: trazabilidad });
     const admin: NavItem[] = [];
     const onboardingOnly = ws.isPlatformAdmin && !ws.activePerms;
     if (ws.can('membership:read') || onboardingOnly) {
