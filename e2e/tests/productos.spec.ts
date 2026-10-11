@@ -498,6 +498,7 @@ test('P0-021 mitigación: crear desde la causa, aportar soporte por versión, en
   await page.getByLabel('Nota de entrega').fill('Soporte aportado (E2E)');
   await page.getByRole('button', { name: 'Entregar para verificación' }).click();
   await expect(page.getByText('Entregada: pendiente de verificación')).toBeVisible();
+  await page.getByLabel(/confirmo que se cumple el criterio de aceptación/).check();
   await page.getByLabel('Motivo de la decisión').fill('Autoverificación (no debe permitirse)');
   await page.getByRole('button', { name: 'Verificar' }).click();
   await expect(page.getByText(/no puede verificarla ni rechazarla/).first()).toBeVisible();

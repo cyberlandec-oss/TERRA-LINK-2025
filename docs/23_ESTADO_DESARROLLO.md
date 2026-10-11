@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-023 Captura offline | **ABIERTA**: núcleo local probado en Node y contra la API; sin ensayo Android real ni SQLCipher probado; sin sincronización (P0-024) | Ver criterios abajo |
 | P0-022 Diligencia y paquete | **ABIERTA**: capacidades independientes DONE_LOCAL; aprobación READY y `DD_PACKAGE` con datos reales no demostrables (requisitos dependientes de decisiones y capacidades inexistentes, sin rebajar) | Ver criterios abajo |
 | P0-021 Mitigación | **DONE_LOCAL** (criterios originales demostrados); causas que dependen de D-05 o del proveedor satelital no se mitigan (no se simula su resolución) | Ver criterios abajo |
 | P0-020 Riesgo | **DONE_LOCAL** para sus criterios originales con reglas técnicas **no aprobadas**: severidad NOT_ASSESSED y conclusión UNDETERMINED por diseño; reglas dependientes de D-05, P0-028 y P0-021 no evaluables | Ver criterios abajo |
@@ -260,6 +261,19 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 | **Concesiones externas y elevación** | **Pendientes en P0-003** | — |
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
+
+### P0-023 — criterios
+
+Validación web/API: `npm run validate` APROBADA (`validation-results/2026-10-11T04-45-29-062Z`): unitarias + integración (API y web) 283/283, E2E 55/55, OpenAPI 141 rutas; revisión por rol 40 entradas, 0 incidencias. **No es validación del móvil.** Móvil: typecheck OK; `npm test` 9/9 (Node + SQLite real); `TL_API_SMOKE=1` 1/1 (cliente en Node contra la API local: tecnico1 recibió 5 parcelas, tecnico2 1, ninguna común); bundle Android exportado; expo-doctor 21/21.
+
+| Criterio original | Estado | Tipo de evidencia |
+| --- | --- | --- |
+| Entidad/cola en transacción local | DEMOSTRADO EN NODE | Unitaria con SQLite real: todo o nada; operation_id estable; dependencias |
+| Borradores/fotos/GPS sobreviven cierre y reboot | PARCIAL | Reapertura simulada en Node (nueva instancia, mismos archivos) y caché borrada; **sin cierre forzado ni reinicio en Android** |
+| Dataset limitado y separación por cuenta | DEMOSTRADO EN NODE + API | Base y adjuntos por cuenta+organización; dataset según asignación del servidor; otra cuenta no ve capturas |
+| Sesión offline definida | PROPUESTA | D-40 / ADR-0006 sin aprobar; ventana de 72 h; token no se renueva; revocaciones no detectables offline |
+| Ensayo Android real (docs/11) | NO EJECUTADO | Este equipo no tiene Android SDK, JDK ni adb; instrucciones en `apps/mobile/README.md` |
+| Cifrado local probado en la plataforma | NO EJECUTADO | SQLCipher requiere build de desarrollo; Expo Go queda sin cifrar (lo muestra «Diagnóstico») |
 
 ### P0-022 — criterios
 

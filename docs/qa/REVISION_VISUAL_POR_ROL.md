@@ -253,3 +253,21 @@ DEMO: expediente de LOT-2026-00002 con una instantánea (sin revisar, aprobar ni
 | coordinador.multi, tecnico1.cooperativa | Acceso denegado y sin enlace | — |
 
 E2E (390 px, teclado): crear expediente, capturar instantánea, requisitos no evaluables visibles, borrador interno generado y descargado, iniciar revisión, aprobar y paquete deshabilitados con explicación.
+
+## Revisión P0-021: corrección de la verificación DEMO (2026-10-10)
+
+El criterio «Parcela de origen identificada…» no se cumplía: el documento aportado no identifica la parcela. Con
+`eudr.cooperativa` (verificadora, no ejecutora) se registró por la interfaz una corrección: soporte aceptado, criterio no
+cumplido, causa persistente. La verificación original sigue en el historial. El worker creó la evaluación 3: «Desencadenada
+por Diana Ponce (demo) (corrección de una verificación)», «Ejecutada por proceso automático: worker de reevaluación»,
+«Resultado revisado por: nadie todavía». DATA_MISSING_ORIGIN y MITIGATION_UNVERIFIED visibles; conclusión Indeterminada.
+El expediente DEMO de P0-022 queda desactualizado por ese cambio (su instantánea no se modifica). Capturas:
+`mitigaciones--verificador.png`, `mitigaciones--riesgo-reevaluado.png`.
+
+## P0-023 móvil — revisión de interfaz (2026-10-10)
+
+Revisión de código frente a UX_UI §21 (no renderizada en dispositivo ni emulador): cinco destinos o menos (Inicio,
+Captura, Pendientes, Diagnóstico), controles ≥ 48 px, etiquetas y roles de accesibilidad nativos, estados con texto
+(«Borrador local», «Pendiente (en cola)», «Sincronización no disponible todavía»), precisión «no informada» cuando es
+nula, procedencia sin atribuir GPS, aviso de capturas pendientes al cerrar sesión. **Pendiente**: revisión visual y con
+lector de pantalla en un Android real.

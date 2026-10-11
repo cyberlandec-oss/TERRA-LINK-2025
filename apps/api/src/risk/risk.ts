@@ -256,6 +256,16 @@ export class RiskService {
       review: { process_status: process, history: reviews.map((r) => ({ action: r.action, reason: r.reason, at: r.reviewed_at, reviewer: `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim() || 'Miembro' })),
         note: 'La revisión humana registra el trabajo (iniciar, resolver con motivo). Resolver no cambia la evaluación ni la vuelve favorable; mitigaciones: P0-021.' },
       trigger: e.trigger,
+      // Procedencia separada: quién la desencadenó, qué la ejecutó y quién revisó el resultado (la revisión humana es aparte).
+      provenance: (() => {
+        const t = e.trigger as { kind?: string; executed_by?: string } | null;
+        const resolved = reviews.find((r) => r.action === 'RESOLVE');
+        const reviewed_by = resolved ? `${resolved.first_name ?? ''} ${resolved.last_name ?? ''}`.trim() || 'Miembro' : null;
+        return t ? { mode: 'AUTOMATIC', trigger_kind: t.kind ?? null, triggered_by: `${e.first_name ?? ''} ${e.last_name ?? ''}`.trim() || 'Miembro',
+            executed_by: t.executed_by === 'worker:risk-reevaluation' ? 'Proceso automático: worker de reevaluación (outbox)' : 'Proceso automático: worker de reevaluación (outbox; derivado del disparador registrado)',
+            reviewed_by, review_status: process }
+          : { mode: 'MANUAL', trigger_kind: null, triggered_by: `${e.first_name ?? ''} ${e.last_name ?? ''}`.trim() || 'Miembro', executed_by: `Solicitud en la API por ${`${e.first_name ?? ''} ${e.last_name ?? ''}`.trim() || 'Miembro'}`, reviewed_by, review_status: process };
+      })(),
       evaluated_at: e.evaluated_at, evaluated_by: `${e.first_name ?? ''} ${e.last_name ?? ''}`.trim() || 'Miembro',
       actions: { reevaluate: ctx.permissions.includes('risk:evaluate'), review: ctx.permissions.includes('risk:review') && process !== 'RESOLVED' },
     };

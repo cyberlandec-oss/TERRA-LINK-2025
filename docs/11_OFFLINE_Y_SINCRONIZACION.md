@@ -55,3 +55,33 @@ Mínimo dataset asignado; claves/tokens en almacenamiento seguro; cifrado dispon
 - Sesión o permiso revocado: servidor rechaza; UI explica y conserva trabajo pendiente para recuperación.
 - Cambiar cuenta no revela dataset anterior; GPS denegado, almacenamiento lleno y archivo interrumpido tienen recuperación.
 - Ensayo Android real con fotos y GPS, offline prolongado, reconnect y reporte reproducible. Emulador no sustituye este gate.
+
+## Implementación P0-023 (2026-10-10) — captura local, sin sincronización
+
+Código: `apps/mobile` (ADR-0006, PROPUESTO). Estado: **ABIERTA**; falta el ensayo en Android real.
+
+- Transacción local: «Guardar en cola» pasa el borrador a `QUEUED` y crea sus operaciones (`PLOT_FIELD_NOTE_CREATE`,
+  `PLOT_LOCATION_SAMPLE_CREATE` dependiente de la nota, `PLOT_PHOTO_ATTACH` dependiente de la muestra) en una transacción
+  exclusiva; si algo falla no queda nada parcial. `operation_id` se genera al encolar y no cambia.
+- Estados implementados: `DRAFT` (borrador local), `QUEUED` con operaciones `PENDING`; recuperación de `UPLOADING` →
+  `PENDING` conservando la identidad (`recovered_count`). `SYNCED`, `FAILED` y `CONFLICT` existen en el esquema y se
+  implementan en P0-024.
+- Dataset: solo las parcelas que `GET /plots` devuelve a la cuenta en la organización (el servidor aplica la asignación).
+- Separación: base y adjuntos por cuenta + organización; cerrar sesión borra token y sesión, no las capturas.
+
+### Política de sesión offline (propuesta D-40, no aprobada)
+
+Login solo online; JWT de 1 h sin refresh (ADR-0005) que nunca se renueva sin red. Captura local permitida hasta
+72 h desde la última autenticación online (parámetro de propuesta). Pasada la ventana, o si el reloj retrocede, la
+captura nueva se bloquea y lo guardado se conserva. Sin red no se detectan revocaciones. Para enviar (P0-024) hará falta
+iniciar sesión con conexión y el servidor revalidará sesión, membresía y permisos.
+
+### Contrato de dispositivo (propuesta para P0-024)
+
+- El cliente genera un `device_id` local (UUID en almacenamiento seguro). **No es prueba de autorización**: el servidor
+  autoriza por sesión, membresía, permiso y recurso en cada operación.
+- Propuesta: `POST /devices` (autenticado) registra el dispositivo para el usuario y la organización y devuelve un
+  identificador emitido por el servidor; `push` exige sesión válida y rechaza dispositivos revocados; la revocación no
+  borra capturas locales: quedan en recuperación controlada.
+- Brecha de contrato: la API de muestras de ubicación solo acepta `source = BROWSER_GEOLOCATION`. P0-024 debe añadir una
+  procedencia para el servicio de ubicación nativo (`DEVICE_LOCATION_SERVICE`) sin atribuir GPS.

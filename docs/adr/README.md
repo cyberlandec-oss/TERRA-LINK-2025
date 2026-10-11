@@ -9,5 +9,6 @@ Los ADR de este paquete empiezan PROPUESTOS. No son decisiones aceptadas del rep
 | [0003](0003-eventos-y-stock.md) | Eventos, ledger y correcciones | PROPUESTO |
 | [0004](0004-preparacion-y-dds.md) | Readiness, paquete y presentación oficial | PROPUESTO |
 | [0005](0005-autenticacion.md) | Autenticación inicial y paso a OIDC | PROPUESTO |
+| [0006](0006-movil-offline.md) | Móvil de campo y captura offline (P0-023) | PROPUESTO |
 
 Para nueva decisión usar [plantilla ADR](../templates/ADR.md). Registrar alcance, alternativas, motivo, impactos, evidencia, responsable, aceptación y pruebas. Decisión de framework no cambia por preferencia del agente; cambio requiere caso concreto y transición revisada.

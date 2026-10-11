@@ -137,6 +137,13 @@ export default function DdCasePage() {
         </section>
         <section className="card" aria-labelledby="dd-pkg">
           <h2 id="dd-pkg">Paquete</h2>
+          <ul className="plain" aria-label="Artefactos del expediente">
+            <li><strong>Instantánea</strong>: fuente inmutable con manifiesto de versiones y hashes.</li>
+            <li><strong>Borrador interno</strong>: para revisión; puede omitir contenido por alcance de quien exporta (lo declara).</li>
+            <li><strong>Paquete final</strong>: exige preparación aprobada y alcance completo; nunca se exporta incompleto.</li>
+            <li><strong>Presentación oficial</strong>: no implementada.</li>
+          </ul>
+          <p className="field-help">Pendiente en todo paquete: los archivos no se incluyen (solo versión y SHA-256) y los campos del perfil destino no están definidos.</p>
           <p className="field-help">El paquete se genera desde la instantánea {s.snapshot_number} (<code className="hash">{s.content_hash.slice(0, 16)}</code>), no desde datos en curso. {s.submission.note}</p>
           {s.actions.export_internal && (
             <div className="actions">

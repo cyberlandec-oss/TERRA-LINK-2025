@@ -259,6 +259,11 @@ export class DdService {
           throw new AppError(409, 'READINESS_NOT_MET', 'El paquete de diligencia exige una instantánea aprobada con todos los requisitos cumplidos. Puedes exportar un borrador interno para revisión.', blockers.map((b) => ({ field: b.code, reason: b.status })));
         }
         if (await this.isStale(trx, ctx, s.id)) throw conflict('SNAPSHOT_STALE', 'Cambiaron datos relevantes desde la instantánea aprobada: la preparación quedó desactualizada.');
+        // Un requisito obligatorio no se omite en silencio por privacidad: sin alcance suficiente, el paquete final se bloquea.
+        if (built.redactions.length) {
+          await this.audit.record(this.db, { organizationId: orgId, actorUserId: user.id, action: 'dd.export_package', entityType: 'dd_case', entityId: s.case_id, requestId, result: 'DENIED', after: { reason: 'EXPORT_SCOPE_INSUFFICIENT' } });
+          throw new AppError(403, 'EXPORT_SCOPE_INSUFFICIENT', 'El paquete final exige contenido que tu rol no puede ver (geometrías o documentos con datos personales): no se exporta incompleto.', built.redactions.map((r) => ({ field: r, reason: 'REDACTION_REQUIRED' })));
+        }
       }
       await trx.insertInto('dd_exports').values({ id, organization_id: orgId, snapshot_id: snapshotId, kind: dto.kind, redaction_profile: JSON.stringify(this.profile(ctx)), package_hash: built.hash,
         size_bytes: Buffer.byteLength(built.body), exported_by: user.id, operation_id: dto.operation_id }).execute();

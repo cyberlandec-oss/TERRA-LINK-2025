@@ -66,6 +66,7 @@ Ninguna decisión es un bloqueo global. Solo bloquea la historia cuyo criterio d
 | Matriz `producer:*` | Propuesta provisional (doc 07) | No |
 | ADR-0001 / ADR-0005 sin ratificar | Stack y autenticación adoptados para desarrollo | No en local |
 | D-05, D-06… (GIS, stock) | Historias futuras | Se evaluarán en su historia |
+| D-40 | Sesión offline móvil (P0-023, **propuesta no aprobada**): ventana local de captura de 72 h desde la última autenticación online, sin renovar el JWT sin red; bloqueo si el reloj retrocede; sin detección de revocaciones offline; base cifrada con SQLCipher solo en build de desarrollo (Expo Go sin cifrar); device_id local sin valor de autorización (docs/11, ADR-0006) | Seguridad/producto | Política aprobada (duración, desbloqueo local, retención, borrado remoto) y ensayo Android |
 | GitHub Actions / facturación | Ninguno: Actions inactivo; validación local | **No** (eliminado como bloqueo) |
 
 ### Supuestos vigentes de desarrollo (2026-10-10)

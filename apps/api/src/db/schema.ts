@@ -555,7 +555,7 @@ export interface RiskReviewsTable { id: string; organization_id: string; evaluat
 // P0-021 mitigaciones
 export interface MitigationActionsTable {
   id: string; organization_id: string; evaluation_id: string; factor_code: string; subject_type: 'LOT'; subject_id: string; title: string; acceptance_criteria: string; evidence_required: string;
-  assignee_membership_id: string; due_date: string; status: 'OPEN' | 'SUBMITTED' | 'VERIFIED' | 'REJECTED'; created_by: string; created_at: Generated<Timestamp>; operation_id: string; row_version: Generated<string>;
+  assignee_membership_id: string; due_date: string; status: 'OPEN' | 'SUBMITTED' | 'VERIFIED' | 'REJECTED' | 'REOPENED'; created_by: string; created_at: Generated<Timestamp>; operation_id: string; row_version: Generated<string>;
 }
 export interface MitigationSupportsTable { id: string; organization_id: string; action_id: string; submission_number: number; document_version_id: string | null; evidence_id: string | null; evidence_version: string | null; added_by: string; added_at: Generated<Timestamp>; operation_id: string }
 export interface MitigationSubmissionsTable { id: string; organization_id: string; action_id: string; submission_number: number; note: string; submitted_by: string; submitted_at: Generated<Timestamp>; operation_id: string }
@@ -564,7 +564,8 @@ export interface DdCasesTable { id: string; organization_id: string; case_number
 export interface DdSnapshotsTable { id: string; organization_id: string; case_id: string; snapshot_number: number; content: unknown; content_hash: string; section_hashes: unknown; manifest: unknown; requirements: unknown; readiness: 'BLOCKED' | 'IN_PROGRESS' | 'READY'; captured_by: string; captured_at: Generated<Timestamp>; operation_id: string }
 export interface DdReviewsTable { id: string; organization_id: string; snapshot_id: string; action: 'START_REVIEW' | 'RETURN' | 'APPROVE'; reason: string; reviewer_id: string; reviewed_at: Generated<Timestamp>; operation_id: string }
 export interface DdExportsTable { id: string; organization_id: string; snapshot_id: string; kind: 'INTERNAL_REVIEW' | 'DD_PACKAGE'; redaction_profile: unknown; package_hash: string; size_bytes: number; exported_by: string; exported_at: Generated<Timestamp>; operation_id: string }
-export interface MitigationDecisionsTable { id: string; organization_id: string; action_id: string; submission_number: number; decision: 'VERIFIED' | 'REJECTED'; reason: string; decided_by: string; decided_at: Generated<Timestamp>; operation_id: string }
+export interface MitigationDecisionsTable { id: string; organization_id: string; action_id: string; submission_number: number; decision: 'VERIFIED' | 'REJECTED'; reason: string; decided_by: string; decided_at: Generated<Timestamp>; operation_id: string; criterion_met: boolean | null }
+export interface MitigationCorrectionsTable { id: string; organization_id: string; action_id: string; decision_id: string; submission_number: number; support_accepted: boolean; criterion_met: boolean; reason: string; corrected_by: string; corrected_at: Generated<Timestamp>; operation_id: string }
 
 export interface Database {
   evidence_claim_types: EvidenceClaimTypesTable;
@@ -638,6 +639,7 @@ export interface Database {
   mitigation_supports: MitigationSupportsTable;
   mitigation_submissions: MitigationSubmissionsTable;
   mitigation_decisions: MitigationDecisionsTable;
+  mitigation_corrections: MitigationCorrectionsTable;
   dd_cases: DdCasesTable;
   dd_snapshots: DdSnapshotsTable;
   dd_reviews: DdReviewsTable;

@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Min } from 'class-validator';
 import { randomUUID } from 'crypto';
 import { sql, type Kysely, type Transaction } from 'kysely';
 import { DB } from '../db/database';
@@ -43,11 +43,18 @@ class DecisionDto {
   @ApiProperty() @IsInt() @Min(1) expected_version!: number;
   @ApiProperty({ enum: ['VERIFIED', 'REJECTED'] }) @IsIn(['VERIFIED', 'REJECTED']) decision!: 'VERIFIED' | 'REJECTED';
   @ApiProperty() @IsString() @Length(3, 1000) reason!: string;
+  @ApiPropertyOptional({ description: 'Obligatorio en VERIFIED: quien verifica declara que se cumple el criterio de aceptación de la acción (no solo que el soporte es aceptable)' }) @IsOptional() @IsBoolean() criterion_met?: boolean;
 }
-class ListQuery { @IsOptional() @IsIn(['OPEN', 'SUBMITTED', 'VERIFIED', 'REJECTED']) status?: string; @IsOptional() @IsUUID() lot_id?: string }
+class CorrectionDto {
+  @ApiProperty() @IsUUID() operation_id!: string;
+  @ApiProperty() @IsInt() @Min(1) expected_version!: number;
+  @ApiProperty({ description: '¿El soporte aportado sigue aceptado como soporte? (independiente de que la acción cumpla su criterio)' }) @IsBoolean() support_accepted!: boolean;
+  @ApiProperty() @IsString() @Length(10, 1000) reason!: string;
+}
+class ListQuery { @IsOptional() @IsIn(['OPEN', 'SUBMITTED', 'VERIFIED', 'REJECTED', 'REOPENED']) status?: string; @IsOptional() @IsUUID() lot_id?: string }
 class OptionsQuery { @IsUUID() evaluation_id!: string }
 
-const STATUS_LABEL: Record<string, string> = { OPEN: 'Abierta (sin entrega)', SUBMITTED: 'Entregada: pendiente de verificación', VERIFIED: 'Verificada', REJECTED: 'Rechazada: requiere nueva entrega' };
+const STATUS_LABEL: Record<string, string> = { OPEN: 'Abierta (sin entrega)', SUBMITTED: 'Entregada: pendiente de verificación', VERIFIED: 'Verificada', REJECTED: 'Rechazada: requiere nueva entrega', REOPENED: 'Reabierta: verificación corregida, requiere nueva entrega' };
 const name = (f: string | null, l: string | null) => `${f ?? ''} ${l ?? ''}`.trim() || 'Miembro';
 
 @Injectable()
@@ -146,7 +153,7 @@ export class MitigationsService {
     await this.db.transaction().execute(async (trx) => {
       const a = await this.lockAction(trx, orgId, id);
       if (a.assignee_membership_id !== ctx.membershipId) throw forbidden('NOT_ASSIGNEE', 'Solo el responsable asignado aporta soportes a esta mitigación.');
-      if (a.status !== 'OPEN' && a.status !== 'REJECTED') throw conflict('MITIGATION_NOT_EDITABLE', 'La mitigación ya fue entregada o verificada: no admite soportes en esta entrega.');
+      if (!['OPEN', 'REJECTED', 'REOPENED'].includes(a.status)) throw conflict('MITIGATION_NOT_EDITABLE', 'La mitigación ya fue entregada o verificada: no admite soportes en esta entrega.');
       let evidenceVersion: string | null = null;
       if (dto.document_version_id) {
         const v = (await sql<{ scan: string | null; expired: boolean }>`
@@ -180,7 +187,7 @@ export class MitigationsService {
     await this.db.transaction().execute(async (trx) => {
       const a = await this.lockAction(trx, orgId, id);
       if (a.assignee_membership_id !== ctx.membershipId) throw forbidden('NOT_ASSIGNEE', 'Solo el responsable asignado entrega esta mitigación.');
-      if (a.status !== 'OPEN' && a.status !== 'REJECTED') throw conflict('INVALID_TRANSITION', 'La mitigación no está abierta para una entrega.');
+      if (!['OPEN', 'REJECTED', 'REOPENED'].includes(a.status)) throw conflict('INVALID_TRANSITION', 'La mitigación no está abierta para una entrega.');
       if (Number(a.row_version) !== dto.expected_version) throw conflict('VERSION_CONFLICT', 'La mitigación cambió. Recarga.');
       const n = await this.round(trx, id);
       const supports = (await sql<{ n: number }>`SELECT count(*)::int AS n FROM mitigation_supports WHERE action_id = ${id} AND submission_number = ${n}`.execute(trx)).rows[0].n;
@@ -199,6 +206,7 @@ export class MitigationsService {
       if (prior.action_id !== id || prior.decision !== dto.decision) throw conflict('OPERATION_ID_REUSED', 'Ese identificador de operación ya se usó con otro contenido.');
       return { replayed: true, mitigation: await this.view(this.db, ctx, id) };
     }
+    if (dto.decision === 'VERIFIED' && dto.criterion_met !== true) throw new AppError(422, 'CRITERION_CONFIRMATION_REQUIRED', 'Para verificar, confirma que se cumple el criterio de aceptación de la acción. Un soporte aceptable no basta: si el criterio no se cumple, rechaza con motivo.', [{ field: 'criterion_met', reason: 'REQUIRED' }]);
     try {
       await this.db.transaction().execute(async (trx) => {
         const a = await this.lockAction(trx, orgId, id);
@@ -209,7 +217,7 @@ export class MitigationsService {
         const executor = (await sql<{ n: number }>`SELECT count(*)::int AS n FROM (SELECT submitted_by AS u FROM mitigation_submissions WHERE action_id = ${id} AND submission_number = ${n}
           UNION SELECT added_by FROM mitigation_supports WHERE action_id = ${id} AND submission_number = ${n}) x WHERE x.u = ${user.id}`.execute(trx)).rows[0].n;
         if (executor > 0) throw forbidden('SELF_VERIFICATION_NOT_ALLOWED', 'Quien ejecutó la mitigación no puede verificarla ni rechazarla: no existe una política expresa de excepción (docs/13).');
-        await trx.insertInto('mitigation_decisions').values({ id: randomUUID(), organization_id: orgId, action_id: id, submission_number: n, decision: dto.decision, reason: dto.reason.trim(), decided_by: user.id, operation_id: dto.operation_id }).execute();
+        await trx.insertInto('mitigation_decisions').values({ id: randomUUID(), organization_id: orgId, action_id: id, submission_number: n, decision: dto.decision, reason: dto.reason.trim(), decided_by: user.id, operation_id: dto.operation_id, criterion_met: dto.decision === 'VERIFIED' }).execute();
         const after = await trx.updateTable('mitigation_actions').set({ status: dto.decision, row_version: sql`row_version + 1` } as never).where('id', '=', id).returning('row_version').executeTakeFirstOrThrow();
         await this.record(trx, ctx, user.id, id, a.subject_id, dto.decision === 'VERIFIED' ? 'MitigationVerified' : 'MitigationRejected', Number(after.row_version),
           { submission_number: n, reason: dto.reason.trim(), factor_code: a.factor_code }, dto.decision === 'VERIFIED' ? 'mitigation.verify' : 'mitigation.reject', requestId);
@@ -218,6 +226,42 @@ export class MitigationsService {
       const e = err as { code?: string; message?: string; constraint?: string };
       if (e.code === '23514' && /mitigation_decisions/.test(e.message ?? '')) throw forbidden('SELF_VERIFICATION_NOT_ALLOWED', 'Quien ejecutó la mitigación no puede verificarla ni rechazarla.');
       if (e.constraint === 'mitigation_decisions_uq') throw conflict('ALREADY_DECIDED', 'Otra persona ya decidió esta entrega. Recarga.');
+      throw err;
+    }
+    return { replayed: false, mitigation: await this.view(this.db, ctx, id) };
+  }
+
+  /**
+   * Corrección revisada de una verificación (docs/13; revisión de P0-021): la decisión original se conserva y se registra que
+   * el criterio de aceptación NO se cumple (indicando si el soporte sigue aceptado como soporte). La acción queda REABIERTA
+   * para una nueva entrega y se encola una reevaluación. No inventa ni cambia datos de la causa.
+   */
+  async correct(user: AuthUser, orgId: string, id: string, dto: CorrectionDto, requestId?: string) {
+    const ctx = await this.ctx(user, orgId, 'mitigation:verify', true);
+    const prior = await this.db.selectFrom('mitigation_corrections').select('action_id').where('organization_id', '=', orgId).where('operation_id', '=', dto.operation_id).executeTakeFirst();
+    if (prior) {
+      if (prior.action_id !== id) throw conflict('OPERATION_ID_REUSED', 'Ese identificador de operación ya se usó con otro contenido.');
+      return { replayed: true, mitigation: await this.view(this.db, ctx, id) };
+    }
+    try {
+      await this.db.transaction().execute(async (trx) => {
+        const a = await this.lockAction(trx, orgId, id);
+        if (a.status !== 'VERIFIED') throw conflict('INVALID_TRANSITION', 'Solo se corrige una verificación vigente.');
+        if (Number(a.row_version) !== dto.expected_version) throw conflict('VERSION_CONFLICT', 'La mitigación cambió. Recarga.');
+        const d = (await sql<{ id: string; submission_number: number }>`SELECT id, submission_number FROM mitigation_decisions WHERE action_id = ${id} ORDER BY submission_number DESC LIMIT 1`.execute(trx)).rows[0];
+        const executor = (await sql<{ n: number }>`SELECT count(*)::int AS n FROM (SELECT submitted_by AS u FROM mitigation_submissions WHERE action_id = ${id} AND submission_number = ${d.submission_number}
+          UNION SELECT added_by FROM mitigation_supports WHERE action_id = ${id} AND submission_number = ${d.submission_number}) x WHERE x.u = ${user.id}`.execute(trx)).rows[0].n;
+        if (executor > 0) throw forbidden('SELF_VERIFICATION_NOT_ALLOWED', 'Quien ejecutó la mitigación no puede corregir su verificación.');
+        await trx.insertInto('mitigation_corrections').values({ id: randomUUID(), organization_id: orgId, action_id: id, decision_id: d.id, submission_number: d.submission_number, support_accepted: dto.support_accepted,
+          criterion_met: false, reason: dto.reason.trim(), corrected_by: user.id, operation_id: dto.operation_id }).execute();
+        const after = await trx.updateTable('mitigation_actions').set({ status: 'REOPENED', row_version: sql`row_version + 1` } as never).where('id', '=', id).returning('row_version').executeTakeFirstOrThrow();
+        await this.record(trx, ctx, user.id, id, a.subject_id, 'MitigationVerificationCorrected', Number(after.row_version),
+          { submission_number: d.submission_number, decision_id: d.id, support_accepted: dto.support_accepted, criterion_met: false, reason: dto.reason.trim(), factor_code: a.factor_code }, 'mitigation.correct_verification', requestId);
+      });
+    } catch (err) {
+      const e = err as { code?: string; message?: string; constraint?: string };
+      if (e.code === '23514' && /mitigation_corrections/.test(e.message ?? '')) throw forbidden('SELF_VERIFICATION_NOT_ALLOWED', 'Quien ejecutó la mitigación no puede corregir su verificación.');
+      if (e.constraint === 'mitigation_corrections_decision_uq') throw conflict('ALREADY_CORRECTED', 'Esa verificación ya fue corregida. Recarga.');
       throw err;
     }
     return { replayed: false, mitigation: await this.view(this.db, ctx, id) };
@@ -245,8 +289,27 @@ export class MitigationsService {
       WHERE s.action_id = ${id} ORDER BY s.submission_number, s.added_at`.execute(db)).rows;
     const submissions = (await sql<{ submission_number: number; note: string; submitted_at: string; f: string | null; l: string | null }>`
       SELECT s.submission_number, s.note, s.submitted_at, u.first_name AS f, u.last_name AS l FROM mitigation_submissions s LEFT JOIN users u ON u.id = s.submitted_by WHERE s.action_id = ${id} ORDER BY s.submission_number`.execute(db)).rows;
-    const decisions = (await sql<{ submission_number: number; decision: string; reason: string; decided_at: string; f: string | null; l: string | null }>`
-      SELECT d.submission_number, d.decision, d.reason, d.decided_at, u.first_name AS f, u.last_name AS l FROM mitigation_decisions d LEFT JOIN users u ON u.id = d.decided_by WHERE d.action_id = ${id} ORDER BY d.submission_number`.execute(db)).rows;
+    const decisions = (await sql<{ submission_number: number; decision: string; reason: string; decided_at: string; f: string | null; l: string | null; criterion_met: boolean | null }>`
+      SELECT d.submission_number, d.decision, d.reason, d.decided_at, d.criterion_met, u.first_name AS f, u.last_name AS l FROM mitigation_decisions d LEFT JOIN users u ON u.id = d.decided_by WHERE d.action_id = ${id} ORDER BY d.submission_number`.execute(db)).rows;
+    const corrections = (await sql<{ submission_number: number; support_accepted: boolean; reason: string; corrected_at: string; f: string | null; l: string | null }>`
+      SELECT c.submission_number, c.support_accepted, c.reason, c.corrected_at, u.first_name AS f, u.last_name AS l FROM mitigation_corrections c LEFT JOIN users u ON u.id = c.corrected_by WHERE c.action_id = ${id} ORDER BY c.corrected_at`.execute(db)).rows;
+    // Tres dimensiones separadas: soporte aceptado · acción ejecutada (criterio) · causa (última evaluación del sujeto).
+    const lastDecision = decisions[decisions.length - 1];
+    const lastCorrection = lastDecision ? corrections.find((c) => c.submission_number === lastDecision.submission_number) : undefined;
+    const latestEval = (await sql<{ evaluation_number: number; f: { result: string } | null }>`
+      SELECT e.evaluation_number, (SELECT f FROM jsonb_array_elements(e.factors) f WHERE f->>'code' = ${a.factor_code}) AS f
+      FROM risk_evaluations e WHERE e.organization_id = ${ctx.organizationId} AND e.subject_id = ${a.subject_id} ORDER BY e.evaluation_number DESC LIMIT 1`.execute(db)).rows[0];
+    const support = !lastDecision ? 'NOT_REVIEWED' : lastCorrection ? (lastCorrection.support_accepted ? 'ACCEPTED' : 'NOT_ACCEPTED') : lastDecision.decision === 'VERIFIED' ? 'ACCEPTED' : 'NOT_ACCEPTED';
+    const action = !lastDecision || a.status === 'SUBMITTED' && lastDecision.submission_number < Math.max(0, ...submissions.map((x) => x.submission_number)) ? 'PENDING'
+      : lastCorrection || lastDecision.decision === 'REJECTED' ? 'CRITERION_NOT_MET' : lastDecision.criterion_met === true ? 'CRITERION_MET' : 'NOT_RECORDED';
+    const cause = !latestEval?.f ? 'UNKNOWN' : latestEval.f.result === 'HIT' ? 'PERSISTS' : latestEval.f.result === 'NOT_HIT' ? 'NOT_DETECTED' : 'UNKNOWN';
+    const n = latestEval?.evaluation_number;
+    const outcome = {
+      support: { status: support, label: ({ NOT_REVIEWED: 'Sin revisar', ACCEPTED: 'Soporte aceptado', NOT_ACCEPTED: 'Soporte no aceptado' } as Record<string, string>)[support] },
+      action: { status: action, label: ({ PENDING: 'Pendiente de revisión', CRITERION_MET: 'Criterio de aceptación cumplido (declarado por quien verificó)', CRITERION_NOT_MET: 'Criterio de aceptación no cumplido', NOT_RECORDED: 'Criterio no registrado en la verificación (decisión anterior a esta revisión)' } as Record<string, string>)[action] },
+      cause: { status: cause, evaluation_number: n ?? null, label: ({ PERSISTS: `La causa persiste en la evaluación ${n}`, NOT_DETECTED: `No se detecta en la evaluación ${n} (no es conclusión regulatoria)`, UNKNOWN: 'Causa no evaluable o sin evaluación' } as Record<string, string>)[cause] },
+      warning: a.status === 'VERIFIED' && cause === 'PERSISTS' ? `La acción figura verificada pero la causa persiste en la evaluación ${n}. Si el criterio de aceptación no se cumple, corrige la verificación (la decisión original se conserva).` : null,
+    };
     // Reevaluación: hecha por esta verificación, cubierta por una evaluación posterior, o pendiente (asíncrona).
     let reevaluation: { status: string; evaluation_id?: string; evaluation_number?: number; note: string } | null = null;
     const verified = decisions.find((d) => d.decision === 'VERIFIED');
@@ -268,7 +331,7 @@ export class MitigationsService {
         if (s.evidence_id && s.evidence_version !== s.current_evidence_version) reviewReasons.push('La evidencia de soporte cambió después de verificarse.');
       }
     }
-    const due = new Date(`${a.due_date}T23:59:59Z`) < new Date() && (a.status === 'OPEN' || a.status === 'REJECTED');
+    const due = new Date(`${a.due_date}T23:59:59Z`) < new Date() && ['OPEN', 'REJECTED', 'REOPENED'].includes(a.status);
     const isAssignee = a.assignee_membership_id === ctx.membershipId;
     return {
       id: a.id, status: a.status, status_label: STATUS_LABEL[a.status], row_version: Number(a.row_version),
@@ -279,13 +342,16 @@ export class MitigationsService {
         availability: s.document_version_id ? (s.scan === 'CLEAN' ? 'AVAILABLE' : 'NOT_AVAILABLE') : null, expired: s.expired, newer_version_exists: s.newer, evidence_id: s.evidence_id, claim_type: s.claim_type,
         evidence_version: s.evidence_version, added_by: name(s.f, s.l), added_at: s.added_at })),
       submissions: submissions.map((s) => ({ number: s.submission_number, note: s.note, at: s.submitted_at, executor: name(s.f, s.l) })),
-      decisions: decisions.map((d) => ({ submission_number: d.submission_number, decision: d.decision, reason: d.reason, at: d.decided_at, verifier: name(d.f, d.l) })),
+      decisions: decisions.map((d) => ({ submission_number: d.submission_number, decision: d.decision, reason: d.reason, at: d.decided_at, verifier: name(d.f, d.l), criterion_met: d.criterion_met })),
+      corrections: corrections.map((c) => ({ submission_number: c.submission_number, support_accepted: c.support_accepted, criterion_met: false, reason: c.reason, at: c.corrected_at, corrected_by: name(c.f, c.l) })),
+      outcome,
       reevaluation, requires_review: reviewReasons,
       note: 'Aportar soportes no verifica. Verificar no vuelve favorable el riesgo ni resuelve la causa: la reevaluación decide con los datos actuales. Quien ejecuta no verifica (docs/13).',
       actions: {
-        add_support: isAssignee && this.has(ctx, 'mitigation:contribute') && (a.status === 'OPEN' || a.status === 'REJECTED'),
-        submit: isAssignee && this.has(ctx, 'mitigation:contribute') && (a.status === 'OPEN' || a.status === 'REJECTED'),
+        add_support: isAssignee && this.has(ctx, 'mitigation:contribute') && ['OPEN', 'REJECTED', 'REOPENED'].includes(a.status),
+        submit: isAssignee && this.has(ctx, 'mitigation:contribute') && ['OPEN', 'REJECTED', 'REOPENED'].includes(a.status),
         decide: this.has(ctx, 'mitigation:verify') && a.status === 'SUBMITTED',
+        correct: this.has(ctx, 'mitigation:verify') && a.status === 'VERIFIED',
       },
     };
   }
@@ -303,7 +369,7 @@ export class MitigationsService {
       WHERE a.organization_id = ${ctx.organizationId} ${q.status ? sql`AND a.status = ${q.status}` : sql``} ${q.lot_id ? sql`AND a.subject_id = ${q.lot_id}` : sql``}
       ORDER BY a.due_date, a.created_at`.execute(this.db)).rows;
     return rows.map((r) => ({ id: r.id, title: r.title, factor_code: r.factor_code, status: r.status, status_label: STATUS_LABEL[r.status], due_date: r.due_date, lot: { id: r.subject_id, code: r.lot_code },
-      assignee: name(r.f, r.l), mine: r.assignee_membership_id === ctx.membershipId, overdue: new Date(`${r.due_date}T23:59:59Z`) < new Date() && (r.status === 'OPEN' || r.status === 'REJECTED') }));
+      assignee: name(r.f, r.l), mine: r.assignee_membership_id === ctx.membershipId, overdue: new Date(`${r.due_date}T23:59:59Z`) < new Date() && ['OPEN', 'REJECTED', 'REOPENED'].includes(r.status) }));
   }
 }
 
@@ -314,7 +380,7 @@ export class MitigationsService {
  */
 export const riskReevaluationConsumer: EventConsumer = {
   name: 'risk-reevaluation',
-  eventTypes: ['MitigationVerified'],
+  eventTypes: ['MitigationVerified', 'MitigationVerificationCorrected'],
   async handle(trx: Transaction<Database>, event: DomainEvent) {
     const p = event.payload as { action_id: string; subject_id: string };
     const later = (await sql<{ n: number }>`SELECT count(*)::int AS n FROM risk_evaluations WHERE organization_id = ${event.organization_id} AND subject_id = ${p.subject_id} AND evaluated_at >= ${event.recorded_at}`.execute(trx)).rows[0].n;
@@ -322,7 +388,8 @@ export const riskReevaluationConsumer: EventConsumer = {
     const { PRODUCTION_CONSUMERS } = await import('../events/consumers');
     const service = new RiskService(trx as unknown as Kysely<Database>, new EventStore(PRODUCTION_CONSUMERS), null as unknown as AuthorizationService, new AuditService());
     await service.evaluateInTrx(trx, { orgId: event.organization_id, lotId: p.subject_id, actorId: event.actor_id!, operationId: event.event_id, basedOn: null,
-      trigger: { kind: 'MITIGATION_VERIFIED', action_id: p.action_id, event_id: event.event_id } });
+      trigger: { kind: event.event_type === 'MitigationVerified' ? 'MITIGATION_VERIFIED' : 'MITIGATION_VERIFICATION_CORRECTED', action_id: p.action_id, event_id: event.event_id,
+        triggered_by: event.actor_id, executed_by: 'worker:risk-reevaluation' } });
   },
 };
 
@@ -338,5 +405,6 @@ export class MitigationsController {
   @Get('mitigations/:id') detail(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string) { return this.service.detail(u, o, id); }
   @Post('mitigations/:id/supports') support(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: SupportDto, @Req() req: AuthedRequest) { return this.service.addSupport(u, o, id, dto, req.requestId); }
   @Post('mitigations/:id/submit') submit(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: SubmitDto, @Req() req: AuthedRequest) { return this.service.submit(u, o, id, dto, req.requestId); }
+  @Post('mitigations/:id/corrections') correct(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: CorrectionDto, @Req() req: AuthedRequest) { return this.service.correct(u, o, id, dto, req.requestId); }
   @Post('mitigations/:id/decisions') decide(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: DecisionDto, @Req() req: AuthedRequest) { return this.service.decide(u, o, id, dto, req.requestId); }
 }

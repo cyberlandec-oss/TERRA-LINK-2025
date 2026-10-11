@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-11T04:09:53.772Z",
+  "fecha": "2026-10-11T04:25:49.295Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -1509,7 +1509,7 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "Mostrando 25 de 504 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
+          "resultado": "Mostrando 25 de 518 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
           "ok": true
         },
         {
@@ -1644,17 +1644,17 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa (ejecutor/responsable)",
-          "resultado": "ya entregada",
+          "resultado": "sin nueva entrega (no se inventan datos de origen)",
           "ok": true
         },
         {
-          "cuenta": "eudr.cooperativa (verificador distinto)",
-          "resultado": "ya decidida; reevaluación por outbox → evaluación 2",
+          "cuenta": "eudr.cooperativa (segunda persona)",
+          "resultado": "verificación histórica corregida: soporte aceptado, criterio no cumplido; soporte aceptado / criterio no cumplido / causa persiste=true; decisión original conservada=true",
           "ok": true
         },
         {
           "cuenta": "eudr.cooperativa (riesgo tras reevaluar)",
-          "resultado": "evaluación vigente 2; conclusión Indeterminada; DATA_MISSING_ORIGIN sigue visible=true; reglas sin aprobar",
+          "resultado": "evaluación vigente 3; desencadenada por la segunda persona, ejecutada por el worker, sin revisión humana=true; DATA_MISSING_ORIGIN y MITIGATION_UNVERIFIED visibles; conclusión Indeterminada",
           "ok": true
         },
         {

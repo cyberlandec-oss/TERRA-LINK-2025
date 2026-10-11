@@ -29,7 +29,7 @@ export async function reviewMitigations({ browser, BASE, accounts, DEMO_ORGS, or
   {
     const { ctx, page } = await loginAs(acc('admin.cooperativa'));
     let text = await open(page);
-    let steps = 'ya entregada';
+    let steps = 'sin nueva entrega (no se inventan datos de origen)';
     if (text.includes('Abierta (sin entrega)')) {
       await page.getByLabel('Versión de documento').selectOption({ index: 1 });
       await page.getByRole('button', { name: 'Aportar soporte' }).click();
@@ -47,36 +47,47 @@ export async function reviewMitigations({ browser, BASE, accounts, DEMO_ORGS, or
     await ctx.close();
   }
   {
+    // Segunda persona. El criterio «parcela de origen identificada» NO se cumple con un documento que no identifica la parcela:
+    // - entrega pendiente → se rechaza con motivo (no se verifica);
+    // - verificación histórica (anterior a la revisión) con la causa vigente → se corrige (la decisión original se conserva).
+    // No se aportan ni inventan datos de origen.
     const { ctx, page } = await loginAs(acc('eudr.cooperativa'));
-    let text = await open(page);
-    let step = 'ya decidida';
+    const text = await open(page);
+    let step = 'sin cambios (ya revisada)';
     if (text.includes('Entregada: pendiente de verificación')) {
-      await page.getByLabel('Motivo de la decisión').fill('Soporte de la entrega revisado por una segunda persona; la causa de origen se reevalúa.');
-      await page.getByRole('button', { name: 'Verificar' }).focus();
+      await page.getByLabel('Motivo de la decisión').fill('El documento no identifica la parcela de origen de ENT-2026-00002: el criterio de aceptación no se cumple.');
+      await page.getByRole('button', { name: 'Rechazar' }).click();
+      await page.getByText(/Rechazada \(entrega \d+\)/).first().waitFor({ timeout: 15000 });
+      step = 'rechazada con motivo: criterio no cumplido';
+    } else if (await page.getByRole('form', { name: 'Corregir verificación' }).count()) {
+      const form = page.getByRole('form', { name: 'Corregir verificación' });
+      await form.getByLabel('Motivo de la corrección').fill('La constancia aportada es válida como soporte, pero no identifica la parcela de origen de ENT-2026-00002: el criterio de aceptación no se cumple y la causa persiste.');
+      await form.getByRole('button', { name: /Corregir verificación/ }).focus();
       await page.keyboard.press('Enter');
-      await page.getByText(/Verificada \(entrega 1\)/).first().waitFor({ timeout: 15000 });
-      step = 'verificada por la segunda persona';
+      await page.getByText(/Verificación corregida \(entrega 1\)/).first().waitFor({ timeout: 15000 });
+      step = 'verificación histórica corregida: soporte aceptado, criterio no cumplido';
     }
-    // Reevaluación asíncrona por el worker del outbox (sin forzarla desde la interfaz).
-    let reev = '';
+    const after = await page.locator('main').innerText();
+    await page.screenshot({ path: join(shots, 'mitigaciones--verificador.png'), fullPage: true });
+    const dims = after.includes('Soporte aceptado') && after.includes('Criterio de aceptación no cumplido') && /La causa persiste en la evaluación \d+/.test(after);
+    const history = /Verificada \(entrega 1\)/.test(after) ? after.includes('Verificación corregida (entrega 1)') : true; // la decisión original sigue visible
+    casos.push({ cuenta: 'eudr.cooperativa (segunda persona)', resultado: `${step}; soporte aceptado / criterio no cumplido / causa persiste=${dims}; decisión original conservada=${history}`, ok: dims && history && !after.includes('Revisa la verificación') });
+    // Reevaluación tras la corrección (worker del outbox), con procedencia separada.
+    let rk = '';
     for (let i = 0; i < 30; i++) {
-      await page.reload();
-      await page.getByRole('heading', { name: 'Caso y acción' }).waitFor({ timeout: 15000 });
-      const m = (await page.locator('main').innerText()).match(/Evaluación (\d+) registrada|Cubierta por la evaluación (\d+)/);
-      if (m) { reev = m[1] ?? m[2]; break; }
+      await page.goto(`${BASE}/organizaciones/${coop}/riesgo`);
+      await page.getByRole('table', { name: 'Riesgo por lote' }).locator('tbody tr').filter({ hasText: 'LOT-2026-00002' }).first().getByRole('link').first().click();
+      await page.getByRole('heading', { name: /Riesgo del lote LOT-2026-00002/ }).waitFor({ timeout: 15000 });
+      rk = await page.locator('main').innerText();
+      if (rk.includes('corrección de una verificación')) break;
       await page.waitForTimeout(2000);
     }
-    await page.screenshot({ path: join(shots, 'mitigaciones--verificador.png'), fullPage: true });
-    casos.push({ cuenta: 'eudr.cooperativa (verificador distinto)', resultado: `${step}; reevaluación por outbox → evaluación ${reev || 'PENDIENTE'}`, ok: !!reev && (await page.locator('main').innerText()).includes('Verificada') });
-    await page.goto(`${BASE}/organizaciones/${coop}/riesgo`);
-    await page.getByRole('table', { name: 'Riesgo por lote' }).locator('tbody tr').filter({ hasText: 'LOT-2026-00002' }).first().getByRole('link').first().click();
-    await page.getByRole('heading', { name: /Riesgo del lote LOT-2026-00002/ }).waitFor({ timeout: 15000 });
-    const rk = await page.locator('main').innerText();
     await page.screenshot({ path: join(shots, 'mitigaciones--riesgo-reevaluado.png'), fullPage: true });
     const current = rk.match(/Evaluación (\d+)\n/)?.[1];
-    const dq = (await page.getByRole('list', { name: 'No evaluable o faltante' }).innerText().catch(() => '')) + (await page.getByRole('list', { name: 'Hallazgos técnicos' }).innerText().catch(() => ''));
-    const ok = current === reev && rk.includes('Indeterminada') && dq.includes('DATA_MISSING_ORIGIN') && rk.includes('sin aprobar');
-    casos.push({ cuenta: 'eudr.cooperativa (riesgo tras reevaluar)', resultado: `evaluación vigente ${current}; conclusión Indeterminada; DATA_MISSING_ORIGIN sigue visible=${dq.includes('DATA_MISSING_ORIGIN')}; reglas sin aprobar`, ok });
+    const findings = (await page.getByRole('list', { name: 'Hallazgos técnicos' }).innerText().catch(() => '')) + (await page.getByRole('list', { name: 'No evaluable o faltante' }).innerText().catch(() => ''));
+    const prov = rk.includes('Desencadenada por') && rk.includes('Diana Ponce (demo) (corrección de una verificación)') && rk.includes('worker de reevaluación') && rk.includes('Nadie todavía (revisión humana pendiente)');
+    const ok = prov && rk.includes('Indeterminada') && findings.includes('DATA_MISSING_ORIGIN') && findings.includes('MITIGATION_UNVERIFIED') && rk.includes('sin aprobar');
+    casos.push({ cuenta: 'eudr.cooperativa (riesgo tras reevaluar)', resultado: `evaluación vigente ${current}; desencadenada por la segunda persona, ejecutada por el worker, sin revisión humana=${prov}; DATA_MISSING_ORIGIN y MITIGATION_UNVERIFIED visibles; conclusión Indeterminada`, ok });
     await ctx.close();
   }
   {

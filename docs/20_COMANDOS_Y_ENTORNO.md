@@ -94,3 +94,10 @@ Móvil/Android, backup/restauración (QA-16) y despliegue. Ningún comando de pr
 ### Credenciales de cuentas DEMO nuevas (2026-10-10)
 
 `npm run seed:demo -w apps/api` crea una cuenta nueva solo si podrá guardar su contraseña: escribe el archivo completo en `CREDENCIALES.csv` o, si está abierto en otro programa, en `CREDENCIALES.pendiente.csv` (ambos ignorados por git). Volver a ejecutar el seed no regenera contraseñas existentes: las lee de esos archivos. Para recuperar la credencial de una cuenta nueva (p. ej. `eudr.cooperativa`, segunda persona del recorrido de mitigación), abrir localmente el archivo más reciente de los dos; nunca se imprime en consola, informes ni capturas. La revisión por rol usa el más reciente.
+
+### Móvil (P0-023, `apps/mobile`, proyecto independiente de los workspaces)
+
+Comandos ejecutados el 2026-10-10 en este equipo (Windows, Node 24): `npm ci`, `npm run typecheck`, `npm test`
+(núcleo en Node con `node:sqlite`), `TL_API_SMOKE=1 npm test` (cliente en Node contra la API local), `npx expo export
+--platform android --output-dir <tmp>` (bundle Hermes) y `npx expo-doctor` (21/21). No hay Android SDK, JDK ni adb: no se
+ejecutó emulador, build nativo ni dispositivo. Ensayo en Android real con Expo Go: `apps/mobile/README.md`.

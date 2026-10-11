@@ -102,6 +102,7 @@ Estado (2026-10-10): criterios demostrados localmente con reglas técnicas de do
 Depende P0-020. Como responsable, necesito resolver causa con evidencia.
 Aceptación: acción/assignee/plazo/soporte; aportar→verificar/rechazar con motivos y permisos; resolver dispara reevaluación y actualiza pendientes reales. RF-21; QA-11.
 Estado (2026-10-10): criterios demostrados localmente. Separación de funciones de docs/13 aplicada (el ejecutor no verifica; sin política de excepción); D-37 (Evidencias) no se modifica. Reevaluación asíncrona por outbox; catálogo de riesgo sigue NO APROBADO y conclusión UNDETERMINED.
+Revisión (2026-10-10): la verificación ahora exige declarar el criterio de aceptación; se distinguen soporte aceptado, acción ejecutada y causa. La verificación DEMO anterior se corrigió (soporte aceptado, criterio no cumplido, causa persiste) con la decisión original conservada; la reevaluación separa quién la desencadenó, el worker que la ejecutó y la revisión humana.
 Recorrido visual completo (2026-10-10): ejecutor aporta y entrega → segunda persona DEMO (`eudr.cooperativa`, rol EUDR_MANAGER existente) verifica → outbox crea la evaluación 2 → DATA_MISSING_ORIGIN y MATERIAL_OF_UNKNOWN_ORIGIN siguen bloqueantes; conclusión Indeterminada.
 
 ### P0-022 — Diligencia y paquete
@@ -112,6 +113,7 @@ Estado (2026-10-10): **ABIERTA**. Capacidades independientes implementadas y pro
 ### P0-023 — Captura offline
 Depende P0-004/006/007/008 y auth real. Como técnico, necesito trabajar sin red.
 Aceptación: entidad/cola en transacción local; borradores/fotos/GPS sobreviven cierre y reboot; dataset limitado y separación por cuenta; sesión offline definida. RF-23; QA-08.
+Estado (2026-10-10): **ABIERTA**. `apps/mobile` (Expo SDK 57): transacción local, recuperación, separación por cuenta/organización, fotos persistentes y fallos de almacenamiento probados en Node con SQLite real; dataset autorizado probado contra la API local. Pendiente obligatorio: ensayo en Android real (cierre, reinicio, fotos, ubicación) y cifrado SQLCipher en build de desarrollo; política de sesión D-40 sin aprobar.
 
 ### P0-024 — Sync
 Depende P0-023/015. Como técnico, necesito sincronizar sin pérdidas.

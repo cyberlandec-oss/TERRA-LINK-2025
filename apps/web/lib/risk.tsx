@@ -10,6 +10,7 @@ export interface RiskEvaluation {
   categories: Array<{ category: string; rules: number; status: string; note: string | null }>;
   technical_result: { status: string; label: string };
   risk_result: { severity: string; conclusion: string; note: string };
+  provenance: { mode: string; trigger_kind: string | null; triggered_by: string; executed_by: string; reviewed_by: string | null; review_status: string };
   review: { process_status: 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED'; history: Array<{ action: string; reason: string; at: string; reviewer: string }>; note: string };
   evaluated_at: string; evaluated_by: string;
   actions: { reevaluate: boolean; review: boolean };
@@ -23,4 +24,5 @@ export const FACTOR_RESULT: Record<string, string> = { HIT: 'Hallazgo', NOT_HIT:
 export const EFFECT: Record<string, string> = { BLOCKING: 'bloqueante', REVIEW_REQUIRED: 'requiere revisión', NOT_ASSESSED: 'no evaluado' };
 export const CATEGORY_STATUS: Record<string, string> = { NO_RULES: 'sin reglas en las fuentes', FINDINGS: 'con hallazgos', NOT_ASSESSED: 'no evaluada', NO_FINDINGS: 'sin hallazgos en lo evaluado' };
 export const PROCESS: Record<string, string> = { OPEN: 'Abierta', UNDER_REVIEW: 'En revisión', RESOLVED: 'Resuelta (revisión humana)' };
-export const MIT_TONE: Record<string, 'neutral' | 'valid' | 'review' | 'blocked' | 'process'> = { OPEN: 'neutral', SUBMITTED: 'process', VERIFIED: 'valid', REJECTED: 'review' };
+export const MIT_TONE: Record<string, 'neutral' | 'valid' | 'review' | 'blocked' | 'process'> = { OPEN: 'neutral', SUBMITTED: 'process', VERIFIED: 'valid', REJECTED: 'review', REOPENED: 'review' };
+export const OUTCOME_TONE: Record<string, 'neutral' | 'valid' | 'review' | 'blocked' | 'process'> = { NOT_REVIEWED: 'neutral', ACCEPTED: 'valid', NOT_ACCEPTED: 'blocked', PENDING: 'process', CRITERION_MET: 'valid', CRITERION_NOT_MET: 'blocked', NOT_RECORDED: 'review', PERSISTS: 'blocked', NOT_DETECTED: 'valid', UNKNOWN: 'review' };

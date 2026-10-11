@@ -151,6 +151,12 @@ export function manifestOf(c: DdContent) {
   };
 }
 
+/** Pendientes declarados del paquete: no se presentan como cubiertos. */
+export const PACKAGE_PENDING = [
+  { code: 'ATTACHMENT_FILES_NOT_INCLUDED', detail: 'Los archivos no se incluyen: solo se referencian por versión exacta y SHA-256. Referenciar no equivale a incluir.' },
+  { code: 'DESTINATION_PROFILE_FIELDS', detail: 'Los campos y el formato los determina el perfil destino (p. ej. EUDR-IS/TRACES), no definido: el paquete no garantiza esos campos.' },
+];
+
 export interface RedactionProfile { geometry: boolean; personal_documents: boolean }
 
 export const DISCLAIMER = 'Paquete interno de Terra Link. Descargarlo no es presentar una DDS ni implica aceptación en TRACES/EUDR-IS; no acredita cumplimiento ni conclusión regulatoria.';
@@ -178,7 +184,11 @@ export function buildPackage(p: {
     return { ...d, title: '[restringido: datos personales]', file_name: '[restringido]' };
   });
   const pkg = {
-    format: 'terra-link-dd-package', format_version: '0.1.0', kind: p.kind,
+    format: 'terra-link-dd-package', format_version: '0.2.0', kind: p.kind,
+    // Artefactos distintos: instantánea (fuente) → borrador interno o paquete final → presentación oficial (no implementada).
+    artifact: { kind: p.kind, source: 'snapshot', is_final_package: p.kind === 'DD_PACKAGE', is_official_submission: false },
+    completeness: redactions.length ? 'INCOMPLETO por alcance de quien exporta: ver «redactions».' : 'Sin redacciones por alcance.',
+    pending: PACKAGE_PENDING,
     label: p.kind === 'INTERNAL_REVIEW' ? 'BORRADOR INTERNO PARA REVISIÓN: no preparado; no es una DDS.' : 'Paquete de debida diligencia interno (preparación aprobada internamente); no es una DDS presentada.',
     disclaimer: DISCLAIMER,
     synthetic_fixture: p.content.synthetic_fixture === true ? 'FIXTURE SINTÉTICA DE PRUEBA: no es un expediente real ni aprobado.' : undefined,

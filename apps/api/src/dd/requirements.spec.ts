@@ -84,6 +84,16 @@ describe('P0-022 generador del paquete', () => {
     expect(a.redactions).toEqual([]);
   });
 
+  it('separa artefactos y declara pendientes: archivos no incluidos y campos del perfil destino', () => {
+    const r = buildPackage(input(SYNTHETIC), { geometry: true, personal_documents: true });
+    expect(r.pkg.artifact).toEqual({ kind: 'DD_PACKAGE', source: 'snapshot', is_final_package: true, is_official_submission: false });
+    expect(r.pkg.pending.map((x) => x.code)).toEqual(['ATTACHMENT_FILES_NOT_INCLUDED', 'DESTINATION_PROFILE_FIELDS']);
+    expect(r.pkg.attachments.included).toBe(false);
+    const d = buildPackage(input(SYNTHETIC, 'INTERNAL_REVIEW'), { geometry: false, personal_documents: true });
+    expect(d.pkg.artifact.is_final_package).toBe(false);
+    expect(d.pkg.completeness).toMatch(/INCOMPLETO/);
+  });
+
   it('redacción por alcance y clasificación en todo el paquete (geometrías y adjuntos)', () => {
     const r = buildPackage(input(SYNTHETIC, 'INTERNAL_REVIEW'), { geometry: false, personal_documents: false });
     expect(r.body).not.toMatch(/-80/);

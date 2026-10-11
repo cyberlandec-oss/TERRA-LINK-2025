@@ -66,7 +66,10 @@ export default function LotRiskPage() {
             <dt>Severidad</dt><dd>{e.risk_result.severity === 'NOT_ASSESSED' ? 'No evaluada' : e.risk_result.severity}</dd>
             <dt>Conclusión regulatoria</dt><dd>{e.risk_result.conclusion === 'UNDETERMINED' ? 'Indeterminada' : e.risk_result.conclusion}<div className="field-help">{e.risk_result.note}</div></dd>
             <dt>Revisión humana</dt><dd>{PROCESS[e.review.process_status]}</dd>
-            <dt>Evaluada</dt><dd>{new Date(e.evaluated_at).toLocaleString('es-EC')} · {e.evaluated_by}</dd>
+            <dt>Evaluada</dt><dd>{new Date(e.evaluated_at).toLocaleString('es-EC')}</dd>
+            <dt>{e.provenance.mode === 'AUTOMATIC' ? 'Desencadenada por' : 'Solicitada por'}</dt><dd>{e.provenance.triggered_by}{e.provenance.trigger_kind === 'MITIGATION_VERIFIED' ? ' (verificación de mitigación)' : e.provenance.trigger_kind === 'MITIGATION_VERIFICATION_CORRECTED' ? ' (corrección de una verificación)' : ''}</dd>
+            <dt>Ejecutada por</dt><dd>{e.provenance.executed_by}</dd>
+            <dt>Resultado revisado por</dt><dd>{e.provenance.reviewed_by ?? 'Nadie todavía (revisión humana pendiente)'}</dd>
             <dt>Instantánea</dt><dd><code className="hash">{e.snapshot.hash}</code></dd>
           </dl>
         </section>

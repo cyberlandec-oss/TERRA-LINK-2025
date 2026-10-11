@@ -47,7 +47,7 @@ describeDb('P0-021 mitigaciones: causa, soportes por versión, separación de fu
   const support = (id: string, body: Record<string, unknown>, actor = E1) => http().post(`${base(orgA)}/mitigations/${id}/supports`).set(as(actor)).send({ operation_id: randomUUID(), ...body });
   const get = async (id: string, actor = E2) => (await http().get(`${base(orgA)}/mitigations/${id}`).set(as(actor)).expect(200)).body;
   const submit = async (id: string, actor = E1) => http().post(`${base(orgA)}/mitigations/${id}/submit`).set(as(actor)).send({ operation_id: randomUUID(), expected_version: (await get(id)).row_version, note: 'Soporte aportado' });
-  const decide = async (id: string, decision: string, actor = E2, reason = 'Revisado contra el criterio de aceptación') => http().post(`${base(orgA)}/mitigations/${id}/decisions`).set(as(actor)).send({ operation_id: randomUUID(), expected_version: (await get(id)).row_version, decision, reason });
+  const decide = async (id: string, decision: string, actor = E2, reason = 'Revisado contra el criterio de aceptación') => http().post(`${base(orgA)}/mitigations/${id}/decisions`).set(as(actor)).send({ operation_id: randomUUID(), expected_version: (await get(id)).row_version, decision, reason, ...(decision === 'VERIFIED' ? { criterion_met: true } : {}) });
   const drain = async () => { const w = new OutboxWorker(h.db, PRODUCTION_CONSUMERS, { workerId: 'mitig', backoffBaseMs: 1 }); for (let i = 0; i < 30; i++) if ((await w.runOnce()).claimed === 0) break; };
 
   beforeAll(async () => {
@@ -151,6 +151,42 @@ describeDb('P0-021 mitigaciones: causa, soportes por versión, separación de fu
     expect(changed.status).toBe('VERIFIED');
   });
 
+  it('verificar exige declarar el criterio; corrección revisada si el criterio no se cumple: decisión conservada, acción reabierta, reevaluación con procedencia separada', async () => {
+    const { evaluation } = await blockedLot();
+    const m = (await create(evaluation.id).expect(201)).body.mitigation;
+    await support(m.id, { document_version_id: (await doc()).versions[0].id }).expect(201);
+    expect((await submit(m.id)).status).toBe(201);
+    const noCriterion = await http().post(`${base(orgA)}/mitigations/${m.id}/decisions`).set(as(E2)).send({ operation_id: randomUUID(), expected_version: (await get(m.id)).row_version, decision: 'VERIFIED', reason: 'Soporte correcto' }).expect(422);
+    expect(noCriterion.body.error.code).toBe('CRITERION_CONFIRMATION_REQUIRED');
+    const v = (await (await decide(m.id, 'VERIFIED')).body).mitigation;
+    expect(v.outcome).toMatchObject({ support: { status: 'ACCEPTED' }, action: { status: 'CRITERION_MET' } });
+    await drain();
+    const verified = await get(m.id);
+    expect(verified.outcome.cause.status).toBe('PERSISTS'); // el origen sigue faltando: la causa no se resuelve
+    expect(verified.outcome.warning).toMatch(/causa persiste/);
+    // Corrección: no el ejecutor; con motivo; la decisión original se conserva.
+    const corr = (actor: string, body: Record<string, unknown> = {}) => http().post(`${base(orgA)}/mitigations/${m.id}/corrections`).set(as(actor))
+      .send({ operation_id: randomUUID(), expected_version: verified.row_version, support_accepted: true, reason: 'El documento no identifica la parcela de origen: el criterio no se cumple.', ...body });
+    expect((await corr(E1).expect(403)).body.error.code).toBe('SELF_VERIFICATION_NOT_ALLOWED');
+    await corr('auditor@test.local').expect(403);
+    await expect(sql`UPDATE mitigation_actions SET status = 'OPEN' WHERE id = ${m.id}`.execute(h.db)).rejects.toThrow(/solo se reabre con una corrección/);
+    const c = (await corr(E2).expect(201)).body.mitigation;
+    expect(c).toMatchObject({ status: 'REOPENED', outcome: { support: { status: 'ACCEPTED' }, action: { status: 'CRITERION_NOT_MET' }, cause: { status: 'PERSISTS' } } });
+    expect(c.decisions).toEqual([expect.objectContaining({ decision: 'VERIFIED', criterion_met: true })]);
+    expect(c.corrections).toEqual([expect.objectContaining({ support_accepted: true, criterion_met: false, corrected_by: expect.stringMatching(/eudr2/) })]);
+    expect((await corr(E2).expect(409)).body.error.code).toBe('INVALID_TRANSITION');
+    await expect(sql`DELETE FROM mitigation_corrections WHERE action_id = ${m.id}`.execute(h.db)).rejects.toThrow(/append-only/);
+    // Reabierta: el responsable puede aportar una nueva entrega (número 2).
+    await support(m.id, { document_version_id: (await doc()).versions[0].id }).expect(201);
+    expect((await get(m.id)).supports.map((x: { submission_number: number }) => x.submission_number)).toEqual([1, 2]);
+    // Reevaluación tras la corrección: desencadenada por la verificadora, ejecutada por el worker, revisión humana aparte.
+    await drain();
+    const ev = (await sql<{ id: string }>`SELECT id FROM risk_evaluations WHERE trigger->>'kind' = 'MITIGATION_VERIFICATION_CORRECTED' AND trigger->>'action_id' = ${m.id}`.execute(h.db)).rows[0];
+    const reev = (await http().get(`${base(orgA)}/risk/evaluations/${ev.id}`).set(as(E2)).expect(200)).body;
+    expect(reev.provenance).toMatchObject({ mode: 'AUTOMATIC', trigger_kind: 'MITIGATION_VERIFICATION_CORRECTED', triggered_by: expect.stringMatching(/eudr2/), executed_by: expect.stringMatching(/worker de reevaluación/), reviewed_by: null, review_status: 'OPEN' });
+    expect(reev.factors.find((f: { code: string }) => f.code === 'MITIGATION_UNVERIFIED').result).toBe('HIT');
+  });
+
   it('reevaluación atrasada no sustituye una evaluación posterior; decisiones concurrentes; doble envío; rollback', async () => {
     const { lot, evaluation } = await blockedLot();
     const m = (await create(evaluation.id).expect(201)).body.mitigation;
@@ -171,7 +207,7 @@ describeDb('P0-021 mitigaciones: causa, soportes por versión, separación de fu
     // decisiones concurrentes de dos verificadores: una gana
     const v = (await get(m.id)).row_version;
     const [a, b] = await Promise.all([
-      http().post(`${base(orgA)}/mitigations/${m.id}/decisions`).set(as(E2)).send({ operation_id: randomUUID(), expected_version: v, decision: 'VERIFIED', reason: 'Correcto' }),
+      http().post(`${base(orgA)}/mitigations/${m.id}/decisions`).set(as(E2)).send({ operation_id: randomUUID(), expected_version: v, decision: 'VERIFIED', reason: 'Correcto', criterion_met: true }),
       http().post(`${base(orgA)}/mitigations/${m.id}/decisions`).set(as(ADMIN)).send({ operation_id: randomUUID(), expected_version: v, decision: 'REJECTED', reason: 'Incompleto' }),
     ]);
     expect([a.status, b.status].sort()).toEqual([201, 409]);

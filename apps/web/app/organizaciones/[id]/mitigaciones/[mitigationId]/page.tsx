@@ -7,7 +7,7 @@ import { ApiError, api } from '../../../../../lib/api';
 import { useWorkspace } from '../../../../../lib/workspace';
 import { Alert, Breadcrumb, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../../lib/ui';
 import { ErrorDetails } from '../../../../../lib/deliveries';
-import { MIT_TONE } from '../../../../../lib/risk';
+import { MIT_TONE, OUTCOME_TONE } from '../../../../../lib/risk';
 
 interface Mitigation {
   id: string; status: string; status_label: string; row_version: number;
@@ -15,9 +15,11 @@ interface Mitigation {
   title: string; acceptance_criteria: string; evidence_required: string; due_date: string; overdue: boolean; assignee: { name: string }; created_by: string;
   supports: Array<{ id: string; submission_number: number; kind: string; title: string | null; version_number: number | null; availability: string | null; expired: boolean | null; newer_version_exists: boolean | null; claim_type: string | null; added_by: string }>;
   submissions: Array<{ number: number; note: string; at: string; executor: string }>;
-  decisions: Array<{ submission_number: number; decision: string; reason: string; at: string; verifier: string }>;
+  decisions: Array<{ submission_number: number; decision: string; reason: string; at: string; verifier: string; criterion_met: boolean | null }>;
+  corrections: Array<{ submission_number: number; support_accepted: boolean; reason: string; at: string; corrected_by: string }>;
+  outcome: { support: { status: string; label: string }; action: { status: string; label: string }; cause: { status: string; label: string }; warning: string | null };
   reevaluation: { status: string; evaluation_id?: string; evaluation_number?: number; note: string } | null; requires_review: string[]; note: string;
-  actions: { add_support: boolean; submit: boolean; decide: boolean };
+  actions: { add_support: boolean; submit: boolean; decide: boolean; correct: boolean };
 }
 interface Candidate { document_id: string; title: string; versions: Array<{ id: string; version_number: number; availability: string }> }
 
@@ -31,7 +33,7 @@ export default function MitigationDetailPage() {
   const [error, setError] = useState<ApiError | null>(null);
   const [actionError, setActionError] = useState<ApiError | null>(null);
   const [op, setOp] = useState(() => crypto.randomUUID());
-  const [f, setF] = useState({ version: '', note: '', reason: '' });
+  const [f, setF] = useState({ version: '', note: '', reason: '', criterion: false, supportOk: true });
   const base = `/api/v1/organizations/${orgId}/mitigations/${mitigationId}`;
   const load = useCallback(async () => {
     if (!orgId || !ws.can('mitigation:read')) return;
@@ -50,15 +52,24 @@ export default function MitigationDetailPage() {
   if (!m) return <Loading label="Cargando mitigación…" />;
   async function run(path: string, body: Record<string, unknown>) {
     setActionError(null);
-    try { const r = await api<{ mitigation: Mitigation }>(`${base}${path}`, { method: 'POST', body: { operation_id: op, ...body } }); setM(r.mitigation); setOp(crypto.randomUUID()); setF({ version: '', note: '', reason: '' }); } catch (err) { setActionError(err as ApiError); }
+    try { const r = await api<{ mitigation: Mitigation }>(`${base}${path}`, { method: 'POST', body: { operation_id: op, ...body } }); setM(r.mitigation); setOp(crypto.randomUUID()); setF({ version: '', note: '', reason: '', criterion: false, supportOk: true }); } catch (err) { setActionError(err as ApiError); }
   }
-  const decide = (decision: string) => (e?: FormEvent) => { e?.preventDefault(); void run('/decisions', { expected_version: m.row_version, decision, reason: f.reason }); };
+  const decide = (decision: string) => (e?: FormEvent) => { e?.preventDefault(); void run('/decisions', { expected_version: m.row_version, decision, reason: f.reason, ...(decision === 'VERIFIED' ? { criterion_met: f.criterion } : {}) }); };
   return (
     <>
       <Breadcrumb items={[...crumbs, { label: m.title }]} />
       <PageHeader title={m.title} meta={<StatusBadge tone={MIT_TONE[m.status]}>{m.status_label}</StatusBadge>} />
       <Alert tone="info">{m.note}</Alert>
       {m.requires_review.length > 0 && <Alert tone="review" title="Requiere revisión"><ul>{m.requires_review.map((r, i) => <li key={i}>{r}</li>)}</ul></Alert>}
+      <section className="card" aria-labelledby="mt-out">
+        <h2 id="mt-out">Resultado por dimensión</h2>
+        <dl className="props">
+          <dt>Soporte</dt><dd><StatusBadge tone={OUTCOME_TONE[m.outcome.support.status]}>{m.outcome.support.label}</StatusBadge></dd>
+          <dt>Acción (criterio)</dt><dd><StatusBadge tone={OUTCOME_TONE[m.outcome.action.status]}>{m.outcome.action.label}</StatusBadge></dd>
+          <dt>Causa</dt><dd><StatusBadge tone={OUTCOME_TONE[m.outcome.cause.status]}>{m.outcome.cause.label}</StatusBadge></dd>
+        </dl>
+        {m.outcome.warning && <Alert tone="review" title="Revisa la verificación">{m.outcome.warning}</Alert>}
+      </section>
       <section className="card" aria-labelledby="mt-case">
         <h2 id="mt-case">Caso y acción</h2>
         <dl className="props">
@@ -98,13 +109,23 @@ export default function MitigationDetailPage() {
         <h2 id="mt-rev">Revisión</h2>
         <ol className="plain" aria-label="Historia de la mitigación">
           {m.submissions.map((s) => <li key={`s${s.number}`}>Entrega {s.number} por {s.executor}: {s.note}</li>)}
-          {m.decisions.map((d) => <li key={`d${d.submission_number}`}>{d.decision === 'VERIFIED' ? 'Verificada' : 'Rechazada'} (entrega {d.submission_number}) por {d.verifier}: {d.reason}</li>)}
+          {m.decisions.map((d) => <li key={`d${d.submission_number}`}>{d.decision === 'VERIFIED' ? 'Verificada' : 'Rechazada'} (entrega {d.submission_number}) por {d.verifier}: {d.reason}{d.decision === 'VERIFIED' ? (d.criterion_met === true ? ' · criterio declarado cumplido' : ' · criterio no registrado') : ''}</li>)}
+          {m.corrections.map((c) => <li key={`c${c.submission_number}`}>Verificación corregida (entrega {c.submission_number}) por {c.corrected_by}: {c.reason} · soporte {c.support_accepted ? 'aceptado' : 'no aceptado'} · criterio no cumplido</li>)}
         </ol>
         {m.actions.decide && (
           <form className="form" onSubmit={decide('VERIFIED')}>
             <p className="field-help">Quien ejecutó la mitigación no puede verificarla ni rechazarla (docs/13; sin política de excepción).</p>
+            <label className="checkbox-row"><input type="checkbox" checked={f.criterion} onChange={(e) => setF({ ...f, criterion: e.target.checked })} /> Para verificar: confirmo que se cumple el criterio de aceptación («{m.acceptance_criteria}»), no solo que el soporte es aceptable.</label>
             <label htmlFor="mt-reason">Motivo de la decisión</label><input id="mt-reason" required minLength={3} maxLength={1000} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} />
             <div className="actions"><button type="submit">Verificar</button><button type="button" className="secondary" onClick={() => decide('REJECTED')()}>Rechazar</button></div>
+          </form>
+        )}
+        {m.actions.correct && (
+          <form className="form" aria-label="Corregir verificación" onSubmit={(e) => { e.preventDefault(); void run('/corrections', { expected_version: m.row_version, support_accepted: f.supportOk, reason: f.reason }); }}>
+            <p className="field-help">Si el criterio de aceptación no se cumple, corrige la verificación: la decisión original se conserva, la acción se reabre para una nueva entrega y se reevalúa el riesgo. Quien ejecutó no corrige.</p>
+            <label className="checkbox-row"><input type="checkbox" checked={f.supportOk} onChange={(e) => setF({ ...f, supportOk: e.target.checked })} /> El soporte aportado sigue aceptado como soporte</label>
+            <label htmlFor="mt-corr">Motivo de la corrección</label><input id="mt-corr" required minLength={10} maxLength={1000} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} />
+            <div className="actions"><button type="submit" className="secondary">Corregir verificación: criterio no cumplido</button></div>
           </form>
         )}
         {actionError && <><ErrorPanel error={actionError} /><ErrorDetails details={actionError.body.details} /></>}

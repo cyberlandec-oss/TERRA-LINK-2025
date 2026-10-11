@@ -110,6 +110,8 @@ describeDb('P0-022 expediente: guards, instantánea consistente, revisión, expo
     expect(pkg).toMatchObject({ kind: 'INTERNAL_REVIEW', submission: { status: 'NOT_SUBMITTED' }, readiness: 'BLOCKED' });
     expect(pkg.disclaimer).toMatch(/no es presentar una DDS/);
     expect(pkg.content.plots[0].geometry).toMatchObject({ type: 'Point' });
+    expect(pkg).toMatchObject({ artifact: { kind: 'INTERNAL_REVIEW', is_final_package: false, is_official_submission: false }, attachments: { included: false } });
+    expect(pkg.pending.map((x: { code: string }) => x.code)).toEqual(['ATTACHMENT_FILES_NOT_INCLUDED', 'DESTINATION_PROFILE_FIELDS']);
     // Cambio relevante: nueva evaluación de riesgo.
     await http().post(`${base(orgA)}/risk/lots/${lot}/evaluations`).set(as(E1)).send({ operation_id: randomUUID() }).expect(201);
     const after = (await http().get(`${base(orgA)}/dd-snapshots/${s.id}`).set(as(E1)).expect(200)).body;

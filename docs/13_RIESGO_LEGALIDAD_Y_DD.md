@@ -92,3 +92,13 @@ Mitigación = acción (evaluación, factor, lote, criterio, evidencia requerida,
 ## Implementación P0-022 (2026-10-10)
 
 Mapeo del ciclo propuesto a estados reales: expediente por lote → instantáneas inmutables con readiness `BLOCKED` / `IN_PROGRESS` / `READY` (y `STALE` calculado al comparar con los datos actuales) → revisión `OPEN` / `UNDER_REVIEW` / `RETURNED` / `APPROVED` → exportaciones `INTERNAL_REVIEW` (borrador) o `DD_PACKAGE` (exige aprobación vigente). Presentación oficial: siempre `NOT_SUBMITTED` (no implementada). Requisitos dependientes de perfil jurídico, D-05, satélite, catálogo aprobado o embarques quedan NO EVALUABLES y bloquean READY; no se inventó perfil ni se rebajaron requisitos.
+
+## Revisión P0-021 (2026-10-10): soporte, acción y causa
+
+Verificar exige declarar que se cumple el criterio de aceptación (`criterion_met`). La vista separa: soporte aceptado ·
+acción ejecutada (criterio) · causa (resultado del factor en la última evaluación). Si una acción verificada conserva la
+causa, se avisa y un verificador distinto del ejecutor puede **corregir** la verificación: la decisión original se
+conserva, la acción queda `REOPENED` para otra entrega y se encola una reevaluación. La evaluación registra quién la
+desencadenó, que la ejecutó el worker de reevaluación y si hubo revisión humana. P0-022: el paquete final se bloquea si
+exigiría redactar contenido por alcance (`EXPORT_SCOPE_INSUFFICIENT`); todo paquete declara como pendientes la inclusión
+de archivos y los campos del perfil destino.
