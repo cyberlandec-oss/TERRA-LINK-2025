@@ -147,3 +147,14 @@ y `adb logcat -s ReactNativeJS:V` (línea `TL_SELFTEST`). Evidencia: `docs/qa/EV
   `gradlew assembleRelease -PreactNativeArchitectures=x86_64` (identificador `ec.agtech.terralink.campo.pruebanegativa`).
 - Orientación: `node e2e/review/orientacion-visual.mjs` (requiere `npm run build -w apps/api`).
 - Bloqueo 2026-10-11: 2,73 GB libres en C:; reiniciar Windows y medir antes de compilar (guardia de 4 GB).
+
+### Vista previa web de la app móvil (2026-10-11)
+
+- `npm run web:preview --prefix apps/mobile` → `http://localhost:3001` (Metro en modo web; con `CI=1` no recarga en
+  caliente: reiniciar tras cambios). Servidor SIMULADO en el navegador; no contacta la API; datos sintéticos.
+- Revisión: `node e2e/review/movil-web-preview.mjs` (Playwright; 390 px y escritorio) → `docs/qa/movil-web/revision.json`.
+- La web principal sigue en 3000 y la API en 4000.
+- Build Android desde Git Bash: definir `JAVA_HOME` (JDK 17 del perfil) y ejecutar `'.\gradlew.bat'` directamente bajo
+  la guardia (no `cmd /c`, que Git Bash reescribe).
+- Relleno de almacenamiento en emulador: solo con el paso `almacenamientoLleno` (exige ≥ 12 GB libres en C:, tramos de
+  ≤ 1 GB, aborta bajo 10 GB).

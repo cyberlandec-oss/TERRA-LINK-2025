@@ -46,10 +46,12 @@ export interface SecretStore {
 /**
  * Entorno de ejecución:
  * - EXPO_GO_SYNTHETIC: Expo Go, sin SQLCipher. Solo para pruebas limitadas con datos SINTÉTICOS (organizaciones DEMO).
+ * - WEB_PREVIEW_SYNTHETIC: vista previa web en el navegador (diseño y navegación), base en memoria sin cifrado, servidor
+ *   SIMULADO y fixtures sintéticas. No admite datos reales ni contacta la API.
  * - NATIVE_BUILD: build nativo destinado al ensayo de aceptación. Exige cifrado: si no se inicializa, no se descarga ni
  *   se escribe el dataset protegido (no se continúa en silencio con SQLite sin cifrar).
  */
-export type RuntimeEnvironment = 'EXPO_GO_SYNTHETIC' | 'NATIVE_BUILD';
+export type RuntimeEnvironment = 'EXPO_GO_SYNTHETIC' | 'WEB_PREVIEW_SYNTHETIC' | 'NATIVE_BUILD';
 
 export interface Platform {
   environment: RuntimeEnvironment;
@@ -70,6 +72,11 @@ export function isStorageFull(err: unknown): boolean {
   if (err instanceof StorageFullError) return true;
   const e = err as { code?: string; message?: string };
   return e?.code === 'ENOSPC' || /ENOSPC|No space left|SQLITE_FULL|database or disk is full|insufficient storage/i.test(e?.message ?? '');
+}
+
+/** Texto para el usuario ante almacenamiento lleno: nunca el mensaje técnico de la plataforma (p. ej. de SQLite, en inglés). */
+export function storageFullMessage(err: unknown): string {
+  return err instanceof StorageFullError ? err.message : 'No hay espacio libre en el dispositivo para guardar este cambio. Lo ya guardado se conserva: libera espacio y vuelve a intentarlo.';
 }
 
 /** El build de aceptación no pudo inicializar el cifrado de la base: no se abre el almacén protegido. */

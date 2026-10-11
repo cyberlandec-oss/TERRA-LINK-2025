@@ -1,6 +1,7 @@
 import type { Platform } from '../core/ports';
 import { accountKey, captureGate, jwtExpiry, type StoredSession } from '../core/session';
 import { LocalStore } from '../core/store';
+import { SERVER_URL_HELP, validateServerUrl } from '../core/server-url';
 import { syncOnce, type SyncSummary } from '../core/sync';
 import { httpTransport, type Uploader } from './transport';
 
@@ -51,6 +52,9 @@ export class SessionManager {
   async token() { return this.p.secrets.get(K.token); }
 
   async login(apiUrl: string, email: string, password: string): Promise<StoredSession> {
+    const checked = validateServerUrl(apiUrl);
+    if (!checked.ok) throw new ApiFailure('HTTP', null, SERVER_URL_HELP, 'SERVER_URL_INVALID'); // nunca se usa ni se guarda
+    apiUrl = checked.url;
     const t = await http<{ access_token: string }>(this.fetchImpl, apiUrl, '/api/v1/auth/login', { method: 'POST', body: { email, password } });
     const me = await http<{ id: string; email: string }>(this.fetchImpl, apiUrl, '/api/v1/me', { token: t.access_token });
     const perms = await http<{ organizations: Array<{ organization_id: string; organization_status: string; roles: string[]; permissions: string[] }> }>(this.fetchImpl, apiUrl, '/api/v1/me/permissions', { token: t.access_token });
@@ -95,6 +99,9 @@ export class SessionManager {
   /** Expo Go no cifra la base: solo se admiten organizaciones DEMO (datos sintéticos). */
   private assertDataAllowed(s: StoredSession, orgId: string) {
     const org = s.organizations.find((o) => o.organization_id === orgId);
+    if (this.p.environment === 'WEB_PREVIEW_SYNTHETIC' && !org?.name.startsWith('VISTA PREVIA')) {
+      throw new ApiFailure('HTTP', 403, 'La vista previa web solo trabaja con el servidor simulado y datos sintéticos.', 'SYNTHETIC_ONLY');
+    }
     if (this.p.environment === 'EXPO_GO_SYNTHETIC' && !org?.name.startsWith('DEMO')) {
       throw new ApiFailure('HTTP', 403, 'Expo Go es un entorno de prueba SIN cifrado: solo admite organizaciones DEMO con datos sintéticos. Usa el build nativo de aceptación para datos reales.', 'SYNTHETIC_ONLY');
     }

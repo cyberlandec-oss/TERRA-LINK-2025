@@ -55,7 +55,7 @@ captura `docs/qa/capturas/orientacion-fixtures.png`. El SHA-256 de la procesada 
 
 ## 5. Preparación del ensayo físico
 
-- APK existente: `apps/mobile/dist-apk/terra-link-campo-aceptacion-43f26c95.apk`, SHA-256
+- APK existente: `apps/mobile/dist-apk/NO-APTO-defecto-sqlcipher-transaccion-43f26c95.apk` (renombrado; NO instalar), SHA-256
   `43f26c95df008f232225f7bc350490034026ad114fc6a1279430fedf681d3219`, versión 0.1.0. **No apto**: contiene el defecto
   de transacción con SQLCipher descrito arriba. Hay que recompilar con la corrección (requiere espacio; tras reiniciar
   Windows y medir de nuevo).

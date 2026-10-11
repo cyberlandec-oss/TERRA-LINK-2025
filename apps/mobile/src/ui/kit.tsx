@@ -42,10 +42,11 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
 }
 export const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: T.ivory },
-  body: { padding: 16, paddingBottom: 112 }, // margen para la barra de navegación de Android (pantalla de borde a borde)
+  body: { padding: 16, paddingBottom: 112, width: '100%', maxWidth: 720, alignSelf: 'center' }, // columna legible en pantallas anchas // margen para la barra de navegación de Android (pantalla de borde a borde)
   header: { backgroundColor: T.forest, paddingTop: 44, paddingBottom: 12, paddingHorizontal: 16 },
   brand: { color: '#fff', fontSize: 18, fontWeight: '700', letterSpacing: 1 },
   sub: { color: '#dce3dd', fontSize: 14 },
+  previewBanner: { marginTop: 8, alignSelf: 'flex-start', backgroundColor: T.reviewBg, color: T.review, fontSize: 13, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }, // solo vista previa web
   h1: { fontSize: 24, fontWeight: '700', color: T.text, marginBottom: 12 },
   h2: { fontSize: 19, fontWeight: '700', color: T.text, marginBottom: 8 },
   h3: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
@@ -53,10 +54,10 @@ export const s = StyleSheet.create({
   muted: { fontSize: 15, color: T.text2, lineHeight: 21 },
   label: { fontSize: 15, fontWeight: '600', color: T.text, marginBottom: 4 },
   input: { minHeight: 48, borderWidth: 1, borderColor: T.border, borderRadius: 6, paddingHorizontal: 12, fontSize: 17, color: T.text, backgroundColor: T.surface },
-  btn: { minHeight: 48, borderRadius: 6, backgroundColor: T.forest, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16, marginVertical: 6 },
+  btn: { minHeight: 48, borderRadius: 6, backgroundColor: T.forest, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, marginVertical: 6 }, // aire si la etiqueta ocupa dos líneas
   btn2: { backgroundColor: T.surface, borderWidth: 1, borderColor: T.forest },
   btnOff: { opacity: 0.45 },
-  btnText: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  btnText: { color: '#fff', fontSize: 17, fontWeight: '600', textAlign: 'center' },
   badge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, fontSize: 14, fontWeight: '600', overflow: 'hidden', marginVertical: 2 },
   notice: { borderLeftWidth: 4, padding: 12, borderRadius: 6, marginBottom: 12 },
   card: { backgroundColor: T.surface, borderRadius: 10, borderWidth: 1, borderColor: T.subtle, padding: 16, marginBottom: 12 },

@@ -18,14 +18,14 @@ export function nodes() {
   return [...xml.matchAll(/<node [^>]*?>/g)].map((m) => {
     const a = (k) => decode((new RegExp(`${k}="([^"]*)"`).exec(m[0]) ?? [])[1] ?? '');
     const b = /bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/.exec(m[0]);
-    return { text: a('text'), desc: a('content-desc'), id: a('resource-id'), cls: a('class'), pkg: a('package'), bounds: b ? b.slice(1).map(Number) : [0, 0, 0, 0] };
+    return { text: a('text'), desc: a('content-desc'), id: a('resource-id'), cls: a('class'), pkg: a('package'), password: a('password') === 'true', bounds: b ? b.slice(1).map(Number) : [0, 0, 0, 0] };
   });
 }
 export const allText = () => nodes().map((n) => `${n.text} ${n.desc}`).join('\n');
 const matches = (n, re) => re.test(n.text) || re.test(n.desc) || re.test(n.id);
 export function find(re) { return nodes().filter((n) => matches(n, re) && n.bounds[2] > n.bounds[0]); }
 export function tapNode(n) { const [x1, y1, x2, y2] = n.bounds; adb('shell', 'input', 'tap', String(Math.round((x1 + x2) / 2)), String(Math.round((y1 + y2) / 2))); }
-export function scroll(dir = 'down') { adb('shell', 'input', 'swipe', '540', dir === 'down' ? '1650' : '650', '540', dir === 'down' ? '650' : '1650', '400'); }
+export function scroll(dir = 'down') { adb('shell', 'input', 'swipe', '540', dir === 'down' ? '1400' : '500', '540', dir === 'down' ? '500' : '1400', '400'); } // por encima de la barra de pestañas
 
 export async function waitFor(re, { timeout = 30000, scrollTo = false } = {}) {
   const t0 = Date.now();
@@ -57,3 +57,17 @@ export async function typeInto(re, value, { clear = true } = {}) {
 export function back() { adb('shell', 'input', 'keyevent', 'KEYCODE_BACK'); }
 export function hideKeyboard() { if (keyboardShown()) adb('shell', 'input', 'keyevent', 'KEYCODE_BACK'); }
 export function screenshot(path) { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, adbBin('exec-out', 'screencap', '-p')); }
+
+/**
+ * ¿Es seguro capturar la pantalla? No, si: hay un campo de contraseña visible, es la pantalla de inicio de sesión, o algún
+ * campo de texto tiene contenido (salvo los permitidos explícitamente, p. ej. una nota sintética). No depende de conocer
+ * las contraseñas.
+ */
+export function captureAllowed(allowFilled = []) {
+  const ns = nodes();
+  if (ns.some((n) => n.password)) return { ok: false, motivo: 'campo de contraseña visible' };
+  if (ns.some((n) => /^Contraseña$|Iniciar sesión/.test(n.text) && ns.some((e) => e.cls === 'android.widget.EditText'))) return { ok: false, motivo: 'pantalla de inicio de sesión' };
+  const filled = ns.filter((n) => n.cls === 'android.widget.EditText' && n.text && !allowFilled.some((re) => re.test(n.desc)));
+  if (filled.length) return { ok: false, motivo: 'campo de texto con contenido' };
+  return { ok: true };
+}

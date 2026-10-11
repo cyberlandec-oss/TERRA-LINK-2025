@@ -263,6 +263,19 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
 
+### Revisión 2026-10-11 (4) — intento 5 en emulador, vista previa web y prueba negativa
+
+| Punto | Estado | Evidencia |
+| --- | --- | --- |
+| Recorrido en emulador, intento 5 (APK `184cbfa8`) | Todos los pasos OK salvo almacenamiento lleno | `docs/qa/EVIDENCIA_EMULADOR_INTENTO5_2026-10-11.md` |
+| Almacenamiento lleno: error técnico de SQLite al crear borrador | **DEFECTO DE LA APP**, corregido en código; pendiente de APK nuevo | `storageFullMessage` + prueba unitaria |
+| APK `184cbfa8` | **NO APTO** (renombrado `NO-APTO-mensaje-almacenamiento-lleno-184cbfa8.apk`) | README móvil |
+| Vista previa web móvil (3001) | Funciona; 32/32 pasos en 390 px y escritorio; 3 defectos visuales corregidos | `docs/qa/REVISION_WEB_MOVIL_2026-10-11.md` |
+| Prueba negativa sin SQLCipher | EN CURSO | — |
+| Teléfono físico | NO EJECUTADO | — |
+
+P0-023 y P0-024 siguen ABIERTAS.
+
 ### Revisión 2026-10-11 (3) — recorrido en emulador, prueba negativa y orientación
 
 Móvil (separado de `npm run validate`): `validation-results/2026-10-11T17-08-34-732Z-movil` (typecheck, 25 pruebas de núcleo, recorrido contra la API, bundle Android, expo-doctor). API: solo cambió una prueba (`sync.int-spec.ts` 7/7, lint OK); la última `npm run validate` sigue siendo `validation-results/2026-10-11T07-46-54-839Z`. Evidencia: `docs/qa/EVIDENCIA_EMULADOR_Y_NEGATIVA_2026-10-11.md`.

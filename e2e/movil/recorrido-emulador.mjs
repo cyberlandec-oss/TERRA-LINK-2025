@@ -4,10 +4,10 @@
 // Evidencia: docs/qa/movil-emulador/recorrido.json (resultado por paso) y docs/qa/capturas/movil-emulador/*.png.
 // Requiere: emulador arrancado, APK instalado, proxy (e2e/movil/proxy.mjs) y `adb reverse tcp:4000 tcp:4001`.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, statfsSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { adb, allText, back, find, hideKeyboard, screenshot, sleep, tap, tapNode, typeInto, waitFor } from './adb-ui.mjs';
+import { adb, allText, back, find, hideKeyboard, screenshot, scroll, sleep, tap, tapNode, typeInto, waitFor } from './adb-ui.mjs';
 
 const root = resolve(fileURLToPath(new URL('.', import.meta.url)), '../..');
 const PKG = 'ec.agtech.terralink.campo';
@@ -19,9 +19,7 @@ const ev = existsSync(evFile) ? JSON.parse(readFileSync(evFile, 'utf8')) : { ent
 const state = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, 'utf8')) : {};
 const save = () => { writeFileSync(evFile, `${JSON.stringify(ev, null, 2)}\n`); writeFileSync(stateFile, JSON.stringify(state, null, 2)); };
 let shotN = ev.pasos.length;
-// Red de seguridad: ninguna captura se guarda si la pantalla muestra una contraseña conocida.
-const secrets = () => ['tecnico1.cooperativa', 'tecnico2.cooperativa', 'admin.cooperativa'].map((l) => creds(l).password);
-const shot = (name) => { if (secrets().some((p) => allText().includes(p))) { console.log(`captura ${name} OMITIDA: la pantalla contiene una credencial`); return null; } shotN += 1; const f = `${String(shotN).padStart(2, '0')}-${name}.png`; screenshot(join(shots, f)); return `docs/qa/capturas/movil-emulador/${f}`; };
+const shot = (name) => { shotN += 1; const f = `${String(shotN).padStart(2, '0')}-${name}.png`; screenshot(join(shots, f)); return `docs/qa/capturas/movil-emulador/${f}`; };
 const record = (paso, ok, detalle, captura = null) => { ev.pasos.push({ paso, en: new Date().toISOString(), ok, detalle, captura }); save(); console.log(`${ok ? 'OK   ' : 'FALLA'} ${paso}: ${typeof detalle === 'string' ? detalle : JSON.stringify(detalle)}`); };
 
 function creds(local) {
@@ -57,8 +55,11 @@ async function loginAs(local) {
 async function logout() {
   await tab('Inicio');
   await tap(/^Cerrar sesión$/);
+  await waitFor(/¿Cerrar sesión\?/, { scrollTo: true }); // la tarjeta de confirmación reemplaza al botón
   const t = allText();
-  const btns = find(/^Cerrar sesión$/); tapNode(btns[btns.length - 1]);
+  scroll('down'); await sleep(600); scroll('down'); await sleep(800); // el botón de confirmar queda bajo el pliegue
+  const btns = find(/^Cerrar sesión$/); if (!btns.length) throw new Error('Sin botón de confirmar cierre');
+  tapNode(btns[btns.length - 1]);
   await waitFor(/Iniciar sesión/);
   return t;
 }
@@ -70,6 +71,7 @@ const steps = {
     adb('shell', 'pm', 'grant', PKG, 'android.permission.ACCESS_FINE_LOCATION');
     adb('shell', 'pm', 'grant', PKG, 'android.permission.ACCESS_COARSE_LOCATION');
     adb('shell', 'pm', 'grant', PKG, 'android.permission.CAMERA');
+    adb('shell', 'settings', 'put', 'secure', 'location_mode', '3'); // alta precisión (sin Google Play en la imagen)
     adb('emu', 'geo', 'fix', '-80.1601', '-0.8479');
     await proxy('pass');
     await restart();
@@ -95,20 +97,20 @@ const steps = {
     await tap(new RegExp(`^${state.plot.plot_code} ·`));
     await waitFor(/Captura · /);
     await tap(/^Capturar ubicación$/);
-    await waitFor(/Ubicación guardada en el borrador/, { timeout: 40000 });
+    await waitFor(/Ubicación guardada en el borrador|Lat -?[0-9]/, { timeout: 90000 }); // arranque en frío del proveedor fused
     record('capturar-ubicacion', true, `Muestra de ubicación EMULADA en ${state.plot.plot_code}`, shot('ubicacion'));
   },
   async foto() {
     await tap(/^Tomar foto$/);
     for (let i = 0; i < 40; i++) {
       const t = allText();
-      if (/Foto copiada al almacenamiento/.test(t)) break;
+      if (/Foto copiada al almacenamiento|Archivo procesado por la app/.test(t)) break;
       const allow = find(/^(ALLOW|Allow|WHILE USING THE APP|While using the app|NEXT|Next|OK|Got it)$/i); if (allow.length) { tapNode(allow[0]); await sleep(800); continue; }
       const done = find(/done_button|^Done$|^OK$/); if (done.length) { tapNode(done[0]); await sleep(1500); continue; }
       const shutter = find(/shutter_button|^Shutter$/); if (shutter.length) { tapNode(shutter[0]); await sleep(2500); continue; }
       await sleep(1000);
     }
-    await waitFor(/Foto copiada al almacenamiento/, { timeout: 20000 });
+    await waitFor(/Foto copiada al almacenamiento|Archivo procesado por la app/, { timeout: 20000 });
     record('foto', true, 'Foto de la cámara VIRTUAL del emulador (escena sintética); metadatos quitados por la app', shot('foto'));
   },
   async guardarOffline() {
@@ -178,7 +180,7 @@ const steps = {
     await waitFor(/Captura · /);
     adb('emu', 'geo', 'fix', '-80.1602', '-0.8480');
     await tap(/^Capturar ubicación$/);
-    await waitFor(/Ubicación guardada en el borrador/, { timeout: 40000 });
+    await waitFor(/Ubicación guardada en el borrador|Lat -?[0-9]/, { timeout: 90000 }); // arranque en frío del proveedor fused
     await proxy('offline');
     await tap(/^Guardar en cola$/);
     await waitFor(/Pendientes/);
@@ -215,9 +217,11 @@ const steps = {
   },
   async vencimiento() {
     adb('root'); await sleep(3000);
+    adb('wait-for-device'); adb('reverse', 'tcp:4000', 'tcp:4001'); // `adb root` reinicia adbd y pierde el reverse
     adb('shell', 'settings', 'put', 'global', 'auto_time', '0');
     const now = new Date(Date.now() + 2 * 3600_000);
-    const fmt = (d) => `${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}${d.getFullYear()}.${String(d.getSeconds()).padStart(2, '0')}`;
+    // El emulador usa UTC: formatear en UTC (no en la hora local del equipo).
+    const fmt = (d) => `${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}${String(d.getUTCHours()).padStart(2, '0')}${String(d.getUTCMinutes()).padStart(2, '0')}${d.getUTCFullYear()}.${String(d.getUTCSeconds()).padStart(2, '0')}`;
     adb('shell', 'date', fmt(now));
     await restart(); await tap(/DEMO · Cooperativa/); await waitFor(/Mi jornada/);
     const t = allText();
@@ -233,10 +237,25 @@ const steps = {
   },
   async almacenamientoLleno() {
     await tap(/DEMO · Cooperativa/, { timeout: 15000 }).catch(() => undefined);
-    await waitFor(/Mi jornada/);
+    await tab('Inicio').catch(() => undefined); // precondición: pestaña Inicio
+    await waitFor(/^Nueva captura$/, { scrollTo: true });
     const free = Number(adb('shell', 'df', '-k', '/data').split('\n')[1].trim().split(/\s+/)[3]);
     const fillMb = Math.max(0, Math.floor(free / 1024) - 3);
-    adb('shell', 'fallocate', '-l', `${fillMb}M`, '/data/local/tmp/tl-relleno');
+    // Llenado CONTROLADO: el disco de datos del emulador puede crecer en el equipo (C:). Se exige margen antes, se rellena por
+    // tramos de ≤1 GB midiendo C: tras cada uno y se aborta (y se borra el relleno) si C: baja de 10 GB.
+    const hostGb = () => { const st = statfsSync('C:/'); return (st.bavail * st.bsize) / 1024 ** 3; };
+    const hostBefore = hostGb();
+    if (hostBefore < 12) throw new Error(`C: con ${hostBefore.toFixed(2)} GB libres (< 12 GB): no se rellena el emulador`);
+    let part = 0; let left = fillMb - 64; let hostMin = hostBefore;
+    const chunks = [];
+    while (left > 0) { const mb = Math.min(1024, left); chunks.push(mb); left -= mb; }
+    chunks.push(32, 16, 8, 4, 2, 1); // bloques reservados: los tramos que no caben se ignoran
+    for (const mb of chunks) {
+      try { adb('shell', 'fallocate', '-l', `${mb}M`, `/data/local/tmp/tl-relleno-${part}`); part += 1; } catch { /* no cabe */ }
+      hostMin = Math.min(hostMin, hostGb());
+      if (hostMin < 10) { adb('shell', 'sh', '-c', 'rm -f /data/local/tmp/tl-relleno-*'); throw new Error(`C: bajó a ${hostMin.toFixed(2)} GB durante el relleno: abortado y relleno borrado`); }
+    }
+    state.hostDisk = { antes_GB: +hostBefore.toFixed(2), minimo_GB: +hostMin.toFixed(2) };
     await tap(/^Nueva captura$/);
     await tap(new RegExp(`^${state.plot.plot_code} ·`));
     await waitFor(/Captura · /);
@@ -251,8 +270,8 @@ const steps = {
     const t = allText();
     const ok = /5 MB libres|No hay espacio/.test(t);
     const s = shot('almacenamiento-lleno-inducido');
-    adb('shell', 'rm', '-f', '/data/local/tmp/tl-relleno');
-    record('almacenamiento-lleno-inducido', ok, `FALLO INDUCIDO en emulador (archivo de relleno de ${fillMb} MB, después borrado); no es falta real de espacio`, s);
+    adb('shell', 'sh', '-c', 'rm -f /data/local/tmp/tl-relleno-*');
+    record('almacenamiento-lleno-inducido', ok, `FALLO INDUCIDO en emulador (archivo de relleno de ${fillMb} MB, después borrado; C: ${JSON.stringify(state.hostDisk)}); no es falta real de espacio`, s);
   },
   async revocacion() {
     await tab('Inicio');

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { LocalStore, type DatasetPlot } from '../store';
 import { accountKey, captureGate, CaptureBlockedError, type StoredSession } from '../session';
-import { EncryptionRequiredError, isStorageFull } from '../ports';
+import { EncryptionRequiredError, isStorageFull, storageFullMessage, StorageFullError } from '../ports';
 import { nodePlatform, syntheticJpeg } from './node-platform';
 
 // Evidencia en Node (motor SQLite real + archivos reales). NO es evidencia de emulador ni de dispositivo Android.
@@ -221,5 +221,15 @@ describe('P0-023 sesión: vence con el token del servidor; bloquear no borra', (
     expect(await store.drafts()).toHaveLength(2);
     await store.close();
     rmSync(root, { recursive: true, force: true });
+  });
+});
+
+describe('almacenamiento lleno: mensaje al usuario', () => {
+  it('traduce el error técnico de SQLite y conserva el mensaje propio de la app', () => {
+    const raw = new Error("Call to function 'NativeStatement.finalizeAsync' has been rejected. Caused by: Error code 13: database or disk is full");
+    expect(isStorageFull(raw)).toBe(true);
+    expect(storageFullMessage(raw)).toMatch(/^No hay espacio libre en el dispositivo/);
+    expect(storageFullMessage(raw)).not.toMatch(/database|finalizeAsync/);
+    expect(storageFullMessage(new StorageFullError('propio'))).toBe('propio');
   });
 });

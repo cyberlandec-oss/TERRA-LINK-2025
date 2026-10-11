@@ -3,24 +3,34 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { runSelfTest, type SelfTestCase } from '../adapters/selftest';
 import { appVariant, cleanupCacheTemps, encryptionStatus, expoPlatform, expoUploader, probeEncryption, protectedStorageInventory, runtimeEnvironment, writeCacheFile } from '../adapters/expo';
+import { apiFetch, expirePreviewSession, isWebPreview, PREVIEW_DOMAIN, previewState, resetPreview, setPreviewScenario, setPreviewStorageFull, type PreviewScenario } from '../adapters/preview';
 import { fixtureJpeg, fixtureLocation } from '../core/fixtures';
 import { ApiFailure, SessionManager } from '../app/session-manager';
-import { EncryptionRequiredError, isStorageFull } from '../core/ports';
+import { EncryptionRequiredError, isStorageFull, storageFullMessage } from '../core/ports';
 import type { SyncSummary } from '../core/sync';
 import type { StoredSession } from '../core/session';
+import { SERVER_URL_HELP, validateServerUrl } from '../core/server-url';
 import type { DatasetPlot, DraftView, LocalStore, RecoveryReport } from '../core/store';
 import { Badge, Button, Card, Field, Notice, T, s } from './kit';
 
 // Pantallas P0-023 (UX_UI §21): inicio de sesión online → organización → preparación (datos asignados) → captura
 // (ubicación, foto, nota) → pendientes (sincronización P0-024) → diagnóstico.
-const sessions = new SessionManager(expoPlatform);
-const DEFAULT_API = process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.1.10:4000';
+// En la vista previa web, `apiFetch` es el servidor SIMULADO del navegador; en Android es undefined (API real).
+const sessions = new SessionManager(expoPlatform, apiFetch);
+/** Entorno sin cifrado y solo con fixtures sintéticas (Expo Go o vista previa web): ni cámara ni ubicación reales. */
+const synthetic = runtimeEnvironment === 'EXPO_GO_SYNTHETIC' || runtimeEnvironment === 'WEB_PREVIEW_SYNTHETIC';
+const SERVER = isWebPreview ? 'servidor SIMULADO' : 'servidor';
+const SYNTH_TITLE = isWebPreview ? 'Vista previa web: datos sintéticos' : 'Entorno de prueba sin cifrado';
+const reloadPage = () => { (globalThis as { location?: { reload(): void } }).location?.reload(); };
+const DEFAULT_API = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000';
 type Tab = 'home' | 'capture' | 'pending' | 'diag';
 
-const fmt = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString('es-EC') : '—');
-const msg = (e: unknown) => (isStorageFull(e) ? (e as Error).message : e instanceof ApiFailure ? e.message : e instanceof Error ? e.message : 'Error inesperado.');
+// Formato fijo de 24 h: «p. m.» seguido del punto de la frase producía «p. m..» y variaba según el motor JS.
+const fmt = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }) : '—');
+const msg = (e: unknown) => (isStorageFull(e) ? storageFullMessage(e) : e instanceof ApiFailure ? e.message : e instanceof Error ? e.message : 'Error inesperado.');
 
 export function Root() {
   const [boot, setBoot] = useState(true);
@@ -29,6 +39,7 @@ export function Root() {
   const [store, setStore] = useState<LocalStore | null>(null);
   const [recovery, setRecovery] = useState<RecoveryReport | null>(null);
   const [tab, setTab] = useState<Tab>('home');
+  const insets = useSafeAreaInsets(); // pantalla de borde a borde: las pestañas no quedan bajo la barra de navegación
   const [openDraft, setOpenDraft] = useState<string | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
   const [selfTest, setSelfTest] = useState(false);
@@ -74,7 +85,7 @@ export function Root() {
         {tab === 'pending' && <Pending store={store} onOpen={(d) => { setOpenDraft(d); setTab('capture'); }} />}
         {tab === 'diag' && <Diagnostics session={session} orgId={orgId} store={store} recovery={recovery} />}
       </ScrollView>
-      <View style={s.tabs} accessibilityRole="tablist">
+      <View style={[s.tabs, { paddingBottom: insets.bottom }]} accessibilityRole="tablist">
         {([['home', 'Inicio'], ['capture', 'Captura'], ['pending', 'Pendientes'], ['diag', 'Diagnóstico']] as const).map(([k, l]) => (
           <Pressable key={k} accessibilityRole="tab" accessibilityState={{ selected: tab === k }} accessibilityLabel={l} style={[s.tab, tab === k && { borderTopWidth: 3, borderColor: T.forest }]} onPress={() => setTab(k)}>
             <Text style={[s.tabText, tab === k && { color: T.forest }]}>{l}</Text>
@@ -86,19 +97,26 @@ export function Root() {
 }
 
 function Header({ sub }: { sub: string }) {
+  const insets = useSafeAreaInsets();
   if (appVariant === 'PRUEBA_NEGATIVA_SIN_SQLCIPHER') sub = `PRUEBA NEGATIVA · ${sub}`;
-  return <View style={s.header}><Text accessibilityRole="header" accessibilityLabel="Terra Link" style={s.brand}>TERRA LINK</Text><Text style={s.sub}>{sub}</Text></View>;
+  return (
+    <View style={[s.header, { paddingTop: Math.max(insets.top + 8, 24) }]}>
+      <Text accessibilityRole="header" accessibilityLabel="Terra Link" style={s.brand}>TERRA LINK</Text><Text style={s.sub}>{sub}</Text>
+      {isWebPreview && <Text style={s.previewBanner}>Vista previa web de la aplicación móvil · servidor SIMULADO · datos sintéticos · sin cifrado</Text>}
+    </View>
+  );
 }
 
 function Login({ onDone }: { onDone: (x: StoredSession) => void }) {
   const [api, setApi] = useState(DEFAULT_API);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(isWebPreview ? `tecnico@${PREVIEW_DOMAIN}` : '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => { void sessions.apiUrl(DEFAULT_API).then(setApi); }, []);
   const go = async () => {
     setBusy(true); setError(null);
+    if (!validateServerUrl(api).ok) { setError(SERVER_URL_HELP); setBusy(false); return; }
     try { onDone(await sessions.login(api.trim(), email.trim(), password)); setPassword(''); } catch (e) { setError(msg(e)); } finally { setBusy(false); }
   };
   return (
@@ -106,9 +124,11 @@ function Login({ onDone }: { onDone: (x: StoredSession) => void }) {
       <Header sub="Captura de campo" />
       <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
         <Text accessibilityRole="header" style={s.h1}>Iniciar sesión</Text>
+        {isWebPreview && <Notice tone="review" title={SYNTH_TITLE}>Esta vista no contacta la API de Terra Link: el servidor está simulado en el navegador. Usa una cuenta sintética @{PREVIEW_DOMAIN} y cualquier contraseña (no se guarda ni se envía). Sirve para revisar diseño y navegación; no prueba cifrado, cámara, ubicación ni Android.</Notice>}
         {runtimeEnvironment === 'EXPO_GO_SYNTHETIC' && <Notice tone="review" title="Entorno de prueba sin cifrado">Expo Go no cifra la base local: solo admite fixtures sintéticos (no usa cámara ni ubicación reales) en organizaciones DEMO. Pertenecer a una organización DEMO no vuelve sintética una captura real. El ensayo real se hace con el build nativo cifrado.</Notice>}
         <Notice tone="process" title="Requiere conexión">El inicio de sesión solo funciona con conexión. Podrás capturar sin red mientras siga vigente la sesión emitida por el servidor; al vencer, lo guardado se conserva y para seguir hay que iniciar sesión.</Notice>
-        <Field label="Servidor (URL de la API)" value={api} onChangeText={setApi} autoCapitalize="none" autoCorrect={false} keyboardType="url" />
+        {isWebPreview ? <Text style={s.muted}>Servidor: SIMULADO en el navegador (sin conexión con la API).</Text>
+          : <Field label="Servidor (URL de la API)" value={api} onChangeText={setApi} autoCapitalize="none" autoCorrect={false} keyboardType="url" />}
         <Field label="Correo" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" />
         <Field label="Contraseña" value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" />
         {error && <Notice tone="blocked" title="No se pudo iniciar sesión">{error}</Notice>}
@@ -146,7 +166,7 @@ function Home({ session, orgId, store, recovery, onCapture, onSwitch, onLogout }
   useEffect(() => { void load(); }, [load]);
   const download = async () => {
     setNote(null);
-    try { const n = await sessions.downloadDataset(session, orgId, store, expoUploader); setNote({ tone: 'valid', text: `${n} parcela(s) autorizadas descargadas.` }); await load(); } catch (e) { setNote({ tone: 'blocked', text: msg(e) }); }
+    try { const n = await sessions.downloadDataset(session, orgId, store, expoUploader); setNote({ tone: 'valid', text: `${n} parcela(s) autorizadas descargadas${isWebPreview ? ' (sintéticas, del servidor SIMULADO)' : ''}.` }); await load(); } catch (e) { setNote({ tone: 'blocked', text: msg(e) }); }
   };
   const pending = (counts?.drafts ?? 0) + (counts?.queued ?? 0);
   const sync = async () => {
@@ -156,7 +176,7 @@ function Home({ session, orgId, store, recovery, onCapture, onSwitch, onLogout }
   return (
     <>
       <Text accessibilityRole="header" style={s.h1}>Mi jornada</Text>
-      {runtimeEnvironment === 'EXPO_GO_SYNTHETIC' && <Notice tone="review" title="Entorno de prueba sin cifrado">Solo fixtures sintéticos: ni cámara ni ubicación reales.</Notice>}
+      {synthetic && <Notice tone="review" title={SYNTH_TITLE}>Solo fixtures sintéticos: ni cámara ni ubicación reales.{isWebPreview ? ' Descarga y sincronización usan el servidor SIMULADO del navegador.' : ''}</Notice>}
       {gate.allowed ? <Notice tone="valid" title="Captura habilitada">{gate.note} Sesión vigente hasta {fmt(gate.until)}.</Notice>
         : <Notice tone="blocked" title="Captura bloqueada">{gate.note}</Notice>}
       {recovery && (recovery.recovered_operations.length > 0 || recovery.incomplete_temp_files.length > 0 || recovery.missing_files.length > 0) &&
@@ -171,8 +191,8 @@ function Home({ session, orgId, store, recovery, onCapture, onSwitch, onLogout }
         <Text style={s.p}>{counts?.drafts ?? 0} borrador(es) local(es) · {counts?.queued ?? 0} captura(s) en cola · {counts?.photos ?? 0} foto(s)</Text>
         <Text style={s.muted}>{counts?.pending_ops ?? 0} operación(es) pendiente(s) de envío · {counts?.conflicts ?? 0} conflicto(s) · {counts?.failed ?? 0} rechazada(s)</Text>
         <Button kind="secondary" label={syncing ? 'Sincronizando…' : 'Sincronizar ahora (requiere conexión y sesión vigente)'} disabled={syncing} onPress={() => void sync()} />
-        {summary && <Notice tone={summary.stopped ? 'review' : 'valid'} title={summary.stopped ? 'Sincronización detenida' : 'Sincronización terminada'}>
-          {`${summary.synced} confirmada(s) por el servidor · ${summary.conflicts} en conflicto · ${summary.failed} rechazada(s) · ${summary.still_pending} pendiente(s) · ${summary.uploads} foto(s) subida(s)${summary.upload_errors ? ` · ${summary.upload_errors} foto(s) sin subir` : ''}${summary.pulled ? ` · datos: ${summary.pulled.changes} cambio(s), ${summary.pulled.tombstones} retirada(s)` : ''}${summary.stopped ? `. ${summary.stopped.message}` : ''}`}
+        {summary && <Notice tone={summary.stopped ? 'review' : 'valid'} title={`${summary.stopped ? 'Sincronización detenida' : 'Sincronización terminada'}${isWebPreview ? ' (SIMULADA: nada se envió a Terra Link)' : ''}`}>
+          {`${summary.synced} confirmada(s) por el ${SERVER} · ${summary.conflicts} en conflicto · ${summary.failed} rechazada(s) · ${summary.still_pending} pendiente(s) · ${summary.uploads} foto(s) subida(s)${summary.upload_errors ? ` · ${summary.upload_errors} foto(s) sin subir` : ''}${summary.pulled ? ` · datos: ${summary.pulled.changes} cambio(s), ${summary.pulled.tombstones} retirada(s)` : ''}${summary.stopped ? `. ${summary.stopped.message}` : ''}`}
         </Notice>}
         <Button label="Nueva captura" disabled={!gate.allowed || plots === 0} onPress={() => onCapture(null)} hint={plots === 0 ? 'Primero descarga las parcelas asignadas' : undefined} />
       </Card>
@@ -216,7 +236,7 @@ function Capture({ session, orgId, store, draftId, onDraft, onQueued }: { sessio
   );
   if (!draft) return <Text style={s.muted}>Cargando borrador…</Text>;
   const editable = draft.status === 'DRAFT' && gate.allowed;
-  const testEnv = runtimeEnvironment === 'EXPO_GO_SYNTHETIC';
+  const testEnv = synthetic;
   // Entorno de prueba sin cifrado: solo fixtures (ni cámara ni ubicación reales).
   const fixtureLoc = () => act(() => store.setLocation(draft.id, fixtureLocation(new Date())), 'Ubicación de prueba (sintética) guardada.');
   const fixturePhoto = () => act(async () => {
@@ -228,7 +248,10 @@ function Capture({ session, orgId, store, draftId, onDraft, onQueued }: { sessio
     if (!perm.granted) throw new Error('Permiso de ubicación denegado. Puedes concederlo en los ajustes del sistema; el borrador, la nota y las fotos se conservan y puedes encolar sin ubicación.');
     if (!(await Location.hasServicesEnabledAsync())) throw new Error('Los servicios de ubicación del dispositivo están desactivados. Actívalos y vuelve a intentarlo; el borrador se conserva.');
     const status = await Location.getProviderStatusAsync().catch(() => null);
-    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }).catch((e: Error) => {
+      if (/unsatisfied device settings|services are disabled|location is unavailable|Location provider is unavailable/i.test(e.message)) throw new Error('No se pudo obtener la ubicación: activa la ubicación del dispositivo en modo de alta precisión y vuelve a intentarlo. El borrador se conserva.');
+      throw new Error('No se pudo obtener la ubicación del dispositivo. El borrador se conserva; vuelve a intentarlo.');
+    });
     await store.setLocation(draft.id, {
       latitude: loc.coords.latitude, longitude: loc.coords.longitude, accuracy_m: typeof loc.coords.accuracy === 'number' ? loc.coords.accuracy : null,
       acquired_at: new Date(loc.timestamp).toISOString(),
@@ -247,7 +270,7 @@ function Capture({ session, orgId, store, draftId, onDraft, onQueued }: { sessio
   return (
     <>
       <Text accessibilityRole="header" style={s.h1}>Captura · {draft.plot_code ?? 'parcela'}</Text>
-      {testEnv && <Notice tone="review" title="Entorno de prueba sin cifrado">Solo fixtures sintéticos: esta compilación no usa la cámara ni la ubicación reales. El ensayo real se hace con el build nativo cifrado.</Notice>}
+      {testEnv && <Notice tone="review" title={SYNTH_TITLE}>Solo fixtures sintéticos: esta compilación no usa la cámara ni la ubicación reales. El ensayo real se hace con el build nativo cifrado.</Notice>}
       <Badge tone={draft.status === 'DRAFT' ? 'neutral' : 'process'}>{draft.status === 'DRAFT' ? 'Borrador local' : 'En cola (pendiente de sincronización)'}</Badge>
       {!gate.allowed && <Notice tone="blocked">{gate.note}</Notice>}
       <Card title="Ubicación">
@@ -260,7 +283,7 @@ function Capture({ session, orgId, store, draftId, onDraft, onQueued }: { sessio
           </>
         ) : <Text style={s.muted}>Sin ubicación.</Text>}
         {editable && (testEnv
-          ? <Button kind="secondary" label="Usar ubicación de prueba (sintética)" hint="Expo Go no captura ubicación real" onPress={() => void fixtureLoc()} disabled={busy} />
+          ? <Button kind="secondary" label="Usar ubicación de prueba (sintética)" hint="Este entorno no captura ubicación real" onPress={() => void fixtureLoc()} disabled={busy} />
           : <Button kind="secondary" label={draft.location ? 'Volver a capturar ubicación' : 'Capturar ubicación'} onPress={() => void captureLocation()} disabled={busy} />)}
       </Card>
       <Card title="Fotos">
@@ -269,7 +292,7 @@ function Capture({ session, orgId, store, draftId, onDraft, onQueued }: { sessio
         ))}
         {draft.photos.length > 0 && <Text style={s.muted}>Archivo procesado por la app: sin metadatos embebidos (se conserva solo la orientación). El SHA-256 corresponde a este archivo, no al original de la cámara.</Text>}
         {editable && (testEnv
-          ? <Button kind="secondary" label="Usar foto de prueba (sintética)" hint="Expo Go no usa la cámara real" onPress={() => void fixturePhoto()} disabled={busy} />
+          ? <Button kind="secondary" label="Usar foto de prueba (sintética)" hint="Este entorno no usa la cámara real" onPress={() => void fixturePhoto()} disabled={busy} />
           : <Button kind="secondary" label="Tomar foto" onPress={() => void takePhoto()} disabled={busy} />)}
       </Card>
       <Card title="Nota">
@@ -279,15 +302,15 @@ function Capture({ session, orgId, store, draftId, onDraft, onQueued }: { sessio
       {info && <Notice tone="valid">{info}</Notice>}
       {editable && <Button label="Guardar en cola" disabled={busy} onPress={() => void act(async () => { await store.setNote(draft.id, note); await store.enqueue(draft.id); onQueued(); })}
         hint="Guarda la captura y sus operaciones juntas en el dispositivo; no la envía" />}
-      <Text style={s.muted}>«Guardar en cola» no envía nada: la sincronización llegará con P0-024.</Text>
+      <Text style={s.muted}>«Guardar en cola» guarda la captura en el dispositivo; se envía con «Sincronizar ahora» cuando haya conexión.</Text>
     </>
   );
 }
 
 const OP_STATE: Record<string, [string, 'neutral' | 'process' | 'valid' | 'review' | 'blocked']> = {
-  PENDING: ['Pendiente', 'process'], UPLOADING: ['Enviando', 'process'], SYNCED: ['Sincronizado (confirmado por el servidor)', 'valid'], FAILED: ['Rechazado', 'blocked'], CONFLICT: ['Conflicto', 'review'],
+  PENDING: ['Pendiente', 'process'], UPLOADING: ['Enviando', 'process'], SYNCED: [`Sincronizado (confirmado por el ${SERVER})`, 'valid'], FAILED: ['Rechazado', 'blocked'], CONFLICT: ['Conflicto', 'review'],
 };
-const PHOTO_STATE = (p: { upload_state: string; server_status: string | null }) => p.upload_state === 'LOCAL' ? 'archivo pendiente de subir' : p.server_status === 'AVAILABLE' ? 'archivo disponible en el servidor' : p.server_status === 'PENDING_SCAN' ? 'archivo recibido, análisis pendiente' : `archivo ${p.server_status ?? p.upload_state}`;
+const PHOTO_STATE = (p: { upload_state: string; server_status: string | null }) => p.upload_state === 'LOCAL' ? 'archivo pendiente de subir' : p.server_status === 'AVAILABLE' ? `archivo disponible en el ${SERVER}` : p.server_status === 'PENDING_SCAN' ? 'archivo recibido, análisis pendiente' : `archivo ${p.server_status ?? p.upload_state}`;
 
 function Pending({ store, onOpen }: { store: LocalStore; onOpen: (d: string) => void }) {
   const [drafts, setDrafts] = useState<DraftView[] | null>(null);
@@ -299,7 +322,7 @@ function Pending({ store, onOpen }: { store: LocalStore; onOpen: (d: string) => 
   return (
     <>
       <Text accessibilityRole="header" style={s.h1}>Pendientes</Text>
-      <Notice tone="process">Una operación solo sale de la cola cuando el servidor confirma su resultado. Registro y fotos tienen estados separados.</Notice>
+      <Notice tone="process">Una operación solo sale de la cola cuando el {SERVER} confirma su resultado. Registro y fotos tienen estados separados.</Notice>
       {error && <Notice tone="blocked">{error}</Notice>}
       {drafts.length === 0 && <Text style={s.muted}>No hay capturas en este dispositivo para esta cuenta y organización.</Text>}
       {drafts.map((d) => (
@@ -317,7 +340,7 @@ function Pending({ store, onOpen }: { store: LocalStore; onOpen: (d: string) => 
                 <Text style={s.muted}>{o.operation_type === 'PLOT_LOCATION_SAMPLE_CREATE' ? 'Muestra de ubicación' : 'Foto'} · {o.operation_id.slice(0, 8)}{o.recovered_count ? ` · recuperada ${o.recovered_count} vez/veces` : ''}{o.resolved_by ? ' · resuelta con otra operación' : ''}</Text>
                 {o.last_error && <Text style={s.muted}>{o.last_error}</Text>}
                 {o.state === 'CONFLICT' && !o.resolved_by && typeof serverVersion === 'number' && (
-                  <Button kind="secondary" label={`Reenviar sobre la versión actual del servidor (${serverVersion})`} hint="Crea una operación nueva; la original se conserva" onPress={() => void resolve(o.operation_id, serverVersion)} />
+                  <Button kind="secondary" label={`Reenviar sobre la versión actual del ${SERVER} (${serverVersion})`} hint="Crea una operación nueva; la original se conserva" onPress={() => void resolve(o.operation_id, serverVersion)} />
                 )}
               </View>
             );
@@ -335,7 +358,7 @@ function SelfTest() {
   if (!r) return <Text style={s.muted}>Ejecutando autoprueba…</Text>;
   return (
     <Card title={`Autoprueba: ${r.ok ? 'todo correcto' : 'hay fallos'}`}>
-      <Text style={s.muted}>Entorno: {r.environment === 'EXPO_GO_SYNTHETIC' ? 'Expo Go (sin cifrado: se esperan fallos de cifrado)' : 'build nativo'}. Base temporal propia; no toca datos de cuentas.</Text>
+      <Text style={s.muted}>Entorno: {r.environment === 'WEB_PREVIEW_SYNTHETIC' ? 'vista previa web (no aplica)' : r.environment === 'EXPO_GO_SYNTHETIC' ? 'Expo Go (sin cifrado: se esperan fallos de cifrado)' : 'build nativo'}. Base temporal propia; no toca datos de cuentas.</Text>
       {r.cases.map((c) => <View key={c.id} style={{ marginTop: 6 }}><Badge tone={c.ok ? 'valid' : 'blocked'}>{c.ok ? 'Correcto' : 'Falla'}</Badge><Text style={s.p}>{c.id}</Text><Text style={s.muted}>{c.detail}</Text></View>)}
     </Card>
   );
@@ -351,8 +374,8 @@ function Diagnostics({ session, orgId, store, recovery }: { session: StoredSessi
     <>
       <Text accessibilityRole="header" style={s.h1}>Diagnóstico</Text>
       <Card title="Protección local">
-        <Badge tone={enc === 'SQLCIPHER_ACTIVE' ? 'valid' : 'blocked'}>{enc === 'SQLCIPHER_ACTIVE' ? 'Base local cifrada (SQLCipher)' : 'Base local SIN cifrar: entorno de prueba (Expo Go), solo datos sintéticos'}</Badge>
-        <Text style={s.muted}>Entorno: {runtimeEnvironment === 'EXPO_GO_SYNTHETIC' ? 'Expo Go (prueba)' : 'build nativo (exige cifrado; sin cifrado no abre el almacén)'}. Las fotos se guardan dentro de la base, así que comparten su protección. Durante una subida existe una copia temporal en la caché.</Text>
+        <Badge tone={enc === 'SQLCIPHER_ACTIVE' ? 'valid' : 'blocked'}>{enc === 'SQLCIPHER_ACTIVE' ? 'Base local cifrada (SQLCipher)' : (isWebPreview ? 'Base local SIN cifrar: vista previa web (memoria del navegador), solo datos sintéticos' : 'Base local SIN cifrar: entorno de prueba (Expo Go), solo datos sintéticos')}</Badge>
+        <Text style={s.muted}>Entorno: {isWebPreview ? 'vista previa web (diseño y navegación; no es el almacenamiento del dispositivo)' : runtimeEnvironment === 'EXPO_GO_SYNTHETIC' ? 'Expo Go (prueba)' : 'build nativo (exige cifrado; sin cifrado no abre el almacén)'}. Las fotos se guardan dentro de la base, así que comparten su protección. Durante una subida existe una copia temporal en la caché.</Text>
         <Text style={s.muted}>Token y clave de base: almacenamiento seguro del sistema. Almacén: {store.key.slice(0, 8)}… (cuenta + organización).</Text>
       </Card>
       <Card title="Sesión">
@@ -361,6 +384,7 @@ function Diagnostics({ session, orgId, store, recovery }: { session: StoredSessi
         <Text style={s.p}>Captura: {gate.allowed ? 'permitida' : `bloqueada (${gate.note})`}</Text>
         <Text style={s.muted}>No hay autorización local más larga que la sesión (D-40 es una propuesta no aprobada). Sin conexión no se detectan revocaciones; al sincronizar el servidor revalida sesión, dispositivo, membresía y permisos.</Text>
       </Card>
+      {isWebPreview && <PreviewControls />}
       <SelfTestLauncher />
       <Card title="Dispositivo y almacenamiento">
         <Text style={s.p}>Identificador local del dispositivo: {device.slice(0, 8)}… (no autoriza nada)</Text>
@@ -374,4 +398,20 @@ function Diagnostics({ session, orgId, store, recovery }: { session: StoredSessi
 function SelfTestLauncher() {
   const [show, setShow] = useState(false);
   return show ? <SelfTest /> : <Button kind="secondary" label="Ejecutar autoprueba de seguridad (cifrado y temporales)" onPress={() => setShow(true)} />;
+}
+
+/** Solo vista previa web: escenarios del servidor SIMULADO para revisar estados de la interfaz. */
+function PreviewControls() {
+  const [st, setSt] = useState(previewState());
+  const pick = (x: PreviewScenario) => { setPreviewScenario(x); setSt(previewState()); };
+  const SC: Array<[PreviewScenario, string]> = [['NORMAL', 'Normal'], ['OFFLINE', 'Sin conexión'], ['CONFLICT_NEXT', 'Próxima muestra en conflicto'], ['DEVICE_REVOKED', 'Dispositivo revocado']];
+  return (
+    <Card title="Escenarios de la vista previa (simulados)">
+      <Text style={s.muted}>Cambian solo el servidor SIMULADO de este navegador. Escenario actual: {SC.find(([k]) => k === st.scenario)?.[1]}.</Text>
+      {SC.map(([k, l]) => <Button key={k} kind="secondary" label={`${st.scenario === k ? '● ' : ''}${l}`} onPress={() => pick(k)} />)}
+      <Button kind="secondary" label={st.storageFull ? 'Restablecer espacio libre' : 'Simular almacenamiento lleno'} onPress={() => { setPreviewStorageFull(!st.storageFull); setSt(previewState()); }} />
+      <Button kind="secondary" label="Simular sesión vencida (recarga la vista)" onPress={() => void expirePreviewSession().then(reloadPage)} />
+      <Button kind="secondary" label="Borrar datos de la vista previa (recarga la vista)" onPress={() => { resetPreview(); reloadPage(); }} />
+    </Card>
+  );
 }

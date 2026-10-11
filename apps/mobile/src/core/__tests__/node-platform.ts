@@ -14,11 +14,14 @@ export function nodeDb(path: string): SqlDb {
   db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;');
   let queue: Promise<unknown> = Promise.resolve();
   let inTx = false;
+  // Misma semántica que el adaptador Expo: fuera de una transacción, cada operación espera en la cola; así una llamada a la
+  // conexión principal desde dentro de una transacción se bloquearía también aquí (y la prueba lo detectaría).
+  const serial = <T>(fn: () => T): Promise<T> => { const p = queue.then(fn, fn); queue = p.catch(() => undefined); return p as Promise<T>; };
   const api = (scoped: boolean): SqlDb => ({
-    async exec(s) { db.exec(s); },
-    async run(s, p = []) { db.prepare(s).run(...p); },
-    async all<T>(s: string, p: SqlValue[] = []) { return db.prepare(s).all(...p) as T[]; },
-    async get<T>(s: string, p: SqlValue[] = []) { return db.prepare(s).get(...p) as T | undefined; },
+    async exec(s) { return scoped ? db.exec(s) : serial(() => db.exec(s)); },
+    async run(s, p = []) { if (scoped) { db.prepare(s).run(...p); return; } await serial(() => { db.prepare(s).run(...p); }); },
+    async all<T>(s: string, p: SqlValue[] = []) { return (scoped ? db.prepare(s).all(...p) : await serial(() => db.prepare(s).all(...p))) as T[]; },
+    async get<T>(s: string, p: SqlValue[] = []) { return (scoped ? db.prepare(s).get(...p) : await serial(() => db.prepare(s).get(...p))) as T | undefined; },
     async transaction<T>(fn: (tx: SqlDb) => Promise<T>): Promise<T> {
       if (scoped || inTx) throw new Error('transacción anidada no admitida');
       const run = async () => {

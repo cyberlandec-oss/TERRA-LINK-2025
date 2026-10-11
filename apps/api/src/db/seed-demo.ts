@@ -6,6 +6,8 @@ import { createApp } from '../bootstrap';
 import { loadConfig } from '../config';
 import { hashPassword } from '../auth/passwords';
 import { createDb } from './database';
+import { sql } from 'kysely';
+import { AuditService } from '../audit/audit.service';
 
 // Seed DEMO/QA para revisión visual local (npm run seed:demo -w apps/api).
 // - Solo desarrollo local: se niega a ejecutar contra bases *_test / *_e2e o con NODE_ENV=production.
@@ -196,6 +198,46 @@ async function main(): Promise<void> {
   const userExists = async (mail: string) => !!(await db.selectFrom('users').select('id').where('email', '=', mail).executeTakeFirst());
 
   try {
+    // Rotación de la contraseña de UNA cuenta DEMO (`-- --rotar=<cuenta>`), p. ej. tras exponerse en una captura.
+    // Orden seguro: 1) se guarda primero la nueva credencial en los CSV locales (si no se pueden escribir, no se rota);
+    // 2) se activa en la base y se invalidan las sesiones (token_version + 1); 3) se verifica el login nuevo y el rechazo
+    // del anterior. Si falla el paso 2, se restauran los CSV. No se imprime ninguna contraseña. Las demás cuentas no cambian.
+    const rotateArg = process.argv.find((a) => a.startsWith('--rotar='));
+    if (rotateArg) {
+      const local = rotateArg.slice('--rotar='.length);
+      const spec = USERS.find((x) => x.local === local && !x.platform);
+      if (!spec) throw new Error('Cuenta DEMO desconocida para rotar.');
+      const mail = email(spec);
+      const user = await db.selectFrom('users').select(['id']).where('email', '=', mail).executeTakeFirst();
+      const oldPwd = known.get(mail);
+      if (!user || !oldPwd) throw new Error('La cuenta no existe o no tiene credencial conocida: no se rota.');
+      const files = [CSV_PATH, resolve(ROOT, 'CREDENCIALES.pendiente.csv')].filter((f) => existsSync(f)).map((f) => ({ f, text: readFileSync(f, 'utf8') }));
+      const rewrite = (text: string, pwd: string, estado: string) => {
+        const rows = parseCsv(text); const head = rows.shift() ?? [];
+        const iE = head.indexOf('email'); const iP = head.indexOf('contrasena'); const iS = head.indexOf('estado_acceso');
+        for (const r of rows) if (r[iE] === mail) { r[iP] = pwd; r[iS] = estado; }
+        return '\uFEFF' + [head, ...rows].map((r) => r.map(esc).join(',')).join('\r\n') + '\r\n';
+      };
+      const fresh = newPassword();
+      for (const c of files) writeFileSync(c.f, rewrite(c.text, fresh, 'ROTACION_EN_CURSO')); // lanza si está bloqueado: nada se activa
+      try {
+        await db.updateTable('users').set({ password_hash: await hashPassword(fresh), token_version: sql`token_version + 1` } as never).where('id', '=', user.id).execute();
+      } catch (err) {
+        for (const c of files) writeFileSync(c.f, c.text);
+        throw err;
+      }
+      const status = async (pwd: string) => (await fetch(`${base}/api/v1/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: mail, password: pwd }) })).status;
+      const okNew = (await status(fresh)) === 200;
+      const oldRejected = (await status(oldPwd)) === 401;
+      for (const c of files) writeFileSync(c.f, rewrite(c.text, fresh, okNew ? 'LOGIN_VERIFICADO (rotada)' : 'FALLO_LOGIN'));
+      const superId = (await db.selectFrom('users').select('id').where('platform_role', '=', 'SUPER_ADMIN').executeTakeFirst())?.id ?? null;
+      await app.get(AuditService).record(db, { organizationId: null, actorUserId: superId, action: 'user.password_rotated', entityType: 'user', entityId: user.id, result: 'SUCCESS',
+        after: { reason: 'Rotación de cuenta DEMO por exposición en una captura de pantalla; sesiones anteriores invalidadas' } });
+      console.log(`Rotación de ${local}: nueva credencial guardada en ${files.length} archivo(s) local(es); login nuevo=${okNew}; anterior rechazada=${oldRejected}; sesiones previas invalidadas.`);
+      if (!okNew || !oldRejected) process.exitCode = 1;
+      return;
+    }
+
     // 1) Cuenta de revisión de plataforma (SUPER_ADMIN).
     const superUser = USERS.find((u) => u.platform)!;
     const superMail = email(superUser);
