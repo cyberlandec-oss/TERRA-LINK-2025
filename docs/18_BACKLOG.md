@@ -58,6 +58,7 @@ Capacidades (2026-10-10): «catálogo y unidades» verificada y disponible para 
 ### P0-012 — Entrega y recepción
 Depende P0-004/006/013/014/015 y de la **capacidad** «catálogo de productos y unidades» de P0-011 (verificada el 2026-10-10; el criterio de transformación de P0-011 no bloquea Entregas). Como recepción, necesito cantidad y origen reales.
 Aceptación: entrega declarada, peso recibido, recepción parcial/completa, diferencias con causa, vínculos válidos y quality básica; confirmar repetido no crea doble stock. RF-12; QA-05/06.
+Estado (2026-10-10): capacidades demostradas verificadas localmente; **historia abierta** por «diferencias con causa» (requiere política de cierre y tolerancias, D-33). P0-016 puede usar las cantidades ya recibidas sin esperar ese cierre (propuesta sin aprobar en `docs/decisiones/P0-016-017-PROPUESTA-LOTES-INVENTARIO.md`).
 
 ### P0-013 — CTE
 Depende TECH-001. Como trazabilidad, necesito hitos definidos.
@@ -75,6 +76,7 @@ Aceptación: envolvente/versión/tenant/actor/tiempos, append-only, correction_o
 ### P0-016 — Lotes y procesos
 Depende P0-012/015. Al cerrar un proceso se demuestra el criterio pendiente de P0-011 (transformación con evento y rendimiento) y se integra el vínculo CTE FERMENTATION/DRYING. Como trazabilidad, necesito reconstruir mezclas/transformaciones.
 Aceptación: lote con inputs/outputs/run; DAG sin ciclos; origen conservado en salida; cierre atómico y consulta upstream/downstream con cantidades y permisos. RF-16; QA-07.
+Contrato propuesto (2026-10-10, sin aprobar): `docs/decisiones/P0-016-017-PROPUESTA-LOTES-INVENTARIO.md` (asignación sin doble uso desde P0-016; ledger completo en P0-017). Decisiones bloqueantes: D-39.
 
 ### P0-017 — Inventario/balance de masa
 Depende P0-016. Como operación, necesito cantidades conservadas.
