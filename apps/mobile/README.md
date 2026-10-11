@@ -36,7 +36,7 @@ Resultados en `validation-results/<fecha>-movil/`. Es evidencia **en Node**: no 
 6. Con red: «Sincronizar ahora» → Pendientes: «Sincronizado» y estado de la foto («análisis pendiente» / «disponible»).
 7. Cambio de cuenta (`tecnico2…`): no ve nada de tecnico1. Revocación del dispositivo: la sincronización se detiene.
 
-## B. Build nativo de aceptación (cifrado) — no ejecutado en este equipo (6,3 GB libres; se recomiendan ≥ 15 GB)
+## B. Build nativo de aceptación (cifrado) — generado en este equipo; autoprueba aprobada en emulador; teléfono físico pendiente
 
 Requiere Android SDK + JDK 17 + `adb` (o una cuenta de EAS). `app.json` ya activa `useSQLCipher` en el plugin de
 expo-sqlite.
@@ -47,6 +47,8 @@ expo-sqlite.
 - EAS: `npx eas build --platform android --profile development` (requiere `eas.json` y cuenta; no incluido).
 - Verificación: «Diagnóstico» debe mostrar «Base local cifrada (SQLCipher)». Prueba de rechazo: un build nativo sin
   SQLCipher debe mostrar «Almacenamiento protegido no disponible» y no descargar datos.
+- APK generado: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk` (regenerable con `npx expo prebuild --platform android --no-install` y `cd android && gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64`). Instalar con `adb install -r app-release.apk`.
+- Autoprueba en el teléfono: «Diagnóstico» → «Ejecutar autoprueba de seguridad», o `adb shell am start -a android.intent.action.VIEW -d "terralinkcampo://autoprueba" ec.agtech.terralink.campo`; todos los casos deben salir «Correcto».
 - Teléfono físico: activar «Opciones de desarrollador» → «Depuración USB», conectar por USB, aceptar la huella del
   equipo, comprobar con `adb devices`. Para la API local: `adb reverse tcp:4000 tcp:4000` y servidor `http://localhost:4000`.
 - Ensayo real (solo aquí): capturar ubicación real (y denegando el permiso), fotos reales (comprobar en la web que el

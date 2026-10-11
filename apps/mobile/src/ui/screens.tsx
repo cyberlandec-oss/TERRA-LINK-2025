@@ -2,7 +2,8 @@ import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { runSelfTest, type SelfTestCase } from '../adapters/selftest';
 import { cleanupCacheTemps, encryptionStatus, expoPlatform, expoUploader, runtimeEnvironment, writeCacheFile } from '../adapters/expo';
 import { fixtureJpeg, fixtureLocation } from '../core/fixtures';
 import { ApiFailure, SessionManager } from '../app/session-manager';
@@ -30,8 +31,9 @@ export function Root() {
   const [tab, setTab] = useState<Tab>('home');
   const [openDraft, setOpenDraft] = useState<string | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
+  const [selfTest, setSelfTest] = useState(false);
 
-  useEffect(() => { cleanupCacheTemps(); void sessions.load().then((x) => { setSession(x); setBoot(false); }); }, []);
+  useEffect(() => { cleanupCacheTemps(); void Linking.getInitialURL().then((u) => { if (u?.includes('autoprueba')) setSelfTest(true); }); void sessions.load().then((x) => { setSession(x); setBoot(false); }); }, []);
   const chooseOrg = async (s0: StoredSession, id: string) => {
     if (store) await store.close();
     setFatal(null);
@@ -46,6 +48,7 @@ export function Root() {
     setStore(null); setOrgId(null); setSession(null);
   };
 
+  if (selfTest) return <View style={s.screen}><Header sub="Autoprueba de seguridad" /><ScrollView contentContainerStyle={s.body}><SelfTest /><Button kind="secondary" label="Volver" onPress={() => setSelfTest(false)} /></ScrollView></View>;
   if (boot) return <View style={s.screen}><Header sub="Cargando…" /></View>;
   if (!session) return <Login onDone={setSession} />;
   if (fatal) return <View style={s.screen}><Header sub={session.email} /><ScrollView contentContainerStyle={s.body}><Notice tone="blocked" title="Almacenamiento protegido no disponible">{fatal}</Notice><Button kind="secondary" label="Volver" onPress={() => setFatal(null)} /></ScrollView></View>;
@@ -252,6 +255,7 @@ function Capture({ session, orgId, store, draftId, onDraft, onQueued }: { sessio
         {draft.photos.length === 0 ? <Text style={s.muted}>Sin fotos.</Text> : draft.photos.map((p) => (
           <Text key={p.id} style={s.p}>{p.file_present ? '✓' : '⚠'} {Math.round(p.size_bytes / 1024)} KB · SHA-256 {p.sha256.slice(0, 10)}… · recibida {fmt(p.captured_at)}{p.file_present ? '' : ' · ARCHIVO FALTANTE'}</Text>
         ))}
+        {draft.photos.length > 0 && <Text style={s.muted}>Archivo procesado por la app: sin metadatos embebidos (se conserva solo la orientación). El SHA-256 corresponde a este archivo, no al original de la cámara.</Text>}
         {editable && (testEnv
           ? <Button kind="secondary" label="Usar foto de prueba (sintética)" hint="Expo Go no usa la cámara real" onPress={() => void fixturePhoto()} disabled={busy} />
           : <Button kind="secondary" label="Tomar foto" onPress={() => void takePhoto()} disabled={busy} />)}
@@ -313,6 +317,18 @@ function Pending({ store, onOpen }: { store: LocalStore; onOpen: (d: string) => 
   );
 }
 
+function SelfTest() {
+  const [r, setR] = useState<{ environment: string; ok: boolean; cases: SelfTestCase[] } | null>(null);
+  useEffect(() => { void runSelfTest().then(setR); }, []);
+  if (!r) return <Text style={s.muted}>Ejecutando autoprueba…</Text>;
+  return (
+    <Card title={`Autoprueba: ${r.ok ? 'todo correcto' : 'hay fallos'}`}>
+      <Text style={s.muted}>Entorno: {r.environment === 'EXPO_GO_SYNTHETIC' ? 'Expo Go (sin cifrado: se esperan fallos de cifrado)' : 'build nativo'}. Base temporal propia; no toca datos de cuentas.</Text>
+      {r.cases.map((c) => <View key={c.id} style={{ marginTop: 6 }}><Badge tone={c.ok ? 'valid' : 'blocked'}>{c.ok ? 'Correcto' : 'Falla'}</Badge><Text style={s.p}>{c.id}</Text><Text style={s.muted}>{c.detail}</Text></View>)}
+    </Card>
+  );
+}
+
 function Diagnostics({ session, orgId, store, recovery }: { session: StoredSession; orgId: string; store: LocalStore; recovery: RecoveryReport | null }) {
   const [device, setDevice] = useState('');
   const [free, setFree] = useState<number | null>(null);
@@ -333,6 +349,7 @@ function Diagnostics({ session, orgId, store, recovery }: { session: StoredSessi
         <Text style={s.p}>Captura: {gate.allowed ? 'permitida' : `bloqueada (${gate.note})`}</Text>
         <Text style={s.muted}>No hay autorización local más larga que la sesión (D-40 es una propuesta no aprobada). Sin conexión no se detectan revocaciones; al sincronizar el servidor revalida sesión, dispositivo, membresía y permisos.</Text>
       </Card>
+      <SelfTestLauncher />
       <Card title="Dispositivo y almacenamiento">
         <Text style={s.p}>Identificador local del dispositivo: {device.slice(0, 8)}… (no autoriza nada)</Text>
         <Text style={s.p}>Espacio libre: {free === null ? 'desconocido' : `${Math.round(free / 1048576)} MB`}</Text>
@@ -340,4 +357,9 @@ function Diagnostics({ session, orgId, store, recovery }: { session: StoredSessi
       </Card>
     </>
   );
+}
+
+function SelfTestLauncher() {
+  const [show, setShow] = useState(false);
+  return show ? <SelfTest /> : <Button kind="secondary" label="Ejecutar autoprueba de seguridad (cifrado y temporales)" onPress={() => setShow(true)} />;
 }

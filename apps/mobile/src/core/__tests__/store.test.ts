@@ -94,11 +94,11 @@ describe('P0-023 almacén local (Node + SQLite real)', () => {
     await s.replaceDataset([PLOT]);
     const d = await s.createDraft(PLOT.id);
     const original = require('node:fs').readFileSync(photo) as Buffer;
-    expect(original.includes(Buffer.from('GPSLatitude'))).toBe(true);
+    expect(original.includes(Buffer.from('TelefonoSintetico'))).toBe(true);
     const id = await s.addPhoto(d, photo, 'image/jpeg', null);
     const stored = Buffer.from(await s.attachmentBytes(id));
-    expect(stored.includes(Buffer.from('Exif'))).toBe(false);
-    expect(stored.includes(Buffer.from('GPSLatitude'))).toBe(false);
+    expect(stored.includes(Buffer.from('xmpmeta'))).toBe(false);
+    expect(stored.includes(Buffer.from('TelefonoSintetico'))).toBe(false);
     expect(stored.includes(Buffer.from('datos-sinteticos'))).toBe(true); // la imagen se conserva
     expect((await s.drafts())[0].photos[0].sha256).toBe(require('node:crypto').createHash('sha256').update(stored).digest('hex'));
     await s.close();

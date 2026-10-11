@@ -42,7 +42,7 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
 }
 export const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: T.ivory },
-  body: { padding: 16, paddingBottom: 48 },
+  body: { padding: 16, paddingBottom: 112 }, // margen para la barra de navegación de Android (pantalla de borde a borde)
   header: { backgroundColor: T.forest, paddingTop: 44, paddingBottom: 12, paddingHorizontal: 16 },
   brand: { color: '#fff', fontSize: 18, fontWeight: '700', letterSpacing: 1 },
   sub: { color: '#dce3dd', fontSize: 14 },

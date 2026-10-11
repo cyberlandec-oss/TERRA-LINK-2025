@@ -190,7 +190,7 @@ export class SyncService {
     if (!u) return { status: 'AWAITING_CONTENT', note: 'El registro llegó; el archivo todavía no. Metadata recibida no significa archivo disponible.' };
     const scan = (await sql<{ result: string | null }>`SELECT result FROM document_version_scans WHERE version_id = ${u.version_id} ORDER BY id DESC LIMIT 1`.execute(this.db)).rows[0]?.result ?? null;
     return { status: scan === 'CLEAN' ? 'AVAILABLE' : scan === 'INFECTED' ? 'REJECTED' : 'PENDING_SCAN', document_id: u.document_id, version_id: u.version_id,
-      note: scan === 'CLEAN' ? 'Archivo íntegro y analizado; disponible según los permisos de Documentos.' : 'Archivo recibido; análisis antimalware pendiente o fallido: no disponible todavía.' };
+      note: scan === 'CLEAN' ? 'Archivo procesado por la app (sin metadatos embebidos salvo la orientación), íntegro y analizado; disponible según los permisos de Documentos. No prueba captura real ni verifica ninguna afirmación.' : 'Archivo recibido; análisis antimalware pendiente o fallido: no disponible todavía.' };
   }
 
   private async pushOne(user: AuthUser, ctx: TenantContext, deviceId: string, op: OperationDto, requestId?: string): Promise<OpResult> {

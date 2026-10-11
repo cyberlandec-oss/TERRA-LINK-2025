@@ -49,7 +49,7 @@ import { KdeController, KdeService } from './traceability/kde';
 import { EventHistoryController, EventHistoryService } from './events/event-history';
 import { DocumentsController, DocumentsService } from './documents/documents';
 import { EvidenceController, EvidenceService } from './evidence/evidence';
-import { ClamdScanner, MALWARE_SCANNER } from './storage/scanner';
+import { ClamdScanner, MALWARE_SCANNER, type MalwareScanner } from './storage/scanner';
 import { PRODUCTION_CONSUMERS } from './events/consumers';
 import { LOGIN_RATE_LIMITER, LoginRateLimiter, REDIS, RedisAttemptStore } from './auth/login-rate-limit';
 
@@ -59,6 +59,7 @@ class HealthController {
   constructor(
     @Inject(DB) private readonly db: Kysely<Database>,
     @Inject(REDIS) private readonly redis: Redis,
+    @Inject(MALWARE_SCANNER) private readonly scanner: MalwareScanner,
   ) {}
 
   @Public()
@@ -67,7 +68,10 @@ class HealthController {
     return { status: 'ok' };
   }
 
-  // Readiness: estado por dependencia (sin detalles internos). 503 si alguna no está lista.
+  // Readiness: estado por dependencia (sin detalles internos). 503 si falla una dependencia NÚCLEO (base, esquema,
+  // Redis). El escáner antimalware es una capacidad: si está caído la API sigue atendiendo (las subidas se aceptan y
+  // quedan «análisis pendiente», nunca limpias) y la respuesta es 200 con status «degraded», checks.scanner
+  // «unavailable» y capabilities.document_analysis «UNAVAILABLE». No se informa todo como sano.
   @Public()
   @Get('ready')
   async ready(@Res({ passthrough: true }) res: Response) {
@@ -89,8 +93,15 @@ class HealthController {
       /* redis no disponible */
     }
     const ok = Object.values(checks).every((c) => c === 'ok');
+    const scannerOk = this.scanner.ping ? await this.scanner.ping().catch(() => false) : false;
     if (!ok) res.status(503);
-    return { status: ok ? 'ok' : 'unavailable', checks, migration };
+    return {
+      status: !ok ? 'unavailable' : scannerOk ? 'ok' : 'degraded',
+      checks: { ...checks, scanner: scannerOk ? 'ok' : 'unavailable' },
+      capabilities: { document_analysis: scannerOk ? 'AVAILABLE' : 'UNAVAILABLE' },
+      migration,
+      ...(scannerOk ? {} : { note: 'Escáner antimalware no disponible: los archivos nuevos quedan con análisis pendiente y no se habilitan; el resto de la API funciona.' }),
+    };
   }
 }
 

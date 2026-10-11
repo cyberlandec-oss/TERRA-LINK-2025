@@ -263,6 +263,21 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
 
+### Revisión 2026-10-11 (2) — limpieza, build nativo y autoprueba en emulador
+
+Validación web/API: `npm run validate` APROBADA (`validation-results/2026-10-11T07-46-54-839Z`): 290/290 unitarias + integración, 55/55 E2E, OpenAPI 146 rutas. Móvil (separado): `validation-results/2026-10-11T07-58-10-356Z-movil` (typecheck, 24 pruebas de núcleo, recorrido contra la API en contenedor, bundle Android, expo-doctor).
+
+| Punto | Estado | Evidencia |
+| --- | --- | --- |
+| Limpieza autorizada | HECHA | +5,70 GB en C: (npm); caché Docker 11,25 GB → 0 dentro del disco virtual (sin compactar) |
+| Build nativo Android (release, clave de depuración) | GENERADO | APK `e484cf4a…`; SQLCipher en `libexpo-sqlite.so` |
+| SQLCipher real | DEMOSTRADO EN EMULADOR | Autoprueba 8/8 (API 30 x86_64) |
+| Fallo cerrado sin SQLCipher | PARCIAL | Lógica en el runtime real; sin build nativo sin SQLCipher |
+| Copia temporal de subida | DEMOSTRADO EN EMULADOR | Limpieza tras fallo y tras interrupción |
+| Salud con escáner caído | DEMOSTRADO | `degraded`, scanner `unavailable` (contenedor e integración) |
+| Orientación tras quitar metadatos | DEMOSTRADO (fixtures) | Orientación EXIF conservada; resto eliminado |
+| Teléfono físico (captura real, cierre, reinicio, vencimiento, cuentas, almacenamiento, conflictos) | **NO EJECUTADO** | Pasos en `apps/mobile/README.md` § B |
+
 ### Revisión 2026-10-11 — escáner, D-41, Expo Go y entorno Android
 
 Validación web/API: `npm run validate` APROBADA (`validation-results/2026-10-11T05-58-21-233Z`): unitarias + integración (API y web) 289/289, E2E 55/55, OpenAPI 146 rutas. Móvil (separado): `validation-results/2026-10-11T05-56-44-934Z-movil (typecheck, 17 pruebas de núcleo, recorrido contra la API en contenedor, bundle Android, expo-doctor)`.

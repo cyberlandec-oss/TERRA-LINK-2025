@@ -127,3 +127,13 @@ documentos subidos a la API en contenedor quedaban «análisis pendiente» (`SCA
 `node e2e/review/escaner-contenedor.mjs disponible|caido|reintento` (el operador detiene y arranca el escáner con
 `docker compose stop scanner` / `docker compose start scanner`; los volúmenes se conservan). Resultado acumulado en
 `docs/qa/evidencia-escaner-contenedor.json`.
+
+### Android local (2026-10-11)
+
+Entorno en el perfil de usuario: `JAVA_HOME=%LOCALAPPDATA%\Programs\Microsoft\jdk-17.0.20.1+1`,
+`ANDROID_HOME=%LOCALAPPDATA%\Android\Sdk` (definidas en las sesiones de trabajo; no persistidas). Comandos ejecutados:
+`npx expo prebuild --platform android --no-install`; en `apps/mobile/android`:
+`gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64`; emulador
+`emulator -avd tl-api30 -no-window -no-snapshot -wipe-data -partition-size 1000`; `adb install -r app-release.apk`;
+autoprueba `adb shell am start -a android.intent.action.VIEW -d "terralinkcampo://autoprueba" ec.agtech.terralink.campo`
+y `adb logcat -s ReactNativeJS:V` (línea `TL_SELFTEST`). Evidencia: `docs/qa/EVIDENCIA_LIMPIEZA_Y_ANDROID_2026-10-11.md`.

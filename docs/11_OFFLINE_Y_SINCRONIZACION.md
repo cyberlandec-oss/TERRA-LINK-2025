@@ -160,3 +160,15 @@ Una nota sin ubicación ni foto no tiene entidad en el servidor y no se encola.
 - **Entorno Android**: no se instaló SDK/JDK ni se generó build: el único disco (C:) tenía 6,3 GB libres, insuficientes
   para NDK, caché de Gradle, salidas de compilación e imagen de emulador sin arriesgar los volúmenes de PostgreSQL/Docker.
   SQLCipher real, fallo cerrado nativo y ensayo en dispositivo: **no ejecutados**.
+
+## Revisión 2026-10-11 (2): salud del escáner, foto procesada, orientación y build nativo
+
+- `/health/ready`: el escáner es una capacidad, no una dependencia núcleo. Caído → HTTP 200 con `status: degraded`,
+  `checks.scanner: unavailable` y `capabilities.document_analysis: UNAVAILABLE` (los archivos nuevos quedan con análisis
+  pendiente, nunca limpios). Base, esquema o Redis caídos → 503. Probado en contenedor y en integración.
+- La foto guardada es un **archivo procesado por la app** (sin metadatos embebidos): su SHA-256 corresponde a esos bytes,
+  no al archivo original de la cámara. Se conserva solo la orientación EXIF (segmento mínimo) para que la foto se vea
+  igual; probado con fixtures (JPEG orientaciones 1, 3, 6, 8; PNG 8). No se renderizan píxeles.
+- Build nativo Android generado; autoprueba de seguridad aprobada **en emulador** (SQLCipher 4.7.0 activo, archivo no
+  legible, clave incorrecta rechazada, temporales limpiados): `docs/qa/EVIDENCIA_LIMPIEZA_Y_ANDROID_2026-10-11.md`.
+  Teléfono físico: pendiente.
