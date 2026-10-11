@@ -200,3 +200,7 @@ CTE 1.3.0: **STORAGE → INTEGRATED** (STOCK_MOVEMENT / StockMovementRecorded) p
 ### Eventos de P0-020/P0-021
 
 `RiskEvaluationRecorded` (agregado RISK_SUBJECT, con `trigger` si proviene de una mitigación); `MitigationCreated`, `MitigationSupportAdded`, `MitigationSubmitted`, `MitigationVerified`, `MitigationRejected` (agregado MITIGATION). Consumidor `risk-reevaluation` suscrito a `MitigationVerified` (idempotente por `event_id`; omite si ya existe una evaluación posterior al evento).
+
+### Eventos de P0-022
+
+`DdCaseCreated`, `DdSnapshotCaptured` (hash, readiness y estado por requisito), `DdReviewRecorded`, `DdPackageExported` (tipo, hash, redacciones, `submission: NOT_SUBMITTED`); agregado `DD_CASE` con versión creciente bajo bloqueo del expediente.

@@ -74,7 +74,7 @@ export class RiskService {
   }
 
   /** Instantánea del grafo de origen del lote: versiones de datos y evidencias usadas (sin valores personales ni coordenadas). */
-  private async snapshot(db: Db, orgId: string, lotId: string) {
+  async snapshot(db: Db, orgId: string, lotId: string) {
     const lot = (await sql<{ id: string; lot_code: string; origin_status: string; row_version: string }>`SELECT id, lot_code, origin_status, row_version::text FROM lots WHERE organization_id = ${orgId} AND id = ${lotId}`.execute(db)).rows[0];
     if (!lot) throw notFound();
     const lots = (await sql<{ id: string; lot_code: string; origin_status: string; row_version: string; source: string }>`
@@ -227,7 +227,7 @@ export class RiskService {
     return { replayed: false, evaluation: await this.view(this.db, ctx, evaluationId) };
   }
 
-  private async view(db: Db, ctx: TenantContext, id: string) {
+  async view(db: Db, ctx: TenantContext, id: string) {
     const e = (await sql<{ trigger: unknown; id: string; subject_id: string; evaluation_number: number; rule_set_version: string; parameters: unknown; snapshot: { lot: { code: string } }; snapshot_hash: string; factors: Factor[]; categories: unknown;
       technical_result: string; severity: string; conclusion: string; evaluated_at: string; first_name: string | null; last_name: string | null; approval_status: string }>`
       SELECT e.trigger, e.id, e.subject_id, e.evaluation_number, e.rule_set_version, e.parameters, e.snapshot, e.snapshot_hash, e.factors, e.categories, e.technical_result, e.severity, e.conclusion, e.evaluated_at,

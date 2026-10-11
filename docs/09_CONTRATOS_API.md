@@ -21,6 +21,7 @@ REST `/api/v1`; autenticación del repositorio; tenant derivado de membresía y 
 | Riesgo | `POST /risk/assessments`, `GET /risk/assessments/{id}`, `POST /risk/assessments/{id}/recalculate` | risk:assess/read/recalculate |
 | Mitigación | `POST /mitigations`, `POST /mitigations/{id}/evidence`, `POST /mitigations/{id}/verify`, `POST /mitigations/{id}/reject` | mitigation según acción |
 | Diligencia | `POST /dd-cases`, `GET /dd-cases/{id}/readiness`, `POST /dd-cases/{id}/approve`, `POST /dd-cases/{id}/packages` | dd:read/approve_package/export_package |
+| Diligencia (implementado P0-022) | `GET/POST /dd-cases`, `GET /dd-cases/{id}`, `POST /dd-cases/{id}/snapshots`, `GET /dd-snapshots/{id}`, `POST /dd-snapshots/{id}/reviews` (START_REVIEW/RETURN/APPROVE), `POST /dd-snapshots/{id}/exports` (INTERNAL_REVIEW/DD_PACKAGE), `GET /dd-exports/{id}/download` | dd:read/manage/approve_package/export_package |
 | Embarque | `POST /shipments`, `POST /shipments/{id}/reserve`, `GET /shipments/{id}/preflight`, `POST /shipments/{id}/dispatch` | shipment según acción |
 | Importación | `POST /imports`, `POST /imports/{id}/mapping`, `GET /imports/{id}/preview`, `POST /imports/{id}/commit` | permiso de importación y de cada entidad |
 | Sync | `GET /sync/bootstrap`, `POST /sync/push`, `GET /sync/pull?cursor=...` | alcance asignado y permisos por operación |

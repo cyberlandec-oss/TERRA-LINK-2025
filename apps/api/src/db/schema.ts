@@ -559,6 +559,11 @@ export interface MitigationActionsTable {
 }
 export interface MitigationSupportsTable { id: string; organization_id: string; action_id: string; submission_number: number; document_version_id: string | null; evidence_id: string | null; evidence_version: string | null; added_by: string; added_at: Generated<Timestamp>; operation_id: string }
 export interface MitigationSubmissionsTable { id: string; organization_id: string; action_id: string; submission_number: number; note: string; submitted_by: string; submitted_at: Generated<Timestamp>; operation_id: string }
+// P0-022 expediente de debida diligencia
+export interface DdCasesTable { id: string; organization_id: string; case_number: string; subject_type: 'LOT'; subject_id: string; scope_note: string; created_by: string; created_at: Generated<Timestamp>; operation_id: string }
+export interface DdSnapshotsTable { id: string; organization_id: string; case_id: string; snapshot_number: number; content: unknown; content_hash: string; section_hashes: unknown; manifest: unknown; requirements: unknown; readiness: 'BLOCKED' | 'IN_PROGRESS' | 'READY'; captured_by: string; captured_at: Generated<Timestamp>; operation_id: string }
+export interface DdReviewsTable { id: string; organization_id: string; snapshot_id: string; action: 'START_REVIEW' | 'RETURN' | 'APPROVE'; reason: string; reviewer_id: string; reviewed_at: Generated<Timestamp>; operation_id: string }
+export interface DdExportsTable { id: string; organization_id: string; snapshot_id: string; kind: 'INTERNAL_REVIEW' | 'DD_PACKAGE'; redaction_profile: unknown; package_hash: string; size_bytes: number; exported_by: string; exported_at: Generated<Timestamp>; operation_id: string }
 export interface MitigationDecisionsTable { id: string; organization_id: string; action_id: string; submission_number: number; decision: 'VERIFIED' | 'REJECTED'; reason: string; decided_by: string; decided_at: Generated<Timestamp>; operation_id: string }
 
 export interface Database {
@@ -633,4 +638,8 @@ export interface Database {
   mitigation_supports: MitigationSupportsTable;
   mitigation_submissions: MitigationSubmissionsTable;
   mitigation_decisions: MitigationDecisionsTable;
+  dd_cases: DdCasesTable;
+  dd_snapshots: DdSnapshotsTable;
+  dd_reviews: DdReviewsTable;
+  dd_exports: DdExportsTable;
 }

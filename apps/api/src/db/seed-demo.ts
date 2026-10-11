@@ -1,5 +1,5 @@
 import { randomInt, randomUUID } from 'crypto';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { closeSync, existsSync, openSync, readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import type { AddressInfo } from 'net';
 import { createApp } from '../bootstrap';
@@ -41,6 +41,8 @@ const USERS: UserSpec[] = [
     note: 'Cuenta sin vínculo con un registro de productor (UX-D08): «Mi finca» pendiente.' }] },
   { local: 'auditor.cooperativa', first: 'Silvia', last: 'Andrade (demo)', memberships: [{ org: 'coop', role: 'AUDITOR',
     note: 'Lee parcelas sin coordenadas exactas (clasificación de geometría, D-24).' }] },
+  { local: 'eudr.cooperativa', first: 'Diana', last: 'Ponce (demo)', memberships: [{ org: 'coop', role: 'EUDR_MANAGER',
+    note: 'Segunda persona del recorrido de mitigación (P0-021): verifica o rechaza lo que ejecuta la administración (separación de funciones). Rol existente; sin permisos adicionales.' }] },
   { local: 'admin.acopio', first: 'Patricia', last: 'Intriago (demo)', memberships: [{ org: 'acopio', role: 'ORG_ADMIN' }] },
   { local: 'recepcion.acopio', first: 'Kevin', last: 'Macías (demo)', memberships: [
     { org: 'acopio', role: 'RECEPTION_OPERATOR', note: 'El acopio aún no tiene productores DEMO: el recorrido de recepción está en la Cooperativa.' },
@@ -153,6 +155,14 @@ function loadKnownPasswords(): Map<string, string> {
   return known;
 }
 
+/** ¿Se puede escribir CREDENCIALES.csv o CREDENCIALES.pendiente.csv? (abre sin escribir; no altera su contenido). */
+function canPersistCredentials(): boolean {
+  for (const path of [CSV_PATH, resolve(ROOT, 'CREDENCIALES.pendiente.csv')]) {
+    try { if (existsSync(path)) closeSync(openSync(path, 'r+')); return true; } catch { /* abierto en otro programa */ }
+  }
+  return false;
+}
+
 async function main(): Promise<void> {
   if (process.env.NODE_ENV === 'production') throw new Error('seed:demo no se ejecuta en producción');
   const config = loadConfig();
@@ -239,6 +249,8 @@ async function main(): Promise<void> {
         if (!passwords.has(mail)) passwords.set(mail, known.get(mail)!);
         await call('POST', '/api/v1/invitations/accept', await tokenOf(mail), { token: inv.token });
       } else {
+        // Una cuenta nueva solo se crea si su contraseña podrá guardarse (CSV principal o pendiente escribible).
+        if (!known.has(mail) && !canPersistCredentials()) { withoutCredential.add(mail); return; }
         const pwd = known.get(mail) ?? newPassword();
         await call('POST', '/api/v1/invitations/accept', undefined, { token: inv.token, first_name: u.first, last_name: u.last, password: pwd });
         passwords.set(mail, pwd);
@@ -473,6 +485,20 @@ async function main(): Promise<void> {
           if (assignee) await call('POST', `${o}/mitigations`, t, { operation_id: randomUUID(), evaluation_id: lot2.evaluation_id, factor_code: 'DATA_MISSING_ORIGIN', title: 'Completar el origen de ENT-2026-00002 (DEMO)',
             acceptance_criteria: 'Parcela de origen identificada con un soporte vigente y disponible (DEMO)', assignee_membership_id: assignee.membership_id, due_date: '2026-12-31' });
         }
+      }
+    }
+
+    // 4j) Expediente DEMO (P0-022) de LOT-2026-00002 con una instantánea: queda BLOCKED (catálogo de riesgo no aprobado,
+    // conclusión UNDETERMINED, perfil jurídico/D-05/satélite/embarques no evaluables). No se revisa, aprueba ni exporta en el
+    // seed; no se inventan datos para alcanzar READY. Idempotente: solo si el lote no tiene expediente.
+    if (passwords.has(coopAdmin)) {
+      const t = await tokenOf(coopAdmin);
+      const o = `/api/v1/organizations/${orgIds.get('coop')!}`;
+      const list = (await call<{ cases: Array<{ lot_code: string }>; lots_without_case: Array<{ id: string; lot_code: string }> }>('GET', `${o}/dd-cases`, t)).data;
+      const lot2 = list.lots_without_case.find((l) => l.lot_code === 'LOT-2026-00002');
+      if (lot2 && !list.cases.some((c) => c.lot_code === 'LOT-2026-00002')) {
+        const c = (await call<{ case: { id: string } }>('POST', `${o}/dd-cases`, t, { operation_id: randomUUID(), lot_id: lot2.id, scope_note: 'Expediente DEMO de LOT-2026-00002 (datos sintéticos): preparación interna, no DDS.' })).data.case;
+        await call('POST', `${o}/dd-cases/${c.id}/snapshots`, t, { operation_id: randomUUID() });
       }
     }
 

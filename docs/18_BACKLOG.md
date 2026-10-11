@@ -102,10 +102,12 @@ Estado (2026-10-10): criterios demostrados localmente con reglas técnicas de do
 Depende P0-020. Como responsable, necesito resolver causa con evidencia.
 Aceptación: acción/assignee/plazo/soporte; aportar→verificar/rechazar con motivos y permisos; resolver dispara reevaluación y actualiza pendientes reales. RF-21; QA-11.
 Estado (2026-10-10): criterios demostrados localmente. Separación de funciones de docs/13 aplicada (el ejecutor no verifica; sin política de excepción); D-37 (Evidencias) no se modifica. Reevaluación asíncrona por outbox; catálogo de riesgo sigue NO APROBADO y conclusión UNDETERMINED.
+Recorrido visual completo (2026-10-10): ejecutor aporta y entrega → segunda persona DEMO (`eudr.cooperativa`, rol EUDR_MANAGER existente) verifica → outbox crea la evaluación 2 → DATA_MISSING_ORIGIN y MATERIAL_OF_UNKNOWN_ORIGIN siguen bloqueantes; conclusión Indeterminada.
 
 ### P0-022 — Diligencia y paquete
 Depende P0-017/019/020/021. Como EUDR_MANAGER, necesito preparación verificable.
 Aceptación: guards por requisito, revisión autorizada, snapshot/manifest, export auditado; cambio relevante invalida readiness actual; export no marca DDS aceptada. RF-22; QA-12.
+Estado (2026-10-10): **ABIERTA**. Capacidades independientes implementadas y probadas localmente (expediente, guards, instantánea/manifest, revisión, borrador interno exportado y auditado, desactualización por cambio relevante, redacción). No demostrable todavía: aprobar una preparación READY y exportar `DD_PACKAGE` con datos reales (bloqueados por catálogo de riesgo no aprobado, conclusión UNDETERMINED, perfil jurídico P1-005, D-05, satélite P0-028 y embarques P0-017/P0-029); el generador se probó solo con una fixture sintética.
 
 ### P0-023 — Captura offline
 Depende P0-004/006/007/008 y auth real. Como técnico, necesito trabajar sin red.

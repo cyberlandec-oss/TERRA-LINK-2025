@@ -19,7 +19,8 @@ import { reviewLots } from './lotes.mjs';
 import { reviewInventory } from './inventario.mjs';
 import { reviewRisk } from './riesgo.mjs';
 import { reviewMitigations } from './mitigaciones.mjs';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { reviewDueDiligence } from './diligencia.mjs';
+import { existsSync, mkdirSync, statSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -42,8 +43,9 @@ function parseCsv(text) {
   return rows.map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] ?? ''])));
 }
 
-// Si existe CREDENCIALES.pendiente.csv (el principal estaba abierto al ejecutar el seed), contiene todo.
-const credFile = existsSync(join(root, 'CREDENCIALES.pendiente.csv')) ? 'CREDENCIALES.pendiente.csv' : 'CREDENCIALES.csv';
+// El seed escribe el archivo completo en CREDENCIALES.csv o, si estaba abierto, en CREDENCIALES.pendiente.csv: se usa el más reciente.
+const credFile = ['CREDENCIALES.csv', 'CREDENCIALES.pendiente.csv'].filter((f) => existsSync(join(root, f)))
+  .sort((a, b) => statSync(join(root, b)).mtimeMs - statSync(join(root, a)).mtimeMs)[0];
 const accounts = parseCsv(readFileSync(join(root, credFile), 'utf8'));
 const DEMO_ORGS = [...new Set(accounts.map((a) => a.organizacion).filter((o) => o.startsWith('DEMO')))];
 const slug = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
@@ -240,6 +242,7 @@ try {
   results.push(await reviewInventory({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewRisk({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewMitigations({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewDueDiligence({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
 
   // Adaptación móvil (390 px): menú en panel y contenido legible.
   for (const a of accounts.filter((x) => ['tecnico1.cooperativa', 'admin.cooperativa'].includes(x.email.split('@')[0]))) {
@@ -287,6 +290,7 @@ for (const c of results.find((r) => r.tipo === 'eventos')?.casos ?? []) console.
 for (const c of results.find((r) => r.tipo === 'documentos')?.casos ?? []) console.log(` [documentos] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'evidencias')?.casos ?? []) console.log(` [evidencias] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'mitigaciones')?.casos ?? []) console.log(` [mitigaciones] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'diligencia')?.casos ?? []) console.log(` [diligencia] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'riesgo')?.casos ?? []) console.log(` [riesgo] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'inventario')?.casos ?? []) console.log(` [inventario] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'lotes')?.casos ?? []) console.log(` [lotes] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);

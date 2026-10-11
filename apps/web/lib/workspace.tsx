@@ -80,6 +80,7 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     if (ws.can('evidence:read')) trazabilidad.push({ href: `${base}/evidencias`, label: 'Evidencias', match: (p) => p.startsWith(`${base}/evidencias`) });
     if (ws.can('risk:read')) trazabilidad.push({ href: `${base}/riesgo`, label: 'Riesgo', match: (p) => p.startsWith(`${base}/riesgo`) });
     if (ws.can('mitigation:read')) trazabilidad.push({ href: `${base}/mitigaciones`, label: 'Mitigaciones', match: (p) => p.startsWith(`${base}/mitigaciones`) });
+    if (ws.can('dd:read')) trazabilidad.push({ href: `${base}/diligencia`, label: 'Debida diligencia', match: (p) => p.startsWith(`${base}/diligencia`) });
     if (trazabilidad.length) groups.push({ title: 'Trazabilidad', items: trazabilidad });
     const admin: NavItem[] = [];
     const onboardingOnly = ws.isPlatformAdmin && !ws.activePerms;

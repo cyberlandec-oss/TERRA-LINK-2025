@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-11T03:05:04.675Z",
+  "fecha": "2026-10-11T04:09:53.772Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -104,6 +104,7 @@
         "Evidencias",
         "Riesgo",
         "Mitigaciones",
+        "Debida diligencia",
         "Miembros e invitaciones",
         "Centros de acopio",
         "Auditoría",
@@ -120,7 +121,7 @@
       "datos_ajenos": "ninguno",
       "tarea": {
         "tarea": "Consultar miembros y formulario de invitación",
-        "resultado": "9 miembros; invitar disponible",
+        "resultado": "10 miembros; invitar disponible",
         "ok": true
       }
     },
@@ -387,6 +388,7 @@
         "Evidencias",
         "Riesgo",
         "Mitigaciones",
+        "Debida diligencia",
         "Auditoría",
         "Mis organizaciones"
       ],
@@ -401,6 +403,67 @@
       "tarea": {
         "tarea": "Consultar la auditoría de su organización",
         "resultado": "25 registros visibles",
+        "ok": true
+      }
+    },
+    {
+      "cuenta": "eudr.cooperativa@demo.terralink.local",
+      "organizacion": "DEMO · Cooperativa Río Verde",
+      "rol": "EUDR_MANAGER (Responsable EUDR)",
+      "rutas": [
+        {
+          "ruta": "/",
+          "estado": "OK: DEMO · Cooperativa Río Verde"
+        },
+        {
+          "ruta": "/productores",
+          "estado": "OK: Productores"
+        },
+        {
+          "ruta": "/productores/coincidencias",
+          "estado": "ERROR: No tienes permiso para realizar esta acción."
+        },
+        {
+          "ruta": "/miembros",
+          "estado": "ERROR: No tienes permiso para realizar esta acción."
+        },
+        {
+          "ruta": "/auditoria",
+          "estado": "ERROR: No tienes permiso para realizar esta acción."
+        }
+      ],
+      "incidencias": [],
+      "login": "OK",
+      "contexto": "eudr.cooperativa@demo.terralink.local · Responsable EUDR",
+      "organizacion_activa": "DEMO · Cooperativa Río Verde",
+      "navegacion": [
+        "Resumen de la organización",
+        "Productores",
+        "Parcelas",
+        "Entregas",
+        "Lotes",
+        "Inventario",
+        "Procesos",
+        "Productos",
+        "Hitos (CTE)",
+        "Documentos",
+        "Evidencias",
+        "Riesgo",
+        "Mitigaciones",
+        "Debida diligencia",
+        "Mis organizaciones"
+      ],
+      "titulo": "DEMO · Cooperativa Río Verde",
+      "denegacion": {
+        "destino": "DEMO · Acopio San Isidro",
+        "resultado": "Recurso no disponible; sin datos de la otra organización",
+        "ok": true
+      },
+      "org_url": "http://localhost:3000/organizaciones/d575976c-d0dc-4efa-a652-0ca0c273eee0",
+      "datos_ajenos": "ninguno",
+      "tarea": {
+        "tarea": "Consultar productores de su organización (solo lectura)",
+        "resultado": "tabla visible",
         "ok": true
       }
     },
@@ -449,6 +512,7 @@
         "Evidencias",
         "Riesgo",
         "Mitigaciones",
+        "Debida diligencia",
         "Miembros e invitaciones",
         "Centros de acopio",
         "Auditoría",
@@ -525,6 +589,61 @@
       }
     },
     {
+      "cuenta": "recepcion.acopio@demo.terralink.local",
+      "organizacion": "DEMO · Cooperativa Río Verde",
+      "rol": "RECEPTION_OPERATOR (Operador de recepción)",
+      "rutas": [
+        {
+          "ruta": "/",
+          "estado": "OK: DEMO · Cooperativa Río Verde"
+        },
+        {
+          "ruta": "/productores",
+          "estado": "ERROR: No tienes permiso para realizar esta acción."
+        },
+        {
+          "ruta": "/productores/coincidencias",
+          "estado": "ERROR: No tienes permiso para realizar esta acción."
+        },
+        {
+          "ruta": "/miembros",
+          "estado": "ERROR: No tienes permiso para realizar esta acción."
+        },
+        {
+          "ruta": "/auditoria",
+          "estado": "ERROR: No tienes permiso para realizar esta acción."
+        }
+      ],
+      "incidencias": [],
+      "login": "OK",
+      "contexto": "recepcion.acopio@demo.terralink.local · Operador de recepción",
+      "organizacion_activa": "DEMO · Cooperativa Río Verde",
+      "navegacion": [
+        "Resumen de la organización",
+        "Entregas",
+        "Lotes",
+        "Inventario",
+        "Procesos",
+        "Productos",
+        "Hitos (CTE)",
+        "Mis organizaciones"
+      ],
+      "titulo": "DEMO · Cooperativa Río Verde",
+      "denegacion": {
+        "destino": "DEMO · Exportadora Pacífico",
+        "resultado": "Recurso no disponible; sin datos de la otra organización",
+        "ok": true
+      },
+      "org_url": "http://localhost:3000/organizaciones/d575976c-d0dc-4efa-a652-0ca0c273eee0",
+      "datos_ajenos": "ninguno",
+      "tarea": {
+        "tarea": "Ver su espacio y capacidades pendientes rotuladas",
+        "resultado": "1 capacidad(es) pendientes rotuladas",
+        "ok": true,
+        "pendiente": true
+      }
+    },
+    {
       "cuenta": "calidad.acopio@demo.terralink.local",
       "organizacion": "DEMO · Acopio San Isidro",
       "rol": "QUALITY_OPERATOR (Operador de calidad)",
@@ -580,6 +699,61 @@
       }
     },
     {
+      "cuenta": "calidad.acopio@demo.terralink.local",
+      "organizacion": "DEMO · Cooperativa Río Verde",
+      "rol": "QUALITY_OPERATOR (Operador de calidad)",
+      "rutas": [
+        {
+          "ruta": "/",
+          "estado": "OK: DEMO · Cooperativa Río Verde"
+        },
+        {
+          "ruta": "/productores",
+          "estado": "ERROR: No tienes permiso para realizar esta acción."
+        },
+        {
+          "ruta": "/productores/coincidencias",
+          "estado": "ERROR: No tienes permiso para realizar esta acción."
+        },
+        {
+          "ruta": "/miembros",
+          "estado": "ERROR: No tienes permiso para realizar esta acción."
+        },
+        {
+          "ruta": "/auditoria",
+          "estado": "ERROR: No tienes permiso para realizar esta acción."
+        }
+      ],
+      "incidencias": [],
+      "login": "OK",
+      "contexto": "calidad.acopio@demo.terralink.local · Operador de calidad",
+      "organizacion_activa": "DEMO · Cooperativa Río Verde",
+      "navegacion": [
+        "Resumen de la organización",
+        "Entregas",
+        "Lotes",
+        "Inventario",
+        "Procesos",
+        "Productos",
+        "Hitos (CTE)",
+        "Mis organizaciones"
+      ],
+      "titulo": "DEMO · Cooperativa Río Verde",
+      "denegacion": {
+        "destino": "DEMO · Exportadora Pacífico",
+        "resultado": "Recurso no disponible; sin datos de la otra organización",
+        "ok": true
+      },
+      "org_url": "http://localhost:3000/organizaciones/d575976c-d0dc-4efa-a652-0ca0c273eee0",
+      "datos_ajenos": "ninguno",
+      "tarea": {
+        "tarea": "Ver su espacio y capacidades pendientes rotuladas",
+        "resultado": "1 capacidad(es) pendientes rotuladas",
+        "ok": true,
+        "pendiente": true
+      }
+    },
+    {
       "cuenta": "admin.exportadora@demo.terralink.local",
       "organizacion": "DEMO · Exportadora Pacífico",
       "rol": "ORG_ADMIN (Administrador de organización)",
@@ -624,6 +798,7 @@
         "Evidencias",
         "Riesgo",
         "Mitigaciones",
+        "Debida diligencia",
         "Miembros e invitaciones",
         "Centros de acopio",
         "Auditoría",
@@ -748,6 +923,7 @@
         "Evidencias",
         "Riesgo",
         "Mitigaciones",
+        "Debida diligencia",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -862,6 +1038,7 @@
         "Evidencias",
         "Riesgo",
         "Mitigaciones",
+        "Debida diligencia",
         "Auditoría",
         "Mis organizaciones"
       ],
@@ -924,6 +1101,7 @@
         "Evidencias",
         "Riesgo",
         "Mitigaciones",
+        "Debida diligencia",
         "Miembros e invitaciones",
         "Centros de acopio",
         "Auditoría",
@@ -1331,7 +1509,7 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "Mostrando 25 de 439 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
+          "resultado": "Mostrando 25 de 504 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
           "ok": true
         },
         {
@@ -1465,8 +1643,18 @@
       "tipo": "mitigaciones",
       "casos": [
         {
-          "cuenta": "admin.cooperativa (responsable)",
-          "resultado": "causa y evaluación de origen visibles; abierta sin entregas; aviso de separación de funciones; puede aportar soporte=1",
+          "cuenta": "admin.cooperativa (ejecutor/responsable)",
+          "resultado": "ya entregada",
+          "ok": true
+        },
+        {
+          "cuenta": "eudr.cooperativa (verificador distinto)",
+          "resultado": "ya decidida; reevaluación por outbox → evaluación 2",
+          "ok": true
+        },
+        {
+          "cuenta": "eudr.cooperativa (riesgo tras reevaluar)",
+          "resultado": "evaluación vigente 2; conclusión Indeterminada; DATA_MISSING_ORIGIN sigue visible=true; reglas sin aprobar",
           "ok": true
         },
         {
@@ -1477,6 +1665,32 @@
         {
           "cuenta": "coordinador.multi (MANAGER)",
           "resultado": "acceso denegado=true",
+          "ok": true
+        }
+      ],
+      "ok": true
+    },
+    {
+      "tipo": "diligencia",
+      "casos": [
+        {
+          "cuenta": "eudr.cooperativa (responsable EUDR)",
+          "resultado": "perfil/D-05/catálogo/conclusión/embarques no evaluables=true; hallazgo DATA_MISSING_ORIGIN inválido=true; paquete deshabilitado=true; presentación oficial no presentada",
+          "ok": true
+        },
+        {
+          "cuenta": "auditor.cooperativa (390 px, teclado)",
+          "resultado": "lectura sin acciones (0); sin coordenadas=true; desborde=false",
+          "ok": true
+        },
+        {
+          "cuenta": "coordinador.multi",
+          "resultado": "acceso denegado=true; sin enlace=true",
+          "ok": true
+        },
+        {
+          "cuenta": "tecnico1.cooperativa",
+          "resultado": "acceso denegado=true; sin enlace=true",
           "ok": true
         }
       ],

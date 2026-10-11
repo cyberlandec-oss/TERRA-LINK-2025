@@ -5948,6 +5948,316 @@
           "mitigations"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/dd-cases": {
+      "get": {
+        "operationId": "DdController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "due-diligence"
+        ]
+      },
+      "post": {
+        "operationId": "DdController_create",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "due-diligence"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/dd-cases/{id}": {
+      "get": {
+        "operationId": "DdController_detail",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "due-diligence"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/dd-cases/{id}/snapshots": {
+      "post": {
+        "operationId": "DdController_snapshot",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "due-diligence"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/dd-snapshots/{id}": {
+      "get": {
+        "operationId": "DdController_snapshotDetail",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "due-diligence"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/dd-snapshots/{id}/reviews": {
+      "post": {
+        "operationId": "DdController_review",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "due-diligence"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/dd-snapshots/{id}/exports": {
+      "post": {
+        "operationId": "DdController_export",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "due-diligence"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/dd-exports/{id}/download": {
+      "get": {
+        "operationId": "DdController_download",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "due-diligence"
+        ]
+      }
     }
   },
   "info": {
@@ -6737,7 +7047,8 @@
             "type": "string",
             "enum": [
               "START_REVIEW",
-              "RESOLVE"
+              "RETURN",
+              "APPROVE"
             ]
           },
           "reason": {
@@ -7596,6 +7907,57 @@
           "operation_id",
           "expected_version",
           "note"
+        ]
+      },
+      "CreateCaseDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "lot_id": {
+            "type": "string"
+          },
+          "scope_note": {
+            "type": "string",
+            "description": "Alcance del expediente (operación, destino o propósito declarado)"
+          }
+        },
+        "required": [
+          "operation_id",
+          "lot_id",
+          "scope_note"
+        ]
+      },
+      "OperationDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id"
+        ]
+      },
+      "ExportDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "INTERNAL_REVIEW",
+              "DD_PACKAGE"
+            ],
+            "description": "INTERNAL_REVIEW: borrador interno de cualquier instantánea. DD_PACKAGE: exige instantánea aprobada y vigente."
+          }
+        },
+        "required": [
+          "operation_id",
+          "kind"
         ]
       }
     }

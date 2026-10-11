@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-022 Diligencia y paquete | **ABIERTA**: capacidades independientes DONE_LOCAL; aprobación READY y `DD_PACKAGE` con datos reales no demostrables (requisitos dependientes de decisiones y capacidades inexistentes, sin rebajar) | Ver criterios abajo |
 | P0-021 Mitigación | **DONE_LOCAL** (criterios originales demostrados); causas que dependen de D-05 o del proveedor satelital no se mitigan (no se simula su resolución) | Ver criterios abajo |
 | P0-020 Riesgo | **DONE_LOCAL** para sus criterios originales con reglas técnicas **no aprobadas**: severidad NOT_ASSESSED y conclusión UNDETERMINED por diseño; reglas dependientes de D-05, P0-028 y P0-021 no evaluables | Ver criterios abajo |
 | P0-017 Inventario y balance de masa | **Criterios demostrados localmente excepto reserva/despacho**; STORAGE integrada (CTE 1.3.0). **Historia abierta**: reserva y despacho dependen de embarques (P0-029) | Ver criterios abajo |
@@ -259,6 +260,21 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 | **Concesiones externas y elevación** | **Pendientes en P0-003** | — |
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
+
+### P0-022 — criterios
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-11T03-57-59-556Z`): unitarias + integración (API y web) 281/281, E2E 55/55, OpenAPI 140 rutas; revisión por rol 40 entradas, 0 incidencias. Corrida previa FALLIDA conservada (`validation-results/2026-10-11T03-45-52-370Z`): la prueba E2E de P0-022 mostró que, sin evaluación de riesgo, los requisitos de catálogo y conclusión no se listaban; se corrigió el guard (ahora aparecen como pendiente/no evaluable) y se añadió una prueba unitaria. El fallo anterior de arranque E2E (`2026-10-11T02-05-01-152Z`) sigue con **causa no determinada**; no se aumentaron tiempos de espera.
+
+| Criterio original (backlog) | Estado | Evidencia (`dd.int-spec.ts`, `requirements.spec.ts`, E2E, revisión) |
+| --- | --- | --- |
+| Guards por requisito | DEMOSTRADO | 16 requisitos: MET / PENDING / INVALID / NOT_EVALUABLE; desconocido = no evaluable; porcentaje alto no elimina bloqueos; calidad pendiente, origen incompleto y mitigaciones verificadas no equivalen a aprobación |
+| Revisión autorizada | PARCIAL | Iniciar y devolver con motivo, permisos, transiciones inválidas, una aprobación por instantánea (índice único). Aprobar se rechaza con `READINESS_NOT_MET` y la lista de requisitos; la aprobación positiva no puede demostrarse con datos reales |
+| Snapshot/manifest | DEMOSTRADO | Captura en REPEATABLE READ; contenido, hash total y por sección, manifest de versiones (lote, entregas, versiones de parcela con hash de geometría, versiones de documento con SHA-256, evidencias, evaluación de riesgo, catálogo, mitigaciones), fecha y autor; append-only |
+| Export auditado | PARCIAL | Borrador interno: permiso, auditoría (SUCCESS/DENIED), evento, idempotencia, descarga regenerada desde la instantánea con verificación de hash, redacción de geometrías y documentos PERSONAL_DATA. `DD_PACKAGE`: rechazado sin preparación (probado); éxito solo con fixture sintética en el generador |
+| Cambio relevante invalida readiness | DEMOSTRADO | Nueva evaluación de riesgo → instantánea STALE con secciones cambiadas; la instantánea y su paquete no cambian; aprobar/exportar sobre STALE se rechaza |
+| Export no marca DDS aceptada | DEMOSTRADO | `submission: NOT_SUBMITTED` en paquete, vista y evento; textos «descargar no es presentar» |
+
+Pendientes reales de P0-022: perfil jurídico (P1-005), D-05, proveedor satelital (P0-028), catálogo de riesgo aprobado, reserva/despacho y embarques (P0-017/P0-029); adjuntos incrustados en el paquete (hoy referencia por versión y SHA-256); política de identidad de productores en el paquete (hoy nunca se copia); un expediente por lote.
 
 ### P0-021 — criterios
 

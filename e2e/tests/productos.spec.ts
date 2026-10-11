@@ -505,3 +505,38 @@ test('P0-021 mitigación: crear desde la causa, aportar soporte por versión, en
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });
+
+test('P0-022 expediente: requisitos bloqueados explicados, borrador interno descargable, paquete y aprobación bloqueados; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  await page.goto(`${orgUrl}/diligencia`);
+  await expect(page.getByRole('heading', { name: 'Debida diligencia', level: 1 })).toBeVisible();
+  const form = page.getByRole('form', { name: 'Crear expediente' });
+  await form.getByLabel('Lote').selectOption({ index: 1 });
+  await form.getByLabel('Alcance').fill('Expediente E2E sintético');
+  await form.getByRole('button', { name: 'Crear expediente' }).focus();
+  await page.keyboard.press('Enter');
+  const rows = page.getByRole('table', { name: 'Expedientes' }).locator('tbody tr');
+  await expect(rows).toHaveCount(1);
+  await rows.first().getByRole('link').click();
+  await expect(page.getByRole('heading', { name: /Expediente DD-/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Capturar instantánea' }).click();
+  await expect(page.getByRole('heading', { name: 'Preparación (instantánea 1)' })).toBeVisible();
+  const reqs = page.getByRole('table', { name: 'Requisitos' });
+  await expect(reqs.locator('tr').filter({ hasText: 'RISK_CATALOG_APPROVED' })).toContainText('No evaluable');
+  await expect(reqs.locator('tr').filter({ hasText: 'REGULATORY_CONCLUSION' })).toContainText('No evaluable');
+  await expect(page.getByText('Bloqueada').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Generar paquete de diligencia' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Generar borrador interno' }).click();
+  await expect(page.getByRole('list', { name: 'Paquetes generados' })).toContainText('Borrador interno para revisión');
+  const download = page.waitForEvent('download');
+  await page.getByRole('list', { name: 'Paquetes generados' }).getByRole('button', { name: 'Descargar' }).click();
+  expect((await download).suggestedFilename()).toMatch(/borrador-interno\.json$/);
+  await page.getByLabel('Motivo').fill('Revisión E2E');
+  await page.getByRole('button', { name: 'Iniciar revisión' }).click();
+  await expect(page.getByText('Estado: En revisión')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Aprobar preparación' })).toBeDisabled();
+  await expect(page.getByText(/Aprobar exige todos los requisitos cumplidos/)).toBeVisible();
+  await expect(page.getByText(/no presentada/).first()).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await ctx.close();
+});

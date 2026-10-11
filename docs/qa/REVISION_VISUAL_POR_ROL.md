@@ -229,3 +229,27 @@ DEMO: mitigación ABIERTA «Completar el origen de ENT-2026-00002» (causa DATA_
 | coordinador.multi (MANAGER) | Acceso denegado | — |
 
 E2E (cuenta administradora del entorno E2E): crear desde la causa, aportar soporte por versión, entregar y comprobar que el ejecutor no puede verificar. La verificación por un segundo usuario y la reevaluación por outbox se prueban en integración (dos verificadores, worker real).
+
+## P0-021 Mitigación — recorrido completo con segunda persona (2026-10-10)
+
+Cuenta DEMO nueva `eudr.cooperativa` (Diana Ponce, rol existente EUDR_MANAGER; sin permisos adicionales; el auditor no cambió). Credencial recuperable según docs/20.
+
+| Paso | Cuenta | Resultado | Captura |
+| --- | --- | --- | --- |
+| Aportar soporte (versión 1 de un documento DEMO) y entregar | admin.cooperativa (ejecutor) | Sigue abierta al adjuntar; luego «Entregada: pendiente de verificación» | `mitigaciones--admin.png` |
+| Verificar con motivo (teclado) | eudr.cooperativa | «Verificada (entrega 1) por Diana Ponce»; reevaluación por outbox → «Evaluación 2 registrada» | `mitigaciones--verificador.png` |
+| Riesgo tras reevaluar | eudr.cooperativa | Evaluación 2 vigente: DATA_MISSING_ORIGIN y MATERIAL_OF_UNKNOWN_ORIGIN siguen bloqueantes; conclusión Indeterminada; reglas 0.2.0 sin aprobar | `mitigaciones--riesgo-reevaluado.png` |
+
+No se inventaron datos de origen: la causa continúa visible. La evaluación 2 figura con la verificadora como actor (es quien disparó la reevaluación).
+
+## P0-022 Debida diligencia (2026-10-10, DEMO, Cooperativa)
+
+DEMO: expediente de LOT-2026-00002 con una instantánea (sin revisar, aprobar ni exportar en el seed).
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| eudr.cooperativa | Requisitos con estado y fuente; perfil/D-05/catálogo/conclusión/embarques no evaluables; DATA_MISSING_ORIGIN inválido; paquete deshabilitado con motivo; «no presentada» | `diligencia--eudr.png` |
+| auditor.cooperativa (390 px, teclado) | Lectura sin acciones; sin coordenadas (solo hash); sin desborde | `diligencia--auditor-390.png` |
+| coordinador.multi, tecnico1.cooperativa | Acceso denegado y sin enlace | — |
+
+E2E (390 px, teclado): crear expediente, capturar instantánea, requisitos no evaluables visibles, borrador interno generado y descargado, iniciar revisión, aprobar y paquete deshabilitados con explicación.
