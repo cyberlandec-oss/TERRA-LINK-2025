@@ -66,7 +66,8 @@ Ninguna decisión es un bloqueo global. Solo bloquea la historia cuyo criterio d
 | Matriz `producer:*` | Propuesta provisional (doc 07) | No |
 | ADR-0001 / ADR-0005 sin ratificar | Stack y autenticación adoptados para desarrollo | No en local |
 | D-05, D-06… (GIS, stock) | Historias futuras | Se evaluarán en su historia |
-| D-40 | Sesión offline móvil (P0-023, **propuesta no aprobada**): ventana local de captura de 72 h desde la última autenticación online, sin renovar el JWT sin red; bloqueo si el reloj retrocede; sin detección de revocaciones offline; base cifrada con SQLCipher solo en build de desarrollo (Expo Go sin cifrar); device_id local sin valor de autorización (docs/11, ADR-0006) | Seguridad/producto | Política aprobada (duración, desbloqueo local, retención, borrado remoto) y ensayo Android |
+| D-40 | Autorización local de captura más larga que la sesión (P0-023, **propuesta no aprobada y NO aplicada**): hoy la captura termina al vencer el JWT (1 h). Si se requiere trabajo de campo más largo, decidir credencial local emitida por el servidor por dispositivo (duración, desbloqueo local, revocación, retención, borrado remoto; contrato en docs/11) | Seguridad/producto | Política aprobada y ensayo Android |
+| D-41 | Fotografía de campo (P0-024, provisional): tipo de documento `FIELD_PHOTO` con titular parcela y clasificación PERSONAL_DATA (una foto puede mostrar personas). Extiende D-36 | Producto/datos personales | Clasificación y retención confirmadas |
 | GitHub Actions / facturación | Ninguno: Actions inactivo; validación local | **No** (eliminado como bloqueo) |
 
 ### Supuestos vigentes de desarrollo (2026-10-10)

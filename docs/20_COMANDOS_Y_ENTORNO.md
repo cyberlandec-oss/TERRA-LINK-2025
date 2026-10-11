@@ -101,3 +101,13 @@ Comandos ejecutados el 2026-10-10 en este equipo (Windows, Node 24): `npm ci`, `
 (núcleo en Node con `node:sqlite`), `TL_API_SMOKE=1 npm test` (cliente en Node contra la API local), `npx expo export
 --platform android --output-dir <tmp>` (bundle Hermes) y `npx expo-doctor` (21/21). No hay Android SDK, JDK ni adb: no se
 ejecutó emulador, build nativo ni dispositivo. Ensayo en Android real con Expo Go: `apps/mobile/README.md`.
+
+### Comprobaciones del móvil (2026-10-11)
+
+`npm run check --prefix apps/mobile` (añadir `-- --api` con la app levantada y DEMO sembrado) ejecuta typecheck, pruebas
+del núcleo (Node + SQLite real), recorrido opcional contra la API local, bundle Android y expo-doctor. Resultados en
+`validation-results/<fecha>-movil/`. **Separado de `npm run validate`**; no cubre emulador, build nativo ni dispositivo.
+
+Nota de entorno (2026-10-11): el servicio `api` de `docker-compose.yml` no recibía `SCANNER_HOST`, por lo que los
+documentos subidos a la API en contenedor quedaban «análisis pendiente» (`SCANNER_UNAVAILABLE`). Se añadió
+`SCANNER_HOST: scanner` **localmente**; el cambio de ese archivo raíz no está confirmado en git (pendiente de autorización).

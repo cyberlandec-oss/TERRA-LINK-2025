@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-11T04:25:49.295Z",
+  "fecha": "2026-10-11T05:40:50.649Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -1462,12 +1462,12 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "2 documento(s); disponible=true; formulario de carga=1; descarga guia-demo.pdf; puede revisar=1",
+          "resultado": "6 documento(s); disponible=true; formulario de carga=1; descarga guia-demo.pdf; puede revisar=1",
           "ok": true
         },
         {
           "cuenta": "tecnico1.cooperativa (capturador asignado, 390 px, teclado)",
-          "resultado": "2 documento(s) de sus productores; foco tras Tab en «up-title»; botón de revisión=0; desborde=false",
+          "resultado": "6 documento(s) de sus productores; foco tras Tab en «up-title»; botón de revisión=0; desborde=false",
           "ok": true
         },
         {
@@ -1509,7 +1509,7 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "Mostrando 25 de 518 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
+          "resultado": "Mostrando 25 de 550 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
           "ok": true
         },
         {
@@ -1649,7 +1649,7 @@
         },
         {
           "cuenta": "eudr.cooperativa (segunda persona)",
-          "resultado": "verificación histórica corregida: soporte aceptado, criterio no cumplido; soporte aceptado / criterio no cumplido / causa persiste=true; decisión original conservada=true",
+          "resultado": "sin cambios (ya revisada); soporte aceptado / criterio no cumplido / causa persiste=true; decisión original conservada=true",
           "ok": true
         },
         {

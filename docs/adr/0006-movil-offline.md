@@ -18,13 +18,14 @@ definida sin renovar credenciales sin red. La API emite JWT de 1 h sin refresh t
   `expo-image-picker` (archivo en caché temporal), `expo-crypto` (SHA-256, UUID).
 - **Almacenamiento**: una base SQLite por cuenta + organización (`tl-<hash>.db`) y carpeta de adjuntos propia. Encolar
   escribe borrador y operaciones en una transacción exclusiva; las operaciones encoladas son inmutables.
-- **Fotos**: copia desde la caché a `incoming/*.part`, verificación de tamaño y SHA-256, traslado a `attachments/` y
-  registro. Al abrir: temporales incompletos se descartan (la foto no se había registrado) y huérfanos se informan.
 - **Ubicación**: `source = DEVICE_LOCATION_SERVICE`, hora de adquisición del proveedor, precisión informada o NULL,
   detalle del proveedor y marca de simulación. Nunca se etiqueta como GPS.
 - **Cifrado**: clave aleatoria por base en almacenamiento seguro; `PRAGMA key` con SQLCipher en build de desarrollo; el
   estado real se mide (`PRAGMA cipher_version`) y se muestra. En Expo Go la base queda sin cifrar (declarado).
-- **Sesión offline**: ver D-40 (propuesta). device_id local que no autoriza (contrato en docs/11).
+- **Sesión**: la captura termina al vencer la sesión del servidor; D-40 (ventana más larga) es una propuesta no aplicada.
+- **Entornos**: Expo Go = prueba sin cifrado, solo datos sintéticos (DEMO); build nativo = exige SQLCipher o no abre el almacén.
+- **Fotos**: BLOB dentro de la base (mismo cifrado); copia de la cámara borrada tras importar.
+- **Sincronización (P0-024)**: dispositivo registrado en servidor, push idempotente por hash, pull con cursor de servidor, adjuntos por Documentos (docs/11).
 
 ## Consecuencias
 

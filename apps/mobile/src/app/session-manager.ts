@@ -1,6 +1,8 @@
 import type { Platform } from '../core/ports';
 import { accountKey, captureGate, jwtExpiry, type StoredSession } from '../core/session';
-import { LocalStore, type DatasetPlot } from '../core/store';
+import { LocalStore } from '../core/store';
+import { syncOnce, type SyncSummary } from '../core/sync';
+import { httpTransport, type Uploader } from './transport';
 
 // Sesión del dispositivo (P0-023). Inicio de sesión SOLO con conexión; el token vive en almacenamiento seguro y nunca
 // se renueva sin red. Cerrar sesión elimina token y sesión, pero NO las bases ni adjuntos por cuenta: las capturas
@@ -69,25 +71,55 @@ export class SessionManager {
     await this.p.secrets.delete(K.session);
   }
 
+  /** Almacén de la cuenta+organización; toda escritura de captura pasa por la puerta de sesión (vencida → bloqueada). */
   async openStore(s: StoredSession, orgId: string): Promise<LocalStore> {
-    return LocalStore.open(this.p, await accountKey(this.p.sha256, s.user_id, orgId));
+    return LocalStore.open(this.p, await accountKey(this.p.sha256, s.user_id, orgId), () => captureGate(s, orgId, this.p.now()));
   }
 
-  /** Descarga SOLO las parcelas que el servidor autoriza a esta cuenta en esta organización (requiere conexión y token vigente). */
-  async downloadDataset(s: StoredSession, orgId: string, store: LocalStore): Promise<number> {
-    const token = await this.token();
-    if (!token || this.p.now() >= new Date(s.token_expires_at)) throw new ApiFailure('HTTP', 401, 'La sesión venció: inicia sesión con conexión para descargar datos.');
-    const apiUrl = await this.apiUrl('');
-    const plots: DatasetPlot[] = [];
-    let cursor: string | null = null;
-    do {
-      const page: { items: Array<{ id: string; plot_code: string; name: string | null; row_version: number; status: string; producer: { id: string; producer_code: string | null; display_name: string | null }; geometry_status: string }>; next_cursor: string | null } =
-        await http(this.fetchImpl, apiUrl, `/api/v1/organizations/${orgId}/plots?status=ACTIVE&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, { token });
-      for (const x of page.items) plots.push({ id: x.id, plot_code: x.plot_code, name: x.name, row_version: x.row_version, status: x.status, producer_id: x.producer.id, producer_code: x.producer.producer_code, producer_display_name: x.producer.display_name || null, geometry_status: x.geometry_status });
-      cursor = page.next_cursor;
-    } while (cursor && plots.length < 2000);
-    await store.replaceDataset(plots);
-    return plots.length;
+  private online(s: StoredSession) {
+    if (this.p.now() >= new Date(s.token_expires_at)) throw new ApiFailure('HTTP', 401, 'La sesión venció: inicia sesión con conexión.');
+  }
+
+  /** Registro (o recuperación) del dispositivo en la organización: identificador emitido por el servidor; no autoriza. */
+  async ensureDevice(s: StoredSession, orgId: string): Promise<string> {
+    const key = `tl.device.server.${s.user_id}.${orgId}`;
+    const known = await this.p.secrets.get(key);
+    if (known) return known;
+    this.online(s);
+    const r = await http<{ device: { id: string } }>(this.fetchImpl, await this.apiUrl(''), `/api/v1/organizations/${orgId}/devices`, { method: 'POST', token: (await this.token()) ?? undefined,
+      body: { client_device_id: await this.deviceId(), platform: 'ANDROID', label: 'Terra Link Campo' } });
+    await this.p.secrets.set(key, r.device.id);
+    return r.device.id;
+  }
+
+  /** Expo Go no cifra la base: solo se admiten organizaciones DEMO (datos sintéticos). */
+  private assertDataAllowed(s: StoredSession, orgId: string) {
+    const org = s.organizations.find((o) => o.organization_id === orgId);
+    if (this.p.environment === 'EXPO_GO_SYNTHETIC' && !org?.name.startsWith('DEMO')) {
+      throw new ApiFailure('HTTP', 403, 'Expo Go es un entorno de prueba SIN cifrado: solo admite organizaciones DEMO con datos sintéticos. Usa el build nativo de aceptación para datos reales.', 'SYNTHETIC_ONLY');
+    }
+  }
+
+  transport(orgId: string, apiUrl: string, uploader: Uploader) {
+    return httpTransport(apiUrl, orgId, () => this.token(), this.fetchImpl, uploader);
+  }
+
+  /** Descarga del dataset autorizado mediante pull completo (cursor de servidor). Las operaciones pendientes no se tocan. */
+  async downloadDataset(s: StoredSession, orgId: string, store: LocalStore, uploader: Uploader): Promise<number> {
+    this.online(s);
+    this.assertDataAllowed(s, orgId);
+    const deviceId = await this.ensureDevice(s, orgId);
+    const r = await this.transport(orgId, await this.apiUrl(''), uploader).pull(deviceId, null);
+    await store.applyPull(r.changes, r.tombstones, r.cursor, true);
+    return r.changes.length;
+  }
+
+  /** Sincronización completa: push, adjuntos y pull. Requiere sesión vigente (el servidor revalida todo). */
+  async sync(s: StoredSession, orgId: string, store: LocalStore, uploader: Uploader): Promise<SyncSummary> {
+    this.online(s);
+    this.assertDataAllowed(s, orgId);
+    const deviceId = await this.ensureDevice(s, orgId);
+    return syncOnce(store, this.transport(orgId, await this.apiUrl(''), uploader), deviceId);
   }
 
   gate(s: StoredSession | null, orgId: string | null) { return captureGate(s, orgId, this.p.now()); }

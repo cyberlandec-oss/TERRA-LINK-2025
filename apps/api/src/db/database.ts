@@ -30,6 +30,7 @@ import * as m0025 from './migrations/0025_risk';
 import * as m0026 from './migrations/0026_mitigations';
 import * as m0027 from './migrations/0027_dd_cases';
 import * as m0028 from './migrations/0028_mitigation_corrections';
+import * as m0029 from './migrations/0029_sync';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -61,6 +62,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0026_mitigations': m0026,
   '0027_dd_cases': m0027,
   '0028_mitigation_corrections': m0028,
+  '0029_sync': m0029,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

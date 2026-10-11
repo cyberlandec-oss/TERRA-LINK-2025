@@ -6304,6 +6304,242 @@
           "due-diligence"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/devices": {
+      "post": {
+        "operationId": "SyncController_register",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDeviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sync"
+        ]
+      },
+      "get": {
+        "operationId": "SyncController_devices",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sync"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/devices/{id}/revoke": {
+      "post": {
+        "operationId": "SyncController_revoke",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sync"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/sync/push": {
+      "post": {
+        "operationId": "SyncController_push",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sync"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/sync/pull": {
+      "get": {
+        "operationId": "SyncController_pull",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sync"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/sync/attachments/{operationId}/content": {
+      "post": {
+        "operationId": "SyncController_upload",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "operationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "device_id",
+                  "file"
+                ],
+                "properties": {
+                  "device_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "sync"
+        ]
+      }
     }
   },
   "info": {
@@ -8032,6 +8268,61 @@
         "required": [
           "operation_id",
           "kind"
+        ]
+      },
+      "RegisterDeviceDto": {
+        "type": "object",
+        "properties": {
+          "client_device_id": {
+            "type": "string",
+            "description": "Identificador generado por la app (informativo; no autoriza)"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "ANDROID",
+              "IOS",
+              "OTHER"
+            ]
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_device_id",
+          "platform",
+          "label"
+        ]
+      },
+      "RevokeDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "PushDto": {
+        "type": "object",
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "description": "Dispositivo registrado (emitido por el servidor)"
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OperationDto"
+            }
+          }
+        },
+        "required": [
+          "device_id",
+          "operations"
         ]
       }
     }

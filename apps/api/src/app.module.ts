@@ -28,6 +28,7 @@ import { InventoryController, InventoryService } from './inventory/inventory';
 import { RiskController, RiskService } from './risk/risk';
 import { MitigationsController, MitigationsService } from './mitigations/mitigations';
 import { DdController, DdService } from './dd/dd';
+import { SyncController, SyncService } from './sync/sync';
 import { AuthController, AuthGuard, CurrentUser, Public, type AuthUser, type AuthedRequest } from './auth/auth';
 import { AuthorizationService } from './authz/authorization.service';
 import { PLATFORM_PERMISSIONS, RBAC_CATALOG_VERSION, ROLE_PERMISSIONS } from './authz/catalog';
@@ -180,7 +181,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
-        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController, KdeController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController,
+        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController, KdeController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController,
       ],
       providers: [
         { provide: APP_CONFIG, useValue: config },
@@ -224,6 +225,7 @@ export class AppModule implements NestModule {
         RiskService,
         MitigationsService,
         DdService,
+        SyncService,
         AuthorizationService,
         OrganizationsService,
       ],

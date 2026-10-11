@@ -1,14 +1,14 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { LocalStore, type DatasetPlot } from '../store';
-import { accountKey, captureGate, OFFLINE_CAPTURE_WINDOW_HOURS, type StoredSession } from '../session';
-import { isStorageFull } from '../ports';
+import { accountKey, captureGate, CaptureBlockedError, type StoredSession } from '../session';
+import { EncryptionRequiredError, isStorageFull } from '../ports';
 import { nodePlatform } from './node-platform';
 
 // Evidencia en Node (motor SQLite real + archivos reales). NO es evidencia de emulador ni de dispositivo Android.
 const PLOT: DatasetPlot = { id: '00000000-0000-4000-8000-000000000001', plot_code: 'P-SINT-1', name: null, row_version: 3, status: 'ACTIVE', producer_id: '00000000-0000-4000-8000-0000000000a1', producer_code: 'PR-SINT', producer_display_name: 'Productor sintético', geometry_status: 'NONE' };
-const SAMPLE = { latitude: -0.8479, longitude: -80.1601, accuracy_m: null, acquired_at: '2026-10-10T15:00:00.000Z', provider_detail: 'expo-location; proveedor del sistema (no garantiza GPS); gpsAvailable=desconocido', mocked: null };
+const SAMPLE = { latitude: -0.8479, longitude: -80.1601, accuracy_m: null, acquired_at: '2026-10-10T15:00:00.000Z', provider_detail: 'expo-location; proveedor del sistema (no garantiza GPS)', mocked: null };
 
 function setup(opts: Parameters<typeof nodePlatform>[1] = {}) {
   const root = mkdtempSync(join(tmpdir(), 'tl-mobile-'));
@@ -18,7 +18,7 @@ function setup(opts: Parameters<typeof nodePlatform>[1] = {}) {
 }
 
 describe('P0-023 almacén local (Node + SQLite real)', () => {
-  it('encolar escribe borrador y operaciones en una transacción, con operation_id estable y dependencias', async () => {
+  it('encolar escribe borrador y operaciones reales en una transacción, con operation_id estable, hash y dependencias', async () => {
     const { p, photo } = setup();
     const s = await LocalStore.open(p, 'acc1');
     await s.replaceDataset([PLOT]);
@@ -27,27 +27,29 @@ describe('P0-023 almacén local (Node + SQLite real)', () => {
     await s.setLocation(d, SAMPLE);
     await s.addPhoto(d, photo, 'image/jpeg', '2026-10-10T15:01:00.000Z');
     const ops = await s.enqueue(d);
-    expect(ops).toHaveLength(3);
+    expect(ops).toHaveLength(2);
     const [view] = await s.drafts();
     expect(view.status).toBe('QUEUED');
-    expect(view.operations.map((o) => o.operation_type)).toEqual(['PLOT_FIELD_NOTE_CREATE', 'PLOT_LOCATION_SAMPLE_CREATE', 'PLOT_PHOTO_ATTACH']);
-    expect(view.operations[1].depends_on).toEqual([ops[0]]);
-    expect(view.operations[2].depends_on).toEqual([ops[1]]);
-    expect(view.operations[2].attachment_refs).toEqual([view.photos[0].id]);
-    expect(view.operations.every((o) => o.state === 'PENDING')).toBe(true);
-    // inmutable una vez encolada; encolar dos veces no duplica
+    expect(view.operations.map((o) => o.operation_type)).toEqual(['PLOT_LOCATION_SAMPLE_CREATE', 'PLOT_PHOTO_ATTACH']);
+    expect(view.operations[0]).toMatchObject({ base_version: 3, depends_on: [] });
+    expect(view.operations[1]).toMatchObject({ depends_on: [ops[0]], attachment_refs: [view.photos[0].id], payload: { caption: 'Visita sintética' } });
+    expect(view.operations.every((o) => /^[0-9a-f]{64}$/.test(o.content_hash) && o.state === 'PENDING')).toBe(true);
     await expect(s.setNote(d, 'cambio')).rejects.toThrow(/ya está en cola/);
     await expect(s.enqueue(d)).rejects.toThrow(/ya está en cola/);
-    expect((await s.counts()).pending_ops).toBe(3);
+    // una nota sola no tiene entidad en el servidor: no se encola (se dice por qué)
+    const solo = await s.createDraft(PLOT.id);
+    await s.setNote(solo, 'solo nota');
+    await expect(s.enqueue(solo)).rejects.toThrow(/no tiene entidad en el servidor/);
     await s.close();
   });
 
   it('si falla cualquier escritura dentro de la transacción, no queda borrador encolado ni operaciones parciales', async () => {
-    const { p } = setup();
+    const { p, photo } = setup();
     const s = await LocalStore.open(p, 'acc1');
     await s.replaceDataset([PLOT]);
     const d = await s.createDraft(PLOT.id);
     await s.setLocation(d, SAMPLE);
+    await s.addPhoto(d, photo, 'image/jpeg', null);
     const real = p.uuid;
     p.uuid = () => 'duplicado'; // la 2.ª operación choca con la clave primaria de la 1.ª
     await expect(s.enqueue(d)).rejects.toThrow();
@@ -67,8 +69,22 @@ describe('P0-023 almacén local (Node + SQLite real)', () => {
     const [view] = await s.drafts();
     expect(view.location).toMatchObject({ accuracy_m: null, acquired_at: SAMPLE.acquired_at, source: 'DEVICE_LOCATION_SERVICE', mocked: null });
     expect(view.location!.provider_detail).toMatch(/no garantiza GPS/);
-    expect(view.location!.recorded_at).not.toBe(SAMPLE.acquired_at);
     await expect(s.setLocation(d, { ...SAMPLE, accuracy_m: -1 })).rejects.toThrow(/Precisión/);
+    await s.close();
+  });
+
+  it('las fotos se guardan dentro de la base (no en archivos externos); la copia de la cámara se borra; con SHA-256', async () => {
+    const { p, photo, root } = setup();
+    const s = await LocalStore.open(p, 'acc1');
+    await s.replaceDataset([PLOT]);
+    const d = await s.createDraft(PLOT.id);
+    const id = await s.addPhoto(d, photo, 'image/jpeg', null);
+    expect(require('node:fs').existsSync(photo)).toBe(false); // copia temporal de la cámara eliminada
+    expect(require('node:fs').readdirSync(join(root, 'files', 'accounts', 'acc1', 'attachments'))).toEqual([]); // sin archivo externo
+    const [view] = await s.drafts();
+    expect(view.photos[0]).toMatchObject({ storage: 'DB', file_present: true });
+    expect(view.photos[0].sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect((await s.attachmentBytes(id)).length).toBe(view.photos[0].size_bytes);
     await s.close();
   });
 
@@ -84,30 +100,11 @@ describe('P0-023 almacén local (Node + SQLite real)', () => {
     const ops = await s.enqueue(d2);
     await s.markUploadingForTest(ops[0]);
     await s.close(); // «cierre» de la app
-    s = await LocalStore.open(nodePlatform(root), 'acc1'); // nueva instancia, mismos archivos
-    const report = await s.recover();
-    expect(report.recovered_operations).toEqual([ops[0]]);
+    s = await LocalStore.open(nodePlatform(root), 'acc1');
+    expect((await s.recover()).recovered_operations).toEqual([ops[0]]);
     const views = await s.drafts();
-    expect(views).toHaveLength(2);
-    const draft = views.find((v) => v.id === d1)!;
-    expect(draft).toMatchObject({ status: 'DRAFT', note: 'Borrador sin encolar' });
-    expect(draft.photos[0].file_present).toBe(true);
-    const queued = views.find((v) => v.id === d2)!;
-    expect(queued.operations[0]).toMatchObject({ operation_id: ops[0], state: 'PENDING', recovered_count: 1 });
-    await s.close();
-  });
-
-  it('las fotos se guardan fuera de la caché temporal, con SHA-256 y tamaño; borrar la caché no las pierde', async () => {
-    const { p, photo } = setup();
-    const s = await LocalStore.open(p, 'acc1');
-    await s.replaceDataset([PLOT]);
-    const d = await s.createDraft(PLOT.id);
-    await s.addPhoto(d, photo, 'image/jpeg', null);
-    require('node:fs').rmSync(photo); // el sistema vacía la caché de la cámara
-    const [view] = await s.drafts();
-    expect(view.photos[0].path).toMatch(/^accounts\/acc1\/attachments\//);
-    expect(view.photos[0].file_present).toBe(true);
-    expect(view.photos[0].sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(views.find((v) => v.id === d1)).toMatchObject({ status: 'DRAFT', note: 'Borrador sin encolar', photos: [expect.objectContaining({ file_present: true })] });
+    expect(views.find((v) => v.id === d2)!.operations[0]).toMatchObject({ operation_id: ops[0], state: 'PENDING', recovered_count: 1 });
     await s.close();
   });
 
@@ -122,24 +119,20 @@ describe('P0-023 almacén local (Node + SQLite real)', () => {
     expect(isStorageFull(err)).toBe(true);
     expect(err.message).toMatch(/borrador y las capturas anteriores se conservan/);
     fail = false;
-    let [view] = await s.drafts();
-    expect(view).toMatchObject({ note: 'Conservar', photos: [] });
-    // poco espacio libre informado por la plataforma: se avisa antes de copiar
+    expect((await s.drafts())[0]).toMatchObject({ note: 'Conservar', photos: [] });
     const low = await LocalStore.open(nodePlatform(root, { free: () => 1024 }), 'acc1');
     expect(isStorageFull(await low.addPhoto(d, photo, 'image/jpeg', null).catch((e) => e))).toBe(true);
     await low.close();
-    // escritura interrumpida: queda un temporal .part; al reabrir se informa y no aparece como foto
     require('node:fs').writeFileSync(join(root, 'files', 'accounts', 'acc1', 'incoming', 'x.jpg.part'), 'parcial');
     require('node:fs').writeFileSync(join(root, 'files', 'accounts', 'acc1', 'attachments', 'huerfana.jpg'), 'sin registro');
     const report = await s.recover();
     expect(report.incomplete_temp_files).toEqual(['x.jpg.part']);
-    expect(report.orphan_files).toEqual(['huerfana.jpg']); // se informa, no se borra
-    [view] = await s.drafts();
-    expect(view.photos).toEqual([]);
+    expect(report.orphan_files).toEqual(['huerfana.jpg']);
+    expect((await s.drafts())[0].photos).toEqual([]);
     await s.close();
   });
 
-  it('separación por cuenta y organización: archivos de base y adjuntos distintos; otra cuenta no ve los datos', async () => {
+  it('separación por cuenta y organización: otra cuenta no ve los datos; cerrar sesión no destruye lo pendiente', async () => {
     const { p, photo } = setup();
     const kA = await accountKey(p.sha256, 'user-A', 'org-1');
     const kB = await accountKey(p.sha256, 'user-B', 'org-1');
@@ -149,34 +142,68 @@ describe('P0-023 almacén local (Node + SQLite real)', () => {
     await a.replaceDataset([PLOT]);
     const d = await a.createDraft(PLOT.id);
     await a.addPhoto(d, photo, 'image/jpeg', null);
-    await a.close(); // «cerrar sesión»: no destruye la captura pendiente
+    await a.close();
     const b = await LocalStore.open(p, kB);
     expect(await b.drafts()).toEqual([]);
     expect(await b.plots()).toEqual([]);
-    await expect(b.createDraft(PLOT.id)).rejects.toThrow(/no está en los datos descargados/);
     await b.close();
     const again = await LocalStore.open(p, kA);
-    expect(await again.drafts()).toHaveLength(1); // la misma cuenta la recupera
+    expect(await again.drafts()).toHaveLength(1);
     await again.close();
+  });
+
+  it('cifrado: el build nativo no abre (ni escribe) un almacén sin cifrar; Expo Go queda marcado como no cifrado', async () => {
+    const { root } = setup();
+    await expect(LocalStore.open(nodePlatform(root, { environment: 'NATIVE_BUILD' }), 'acc-native')).rejects.toBeInstanceOf(EncryptionRequiredError);
+    expect(require('node:fs').readdirSync(join(root, 'db')).filter((f: string) => f.startsWith('tl-acc-native') && !f.endsWith('-shm') && !f.endsWith('-wal'))).toEqual(['tl-acc-native.db']); // archivo abierto y cerrado, sin esquema ni datos
+    const s = await LocalStore.open(nodePlatform(root, { environment: 'EXPO_GO_SYNTHETIC' }), 'acc-go');
+    expect(s.encrypted).toBe(false);
+    await s.close();
   });
 });
 
-describe('P0-023 política provisional de sesión offline', () => {
-  const now = new Date('2026-10-10T12:00:00Z');
-  const base: StoredSession = { user_id: 'u', email: 'tecnico@x', token_expires_at: '2026-10-10T13:00:00Z', last_online_auth_at: '2026-10-10T11:00:00Z', last_seen_at: '2026-10-10T11:30:00Z',
-    organizations: [{ organization_id: 'o1', name: 'Org', status: 'ACTIVE', roles: ['FIELD_TECHNICIAN'], permissions: ['plot:update_assigned'] }] };
-  it('token vigente → captura; token vencido → solo ventana local, sin renovar credenciales', () => {
-    expect(captureGate(base, 'o1', now)).toMatchObject({ allowed: true, mode: 'ONLINE_TOKEN_VALID' });
-    const later = new Date('2026-10-11T12:00:00Z');
-    const g = captureGate(base, 'o1', later);
-    expect(g).toMatchObject({ allowed: true, mode: 'OFFLINE_WINDOW' });
-    expect(base.token_expires_at).toBe('2026-10-10T13:00:00Z'); // no se modificó
+describe('P0-023 sesión: vence con el token del servidor; bloquear no borra', () => {
+  const t0 = new Date('2026-10-10T12:00:00Z');
+  const sess = (over: Partial<StoredSession> = {}): StoredSession => ({ user_id: 'u', email: 'tecnico@x', token_expires_at: '2026-10-10T13:00:00Z', last_online_auth_at: '2026-10-10T11:59:00Z', last_seen_at: '2026-10-10T12:00:00Z',
+    organizations: [{ organization_id: 'o1', name: 'DEMO Org', status: 'ACTIVE', roles: ['FIELD_TECHNICIAN'], permissions: ['plot:update_assigned'] }], ...over });
+
+  it('vigente → permitido; vencido el token → bloqueado (sin ventana extra); reloj atrasado, sin permiso u otra organización → bloqueado', () => {
+    expect(captureGate(sess(), 'o1', t0)).toMatchObject({ allowed: true, until: '2026-10-10T13:00:00Z' });
+    expect(captureGate(sess(), 'o1', new Date('2026-10-10T13:00:01Z'))).toMatchObject({ allowed: false, reason: 'SESSION_EXPIRED' });
+    expect(captureGate(sess(), 'o1', new Date('2026-10-10T11:00:00Z'))).toMatchObject({ allowed: false, reason: 'CLOCK_BACKWARDS' });
+    expect(captureGate(sess({ organizations: [{ ...sess().organizations[0], permissions: ['plot:read'] }] }), 'o1', t0)).toMatchObject({ allowed: false, reason: 'NO_PERMISSION' });
+    expect(captureGate(sess(), 'otra', t0)).toMatchObject({ allowed: false, reason: 'NO_PERMISSION' });
+    expect(captureGate(null, 'o1', t0)).toMatchObject({ allowed: false, reason: 'NO_SESSION' });
   });
-  it(`vencida la ventana de ${OFFLINE_CAPTURE_WINDOW_HOURS} h, reloj atrasado, sin permiso u otra organización → bloqueado con motivo`, () => {
-    expect(captureGate(base, 'o1', new Date('2026-10-14T12:00:00Z'))).toMatchObject({ allowed: false, reason: 'WINDOW_EXPIRED' });
-    expect(captureGate(base, 'o1', new Date('2026-10-09T12:00:00Z'))).toMatchObject({ allowed: false, reason: 'CLOCK_BACKWARDS' });
-    expect(captureGate({ ...base, organizations: [{ ...base.organizations[0], permissions: ['plot:read'] }] }, 'o1', now)).toMatchObject({ allowed: false, reason: 'NO_PERMISSION' });
-    expect(captureGate(base, 'otra', now)).toMatchObject({ allowed: false, reason: 'NO_PERMISSION' });
-    expect(captureGate(null, 'o1', now)).toMatchObject({ allowed: false, reason: 'NO_SESSION' });
+
+  it('al vencer (también tras reiniciar) se bloquean nuevas escrituras y lo pendiente sigue intacto y legible', async () => {
+    let now = t0;
+    const { root, photo } = setup();
+    const s0 = sess();
+    let store = await LocalStore.open(nodePlatform(root, { clock: () => now }), 'acc1', () => captureGate(s0, 'o1', now));
+    await store.replaceDataset([PLOT]);
+    const d = await store.createDraft(PLOT.id);
+    await store.setLocation(d, SAMPLE);
+    await store.addPhoto(d, photo, 'image/jpeg', null);
+    const queued = await store.createDraft(PLOT.id);
+    await store.setLocation(queued, SAMPLE);
+    const ops = await store.enqueue(queued);
+    await store.close();
+    now = new Date('2026-10-10T14:00:00Z'); // vencido + «reinicio» (nueva instancia)
+    store = await LocalStore.open(nodePlatform(root, { clock: () => now }), 'acc1', () => captureGate(s0, 'o1', now));
+    await store.recover();
+    await expect(store.createDraft(PLOT.id)).rejects.toBeInstanceOf(CaptureBlockedError);
+    await expect(store.setNote(d, 'x')).rejects.toBeInstanceOf(CaptureBlockedError);
+    await expect(store.enqueue(d)).rejects.toThrow(/venció/);
+    const views = await store.drafts();
+    expect(views).toHaveLength(2);
+    expect(views.find((v) => v.id === d)).toMatchObject({ status: 'DRAFT', photos: [expect.objectContaining({ file_present: true })] });
+    expect(views.find((v) => v.id === queued)!.operations.map((o) => o.operation_id)).toEqual(ops);
+    // reloj atrasado tras reiniciar: también bloquea y no borra
+    now = new Date('2026-10-09T12:00:00Z');
+    await expect(store.createDraft(PLOT.id)).rejects.toThrow(/retrocedió/);
+    expect(await store.drafts()).toHaveLength(2);
+    await store.close();
+    rmSync(root, { recursive: true, force: true });
   });
 });

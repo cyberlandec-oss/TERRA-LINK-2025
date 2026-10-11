@@ -271,3 +271,12 @@ Captura, Pendientes, Diagnóstico), controles ≥ 48 px, etiquetas y roles de ac
 («Borrador local», «Pendiente (en cola)», «Sincronización no disponible todavía»), precisión «no informada» cuando es
 nula, procedencia sin atribuir GPS, aviso de capturas pendientes al cerrar sesión. **Pendiente**: revisión visual y con
 lector de pantalla en un Android real.
+
+## P0-023/P0-024 móvil — revisión de interfaz (2026-10-11)
+
+Revisión de código frente a UX_UI §21.3 (no renderizada en dispositivo): «Entorno de prueba sin cifrado» en Expo Go;
+pantalla de bloqueo si el build nativo no inicializa el cifrado; sesión vigente/vencida sin ventana extra; «Sincronizar
+ahora» con resumen (confirmadas, conflictos, rechazadas, pendientes, fotos); en Pendientes, estados Pendiente / Enviando /
+Sincronizado / Rechazado / Conflicto / Bloqueado por acceso, foto con estado propio («archivo pendiente de subir»,
+«análisis pendiente», «disponible») y botón «Reenviar sobre la versión actual del servidor» que conserva la original.
+**Pendiente**: revisión visual, teclado/lector de pantalla y 390 px en Android real.

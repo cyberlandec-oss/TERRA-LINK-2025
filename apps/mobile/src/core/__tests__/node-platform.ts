@@ -30,6 +30,7 @@ export function nodeDb(path: string): SqlDb {
       return p;
     },
     async close() { db.close(); },
+    async cipher() { return 'NONE' as const; },
   });
   return api(false);
 }
@@ -39,6 +40,8 @@ export function nodeFiles(root: string, opts: { failWriteWith?: () => Error | nu
   return {
     async writeBytes(p, b) { const e = opts.failWriteWith?.(); if (e) throw e; mkdirSync(dirname(abs(p)), { recursive: true }); writeFileSync(abs(p), b); },
     async importFrom(src, p) { const e = opts.failWriteWith?.(); if (e) throw e; mkdirSync(dirname(abs(p)), { recursive: true }); copyFileSync(src, abs(p)); },
+    async readExternal(src) { const e = opts.failWriteWith?.(); if (e) throw e; return new Uint8Array(readFileSync(src)); },
+    async deleteExternal(src) { rmSync(src, { force: true }); },
     async readBytes(p) { return new Uint8Array(readFileSync(abs(p))); },
     async move(a, b) { mkdirSync(dirname(abs(b)), { recursive: true }); renameSync(abs(a), abs(b)); },
     async exists(p) { return existsSync(abs(p)); },
@@ -50,10 +53,11 @@ export function nodeFiles(root: string, opts: { failWriteWith?: () => Error | nu
   };
 }
 
-export function nodePlatform(root: string, opts: Parameters<typeof nodeFiles>[1] & { clock?: () => Date } = {}): Platform & { secretsMap: Map<string, string> } {
+export function nodePlatform(root: string, opts: Parameters<typeof nodeFiles>[1] & { clock?: () => Date; environment?: Platform['environment'] } = {}): Platform & { secretsMap: Map<string, string> } {
   const secretsMap = new Map<string, string>();
   mkdirSync(join(root, 'db'), { recursive: true });
   return {
+    environment: opts.environment ?? 'EXPO_GO_SYNTHETIC',
     openDb: async (name) => nodeDb(join(root, 'db', name)),
     files: nodeFiles(join(root, 'files'), opts),
     secrets: { get: async (k) => secretsMap.get(k) ?? null, set: async (k, v) => { secretsMap.set(k, v); }, delete: async (k) => { secretsMap.delete(k); } },

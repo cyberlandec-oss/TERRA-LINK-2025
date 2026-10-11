@@ -435,7 +435,13 @@ export class PlotsService {
    * La superficie declarada vigente se arrastra a la nueva versión (no es un dato de la captura); la
    * superficie calculada queda NULL (un punto no tiene superficie).
    */
-  async captureLocation(user: AuthUser, orgId: string, id: string, dto: CaptureLocationDto, requestId?: string) {
+  /**
+   * `native` solo lo pasa la sincronización (P0-024) tras validar sesión y dispositivo: procedencia DEVICE_LOCATION_SERVICE
+   * (servicio de ubicación del sistema; no se afirma GPS ni autenticidad física), con detalle del proveedor y marca de
+   * simulación informada. La API pública sigue aceptando solo BROWSER_GEOLOCATION.
+   */
+  async captureLocation(user: AuthUser, orgId: string, id: string, dto: CaptureLocationDto, requestId?: string, native?: { provider_detail: string; mocked: boolean | null; device_id: string }) {
+    const source = native ? 'DEVICE_LOCATION_SERVICE' as const : 'BROWSER_GEOLOCATION' as const;
     const ctx = await this.authz.tenantContext(user, orgId);
     if (!ctx) throw notFound();
     if (!this.has(ctx, 'plot:update') && !this.has(ctx, 'plot:update_assigned')) throw forbidden();
@@ -445,7 +451,8 @@ export class PlotsService {
     if (capturedAt.getTime() > Date.now() + CAPTURE_FUTURE_TOLERANCE_MS) {
       throw new AppError(422, 'CAPTURED_AT_IN_FUTURE', 'La hora de adquisición informada está en el futuro. Revisa el reloj del dispositivo y vuelve a capturar.', [{ field: 'captured_at', reason: 'IN_FUTURE' }]);
     }
-    const payloadHash = createHash('sha256').update(JSON.stringify([id, dto.source, dto.longitude, dto.latitude, dto.accuracy_m, capturedAt.toISOString()])).digest('hex');
+    const payloadHash = createHash('sha256').update(JSON.stringify(native ? [id, source, dto.longitude, dto.latitude, dto.accuracy_m, capturedAt.toISOString(), native.provider_detail, native.mocked]
+      : [id, dto.source, dto.longitude, dto.latitude, dto.accuracy_m, capturedAt.toISOString()])).digest('hex');
 
     const replay = async () => {
       const prior = await this.db.selectFrom('location_samples').select(['plot_id', 'plot_version_id', 'payload_hash'])
@@ -484,13 +491,14 @@ export class PlotsService {
             area_declared_ha, area_calculated_ha, survey_method, surveyed_at, accuracy_m, validation_status, validation_rule_version,
             previous_version_id, notes, created_by)
           SELECT ${versionId}, ${orgId}, ${id}, ${last.n + 1}, g.geom, 'POINT', encode(sha256(ST_AsBinary(g.geom)), 'hex'),
-            ${previous?.area_declared_ha ?? null}::numeric, NULL, 'BROWSER_GEOLOCATION', ${capturedAt.toISOString()}::timestamptz,
+            ${previous?.area_declared_ha ?? null}::numeric, NULL, ${source}, ${capturedAt.toISOString()}::timestamptz,
             ${dto.accuracy_m === null ? null : Math.round(dto.accuracy_m * 100) / 100}::numeric, 'NOT_VALIDATED', ${STRUCTURAL_RULE},
             ${plot.current_version_id}, NULL, ${user.id}
           FROM g`.execute(trx);
         const sampleId = randomUUID();
         await trx.insertInto('location_samples').values({
-          id: sampleId, organization_id: orgId, plot_id: id, plot_version_id: versionId, source: 'BROWSER_GEOLOCATION',
+          id: sampleId, organization_id: orgId, plot_id: id, plot_version_id: versionId, source,
+          provider_detail: native?.provider_detail ?? null, mocked: native ? native.mocked : null, device_id: native?.device_id ?? null,
           longitude: dto.longitude, latitude: dto.latitude, horizontal_accuracy_m: dto.accuracy_m, captured_at: capturedAt,
           operation_id: dto.operation_id, payload_hash: payloadHash, created_by: user.id,
         }).execute();
@@ -504,12 +512,12 @@ export class PlotsService {
           aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId, operationId: dto.operation_id,
           payload: {
             plot_version_id: versionId, version_number: last.n + 1, previous_version_id: plot.current_version_id, geometry_type: 'POINT',
-            survey_method: 'BROWSER_GEOLOCATION', location_sample_id: sampleId, accuracy_reported: dto.accuracy_m !== null,
+            survey_method: source, location_sample_id: sampleId, accuracy_reported: dto.accuracy_m !== null,
           },
         });
         await this.audit.record(trx, {
           organizationId: orgId, actorUserId: user.id, action: 'plot.location_capture', entityType: 'plot', entityId: id, requestId, result: 'SUCCESS',
-          after: { plot_version_id: versionId, location_sample_id: sampleId, source: 'BROWSER_GEOLOCATION', accuracy_reported: dto.accuracy_m !== null },
+          after: { plot_version_id: versionId, location_sample_id: sampleId, source, accuracy_reported: dto.accuracy_m !== null },
         });
         return { replayed: false, version: (await this.versionView(trx, orgId, versionId, true))!, plot_row_version: Number(after.row_version) };
       });

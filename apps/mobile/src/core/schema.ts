@@ -27,6 +27,22 @@ const MIGRATIONS: string[] = [
      state TEXT NOT NULL CHECK (state IN ('PENDING','UPLOADING','SYNCED','FAILED','CONFLICT')),
      attempts INTEGER NOT NULL DEFAULT 0, recovered_count INTEGER NOT NULL DEFAULT 0, last_error TEXT, created_at TEXT NOT NULL);
    CREATE TABLE incidents (id TEXT PRIMARY KEY, kind TEXT NOT NULL, detail TEXT NOT NULL, at TEXT NOT NULL);`,
+  // 2 (revisión P0-023 + P0-024): las fotos se guardan como BLOB DENTRO de la base (protegidas por SQLCipher en el build
+  // nativo); archivos externos solo para registros anteriores. Estados de subida separados del registro.
+  `CREATE TABLE attachments_v2 (
+     id TEXT PRIMARY KEY, draft_id TEXT NOT NULL REFERENCES drafts(id), kind TEXT NOT NULL CHECK (kind IN ('PHOTO')),
+     storage TEXT NOT NULL CHECK (storage IN ('DB','FILE')), path TEXT UNIQUE, content BLOB,
+     sha256 TEXT NOT NULL, size_bytes INTEGER NOT NULL CHECK (size_bytes > 0), mime_type TEXT NOT NULL, captured_at TEXT, stored_at TEXT NOT NULL,
+     upload_state TEXT NOT NULL DEFAULT 'LOCAL' CHECK (upload_state IN ('LOCAL','UPLOADED','REJECTED')), server_status TEXT, server_detail TEXT,
+     CHECK ((storage = 'DB') = (content IS NOT NULL)), CHECK ((storage = 'FILE') = (path IS NOT NULL)));
+   INSERT INTO attachments_v2 (id, draft_id, kind, storage, path, content, sha256, size_bytes, mime_type, captured_at, stored_at, upload_state)
+     SELECT id, draft_id, kind, 'FILE', path, NULL, sha256, size_bytes, mime_type, captured_at, stored_at, upload_state FROM attachments;
+   DROP TABLE attachments;
+   ALTER TABLE attachments_v2 RENAME TO attachments;
+   ALTER TABLE outbox ADD COLUMN server_result TEXT;
+   ALTER TABLE outbox ADD COLUMN resolved_by TEXT;
+   ALTER TABLE outbox ADD COLUMN resolves TEXT;
+   ALTER TABLE outbox ADD COLUMN content_hash TEXT;`,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

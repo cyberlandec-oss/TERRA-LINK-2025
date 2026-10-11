@@ -1,8 +1,12 @@
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Crypto from 'expo-crypto';
-import { Directory, File, Paths } from 'expo-file-system';
+import { Directory, File, Paths, UploadType } from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
-import type { FileStore, Platform, SecretStore, SqlDb, SqlValue } from '../core/ports';
+import type { FileStore, Platform, RuntimeEnvironment, SecretStore, SqlDb, SqlValue } from '../core/ports';
+
+/** Expo Go = entorno de prueba SIN cifrado, limitado a datos sintéticos; cualquier otro build = build nativo (exige cifrado). */
+export const runtimeEnvironment: RuntimeEnvironment = Constants.executionEnvironment === ExecutionEnvironment.StoreClient ? 'EXPO_GO_SYNTHETIC' : 'NATIVE_BUILD';
 
 // Adaptadores Expo SDK 57 (APIs confirmadas en docs.expo.dev el 2026-10-10):
 // - expo-sqlite: openDatabaseAsync, withExclusiveTransactionAsync (solo las sentencias del callback entran en la
@@ -17,7 +21,7 @@ export const encryptionStatus = () => encryption;
 
 const safeKey = (s: string) => s.replace(/[^A-Za-z0-9._-]/g, '_');
 
-function wrap(db: SQLite.SQLiteDatabase): SqlDb {
+function wrap(db: SQLite.SQLiteDatabase, cipherActive: boolean): SqlDb {
   const base = (d: SQLite.SQLiteDatabase): SqlDb => ({
     exec: (s) => d.execAsync(s),
     run: async (s, p: SqlValue[] = []) => { await d.runAsync(s, p); },
@@ -29,6 +33,7 @@ function wrap(db: SQLite.SQLiteDatabase): SqlDb {
       return out as T;
     },
     close: () => d.closeAsync(),
+    cipher: async () => (cipherActive ? 'ACTIVE' : 'NONE'),
   });
   return base(db);
 }
@@ -46,7 +51,7 @@ async function openDb(name: string, secrets: SecretStore): Promise<SqlDb> {
   const cipher = await db.getFirstAsync<{ cipher_version?: string }>('PRAGMA cipher_version').catch(() => null);
   encryption = cipher?.cipher_version ? 'SQLCIPHER_ACTIVE' : 'NOT_AVAILABLE_IN_THIS_BUILD';
   await db.execAsync('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;');
-  return wrap(db);
+  return wrap(db, encryption === 'SQLCIPHER_ACTIVE');
 }
 
 const file = (p: string) => new File(Paths.document, p);
@@ -55,6 +60,8 @@ const dir = (p: string) => new Directory(Paths.document, p);
 export const expoFiles: FileStore = {
   async writeBytes(p, b) { const f = file(p); f.create({ overwrite: true }); f.write(b); },
   async importFrom(src, p) { await new File(src).copy(file(p)); },
+  async readExternal(src) { return new File(src).bytes(); },
+  async deleteExternal(src) { const f = new File(src); if (f.exists) f.delete(); },
   async readBytes(p) { return file(p).bytes(); },
   async move(a, b) { await file(a).move(file(b)); },
   async exists(p) { return file(p).exists; },
@@ -72,6 +79,7 @@ export const expoSecrets: SecretStore = {
 };
 
 export const expoPlatform: Platform = {
+  environment: runtimeEnvironment,
   openDb: (name) => openDb(name, expoSecrets),
   files: expoFiles,
   secrets: expoSecrets,
@@ -79,3 +87,19 @@ export const expoPlatform: Platform = {
   uuid: () => Crypto.randomUUID(),
   now: () => new Date(),
 };
+
+/**
+ * Subida multipart de un adjunto guardado en la base: se escribe una copia temporal en la caché (sin cifrar mientras
+ * dura la subida), se sube y se borra. Limitación documentada: esa copia temporal existe durante la transferencia.
+ */
+export async function expoUploader(url: string, bytes: Uint8Array, mimeType: string, fields: Record<string, string>, headers: Record<string, string>) {
+  const tmp = new File(Paths.cache, `tl-upload-${Crypto.randomUUID()}`);
+  try {
+    tmp.create({ overwrite: true });
+    tmp.write(bytes);
+    const r = await tmp.upload(url, { httpMethod: 'POST', uploadType: UploadType.MULTIPART, fieldName: 'file', mimeType, parameters: fields, headers });
+    return { status: r.status, body: r.body };
+  } finally {
+    if (tmp.exists) tmp.delete();
+  }
+}

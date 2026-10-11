@@ -114,10 +114,12 @@ Estado (2026-10-10): **ABIERTA**. Capacidades independientes implementadas y pro
 Depende P0-004/006/007/008 y auth real. Como técnico, necesito trabajar sin red.
 Aceptación: entidad/cola en transacción local; borradores/fotos/GPS sobreviven cierre y reboot; dataset limitado y separación por cuenta; sesión offline definida. RF-23; QA-08.
 Estado (2026-10-10): **ABIERTA**. `apps/mobile` (Expo SDK 57): transacción local, recuperación, separación por cuenta/organización, fotos persistentes y fallos de almacenamiento probados en Node con SQLite real; dataset autorizado probado contra la API local. Pendiente obligatorio: ensayo en Android real (cierre, reinicio, fotos, ubicación) y cifrado SQLCipher en build de desarrollo; política de sesión D-40 sin aprobar.
+Revisión (2026-10-11): la captura termina al vencer la sesión del servidor (sin ventana de 72 h); build nativo sin cifrado no abre el almacén; Expo Go limitado a datos sintéticos; fotos dentro de la base. Sigue ABIERTA.
 
 ### P0-024 — Sync
 Depende P0-023/015. Como técnico, necesito sincronizar sin pérdidas.
 Aceptación: operation_id estable, dedup por hash, dependencias/cursor/tombstones, conflictos visibles y adjuntos; servidor revalida tenant/permisos; timeout/retry no duplica inventario. RF-24; QA-08/02.
+Estado (2026-10-11): **ABIERTA**. Servidor y motor móvil implementados para `PLOT_LOCATION_SAMPLE_CREATE` y `PLOT_PHOTO_ATTACH`, probados en integración (API real) y con el cliente en Node contra la API local. No demostrado: inventario/entregas (sin operaciones móviles), recorrido en dispositivo Android y resolución de conflictos en la interfaz del dispositivo.
 
 ### P0-025 — Audit trail
 Depende P0-003/015. Como auditor, necesito reconstruir quién cambió qué.

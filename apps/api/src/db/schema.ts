@@ -256,7 +256,7 @@ export interface PlotVersionsTable {
   geometry_hash: string | null;
   area_declared_ha: string | null;
   area_calculated_ha: string | null;
-  survey_method: 'DECLARED' | 'MANUAL_COORDINATES' | 'BROWSER_GEOLOCATION' | 'GPS_POINT' | 'GPS_POLYGON' | 'FILE_IMPORT';
+  survey_method: 'DECLARED' | 'MANUAL_COORDINATES' | 'BROWSER_GEOLOCATION' | 'DEVICE_LOCATION_SERVICE' | 'GPS_POINT' | 'GPS_POLYGON' | 'FILE_IMPORT';
   surveyed_at: Timestamp | null;
   accuracy_m: string | null;
   validation_status: 'NOT_VALIDATED' | 'VALID' | 'WARNING' | 'INVALID' | 'REVIEW_REQUIRED';
@@ -286,7 +286,10 @@ export interface LocationSamplesTable {
   organization_id: string;
   plot_id: string;
   plot_version_id: string;
-  source: 'BROWSER_GEOLOCATION';
+  source: 'BROWSER_GEOLOCATION' | 'DEVICE_LOCATION_SERVICE';
+  provider_detail: string | null;
+  mocked: boolean | null;
+  device_id: string | null;
   longitude: number;
   latitude: number;
   horizontal_accuracy_m: number | null;
@@ -560,6 +563,11 @@ export interface MitigationActionsTable {
 export interface MitigationSupportsTable { id: string; organization_id: string; action_id: string; submission_number: number; document_version_id: string | null; evidence_id: string | null; evidence_version: string | null; added_by: string; added_at: Generated<Timestamp>; operation_id: string }
 export interface MitigationSubmissionsTable { id: string; organization_id: string; action_id: string; submission_number: number; note: string; submitted_by: string; submitted_at: Generated<Timestamp>; operation_id: string }
 // P0-022 expediente de debida diligencia
+// P0-024 sync
+export interface DevicesTable { id: string; organization_id: string; user_id: string; client_device_id: string; platform: 'ANDROID' | 'IOS' | 'OTHER'; label: string; status: 'ACTIVE' | 'REVOKED'; registered_at: Generated<Timestamp>; revoked_at: Timestamp | null; revoked_by: string | null; revoke_reason: string | null }
+export interface SyncOperationsTable { id: string; organization_id: string; operation_id: string; operation_type: string; entity_id: string; content_hash: string; depends_on: unknown; base_version: string | null; captured_at: Timestamp; resolves_operation_id: string | null; status: 'ACCEPTED' | 'REJECTED' | 'CONFLICT'; result: unknown; user_id: string; device_id: string; received_at: Generated<Timestamp> }
+export interface SyncCursorsTable { id: string; organization_id: string; user_id: string; device_id: string; scope: 'PLOTS'; visible: unknown; issued_at: Generated<Timestamp>; expires_at: Timestamp }
+export interface SyncAttachmentUploadsTable { operation_id: string; organization_id: string; document_id: string; version_id: string; sha256: string; uploaded_by: string; device_id: string; uploaded_at: Generated<Timestamp> }
 export interface DdCasesTable { id: string; organization_id: string; case_number: string; subject_type: 'LOT'; subject_id: string; scope_note: string; created_by: string; created_at: Generated<Timestamp>; operation_id: string }
 export interface DdSnapshotsTable { id: string; organization_id: string; case_id: string; snapshot_number: number; content: unknown; content_hash: string; section_hashes: unknown; manifest: unknown; requirements: unknown; readiness: 'BLOCKED' | 'IN_PROGRESS' | 'READY'; captured_by: string; captured_at: Generated<Timestamp>; operation_id: string }
 export interface DdReviewsTable { id: string; organization_id: string; snapshot_id: string; action: 'START_REVIEW' | 'RETURN' | 'APPROVE'; reason: string; reviewer_id: string; reviewed_at: Generated<Timestamp>; operation_id: string }
@@ -641,6 +649,10 @@ export interface Database {
   mitigation_decisions: MitigationDecisionsTable;
   mitigation_corrections: MitigationCorrectionsTable;
   dd_cases: DdCasesTable;
+  devices: DevicesTable;
+  sync_operations: SyncOperationsTable;
+  sync_cursors: SyncCursorsTable;
+  sync_attachment_uploads: SyncAttachmentUploadsTable;
   dd_snapshots: DdSnapshotsTable;
   dd_reviews: DdReviewsTable;
   dd_exports: DdExportsTable;

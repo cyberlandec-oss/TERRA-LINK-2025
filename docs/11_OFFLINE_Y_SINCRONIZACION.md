@@ -85,3 +85,58 @@ iniciar sesión con conexión y el servidor revalidará sesión, membresía y pe
   borra capturas locales: quedan en recuperación controlada.
 - Brecha de contrato: la API de muestras de ubicación solo acepta `source = BROWSER_GEOLOCATION`. P0-024 debe añadir una
   procedencia para el servicio de ubicación nativo (`DEVICE_LOCATION_SERVICE`) sin atribuir GPS.
+
+## Revisión P0-023 (2026-10-11)
+
+- **Sesión**: la captura local termina cuando vence la sesión emitida por el servidor (JWT, 1 h, sin refresh). Se eliminó
+  la ventana de 72 h: D-40 es una propuesta no aprobada y no amplía ninguna autorización. Bloquear no borra nada; tras
+  reiniciar o con reloj atrasado sigue bloqueado y lo guardado sigue visible. **Contrato pendiente (D-40)** si se quiere
+  capturar más tiempo que la sesión: credencial local distinta del token, emitida por el servidor para un dispositivo
+  registrado, con caducidad corta y explícita, desbloqueo local (PIN/biometría), sin valor para enviar (el envío exige
+  sesión online y revalidación), revocable y registrada. No implementado.
+- **Cifrado**: Expo Go = entorno de prueba SIN cifrado, limitado a organizaciones DEMO con datos sintéticos (la app lo
+  impide para otras). En un build nativo, si SQLCipher no se inicializa, el almacén no se abre: no se descarga ni se
+  escribe el dataset protegido. Las fotos se guardan como BLOB dentro de la base (comparten su cifrado); la copia
+  temporal de la cámara se borra tras importarla y durante una subida existe una copia temporal en la caché.
+  **No ejecutado**: build nativo con SQLCipher en Android (instrucciones en `apps/mobile/README.md`).
+
+## Implementación P0-024 (2026-10-11)
+
+Endpoints (`/api/v1/organizations/{org}`): `POST /devices`, `GET /devices`, `POST /devices/{id}/revoke`,
+`POST /sync/push`, `GET /sync/pull?device_id&cursor`, `POST /sync/attachments/{operation_id}/content`.
+
+- **Dispositivo**: registrado por el usuario autenticado; identificador emitido por el servidor; `client_device_id`
+  informativo. Revocado: no envía, no recibe y no vuelve a registrarse con el mismo identificador (un dispositivo con
+  otro identificador sí puede registrarse: la revocación de la persona se hace por membresía o usuario). Cada petición
+  revalida sesión, dispositivo (del usuario, de la organización, activo), membresía, organización y permisos.
+- **Push**: lote ≤ 50; resultado por operación `ACCEPTED`, `DUPLICATE`, `REJECTED`, `CONFLICT`, `DEPENDENCY_PENDING`,
+  `FORBIDDEN`, `TRANSIENT_ERROR`. Hash SHA-256 del contenido canónico recalculado en el servidor (el del cliente debe
+  coincidir). Mismo id + hash → mismo resultado, revalidando permisos (si se retiraron: `FORBIDDEN` sin revelar el
+  resultado); mismo id + otro hash → `CONFLICT`; el dispositivo no forma parte del hash. Solo se guardan resultados
+  definitivos. Efectos idempotentes por operation_id: un timeout tras el commit se recupera al reintentar.
+- **Dependencias**: deben estar aceptadas en la misma organización; ausente → `DEPENDENCY_PENDING` (no se guarda);
+  rechazada o en conflicto → `REJECTED DEPENDENCY_FAILED`. Una operación fallida no bloquea las independientes.
+- **Conflictos**: versión de parcela obsoleta → `CONFLICT` con `base_version` y `server_row_version`; sin
+  last-write-wins. Resolución: nueva operación (otro id) sobre la versión actual con `resolves_operation_id`; la
+  original queda registrada en conflicto.
+- **Pull**: cursor de servidor ligado a organización, usuario y dispositivo, con el conjunto visible al emitirlo
+  (caduca a los 7 días → `CURSOR_EXPIRED`; de otra cuenta o dispositivo → `CURSOR_INVALID`). Cambios = parcelas visibles
+  hoy con versión distinta; tombstones = solo recursos que ese cursor entregó y que ya no están en el alcance. La
+  visibilidad se recalcula en cada pull: un cursor antiguo no conserva acceso.
+- **Adjuntos**: `PLOT_PHOTO_ATTACH` acepta el registro (`AWAITING_CONTENT`); el archivo se sube aparte, se verifica
+  tamaño y SHA-256 (si no coincide: `ATTACHMENT_INTEGRITY_MISMATCH`, nada se guarda) y entra por el módulo Documentos
+  (tipo `FIELD_PHOTO`, clasificación PERSONAL_DATA, escaneo antimalware y permisos). Estados: `AWAITING_CONTENT`,
+  `PENDING_SCAN`, `AVAILABLE`, `REJECTED`.
+- **Procedencia nativa**: `DEVICE_LOCATION_SERVICE` solo por sincronización (la API pública sigue aceptando únicamente
+  `BROWSER_GEOLOCATION`); conserva hora de adquisición, precisión informada o nula, detalle del proveedor, marca de
+  simulación y dispositivo; no afirma GPS ni autenticidad física.
+
+### Tipos de operación
+
+| Tipo | Servidor | Móvil |
+| --- | --- | --- |
+| `PLOT_LOCATION_SAMPLE_CREATE` | Sí (crea versión de geometría POINT; conflicto por versión) | Sí |
+| `PLOT_PHOTO_ATTACH` | Sí (registro + archivo vía Documentos) | Sí (la nota viaja como leyenda) |
+| Productores, parcelas nuevas, entregas, recepciones, calidad, lotes, inventario | No (`UNSUPPORTED_OPERATION_TYPE`) | No |
+
+Una nota sin ubicación ni foto no tiene entidad en el servidor y no se encola.

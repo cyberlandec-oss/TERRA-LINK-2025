@@ -22,7 +22,8 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
-| P0-023 Captura offline | **ABIERTA**: núcleo local probado en Node y contra la API; sin ensayo Android real ni SQLCipher probado; sin sincronización (P0-024) | Ver criterios abajo |
+| P0-024 Sync | **ABIERTA**: servidor y motor móvil para ubicación y foto; probado en integración y con cliente Node contra la API; sin dispositivo ni inventario | Ver criterios abajo |
+| P0-023 Captura offline | **ABIERTA**: sesión sin ventana extra, cifrado obligatorio en build nativo y fotos en la base probados en Node; sin ensayo Android real ni SQLCipher en dispositivo | Ver criterios abajo |
 | P0-022 Diligencia y paquete | **ABIERTA**: capacidades independientes DONE_LOCAL; aprobación READY y `DD_PACKAGE` con datos reales no demostrables (requisitos dependientes de decisiones y capacidades inexistentes, sin rebajar) | Ver criterios abajo |
 | P0-021 Mitigación | **DONE_LOCAL** (criterios originales demostrados); causas que dependen de D-05 o del proveedor satelital no se mitigan (no se simula su resolución) | Ver criterios abajo |
 | P0-020 Riesgo | **DONE_LOCAL** para sus criterios originales con reglas técnicas **no aprobadas**: severidad NOT_ASSESSED y conclusión UNDETERMINED por diseño; reglas dependientes de D-05, P0-028 y P0-021 no evaluables | Ver criterios abajo |
@@ -261,6 +262,24 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 | **Concesiones externas y elevación** | **Pendientes en P0-003** | — |
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
+
+### P0-024 — criterios
+
+Validación web/API: `npm run validate` APROBADA (`validation-results/2026-10-11T05-28-58-923Z`): unitarias + integración (API y web) 289/289, E2E 55/55, OpenAPI 146 rutas; revisión por rol 40 entradas, 0 incidencias (corrida previa FALLIDA por lint en 2026-10-11T05-27-10-806Z, corregida). Móvil (separado): `validation-results/2026-10-11T05-25-49-416Z-movil`. Recorrido cliente-API: foto sincronizada con archivo verificado y escaneado (`AVAILABLE`), conflicto sin efecto, idempotencia y separación de cuentas. **No es validación en dispositivo.**
+
+| Criterio original | Estado | Evidencia |
+| --- | --- | --- |
+| operation_id estable | DEMOSTRADO | Reintento tras timeout y desde otro dispositivo con el mismo id y hash (`sync.int-spec.ts`, `sync.test.ts`) |
+| Dedup por hash | DEMOSTRADO | Mismo id+hash → `DUPLICATE` sin efecto doble; otro hash → `CONFLICT`; hash alterado → `HASH_MISMATCH` |
+| Dependencias | DEMOSTRADO | `DEPENDENCY_PENDING` sin bloquear independientes; dependiente de conflicto → `DEPENDENCY_FAILED` |
+| Cursor y tombstones | DEMOSTRADO (parcelas) | Cursor de servidor por org/usuario/dispositivo; tombstone al reasignar; cursor ajeno o caducado; bootstrap sin tocar pendientes |
+| Conflictos visibles | PARCIAL | Servidor y motor: conflicto con versiones y resolución por nueva operación; **interfaz del dispositivo no ejercitada** |
+| Adjuntos | DEMOSTRADO | Registro y archivo separados; integridad SHA-256/tamaño; Documentos (escaneo, permisos); subida incompleta rechazada |
+| Revalidación tenant/permisos | DEMOSTRADO | Dispositivo ajeno/otra org/revocado; permisos retirados → `FORBIDDEN` también al reenviar |
+| Timeout/retry no duplica inventario | PARCIAL | Demostrado para versiones de geometría (timeout tras commit, concurrencia); **inventario y entregas no tienen operaciones móviles** |
+| Recorrido integrado | PARCIAL | Cliente móvil en Node contra la API local; **sin dispositivo** |
+
+Defecto de entorno encontrado: la API en contenedor no tenía `SCANNER_HOST` (documentos quedaban sin analizar). Corregido localmente en `docker-compose.yml`, no confirmado en git (archivo raíz).
 
 ### P0-023 — criterios
 

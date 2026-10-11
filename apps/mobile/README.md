@@ -1,54 +1,60 @@
-# Terra Link Campo (móvil, P0-023)
+# Terra Link Campo (móvil, P0-023/P0-024)
 
-Captura offline local para el técnico de campo: React Native + Expo SDK 57 (expo-sqlite, expo-file-system,
-expo-secure-store, expo-location, expo-image-picker, expo-crypto). Proyecto **independiente** de los workspaces npm de
-la raíz: no cambia la API ni la web, ni `npm run validate`.
+Captura de campo con almacenamiento local y sincronización: React Native + Expo SDK 57 (expo-sqlite, expo-file-system,
+expo-secure-store, expo-location, expo-image-picker, expo-crypto, expo-constants). Proyecto **independiente** de los
+workspaces npm de la raíz: no cambia `npm run validate`.
 
-**No hay sincronización** (P0-024): «Guardar en cola» guarda la captura y sus operaciones en el dispositivo; no envía nada.
+- **Operaciones que sincroniza**: muestra de ubicación de una parcela (`PLOT_LOCATION_SAMPLE_CREATE`) y foto de parcela
+  (`PLOT_PHOTO_ATTACH`, la nota viaja como leyenda). **No** cubre productores, entregas, recepciones, lotes ni inventario.
+- **Sesión**: inicio solo con conexión; la captura termina cuando vence la sesión emitida por el servidor (1 h). No se
+  renueva ni se prolonga sin red; al vencer, lo guardado se conserva y sigue visible.
+- **Entornos**: Expo Go = prueba **sin cifrado**, solo organizaciones DEMO con datos sintéticos. Build nativo = exige
+  SQLCipher: si no se inicializa, el almacén no se abre (no descarga ni guarda datos).
 
-## Comprobaciones locales (sin dispositivo)
+## Comprobaciones reproducibles (sin dispositivo)
 
 ```bash
-cd apps/mobile
-npm ci
-npm run typecheck          # TypeScript
-npm test                   # núcleo con SQLite real (node:sqlite) y archivos reales en Node
-TL_API_SMOKE=1 npm test    # además, cliente en Node contra la API local (requiere app levantada y DEMO sembrado)
-npx expo export --platform android --output-dir <carpeta temporal>   # el bundle Android compila
-npx expo-doctor
+npm run check --prefix apps/mobile            # typecheck, núcleo (Node + SQLite real), bundle Android, expo-doctor
+npm run check --prefix apps/mobile -- --api   # + recorrido contra la API local levantada con DEMO sembrado
 ```
 
-Estas pruebas son evidencia **en Node**; no son emulador ni dispositivo.
+Resultados en `validation-results/<fecha>-movil/`. Es evidencia **en Node**: no es emulador, build nativo ni dispositivo.
 
-## Ensayo en Android real (criterio obligatorio de P0-023, pendiente)
+## A. Prueba limitada en Android con Expo Go (sin cifrado, datos sintéticos)
 
-Requisitos: teléfono Android en la misma red Wi-Fi que el equipo, app **Expo Go** compatible con SDK 57.
+1. App web/API levantada (`docker compose --profile app up -d --wait`); IP local del equipo (`ipconfig`) y puerto TCP
+   4000 permitido en el firewall de Windows para redes privadas.
+2. `cd apps/mobile && npm ci && npx expo start --lan`; escanea el QR con Expo Go (SDK 57).
+3. Servidor `http://<IP>:4000`; usuario `tecnico1.cooperativa@demo.terralink.local` (contraseña en tu `CREDENCIALES.csv`
+   local más reciente; no la copies en informes). Organización «DEMO · Cooperativa Río Verde».
+4. «Descargar datos asignados» → «Nueva captura» → ubicación (prueba también denegar el permiso), 1–2 fotos, nota →
+   «Guardar en cola». Deja además un borrador sin encolar.
+5. Modo avión → forzar cierre → reiniciar el teléfono → abrir: borrador, cola (mismos identificadores) y fotos siguen.
+6. Con red: «Sincronizar ahora». Comprueba en Pendientes «Sincronizado» y el estado propio de cada foto («análisis
+   pendiente» / «disponible»). En la web, la parcela muestra la nueva versión de geometría y el documento «Fotografía de campo».
+7. Espera a que venza la sesión (1 h): la captura nueva se bloquea y lo guardado sigue visible.
+8. Cierra sesión (avisa de pendientes) y entra con `tecnico2.cooperativa…`: no ve nada de tecnico1.
+9. Revoca el dispositivo desde la API (`POST /devices/{id}/revoke` como administrador): «Sincronizar ahora» se detiene con
+   «dispositivo revocado» y conserva todo.
 
-1. En el equipo, con la app web/API levantada (`docker compose --profile app up -d --wait`), averigua la IP local
-   (p. ej. `ipconfig` → IPv4, como `192.168.1.20`) y permite el puerto TCP 4000 en el firewall de Windows para redes privadas.
-2. `cd apps/mobile && npm ci && npx expo start --lan` y escanea el QR con Expo Go.
-3. En «Servidor» escribe `http://<IP>:4000`. Inicia sesión con `tecnico1.cooperativa@demo.terralink.local`
-   (contraseña en el archivo local `CREDENCIALES.csv` más reciente; no la copies en informes).
-4. Elige «DEMO · Cooperativa Río Verde» → «Descargar datos asignados» → «Nueva captura» → elige parcela.
-5. Captura ubicación (prueba también denegando el permiso), toma 1–2 fotos, escribe una nota, «Guardar en cola».
-   Crea además un borrador sin encolar.
-6. Activa modo avión. Cierra la app desde recientes (forzar cierre), reinicia el teléfono, abre Expo Go y la app:
-   «Pendientes» debe mostrar borrador, captura en cola, operaciones con el mismo identificador y fotos «en el dispositivo».
-7. Sin red: crea otra captura (debe permitirse dentro de la ventana de 72 h) y comprueba que «Iniciar sesión» falla con
-   mensaje de conexión.
-8. Cierra sesión (debe avisar de capturas pendientes), entra con `tecnico2.cooperativa…`: no debe ver nada de tecnico1.
-   Vuelve a tecnico1: sus capturas siguen.
-9. «Diagnóstico»: en Expo Go la base aparece **SIN cifrar** (Expo Go no admite SQLCipher).
-10. Registra modelo, versión de Android, versión de Expo Go, fecha, pasos con resultado y capturas de pantalla sin datos
-    personales en `docs/qa/ENSAYO_ANDROID_P0-023.md`.
+## B. Build nativo de aceptación (cifrado) — no ejecutado en este equipo
 
-Para probar el cifrado (SQLCipher, `useSQLCipher` en `app.json`) hace falta un **build de desarrollo**
-(`npx expo run:android` con Android SDK + JDK, o EAS Build). Para HTTP sin TLS en un build propio se requiere además
-habilitar tráfico en claro solo para desarrollo. Ninguno se ejecutó en este equipo (no tiene Android SDK/JDK/adb).
+Requiere Android SDK + JDK 17 + `adb` (o una cuenta de EAS). `app.json` ya activa `useSQLCipher` en el plugin de
+expo-sqlite.
 
-## Diseño (resumen)
+- Local: `cd apps/mobile && npx expo prebuild --platform android && npx expo run:android --variant debug` con el teléfono
+  conectado por USB (depuración activada). Para HTTP sin TLS hacia la API local en un build propio, habilitar tráfico en
+  claro solo en desarrollo (p. ej. `expo-build-properties` → `android.usesCleartextTraffic: true`) o usar HTTPS.
+- EAS: `npx eas build --platform android --profile development` (requiere `eas.json` y cuenta; no incluido).
+- Verificación: «Diagnóstico» debe mostrar «Base local cifrada (SQLCipher)». Prueba de rechazo: un build nativo sin
+  SQLCipher debe mostrar «Almacenamiento protegido no disponible» y no descargar datos.
+- Repetir los pasos A.4–A.9 y registrar modelo, versión de Android, build, fecha, resultados y capturas sin datos
+  personales en `docs/qa/ENSAYO_ANDROID_P0-023.md`.
 
-- `src/core`: puertos de plataforma, esquema SQLite, almacén por cuenta+organización, política de sesión provisional.
-- `src/adapters/expo.ts`: adaptadores Expo. `src/app/session-manager.ts`: login online, dataset autorizado, device_id local.
-- `src/ui`: pantallas (Inicio, Captura, Pendientes, Diagnóstico) con tokens de `docs/UX_UI.md` y controles ≥ 48 px.
-- Contrato y política: `docs/11_OFFLINE_Y_SINCRONIZACION.md` (§ Implementación P0-023) y `docs/adr/0006-movil-offline.md`.
+## Diseño
+
+- `src/core`: puertos, esquema SQLite (fotos como BLOB dentro de la base), almacén por cuenta+organización, sesión,
+  hash canónico de operaciones y motor de sincronización.
+- `src/adapters/expo.ts`: SQLite (+SQLCipher), archivos, almacenamiento seguro, detección Expo Go/build nativo, subida.
+- `src/app`: sesión online, dispositivo registrado en el servidor, transporte HTTP. `src/ui`: pantallas.
+- Contratos: `docs/11_OFFLINE_Y_SINCRONIZACION.md`; decisión: `docs/adr/0006-movil-offline.md`.

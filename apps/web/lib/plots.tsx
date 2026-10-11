@@ -61,6 +61,7 @@ export const METHOD_LABEL: Record<string, string> = {
   DECLARED: 'Superficie declarada',
   MANUAL_COORDINATES: 'Coordenadas ingresadas',
   BROWSER_GEOLOCATION: 'Ubicación del navegador',
+  DEVICE_LOCATION_SERVICE: 'Servicio de ubicación del dispositivo móvil (no se afirma GPS)',
   GPS_POINT: 'Punto GPS',
   GPS_POLYGON: 'Polígono GPS',
   FILE_IMPORT: 'Importación de archivo',

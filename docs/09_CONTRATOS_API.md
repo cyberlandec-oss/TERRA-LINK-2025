@@ -82,3 +82,7 @@ Readiness: `snapshot_version`, `evaluated_at`, `rule_set_version`, checks con re
 ## Jobs y descargas
 
 Operaciones largas responden 202 y job autorizado: `PENDING/RUNNING/SUCCEEDED/FAILED`. Resultado de job lleva tenant, versión de entrada y error recuperable. URLs temporales solo tras autorización y estado de escaneo válido. Expiración o revocación nunca se resuelve convirtiendo el objeto en público.
+
+## Sincronización implementada (P0-024)
+
+`POST /devices`, `GET /devices`, `POST /devices/{id}/revoke`, `POST /sync/push`, `GET /sync/pull`, `POST /sync/attachments/{operation_id}/content` (bajo `/api/v1/organizations/{org}`); permisos `sync:use` y `device:manage`. Contrato detallado en docs/11 y en `apps/api/openapi.json`.
