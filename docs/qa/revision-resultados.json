@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-11T02:38:35.133Z",
+  "fecha": "2026-10-11T03:05:04.675Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -103,6 +103,7 @@
         "Documentos",
         "Evidencias",
         "Riesgo",
+        "Mitigaciones",
         "Miembros e invitaciones",
         "Centros de acopio",
         "Auditoría",
@@ -385,6 +386,7 @@
         "Documentos",
         "Evidencias",
         "Riesgo",
+        "Mitigaciones",
         "Auditoría",
         "Mis organizaciones"
       ],
@@ -446,6 +448,7 @@
         "Documentos",
         "Evidencias",
         "Riesgo",
+        "Mitigaciones",
         "Miembros e invitaciones",
         "Centros de acopio",
         "Auditoría",
@@ -620,6 +623,7 @@
         "Documentos",
         "Evidencias",
         "Riesgo",
+        "Mitigaciones",
         "Miembros e invitaciones",
         "Centros de acopio",
         "Auditoría",
@@ -683,6 +687,7 @@
         "Documentos",
         "Evidencias",
         "Riesgo",
+        "Mitigaciones",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -742,6 +747,7 @@
         "Documentos",
         "Evidencias",
         "Riesgo",
+        "Mitigaciones",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -855,6 +861,7 @@
         "Documentos",
         "Evidencias",
         "Riesgo",
+        "Mitigaciones",
         "Auditoría",
         "Mis organizaciones"
       ],
@@ -916,6 +923,7 @@
         "Documentos",
         "Evidencias",
         "Riesgo",
+        "Mitigaciones",
         "Miembros e invitaciones",
         "Centros de acopio",
         "Auditoría",
@@ -1088,6 +1096,7 @@
         "Documentos",
         "Evidencias",
         "Riesgo",
+        "Mitigaciones",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Exportadora Pacífico",
@@ -1322,7 +1331,7 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "Mostrando 25 de 424 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
+          "resultado": "Mostrando 25 de 439 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
           "ok": true
         },
         {
@@ -1447,6 +1456,27 @@
         {
           "cuenta": "coordinador.multi (MANAGER)",
           "resultado": "sin enlace=true; acceso directo denegado=true",
+          "ok": true
+        }
+      ],
+      "ok": true
+    },
+    {
+      "tipo": "mitigaciones",
+      "casos": [
+        {
+          "cuenta": "admin.cooperativa (responsable)",
+          "resultado": "causa y evaluación de origen visibles; abierta sin entregas; aviso de separación de funciones; puede aportar soporte=1",
+          "ok": true
+        },
+        {
+          "cuenta": "auditor.cooperativa (390 px, teclado)",
+          "resultado": "lectura sin acciones (0); desborde=false",
+          "ok": true
+        },
+        {
+          "cuenta": "coordinador.multi (MANAGER)",
+          "resultado": "acceso denegado=true",
           "ok": true
         }
       ],

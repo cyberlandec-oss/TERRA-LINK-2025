@@ -18,6 +18,7 @@ import { reviewDeliveries } from './entregas.mjs';
 import { reviewLots } from './lotes.mjs';
 import { reviewInventory } from './inventario.mjs';
 import { reviewRisk } from './riesgo.mjs';
+import { reviewMitigations } from './mitigaciones.mjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -238,6 +239,7 @@ try {
   results.push(await reviewLots({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewInventory({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewRisk({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewMitigations({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
 
   // Adaptación móvil (390 px): menú en panel y contenido legible.
   for (const a of accounts.filter((x) => ['tecnico1.cooperativa', 'admin.cooperativa'].includes(x.email.split('@')[0]))) {
@@ -284,6 +286,7 @@ for (const c of results.find((r) => r.tipo === 'cte')?.casos ?? []) console.log(
 for (const c of results.find((r) => r.tipo === 'eventos')?.casos ?? []) console.log(` [eventos] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'documentos')?.casos ?? []) console.log(` [documentos] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'evidencias')?.casos ?? []) console.log(` [evidencias] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'mitigaciones')?.casos ?? []) console.log(` [mitigaciones] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'riesgo')?.casos ?? []) console.log(` [riesgo] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'inventario')?.casos ?? []) console.log(` [inventario] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'lotes')?.casos ?? []) console.log(` [lotes] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);

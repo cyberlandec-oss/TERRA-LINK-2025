@@ -217,3 +217,15 @@ DEMO: evaluaciones de LOT-2026-00001 y LOT-2026-00002 con reglas 0.1.0 sin aprob
 | admin.cooperativa | LOT-2026-00002 «Origen incompleto»: BLOCKED (MATERIAL_OF_UNKNOWN_ORIGIN, DATA_MISSING_ORIGIN) sin dilución; LOT-2026-00001: incompleto con reglas no evaluables visibles (D-05, satélite, mitigaciones); conclusión indeterminada; sin puntuación | `riesgo--admin-bloqueado.png` |
 | auditor.cooperativa (390 px, teclado) | Lectura sin evaluar ni revisar; sin desborde | `riesgo--auditor-390.png` |
 | coordinador.multi (MANAGER) | Sin enlace; acceso directo denegado | — |
+
+## P0-021 Mitigación (2026-10-10, datos DEMO en `terra_link`, Cooperativa)
+
+DEMO: mitigación ABIERTA «Completar el origen de ENT-2026-00002» (causa DATA_MISSING_ORIGIN de LOT-2026-00002), sin entregas ni decisiones (no se simula la resolución de la causa).
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| admin.cooperativa (responsable) | Causa y evaluación de origen; abierta; aviso de separación de funciones; puede aportar soporte | `mitigaciones--admin.png` |
+| auditor.cooperativa (390 px, teclado) | Lectura sin acciones; sin desborde | `mitigaciones--auditor-390.png` |
+| coordinador.multi (MANAGER) | Acceso denegado | — |
+
+E2E (cuenta administradora del entorno E2E): crear desde la causa, aportar soporte por versión, entregar y comprobar que el ejecutor no puede verificar. La verificación por un segundo usuario y la reevaluación por outbox se prueban en integración (dos verificadores, worker real).

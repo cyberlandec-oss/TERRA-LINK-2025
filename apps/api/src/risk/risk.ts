@@ -100,7 +100,9 @@ export class RiskService {
     const lotIds = new Set(lots.map((l) => l.id));
     const recIds = new Set(receptions.map((r) => r.reception_id));
     const ledgerDiffs = rec.differences.filter((d) => lotIds.has(d.id) || recIds.has(d.id)).map((d) => ({ kind: d.kind, id: d.id }));
-    return { lot: { id: lot.id, code: lot.lot_code, origin_status: lot.origin_status }, lots, receptions, origins, supports, corrections, ledger_differences: ledgerDiffs };
+    const mitigations = (await sql<{ id: string; factor_code: string; status: string; row_version: string }>`
+      SELECT id, factor_code, status, row_version::text FROM mitigation_actions WHERE organization_id = ${orgId} AND subject_id = ${lotId} ORDER BY created_at, id`.execute(db)).rows;
+    return { lot: { id: lot.id, code: lot.lot_code, origin_status: lot.origin_status }, lots, receptions, origins, supports, corrections, ledger_differences: ledgerDiffs, mitigations };
   }
 
   private evaluateRules(rules: Awaited<ReturnType<RiskService['currentRuleSet']>>['rules'], s: Awaited<ReturnType<RiskService['snapshot']>>): Factor[] {
@@ -135,6 +137,12 @@ export class RiskService {
         case 'ledger_reconciliation':
           return s.ledger_differences.length ? { ...f, result: 'HIT', reason: `${s.ledger_differences.length} diferencia(s) entre el ledger y el dominio en el grafo.`, references: s.lots.filter((l) => s.ledger_differences.some((d) => d.id === l.id)).map((l) => l.lot_code) }
             : { ...f, result: 'NOT_HIT', reason: 'El ledger concilia en los lotes y recepciones del grafo.', references: [] };
+        case 'mitigation_status': {
+          if (!s.mitigations.length) return { ...f, result: 'NOT_HIT', reason: 'El sujeto no tiene mitigaciones abiertas.', references: [] };
+          const pending = s.mitigations.filter((m) => m.status !== 'VERIFIED');
+          return pending.length ? { ...f, result: 'HIT', reason: `${pending.length} mitigación(es) sin verificar.`, references: [...new Set(pending.map((m) => m.factor_code))] }
+            : { ...f, result: 'NOT_HIT', reason: 'Las mitigaciones están verificadas. Verificar no resuelve por sí solo las causas: cada regla se vuelve a evaluar con los datos actuales.', references: [] };
+        }
         default:
           return { ...f, result: 'NOT_EVALUABLE', reason: 'Condición no implementada: no se presume resultado.', references: [] };
       }
@@ -156,34 +164,42 @@ export class RiskService {
       if (prior.subject_id !== lotId) throw conflict('OPERATION_ID_REUSED', 'Ese identificador de operación ya se usó con otro contenido.');
       return { replayed: true, evaluation: await this.view(this.db, ctx, prior.id) };
     }
-    const id = await this.db.transaction().execute(async (trx) => {
-      await sql`SELECT pg_advisory_xact_lock(hashtext(${'risk:' + lotId}))`.execute(trx);
-      const last = (await sql<{ id: string; n: number }>`SELECT id, evaluation_number AS n FROM risk_evaluations WHERE organization_id = ${orgId} AND subject_id = ${lotId} ORDER BY evaluation_number DESC LIMIT 1`.execute(trx)).rows[0];
-      if (dto.based_on_evaluation_id && last && last.id !== dto.based_on_evaluation_id) throw conflict('STALE_BASE', 'Ya existe una evaluación posterior a la que conocías: recarga antes de reevaluar (un trabajo antiguo no reemplaza uno nuevo).');
-      const rs = await this.currentRuleSet(trx);
-      const snap = await this.snapshot(trx, orgId, lotId);
-      const factors = this.evaluateRules(rs.rules, snap);
-      const technical = this.technicalResult(factors);
-      const categories = CATEGORIES.map((c) => {
-        const fs = factors.filter((f) => f.category === c);
-        return { category: c, rules: fs.length, status: !fs.length ? 'NO_RULES' : fs.some((f) => f.result === 'HIT') ? 'FINDINGS' : fs.some((f) => f.result === 'NOT_EVALUABLE') ? 'NOT_ASSESSED' : 'NO_FINDINGS',
-          note: !fs.length ? 'Sin reglas en las fuentes del proyecto: no evaluada (requiere perfil aprobado).' : null };
-      });
-      const hash = createHash('sha256').update(canonical(snap)).digest('hex');
-      const eid = randomUUID();
-      await trx.insertInto('risk_evaluations').values({
-        id: eid, organization_id: orgId, subject_type: 'LOT', subject_id: lotId, evaluation_number: (last?.n ?? 0) + 1, rule_set_version: rs.version,
-        parameters: JSON.stringify({ weights: null, thresholds: null, note: 'Sin pesos ni umbrales aprobados' }), snapshot: JSON.stringify(snap), snapshot_hash: hash,
-        factors: JSON.stringify(factors), categories: JSON.stringify(categories), technical_result: technical, severity: 'NOT_ASSESSED', conclusion: 'UNDETERMINED', evaluated_by: user.id, operation_id: dto.operation_id,
-      }).execute();
-      await this.events.append(trx, { organizationId: orgId, eventType: 'RiskEvaluationRecorded', schemaVersion: 1, aggregateType: 'RISK_SUBJECT', aggregateId: lotId, aggregateVersion: (last?.n ?? 0) + 1, actorId: user.id, correlationId: requestId,
-        payload: { evaluation_id: eid, subject_type: 'LOT', subject_id: lotId, rule_set_version: rs.version, snapshot_hash: hash, technical_result: technical, severity: 'NOT_ASSESSED', conclusion: 'UNDETERMINED',
-          factors: factors.map((f) => ({ code: f.code, result: f.result })) } });
-      await this.audit.record(trx, { organizationId: orgId, actorUserId: user.id, action: 'risk.evaluate', entityType: 'lot', entityId: lotId, requestId, result: 'SUCCESS',
-        after: { code: snap.lot.code, reason: `${technical}; reglas ${rs.version} (no aprobadas)` } });
-      return eid;
-    });
+    const id = await this.db.transaction().execute((trx) => this.evaluateInTrx(trx, { orgId, lotId, actorId: user.id, operationId: dto.operation_id, requestId, basedOn: dto.based_on_evaluation_id ?? null, trigger: null }));
     return { replayed: false, evaluation: await this.view(this.db, ctx, id) };
+  }
+
+  /**
+   * Núcleo de la evaluación dentro de una transacción (lo usan la API y el consumidor de reevaluación del outbox).
+   * Bloqueo por sujeto + número creciente: un trabajo basado en una evaluación vieja se rechaza (`basedOn`).
+   */
+  async evaluateInTrx(trx: Transaction<Database>, p: { orgId: string; lotId: string; actorId: string; operationId: string; requestId?: string; basedOn: string | null; trigger: Record<string, unknown> | null }) {
+    const { orgId, lotId } = p;
+    await sql`SELECT pg_advisory_xact_lock(hashtext(${'risk:' + lotId}))`.execute(trx);
+    const last = (await sql<{ id: string; n: number }>`SELECT id, evaluation_number AS n FROM risk_evaluations WHERE organization_id = ${orgId} AND subject_id = ${lotId} ORDER BY evaluation_number DESC LIMIT 1`.execute(trx)).rows[0];
+    if (p.basedOn && last && last.id !== p.basedOn) throw conflict('STALE_BASE', 'Ya existe una evaluación posterior a la que conocías: recarga antes de reevaluar (un trabajo antiguo no reemplaza uno nuevo).');
+    const rs = await this.currentRuleSet(trx);
+    const snap = await this.snapshot(trx, orgId, lotId);
+    const factors = this.evaluateRules(rs.rules, snap);
+    const technical = this.technicalResult(factors);
+    const categories = CATEGORIES.map((c) => {
+      const fs = factors.filter((f) => f.category === c);
+      return { category: c, rules: fs.length, status: !fs.length ? 'NO_RULES' : fs.some((f) => f.result === 'HIT') ? 'FINDINGS' : fs.some((f) => f.result === 'NOT_EVALUABLE') ? 'NOT_ASSESSED' : 'NO_FINDINGS',
+        note: !fs.length ? 'Sin reglas en las fuentes del proyecto: no evaluada (requiere perfil aprobado).' : null };
+    });
+    const hash = createHash('sha256').update(canonical(snap)).digest('hex');
+    const eid = randomUUID();
+    await trx.insertInto('risk_evaluations').values({
+      id: eid, organization_id: orgId, subject_type: 'LOT', subject_id: lotId, evaluation_number: (last?.n ?? 0) + 1, rule_set_version: rs.version,
+      parameters: JSON.stringify({ weights: null, thresholds: null, note: 'Sin pesos ni umbrales aprobados' }), snapshot: JSON.stringify(snap), snapshot_hash: hash,
+      factors: JSON.stringify(factors), categories: JSON.stringify(categories), technical_result: technical, severity: 'NOT_ASSESSED', conclusion: 'UNDETERMINED', evaluated_by: p.actorId, operation_id: p.operationId,
+      trigger: p.trigger ? JSON.stringify(p.trigger) : null,
+    }).execute();
+    await this.events.append(trx, { organizationId: orgId, eventType: 'RiskEvaluationRecorded', schemaVersion: 1, aggregateType: 'RISK_SUBJECT', aggregateId: lotId, aggregateVersion: (last?.n ?? 0) + 1, actorId: p.actorId, correlationId: p.requestId,
+      payload: { evaluation_id: eid, subject_type: 'LOT', subject_id: lotId, rule_set_version: rs.version, snapshot_hash: hash, technical_result: technical, severity: 'NOT_ASSESSED', conclusion: 'UNDETERMINED',
+        trigger: p.trigger, factors: factors.map((f) => ({ code: f.code, result: f.result })) } });
+    await this.audit.record(trx, { organizationId: orgId, actorUserId: p.actorId, action: p.trigger ? 'risk.reevaluate_after_mitigation' : 'risk.evaluate', entityType: 'lot', entityId: lotId, requestId: p.requestId, result: 'SUCCESS',
+      after: { code: snap.lot.code, reason: `${technical}; reglas ${rs.version} (no aprobadas)` } });
+    return eid;
   }
 
   async review(user: AuthUser, orgId: string, evaluationId: string, dto: ReviewDto, requestId?: string) {
@@ -200,6 +216,11 @@ export class RiskService {
       if (dto.action === 'START_REVIEW' && done.length) throw conflict('INVALID_TRANSITION', 'La revisión ya se inició.');
       if (dto.action === 'RESOLVE' && !done.includes('START_REVIEW')) throw conflict('INVALID_TRANSITION', 'Inicia la revisión antes de resolverla.');
       if (dto.action === 'RESOLVE' && done.includes('RESOLVE')) throw conflict('INVALID_TRANSITION', 'La revisión ya está resuelta.');
+      // docs/13 MITIGATION_UNVERIFIED: bloqueo de cierre de revisión mientras haya mitigaciones sin verificar.
+      if (dto.action === 'RESOLVE') {
+        const open = (await sql<{ n: number }>`SELECT count(*)::int AS n FROM mitigation_actions WHERE organization_id = ${orgId} AND subject_id = ${e.subject_id} AND status <> 'VERIFIED'`.execute(trx)).rows[0].n;
+        if (open > 0) throw conflict('MITIGATION_UNVERIFIED', 'Hay mitigaciones sin verificar para este lote: la revisión no puede resolverse todavía.');
+      }
       await trx.insertInto('risk_reviews').values({ id: randomUUID(), organization_id: orgId, evaluation_id: evaluationId, action: dto.action, reason: dto.reason.trim(), reviewer_id: user.id, operation_id: dto.operation_id }).execute();
       await this.audit.record(trx, { organizationId: orgId, actorUserId: user.id, action: `risk.${dto.action.toLowerCase()}`, entityType: 'lot', entityId: e.subject_id, requestId, result: 'SUCCESS', after: { reason: dto.reason.trim() } });
     });
@@ -207,9 +228,9 @@ export class RiskService {
   }
 
   private async view(db: Db, ctx: TenantContext, id: string) {
-    const e = (await sql<{ id: string; subject_id: string; evaluation_number: number; rule_set_version: string; parameters: unknown; snapshot: { lot: { code: string } }; snapshot_hash: string; factors: Factor[]; categories: unknown;
+    const e = (await sql<{ trigger: unknown; id: string; subject_id: string; evaluation_number: number; rule_set_version: string; parameters: unknown; snapshot: { lot: { code: string } }; snapshot_hash: string; factors: Factor[]; categories: unknown;
       technical_result: string; severity: string; conclusion: string; evaluated_at: string; first_name: string | null; last_name: string | null; approval_status: string }>`
-      SELECT e.id, e.subject_id, e.evaluation_number, e.rule_set_version, e.parameters, e.snapshot, e.snapshot_hash, e.factors, e.categories, e.technical_result, e.severity, e.conclusion, e.evaluated_at,
+      SELECT e.trigger, e.id, e.subject_id, e.evaluation_number, e.rule_set_version, e.parameters, e.snapshot, e.snapshot_hash, e.factors, e.categories, e.technical_result, e.severity, e.conclusion, e.evaluated_at,
              u.first_name, u.last_name, rs.approval_status
       FROM risk_evaluations e LEFT JOIN users u ON u.id = e.evaluated_by JOIN risk_rule_sets rs ON rs.version = e.rule_set_version
       WHERE e.organization_id = ${ctx.organizationId} AND e.id = ${id}`.execute(db)).rows[0];
@@ -234,6 +255,7 @@ export class RiskService {
       risk_result: { severity: e.severity, conclusion: e.conclusion, note: 'Severidad NOT_ASSESSED y conclusión UNDETERMINED: no hay perfil jurídico ni pesos aprobados. Un resultado técnico no es conclusión regulatoria ni cumplimiento EUDR.' },
       review: { process_status: process, history: reviews.map((r) => ({ action: r.action, reason: r.reason, at: r.reviewed_at, reviewer: `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim() || 'Miembro' })),
         note: 'La revisión humana registra el trabajo (iniciar, resolver con motivo). Resolver no cambia la evaluación ni la vuelve favorable; mitigaciones: P0-021.' },
+      trigger: e.trigger,
       evaluated_at: e.evaluated_at, evaluated_by: `${e.first_name ?? ''} ${e.last_name ?? ''}`.trim() || 'Miembro',
       actions: { reevaluate: ctx.permissions.includes('risk:evaluate'), review: ctx.permissions.includes('risk:review') && process !== 'RESOLVED' },
     };

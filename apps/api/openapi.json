@@ -5682,6 +5682,272 @@
           "risk"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/mitigation-options": {
+      "get": {
+        "operationId": "MitigationsController_options",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "mitigations"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/mitigations": {
+      "get": {
+        "operationId": "MitigationsController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "mitigations"
+        ]
+      },
+      "post": {
+        "operationId": "MitigationsController_create",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "mitigations"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/mitigations/{id}": {
+      "get": {
+        "operationId": "MitigationsController_detail",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "mitigations"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/mitigations/{id}/supports": {
+      "post": {
+        "operationId": "MitigationsController_support",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "mitigations"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/mitigations/{id}/submit": {
+      "post": {
+        "operationId": "MitigationsController_submit",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "mitigations"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/mitigations/{id}/decisions": {
+      "post": {
+        "operationId": "MitigationsController_decide",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "mitigations"
+        ]
+      }
     }
   },
   "info": {
@@ -6510,31 +6776,38 @@
           "operation_id": {
             "type": "string"
           },
-          "claim_type": {
+          "evaluation_id": {
             "type": "string"
           },
-          "entity_type": {
+          "factor_code": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "acceptance_criteria": {
             "type": "string",
-            "enum": [
-              "producer",
-              "plot"
-            ]
+            "description": "Criterio de aceptación concreto de la acción (documentado por quien la crea)"
           },
-          "entity_id": {
+          "evidence_required": {
+            "type": "string",
+            "description": "Por defecto, la evidencia requerida por la regla"
+          },
+          "assignee_membership_id": {
             "type": "string"
           },
-          "valid_from": {
-            "type": "string"
-          },
-          "valid_to": {
+          "due_date": {
             "type": "string"
           }
         },
         "required": [
           "operation_id",
-          "claim_type",
-          "entity_type",
-          "entity_id"
+          "evaluation_id",
+          "factor_code",
+          "title",
+          "acceptance_criteria",
+          "assignee_membership_id",
+          "due_date"
         ]
       },
       "SourceDto": {
@@ -6571,18 +6844,27 @@
       "DecisionDto": {
         "type": "object",
         "properties": {
+          "operation_id": {
+            "type": "string"
+          },
           "expected_version": {
             "type": "number"
           },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "VERIFIED",
+              "REJECTED"
+            ]
+          },
           "reason": {
             "type": "string"
-          },
-          "contradictions_acknowledged": {
-            "type": "boolean"
           }
         },
         "required": [
+          "operation_id",
           "expected_version",
+          "decision",
           "reason"
         ]
       },
@@ -6772,20 +7054,12 @@
           "document_version_id": {
             "type": "string"
           },
-          "support_kind": {
-            "type": "string",
-            "enum": [
-              "DELIVERY_NOTE",
-              "REMISSION_GUIDE",
-              "PURCHASE_SETTLEMENT",
-              "OTHER"
-            ]
+          "evidence_id": {
+            "type": "string"
           }
         },
         "required": [
-          "operation_id",
-          "document_version_id",
-          "support_kind"
+          "operation_id"
         ]
       },
       "WeighingDto": {
@@ -7303,6 +7577,25 @@
           "location_id",
           "quantity",
           "reason"
+        ]
+      },
+      "SubmitDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "expected_version": {
+            "type": "number"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "expected_version",
+          "note"
         ]
       }
     }

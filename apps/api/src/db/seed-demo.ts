@@ -458,6 +458,24 @@ async function main(): Promise<void> {
       }
     }
 
+    // 4i) Mitigación DEMO (P0-021): para la causa «origen faltante» de LOT-2026-00002, creada por la administración y asignada a
+    // la administración (responsable que aportará el soporte). Queda ABIERTA: sin entregas ni decisiones (no se simula
+    // la resolución de la causa). Idempotente: solo si el lote no tiene mitigaciones.
+    if (passwords.has(coopAdmin)) {
+      const t = await tokenOf(coopAdmin);
+      const o = `/api/v1/organizations/${orgIds.get('coop')!}`;
+      const lot2 = (await call<Array<{ lot_id: string; lot_code: string; evaluation_id: string | null }>>('GET', `${o}/risk/lots`, t)).data.find((x) => x.lot_code === 'LOT-2026-00002');
+      if (lot2?.evaluation_id) {
+        const existing = (await call<unknown[]>('GET', `${o}/mitigations?lot_id=${lot2.lot_id}`, t)).data;
+        if (!existing.length) {
+          const opts = (await call<{ assignees: Array<{ membership_id: string; name: string }> }>('GET', `${o}/mitigation-options?evaluation_id=${lot2.evaluation_id}`, t)).data;
+          const assignee = opts.assignees.find((a) => a.name.includes('demo'));
+          if (assignee) await call('POST', `${o}/mitigations`, t, { operation_id: randomUUID(), evaluation_id: lot2.evaluation_id, factor_code: 'DATA_MISSING_ORIGIN', title: 'Completar el origen de ENT-2026-00002 (DEMO)',
+            acceptance_criteria: 'Parcela de origen identificada con un soporte vigente y disponible (DEMO)', assignee_membership_id: assignee.membership_id, due_date: '2026-12-31' });
+        }
+      }
+    }
+
     // 5) Verificación: login real de cada cuenta con contraseña conocida.
     const verified = new Map<string, boolean>();
     for (const [mail, pwd] of passwords) {

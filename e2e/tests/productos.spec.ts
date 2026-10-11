@@ -474,3 +474,34 @@ test('P0-020 riesgo: evaluar un lote, dimensiones separadas, no evaluable visibl
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });
+
+test('P0-021 mitigación: crear desde la causa, aportar soporte por versión, entregar; el ejecutor no puede verificar; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  await page.goto(`${orgUrl}/riesgo`);
+  await page.getByRole('table', { name: 'Riesgo por lote' }).locator('tbody tr').filter({ hasText: 'Cacao fermentado E2E' }).first().getByRole('link').click();
+  await expect(page.getByRole('heading', { name: /Riesgo del lote LOT-/ })).toBeVisible();
+  const form = page.getByRole('form', { name: 'Crear mitigación' });
+  await form.getByLabel('Causa').selectOption({ label: 'DOCUMENT_EXPIRED · dato faltante' });
+  await expect(form.getByText(/Evidencia requerida por la regla/)).toBeVisible();
+  await form.getByLabel('Responsable').selectOption({ index: 1 });
+  await form.getByLabel('Acción').fill('Aportar soporte documental vigente (E2E)');
+  await form.getByLabel('Plazo').fill('2026-12-31');
+  await form.getByLabel('Criterio de aceptación').fill('Soporte de entrega vigente y disponible (E2E)');
+  await form.getByRole('button', { name: 'Crear mitigación' }).focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('list', { name: 'Mitigaciones del lote' }).getByRole('link', { name: 'Aportar soporte documental vigente (E2E)' }).click();
+  await expect(page.getByText('Abierta (sin entrega)')).toBeVisible();
+  await page.getByLabel('Versión de documento').selectOption({ index: 1 });
+  await page.getByRole('button', { name: 'Aportar soporte' }).click();
+  await expect(page.getByRole('list', { name: 'Soportes de la mitigación' })).toContainText('Entrega 1');
+  await expect(page.getByText('Abierta (sin entrega)')).toBeVisible(); // aportar no verifica
+  await page.getByLabel('Nota de entrega').fill('Soporte aportado (E2E)');
+  await page.getByRole('button', { name: 'Entregar para verificación' }).click();
+  await expect(page.getByText('Entregada: pendiente de verificación')).toBeVisible();
+  await page.getByLabel('Motivo de la decisión').fill('Autoverificación (no debe permitirse)');
+  await page.getByRole('button', { name: 'Verificar' }).click();
+  await expect(page.getByText(/no puede verificarla ni rechazarla/).first()).toBeVisible();
+  await expect(page.getByText('Entregada: pendiente de verificación')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await ctx.close();
+});

@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-021 Mitigación | **DONE_LOCAL** (criterios originales demostrados); causas que dependen de D-05 o del proveedor satelital no se mitigan (no se simula su resolución) | Ver criterios abajo |
 | P0-020 Riesgo | **DONE_LOCAL** para sus criterios originales con reglas técnicas **no aprobadas**: severidad NOT_ASSESSED y conclusión UNDETERMINED por diseño; reglas dependientes de D-05, P0-028 y P0-021 no evaluables | Ver criterios abajo |
 | P0-017 Inventario y balance de masa | **Criterios demostrados localmente excepto reserva/despacho**; STORAGE integrada (CTE 1.3.0). **Historia abierta**: reserva y despacho dependen de embarques (P0-029) | Ver criterios abajo |
 | P0-016 Lotes y procesos | **Criterios originales demostrados localmente**; FERMENTATION integrada (CTE 1.2.0). **Historia abierta**: integración de DRYING pendiente (cierre bloqueado por la unidad de humedad, D-32/D-39.3) | Ver criterios abajo |
@@ -258,6 +259,19 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 | **Concesiones externas y elevación** | **Pendientes en P0-003** | — |
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
+
+### P0-021 — criterios
+
+Validación: `npm run validate` APROBADA en la primera corrida (`validation-results/2026-10-11T02-54-04-972Z`): API 269/269, web 4/4, E2E 54/54, OpenAPI 133 rutas. Revisión por rol: 36 entradas, 0 incidencias. **Fallo anterior de arranque E2E** (`2026-10-11T02-05-01-152Z`: el servidor web de E2E no arrancó en 240 s): **causa no determinada**; puertos libres y sin procesos residuales al revisarlo; no se aumentaron tiempos de espera. No se repitió en las corridas posteriores.
+
+| Criterio original (backlog) | Estado | Evidencia (`mitigations.int-spec.ts`; E2E; revisión) |
+| --- | --- | --- |
+| Acción ligada a causa | DEMOSTRADO | Evaluación + factor + lote conservados; factores dependientes de D-05/P0-028 rechazados (`CAUSE_NOT_ACTIONABLE`); sin identidad ni coordenadas |
+| Assignee / plazo / soporte / criterio | DEMOSTRADO | Responsable activo de la organización con facultad de aportar; plazo; evidencia requerida de la regla; criterio de aceptación documentado por quien crea |
+| Aportar soporte | DEMOSTRADO | Versión exacta de documento (disponible, vigente) o evidencia con su versión; adjuntar no verifica; solo el responsable; versión nueva no sustituye ni hereda aprobación (pide revisión) |
+| Verificar / rechazar con motivo y permisos | DEMOSTRADO | Ejecutor bloqueado (servicio y trigger de base); rechazo conserva soporte y motivo y abre nueva entrega; decisiones concurrentes: una gana |
+| Resolver dispara reevaluación | DEMOSTRADO | Evento `MitigationVerified` → consumidor del outbox → nueva evaluación con disparador; idempotente; un trabajo atrasado no sustituye una evaluación posterior |
+| Actualiza pendientes reales | DEMOSTRADO | `MITIGATION_UNVERIFIED` (reglas 0.2.0) bloquea el cierre de la revisión de riesgo; verificar no elimina otros bloqueos (DATA_MISSING_ORIGIN sigue) ni da por resuelta la causa |
 
 ### P0-020 — criterios
 

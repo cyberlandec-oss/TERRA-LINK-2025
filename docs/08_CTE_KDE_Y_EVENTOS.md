@@ -196,3 +196,7 @@ Eventos: `LotCreated`, `LotInputAssigned`, `LotInputReleased`, `LotClosedForInpu
 ## P0-017 — Ledger e integración STORAGE (2026-10-10)
 
 CTE 1.3.0: **STORAGE → INTEGRATED** (STOCK_MOVEMENT / StockMovementRecorded) para merma, traslado, asignación de ubicación y ajuste. KDE 1.4.0 republica STORAGE sobre STORAGE@2; compuerta `STOCK_MOVEMENT` BLOCKING en lote, ubicación, cantidad, dirección (IN/OUT) y responsable (sesión); en un traslado se valida cada línea; al asignar una ubicación pendiente se valida la entrada (la salida es justamente lo pendiente). Recepciones, asignaciones y procesos escriben su efecto en el ledger con sus propios eventos (sin duplicar StockMovementRecorded). Efectos exactos: `docs/decisiones/P0-017-EFECTOS-LEDGER.md`.
+
+### Eventos de P0-020/P0-021
+
+`RiskEvaluationRecorded` (agregado RISK_SUBJECT, con `trigger` si proviene de una mitigación); `MitigationCreated`, `MitigationSupportAdded`, `MitigationSubmitted`, `MitigationVerified`, `MitigationRejected` (agregado MITIGATION). Consumidor `risk-reevaluation` suscrito a `MitigationVerified` (idempotente por `event_id`; omite si ya existe una evaluación posterior al evento).

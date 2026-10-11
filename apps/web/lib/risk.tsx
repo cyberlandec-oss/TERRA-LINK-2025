@@ -23,3 +23,4 @@ export const FACTOR_RESULT: Record<string, string> = { HIT: 'Hallazgo', NOT_HIT:
 export const EFFECT: Record<string, string> = { BLOCKING: 'bloqueante', REVIEW_REQUIRED: 'requiere revisión', NOT_ASSESSED: 'no evaluado' };
 export const CATEGORY_STATUS: Record<string, string> = { NO_RULES: 'sin reglas en las fuentes', FINDINGS: 'con hallazgos', NOT_ASSESSED: 'no evaluada', NO_FINDINGS: 'sin hallazgos en lo evaluado' };
 export const PROCESS: Record<string, string> = { OPEN: 'Abierta', UNDER_REVIEW: 'En revisión', RESOLVED: 'Resuelta (revisión humana)' };
+export const MIT_TONE: Record<string, 'neutral' | 'valid' | 'review' | 'blocked' | 'process'> = { OPEN: 'neutral', SUBMITTED: 'process', VERIFIED: 'valid', REJECTED: 'review' };

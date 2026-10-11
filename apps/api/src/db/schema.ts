@@ -548,9 +548,18 @@ export interface StockEntriesTable { id: string; organization_id: string; moveme
 // P0-020 riesgo
 export interface RiskEvaluationsTable {
   id: string; organization_id: string; subject_type: 'LOT'; subject_id: string; evaluation_number: number; rule_set_version: string; parameters: unknown; snapshot: unknown; snapshot_hash: string;
-  factors: unknown; categories: unknown; technical_result: string; severity: string; conclusion: string; evaluated_by: string; evaluated_at: Generated<Timestamp>; operation_id: string;
+  factors: unknown; categories: unknown; technical_result: string; severity: string; conclusion: string; evaluated_by: string; evaluated_at: Generated<Timestamp>; operation_id: string; trigger: unknown | null;
 }
 export interface RiskReviewsTable { id: string; organization_id: string; evaluation_id: string; action: 'START_REVIEW' | 'RESOLVE'; reason: string; reviewer_id: string; reviewed_at: Generated<Timestamp>; operation_id: string }
+
+// P0-021 mitigaciones
+export interface MitigationActionsTable {
+  id: string; organization_id: string; evaluation_id: string; factor_code: string; subject_type: 'LOT'; subject_id: string; title: string; acceptance_criteria: string; evidence_required: string;
+  assignee_membership_id: string; due_date: string; status: 'OPEN' | 'SUBMITTED' | 'VERIFIED' | 'REJECTED'; created_by: string; created_at: Generated<Timestamp>; operation_id: string; row_version: Generated<string>;
+}
+export interface MitigationSupportsTable { id: string; organization_id: string; action_id: string; submission_number: number; document_version_id: string | null; evidence_id: string | null; evidence_version: string | null; added_by: string; added_at: Generated<Timestamp>; operation_id: string }
+export interface MitigationSubmissionsTable { id: string; organization_id: string; action_id: string; submission_number: number; note: string; submitted_by: string; submitted_at: Generated<Timestamp>; operation_id: string }
+export interface MitigationDecisionsTable { id: string; organization_id: string; action_id: string; submission_number: number; decision: 'VERIFIED' | 'REJECTED'; reason: string; decided_by: string; decided_at: Generated<Timestamp>; operation_id: string }
 
 export interface Database {
   evidence_claim_types: EvidenceClaimTypesTable;
@@ -620,4 +629,8 @@ export interface Database {
   stock_entries: StockEntriesTable;
   risk_evaluations: RiskEvaluationsTable;
   risk_reviews: RiskReviewsTable;
+  mitigation_actions: MitigationActionsTable;
+  mitigation_supports: MitigationSupportsTable;
+  mitigation_submissions: MitigationSubmissionsTable;
+  mitigation_decisions: MitigationDecisionsTable;
 }

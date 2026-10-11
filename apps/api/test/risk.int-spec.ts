@@ -58,15 +58,16 @@ describeDb('P0-020 evaluación técnica de riesgo: reglas, instantánea, version
     const e = (await evaluate(l).expect(201)).body.evaluation;
     expect(e.technical_result.status).toBe('INCOMPLETE');
     expect(e.risk_result).toMatchObject({ severity: 'NOT_ASSESSED', conclusion: 'UNDETERMINED' });
-    expect(e.rules).toMatchObject({ version: '0.1.0', approval_status: 'NOT_APPROVED' });
+    expect(e.rules).toMatchObject({ version: '0.2.0', approval_status: 'NOT_APPROVED' });
     expect(e.review.process_status).toBe('OPEN');
     expect(factor(e, 'DATA_MISSING_ORIGIN').result).toBe('NOT_HIT');
     expect(factor(e, 'MASS_BALANCE_INCONSISTENT').result).toBe('NOT_HIT');
-    for (const code of ['GEOMETRY_INVALID', 'GEOLOCATION_PROFILE', 'SATELLITE_COVERAGE_UNKNOWN', 'DOCUMENT_EXPIRED', 'MITIGATION_UNVERIFIED']) expect(factor(e, code).result).toBe('NOT_EVALUABLE');
+    for (const code of ['GEOMETRY_INVALID', 'GEOLOCATION_PROFILE', 'SATELLITE_COVERAGE_UNKNOWN', 'DOCUMENT_EXPIRED']) expect(factor(e, code).result).toBe('NOT_EVALUABLE');
+    expect(factor(e, 'MITIGATION_UNVERIFIED').result).toBe('NOT_HIT'); // 0.2.0 (P0-021): sin mitigaciones abiertas
     expect(factor(e, 'GEOLOCATION_PROFILE').reason).toMatch(/D-05/);
     expect(factor(e, 'SATELLITE_COVERAGE_UNKNOWN').reason).toMatch(/no prueba ausencia de deforestación/);
     expect(factor(e, 'GEOMETRY_INVALID').reason).toMatch(/no se presume válida/);
-    expect(e.data_quality.map((f: { code: string }) => f.code).sort()).toEqual(['DOCUMENT_EXPIRED', 'GEOLOCATION_PROFILE', 'GEOMETRY_INVALID', 'MITIGATION_UNVERIFIED', 'SATELLITE_COVERAGE_UNKNOWN']);
+    expect(e.data_quality.map((f: { code: string }) => f.code).sort()).toEqual(['DOCUMENT_EXPIRED', 'GEOLOCATION_PROFILE', 'GEOMETRY_INVALID', 'SATELLITE_COVERAGE_UNKNOWN']);
     expect(e.technical_findings).toEqual([]);
     expect(e.categories.find((c: { category: string }) => c.category === 'LEGALITY')).toMatchObject({ status: 'NO_RULES' });
     expect(e.parameters).toMatchObject({ weights: null, thresholds: null });

@@ -88,6 +88,7 @@ export default function LotRiskPage() {
           )}
         </section>
       </>}
+      {e && <LotMitigations orgId={orgId} lotId={d.lot.id} evaluationId={e.id} canManage={ws.can('mitigation:manage')} canRead={ws.can('mitigation:read')} />}
       {d.history.length > 0 && (
         <section className="card" aria-labelledby="rk-hist">
           <h2 id="rk-hist">Versiones</h2>
@@ -95,5 +96,60 @@ export default function LotRiskPage() {
         </section>
       )}
     </>
+  );
+}
+
+interface MitRow { id: string; title: string; factor_code: string; status: string; status_label: string; due_date: string; assignee: string }
+interface MitOptions { factors: Array<{ code: string; result: string; reason: string; evidence_required: string | null }>; not_actionable_note: string; assignees: Array<{ membership_id: string; name: string }> }
+
+/** Mitigaciones del lote y alta ligada a una causa de la evaluación vigente (solo causas mitigables). */
+function LotMitigations({ orgId, lotId, evaluationId, canManage, canRead }: { orgId: string; lotId: string; evaluationId: string; canManage: boolean; canRead: boolean }) {
+  const [rows, setRows] = useState<MitRow[]>([]);
+  const [opts, setOpts] = useState<MitOptions | null>(null);
+  const [f, setF] = useState({ factor: '', title: '', criteria: '', assignee: '', due: '' });
+  const [error, setError] = useState<ApiError | null>(null);
+  const [op, setOp] = useState(() => crypto.randomUUID());
+  const load = useCallback(async () => {
+    if (canRead) setRows(await api<MitRow[]>(`/api/v1/organizations/${orgId}/mitigations?lot_id=${lotId}`).catch(() => []));
+    if (canManage) setOpts(await api<MitOptions>(`/api/v1/organizations/${orgId}/mitigation-options?evaluation_id=${evaluationId}`).catch(() => null));
+  }, [orgId, lotId, evaluationId, canManage, canRead]);
+  useEffect(() => { void load(); }, [load]);
+  if (!canRead) return null;
+  async function create(ev: FormEvent) {
+    ev.preventDefault(); setError(null);
+    try {
+      await api(`/api/v1/organizations/${orgId}/mitigations`, { method: 'POST', body: { operation_id: op, evaluation_id: evaluationId, factor_code: f.factor, title: f.title, acceptance_criteria: f.criteria, assignee_membership_id: f.assignee, due_date: f.due } });
+      setOp(crypto.randomUUID()); setF({ factor: '', title: '', criteria: '', assignee: '', due: '' }); await load();
+    } catch (err) { setError(err as ApiError); }
+  }
+  return (
+    <section className="card" aria-labelledby="rk-mit">
+      <h2 id="rk-mit">Mitigaciones</h2>
+      {rows.length === 0 ? <p className="muted">Sin mitigaciones para este lote.</p> : (
+        <ul className="plain" aria-label="Mitigaciones del lote">{rows.map((r) => <li key={r.id}><Link href={`/organizaciones/${orgId}/mitigaciones/${r.id}`}>{r.title}</Link> · {r.factor_code} · {r.status_label} · {r.assignee} · plazo {r.due_date}</li>)}</ul>
+      )}
+      {canManage && opts && (
+        <form className="form" onSubmit={create} aria-label="Crear mitigación">
+          <h3>Crear mitigación</h3>
+          <p className="field-help">{opts.not_actionable_note}</p>
+          <div className="grid-2">
+            <div><label htmlFor="mi-factor">Causa</label>
+              <select id="mi-factor" required value={f.factor} onChange={(x) => setF({ ...f, factor: x.target.value })}>
+                <option value="">Selecciona…</option>{opts.factors.map((c) => <option key={c.code} value={c.code}>{c.code} · {c.result === 'HIT' ? 'hallazgo' : 'dato faltante'}</option>)}
+              </select></div>
+            <div><label htmlFor="mi-assignee">Responsable</label>
+              <select id="mi-assignee" required value={f.assignee} onChange={(x) => setF({ ...f, assignee: x.target.value })}>
+                <option value="">Selecciona…</option>{opts.assignees.map((a) => <option key={a.membership_id} value={a.membership_id}>{a.name}</option>)}
+              </select></div>
+            <div><label htmlFor="mi-title">Acción</label><input id="mi-title" required minLength={3} maxLength={160} value={f.title} onChange={(x) => setF({ ...f, title: x.target.value })} /></div>
+            <div><label htmlFor="mi-due">Plazo</label><input id="mi-due" type="date" required value={f.due} onChange={(x) => setF({ ...f, due: x.target.value })} /></div>
+          </div>
+          <label htmlFor="mi-criteria">Criterio de aceptación</label><textarea id="mi-criteria" required minLength={3} maxLength={1000} value={f.criteria} onChange={(x) => setF({ ...f, criteria: x.target.value })} />
+          {f.factor && <p className="field-help">Evidencia requerida por la regla: {opts.factors.find((c) => c.code === f.factor)?.evidence_required ?? '—'}</p>}
+          {error && <ErrorPanel error={error} />}
+          <div className="actions"><button type="submit">Crear mitigación</button></div>
+        </form>
+      )}
+    </section>
   );
 }

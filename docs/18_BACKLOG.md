@@ -101,6 +101,7 @@ Estado (2026-10-10): criterios demostrados localmente con reglas técnicas de do
 ### P0-021 — Mitigación
 Depende P0-020. Como responsable, necesito resolver causa con evidencia.
 Aceptación: acción/assignee/plazo/soporte; aportar→verificar/rechazar con motivos y permisos; resolver dispara reevaluación y actualiza pendientes reales. RF-21; QA-11.
+Estado (2026-10-10): criterios demostrados localmente. Separación de funciones de docs/13 aplicada (el ejecutor no verifica; sin política de excepción); D-37 (Evidencias) no se modifica. Reevaluación asíncrona por outbox; catálogo de riesgo sigue NO APROBADO y conclusión UNDETERMINED.
 
 ### P0-022 — Diligencia y paquete
 Depende P0-017/019/020/021. Como EUDR_MANAGER, necesito preparación verificable.
