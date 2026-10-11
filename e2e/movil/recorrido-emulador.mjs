@@ -237,6 +237,8 @@ const steps = {
   },
   async almacenamientoLleno() {
     await tap(/DEMO · Cooperativa/, { timeout: 15000 }).catch(() => undefined);
+    // Precondición: sesión vigente sin bloqueo de reloj (tras «vencimiento» hay que volver a iniciar sesión).
+    await logout().catch(() => undefined); await loginAs('tecnico1.cooperativa'); // siempre: el botón deshabilitado no se distingue por texto
     await tab('Inicio').catch(() => undefined); // precondición: pestaña Inicio
     await waitFor(/^Nueva captura$/, { scrollTo: true });
     const free = Number(adb('shell', 'df', '-k', '/data').split('\n')[1].trim().split(/\s+/)[3]);
@@ -253,25 +255,34 @@ const steps = {
     for (const mb of chunks) {
       try { adb('shell', 'fallocate', '-l', `${mb}M`, `/data/local/tmp/tl-relleno-${part}`); part += 1; } catch { /* no cabe */ }
       hostMin = Math.min(hostMin, hostGb());
-      if (hostMin < 10) { adb('shell', 'sh', '-c', 'rm -f /data/local/tmp/tl-relleno-*'); throw new Error(`C: bajó a ${hostMin.toFixed(2)} GB durante el relleno: abortado y relleno borrado`); }
+      if (hostMin < 10) { adb('shell', 'rm -f /data/local/tmp/tl-relleno-*'); throw new Error(`C: bajó a ${hostMin.toFixed(2)} GB durante el relleno: abortado y relleno borrado`); }
     }
     state.hostDisk = { antes_GB: +hostBefore.toFixed(2), minimo_GB: +hostMin.toFixed(2) };
-    await tap(/^Nueva captura$/);
-    await tap(new RegExp(`^${state.plot.plot_code} ·`));
-    await waitFor(/Captura · /);
-    await tap(/^Tomar foto$/);
-    for (let i = 0; i < 30; i++) {
+    let ok = false; let s = null; let fase = 'borrador';
+    try {
+      await tap(/^Nueva captura$/);
+      await tap(new RegExp(`^${state.plot.plot_code} ·`));
+      // Con el disco lleno puede fallar ya la creación del borrador (mensaje en español) o, si cabe, la foto.
+      const first = await waitFor(/Captura · |No hay espacio libre/);
+      if (/Captura · /.test(`${first.text} ${first.desc}`)) {
+      fase = 'foto';
+      await tap(/^Tomar foto$/);
+      for (let i = 0; i < 30; i++) {
+        const t = allText();
+        if (/espacio|5 MB libres/.test(t)) break;
+        const shutter = find(/shutter_button|^Shutter$/); if (shutter.length) { tapNode(shutter[0]); await sleep(2500); continue; }
+        const done = find(/done_button|^Done$/); if (done.length) { tapNode(done[0]); await sleep(1500); continue; }
+        await sleep(1000);
+      }
+      }
       const t = allText();
-      if (/espacio|5 MB libres/.test(t)) break;
-      const shutter = find(/shutter_button|^Shutter$/); if (shutter.length) { tapNode(shutter[0]); await sleep(2500); continue; }
-      const done = find(/done_button|^Done$/); if (done.length) { tapNode(done[0]); await sleep(1500); continue; }
-      await sleep(1000);
+      // Correcto solo con mensaje en español y sin error técnico de SQLite.
+      ok = /5 MB libres|No hay espacio/.test(t) && !/database or disk is full|NativeStatement/.test(t);
+      s = shot('almacenamiento-lleno-inducido');
+    } finally {
+      adb('shell', 'rm -f /data/local/tmp/tl-relleno-*'); // siempre, también si el paso falla
     }
-    const t = allText();
-    const ok = /5 MB libres|No hay espacio/.test(t);
-    const s = shot('almacenamiento-lleno-inducido');
-    adb('shell', 'sh', '-c', 'rm -f /data/local/tmp/tl-relleno-*');
-    record('almacenamiento-lleno-inducido', ok, `FALLO INDUCIDO en emulador (archivo de relleno de ${fillMb} MB, después borrado; C: ${JSON.stringify(state.hostDisk)}); no es falta real de espacio`, s);
+    record('almacenamiento-lleno-inducido', ok, `FALLO INDUCIDO en emulador, fase ${fase} (archivo de relleno de ${fillMb} MB, después borrado; C: ${JSON.stringify(state.hostDisk)}); no es falta real de espacio`, s);
   },
   async revocacion() {
     await tab('Inicio');

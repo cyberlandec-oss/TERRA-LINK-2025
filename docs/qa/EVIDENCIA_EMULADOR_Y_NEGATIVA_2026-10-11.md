@@ -67,3 +67,6 @@ captura `docs/qa/capturas/orientacion-fixtures.png`. El SHA-256 de la procesada 
   solo tras el análisis; conflicto resuelto desde la app; cambio de cuenta; sesión vencida (1 h).
 - Almacenamiento lleno: **no** llenar el teléfono personal; se prueba en emulador con un archivo de relleno (fallo
   inducido, distinto de una falta real de espacio).
+
+> Actualización: APK apto para el ensayo físico `APTO-ensayo-fisico-9996a9b4.apk` y resultado de la prueba negativa en
+> `docs/qa/EVIDENCIA_APK_9996a9b4_Y_NEGATIVA_2026-10-11.md`. Los APK `43f26c95` y `184cbfa8` son NO APTOS.

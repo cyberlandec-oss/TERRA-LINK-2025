@@ -52,7 +52,11 @@ expo-sqlite.
   - `NO-APTO-mensaje-almacenamiento-lleno-184cbfa8.apk` (antes `CANDIDATO-aceptacion-184cbfa8.apk`): autoprueba 9/9 y recorrido en emulador casi completo (intento 5), pero con
     almacenamiento lleno muestra el error técnico de SQLite al crear un borrador (corregido en código, pendiente de
     recompilar y verificar). Queda retirado del recorrido de instalación.
-- Ruta de compilación: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk` (regenerable con `npx expo prebuild --platform android --no-install` y `cd android && gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64`). **No hay APK apto publicado**: no instalar ningún APK en un teléfono hasta que `docs/qa` registre uno como APTO (con SHA-256 completo y autoprueba/recorrido en emulador aprobados).
+- **APK APTO para el ensayo físico**: `apps/mobile/dist-apk/APTO-ensayo-fisico-9996a9b4.apk`, SHA-256
+  `9996a9b419508fdbd3b225a08aae39333b705ef125a68b527507c0efd6f46ab2`, commit `0ba960a`. Autoprueba 9/9 y recorrido
+  completo en emulador (`docs/qa/EVIDENCIA_APK_9996a9b4_Y_NEGATIVA_2026-10-11.md`). Instalar: `adb install -r` + `adb reverse tcp:4000 tcp:4000`.
+  El ensayo físico está pendiente.
+- Ruta de compilación: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk` (regenerable con `npx expo prebuild --platform android --no-install` y `cd android && gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64`). Solo instalar en un teléfono el APK registrado como APTO en `docs/qa` (SHA-256 completo).
 - Autoprueba en el teléfono: «Diagnóstico» → «Ejecutar autoprueba de seguridad», o `adb shell am start -a android.intent.action.VIEW -d "terralinkcampo://autoprueba" ec.agtech.terralink.campo`; todos los casos deben salir «Correcto».
 - Teléfono físico: activar «Opciones de desarrollador» → «Depuración USB», conectar por USB, aceptar la huella del
   equipo, comprobar con `adb devices`. Para la API local: `adb reverse tcp:4000 tcp:4000` y servidor `http://localhost:4000`.

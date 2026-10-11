@@ -271,7 +271,8 @@ Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` 
 | Almacenamiento lleno: error técnico de SQLite al crear borrador | **DEFECTO DE LA APP**, corregido en código; pendiente de APK nuevo | `storageFullMessage` + prueba unitaria |
 | APK `184cbfa8` | **NO APTO** (renombrado `NO-APTO-mensaje-almacenamiento-lleno-184cbfa8.apk`) | README móvil |
 | Vista previa web móvil (3001) | Funciona; 32/32 pasos en 390 px y escritorio; 3 defectos visuales corregidos | `docs/qa/REVISION_WEB_MOVIL_2026-10-11.md` |
-| Prueba negativa sin SQLCipher | EN CURSO | — |
+| Prueba negativa sin SQLCipher | OK en emulador: bloqueo antes del login, sin base/token/fotos (etiqueta de variante incorrecta, documentada) | `docs/qa/EVIDENCIA_APK_9996a9b4_Y_NEGATIVA_2026-10-11.md` |
+| APK `9996a9b4` (commit `0ba960a`) | **APTO para el ensayo físico**: autoprueba 9/9 y recorrido completo en emulador (intento 6) | idem |
 | Teléfono físico | NO EJECUTADO | — |
 
 P0-023 y P0-024 siguen ABIERTAS.
