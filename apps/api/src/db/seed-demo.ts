@@ -420,6 +420,33 @@ async function main(): Promise<void> {
       }
     }
 
+    // 4g) Recorrido DEMO de lotes y procesos (P0-016) en la Cooperativa: lote con origen declarado (150 kg de la
+    // recepción de ENT-2026-00001), lote «Origen incompleto» (120 kg de ENT-2026-00002), una fermentación cerrada
+    // 150 → 140 + 10 kg (cifras sintéticas) y un secado iniciado cuyo cierre queda bloqueado (D-32).
+    // Idempotente: solo si la Cooperativa no tiene lotes. Datos SINTÉTICOS.
+    if (passwords.has(coopAdmin)) {
+      const t = await tokenOf(coopAdmin);
+      const coopId = orgIds.get('coop')!;
+      const o = `/api/v1/organizations/${coopId}`;
+      const lots = (await call<Array<{ id: string }>>('GET', `${o}/lots`, t)).data;
+      if (!lots.length) {
+        const opts = (await call<{ receptions: Array<{ id: string; delivery_code: string; available: string }>; products: Array<{ id: string; code: string }> }>('GET', `${o}/lot-options`, t)).data;
+        const prod = (code: string) => opts.products.find((p) => p.code === code)?.id;
+        const r1 = opts.receptions.find((r) => r.delivery_code === 'ENT-2026-00001');
+        const r2 = opts.receptions.find((r) => r.delivery_code === 'ENT-2026-00002');
+        if (r1 && r2 && prod('CACAO_FERMENTADO') && prod('CACAO_SECO')) {
+          const known = (await call<{ lot: { id: string } }>('POST', `${o}/lots`, t, { operation_id: randomUUID(), inputs: [{ reception_id: r1.id, quantity: '150' }] })).data.lot;
+          await call('POST', `${o}/lots`, t, { operation_id: randomUUID(), inputs: [{ reception_id: r2.id, quantity: '120' }] });
+          const ferm = (await call<{ run: { id: string } }>('POST', `${o}/process-runs`, t, { operation_id: randomUUID(), process_type: 'FERMENTATION', output_product_id: prod('CACAO_FERMENTADO'), notes: 'DEMO-LOT · fermentación sintética' })).data.run;
+          const startAt = new Date(Date.now() - 6 * 86_400_000).toISOString();
+          await call('POST', `${o}/process-runs/${ferm.id}/start`, t, { operation_id: randomUUID(), started_at: startAt, inputs: [{ lot_id: known.id, quantity: '150' }] });
+          const closed = (await call<{ run: { outputs: Array<{ lot_id: string }> } }>('POST', `${o}/process-runs/${ferm.id}/close`, t, { operation_id: randomUUID(), closed_at: new Date().toISOString(), outputs: [{ quantity: '140' }], loss_quantity: '10' })).data.run;
+          const dry = (await call<{ run: { id: string } }>('POST', `${o}/process-runs`, t, { operation_id: randomUUID(), process_type: 'DRYING', output_product_id: prod('CACAO_SECO'), notes: 'DEMO-LOT · secado sintético (cierre bloqueado por D-32)' })).data.run;
+          await call('POST', `${o}/process-runs/${dry.id}/start`, t, { operation_id: randomUUID(), started_at: new Date().toISOString(), inputs: [{ lot_id: closed.outputs[0].lot_id, quantity: '140' }] });
+        }
+      }
+    }
+
     // 5) Verificación: login real de cada cuenta con contraseña conocida.
     const verified = new Map<string, boolean>();
     for (const [mail, pwd] of passwords) {

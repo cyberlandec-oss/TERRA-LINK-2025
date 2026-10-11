@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-016 Lotes y procesos | **Criterios originales demostrados localmente**; FERMENTATION integrada (CTE 1.2.0). **Historia abierta**: integración de DRYING pendiente (cierre bloqueado por la unidad de humedad, D-32/D-39.3) | Ver criterios abajo |
 | P0-012 Entregas y recepción | **Capacidades demostradas: verificadas localmente** (entrega, peso recibido, parciales, vínculos, calidad básica como decisión humana, no duplicación). **Historia completa: ABIERTA**, pendiente del criterio «diferencias con causa» (cierre y tolerancias sin política, D-33). Evidencia por criterio abajo (entrega, recepción física parcial, pesaje, soportes, calidad separada, correcciones, compuertas por transición) con decisiones de diseño MVP D-33/34/35 no validadas en campo; cierre por debajo de lo declarado, tolerancias, catálogo de límites, centros asignados e inventario (P0-017) pendientes | Ver criterios abajo |
 | P0-025 Auditoría | **DONE_LOCAL** (criterios de la historia sobre los módulos existentes); auditoría de riesgo, entregas, procesamiento, expediente y concesiones pendiente de sus historias; formato de exportación provisional (D-38) | Ver criterios abajo |
 | P0-019 Evidencias | **DONE_LOCAL** (criterios de la historia); afirmaciones de lote, análisis ambiental y mitigación esperan sus entidades; uso en riesgo/expediente es P0-020/P0-022 | Ver criterios abajo |
@@ -29,7 +30,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-015 Eventos | **DONE_LOCAL** para los criterios internos de la organización (correction_of con efecto real en productor, historial autorizado, reproceso DEAD, fencing); concesiones externas y elevación siguen en P0-003 | Ver criterios abajo |
 | P0-014 KDE | **DONE_LOCAL** para catálogo y servicio de validación; 0 compuertas integradas (cada operación lo demuestra en su historia); D-33, D-34 y configuración jurídica pendientes | Ver criterios abajo |
 | P0-013 CTE | **DONE_LOCAL** (catálogo versionado y mapeo de lo existente; la integración de cada operación es criterio de su propia historia) | Ver criterios abajo |
-| P0-011 Productos | **ABIERTA**: catálogo, unidades, permisos, historia y UI-09 verificados localmente; queda 1 criterio que depende de P0-016/017 («transformación cambia estado con evento/rendimiento») | Ver criterios abajo |
+| P0-011 Productos | **DONE_LOCAL** (2026-10-10): el criterio pendiente «transformación cambia estado con evento/rendimiento» quedó demostrado con la fermentación de P0-016 (`lots.int-spec.ts`, E2E) | Ver criterios abajo |
 | P0-010 Validación GIS | **ABIERTA**: parte técnica verificada localmente (`TL_GIS_TECH 1.0.0`); umbral debajo/igual/encima y perfil de destino dependen de D-05 (propuesta no aprobada) | Ver criterios abajo |
 | P0-009 GeoJSON | **ABIERTA**: alcance independiente verificado localmente; «perfil destino» depende de P0-010/D-05 (dependencia del backlog conservada) | Ver criterios abajo |
 | P0-008 Polígono | **DONE_LOCAL** con evidencia de integración (PostGIS real) y navegador **[SIMULADA]**; captura real de campo pendiente | Ver criterios abajo |
@@ -255,6 +256,20 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 | **Concesiones externas y elevación** | **Pendientes en P0-003** | — |
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
+
+### P0-016 — criterios
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-11T00-46-10-001Z`): API 254/254, web 4/4, E2E 51/51, OpenAPI 115 rutas. Corridas previas fallidas conservadas: `2026-10-11T00-36-27-453Z` (prueba unitaria usaba «lot» como entidad aún no verificable) y `2026-10-11T00-40-31-876Z` (E2E de hitos esperaba CTE 1.1.0): expectativas desactualizadas, código correcto. Revisión por rol: 33 entradas, 0 incidencias.
+
+| Criterio original (backlog) | Estado | Evidencia (`lots.int-spec.ts`; E2E; revisión) |
+| --- | --- | --- |
+| Lote con inputs/outputs/run | DEMOSTRADO | Asignaciones parciales con referencias exactas (pesaje vigente, versión de recepción); proceso con reserva, consumo, salidas y pérdida |
+| DAG sin ciclos | DEMOSTRADO | Trigger en todo enlace (incluido uno posterior insertado por fuera); lotes de salida cerrados a entradas; aristas append-only |
+| Origen conservado en salida | DEMOSTRADO | Upstream hasta entrega, productor y parcela; «Origen incompleto» separado y propagado; sin mezcla (D-39.1) |
+| Cierre atómico | DEMOSTRADO | Rollback completo; doble cierre concurrente y reintento → una salida; balance 800 → 750 + 50 y rechazo de 760+50, 750+60, 900+0, 750+49,999999 |
+| Consulta upstream/downstream con cantidades y permisos | DEMOSTRADO | Solo nodos legibles; sin `delivery:read` no aparecen recepciones ni productores, sin conteos ni marcadores |
+| Sin doble uso | DEMOSTRADO | Asignaciones y reservas concurrentes (201/409); corrección compitiendo con asignación; triggers de red de seguridad |
+| Integración FERMENTATION/DRYING (nota del backlog) | FERMENTATION **sí**; DRYING **no** | Secado se inicia; cierre bloqueado (`DECISION_PENDING`) aunque se envíe humedad; DRYING sigue PENDING en el catálogo |
 
 ### P0-012 — revisión enfocada por criterio original (2026-10-10)
 

@@ -154,3 +154,12 @@ Clasificación de la identidad del productor: documento, teléfono y dirección 
 | quality_samples / quality_results / quality_measurements | 0021 | Muestra (durante la recepción o después del pesaje), resultado con decisión PENDING/RELEASED/REJECTED (liberar exige versión de límites; rechazar, motivo), mediciones con unidad explícita |
 | gate_evaluations | 0021 | Resultado de la compuerta de cada transición (códigos, sin valores); append-only |
 | kde_transition_gates | 0021 | Catálogo de sistema de compuertas por transición, versionado |
+
+| Tabla (P0-016) | Migración | Notas |
+| --- | --- | --- |
+| lots | 0023 | Código LOT-AAAA-NNNNN; producto; origen COMPLETE/INCOMPLETE; fuente RECEPTIONS o PROCESS_OUTPUT (cerrado a entradas); solo cambian estado y versión |
+| lot_inputs / lot_input_releases | 0023 | Asignación recepción → lote con pesaje vigente y versión usados; trigger: suma activa ≤ peso vigente y sin mezclar origen; liberar solo sin reservas ni consumo |
+| process_runs | 0023 | FERMENTATION/DRYING; DRAFT → RUNNING → CLOSED · CANCELLED (trigger de transiciones); pérdida explícita; humedad con unidad no definida |
+| process_inputs | 0023 | Reserva (RUNNING) → consumo (CLOSED) → liberada (CANCELLED); trigger: no supera la cantidad del lote |
+| process_outputs / lot_edges | 0023 | Salidas como lotes nuevos; aristas padre → hijo con control de ciclos en toda inserción; append-only |
+| reception_adjustments (trigger nuevo) | 0023 | Rechaza corregir una recepción con asignaciones activas (D-39.2) |

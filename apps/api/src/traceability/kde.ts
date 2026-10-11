@@ -181,6 +181,11 @@ export class KdeService {
         const col = entity === 'delivery' ? sql`d.id` : entity === 'weighable' ? sql`r.id` : sql`s.id`;
         rows = (await sql<{ id: string; active: boolean }>`${base} JOIN producers pr ON pr.id = d.producer_id AND pr.organization_id = d.organization_id
           WHERE d.organization_id = ${org} AND ${col} = ANY(${ids}) AND ${dscope}`.execute(dbh)).rows;
+      } else if (entity === 'lot' || entity === 'process_run') {
+        if (!has('lot:read')) return { found, inactive, verifiable: true };
+        rows = entity === 'lot'
+          ? (await sql<{ id: string; active: boolean }>`SELECT id, TRUE AS active FROM lots WHERE organization_id = ${org} AND id = ANY(${ids})`.execute(dbh)).rows
+          : (await sql<{ id: string; active: boolean }>`SELECT id, status <> 'CANCELLED' AS active FROM process_runs WHERE organization_id = ${org} AND id = ANY(${ids})`.execute(dbh)).rows;
       } else if (entity === 'location') {
         if (!has('location:read')) return { found, inactive, verifiable: true };
         rows = (await sql<{ id: string; active: boolean }>`SELECT id, status = 'ACTIVE' AS active FROM locations WHERE organization_id = ${org} AND id = ANY(${ids})`.execute(dbh)).rows;
@@ -214,7 +219,7 @@ export class KdeService {
     const all = new Map(active.map((r) => [r.code, toDef(r)]));
     const names = new Map(active.map((r) => [r.code, r.name]));
     const checks = gate.checks.filter((c) => c.kde);
-    const defs = checks.filter((c) => c.mode !== 'NOT_EVALUATED').map((c) => all.get(c.kde!)).filter((d): d is KdeDef => !!d);
+    const defs = checks.filter((c) => c.mode === 'BLOCKING' || c.mode === 'PENDING_ALLOWED').map((c) => all.get(c.kde!)).filter((d): d is KdeDef => !!d);
     const { items } = await validateKde(defs, values, this.resolver(ctx, dbh), all);
     const byCode = new Map(items.map((i) => [i.code, i]));
     const ok = (r: string) => r === 'PRESENT_VALID' || r === 'NOT_APPLICABLE' || r === 'OPTIONAL_MISSING';
@@ -223,6 +228,8 @@ export class KdeService {
     const notEvaluated: Array<{ code: string | null; name: string | null; note: string }> = [];
     for (const c of gate.checks) {
       if (c.mode === 'NOT_EVALUATED') { notEvaluated.push({ code: c.kde, name: c.kde ? names.get(c.kde) ?? c.kde : null, note: c.note }); continue; }
+      // Transición bloqueada por una decisión pendiente: bloquea aunque los datos estén presentes; no vuelve opcional el dato.
+      if (c.mode === 'BLOCKED_PENDING_DECISION') { blocking.push({ code: c.kde ?? 'DECISION_PENDING', name: c.note, result: 'DECISION_PENDING', error_code: 'DECISION_PENDING', message: c.note }); continue; }
       const i = byCode.get(c.kde!);
       if (!i || ok(i.result)) continue;
       const entry = { code: i.code, name: names.get(i.code) ?? i.code, result: i.result, error_code: i.error_code, message: i.message };

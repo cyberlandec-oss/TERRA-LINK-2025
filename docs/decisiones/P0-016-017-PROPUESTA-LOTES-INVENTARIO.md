@@ -1,6 +1,8 @@
 # P0-016 Lotes y procesos / P0-017 Inventario — Contrato de implementación PROPUESTO (2026-10-10)
 
-Estado: **PROPUESTA, NO APROBADA**. Las propuestas del responsable de producto (2026-10-10) se recogen como
+Estado: **PROPUESTA** (se conserva como historia). **2026-10-10: las cuatro decisiones de D-39 fueron ADOPTADAS como reglas provisionales del MVP local** por el responsable de producto, junto con dos correcciones técnicas: el control de ciclos se aplica a toda operación que cree o modifique enlaces (no basta con crear salidas como lotes nuevos) y FERMENTATION y DRYING se integran por separado. No es validación en campo ni aprobación para producción.
+
+Estado original: **PROPUESTA, NO APROBADA**. Las propuestas del responsable de producto (2026-10-10) se recogen como
 «propuesta del producto, sin aprobar»; las de este documento como «recomendación técnica». Nada se implementa
 hasta la aprobación. No se marca ningún vínculo CTE como integrado antes de que su operación funcione.
 

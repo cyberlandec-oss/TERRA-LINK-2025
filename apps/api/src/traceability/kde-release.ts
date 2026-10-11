@@ -72,7 +72,7 @@ export async function publishKdeRelease(db: Db, r: KdeReleaseInput) {
   }
 }
 
-export interface KdeGateInput { transition: string; kde: string | null; mode: 'BLOCKING' | 'PENDING_ALLOWED' | 'NOT_EVALUATED'; note: string }
+export interface KdeGateInput { transition: string; kde: string | null; mode: 'BLOCKING' | 'PENDING_ALLOWED' | 'NOT_EVALUATED' | 'BLOCKED_PENDING_DECISION'; note: string }
 
 /**
  * P0-012 — compuertas por transición: qué comprueba cada operación sobre los KDE vigentes.

@@ -43,6 +43,8 @@ const ALLOWED: Record<string, string[]> = {
   audit: ['format_version', 'row_count', 'sha256', 'filters'],
   delivery: ['delivery_code', 'reception_id', 'sample_id', 'result_id', 'quantity', 'unit', 'location_id', 'product_id', 'support_id', 'document_version_id', 'support_kind', 'moment', 'decision', 'limits_version', 'pending', 'corrected_event_id', 'version'],
   location: ['code', 'name', 'location_type'],
+  lot: ['code', 'product_id', 'origin_status', 'reception_id', 'weighing_id', 'quantity', 'unit', 'reason'],
+  process_run: ['code', 'process_type', 'output_product_id', 'reserved', 'input', 'output', 'loss', 'unit', 'pending', 'reason'],
 };
 /** Nunca se presentan, aunque un registro antiguo los contuviera (secretos, enlaces, coordenadas, contenido). */
 const NEVER = /token|password|secret|hash(?!.*sha)|key|link|url|coordinates|geometry|^lat|^lon|latitude|longitude|vertices|content$/i;
@@ -116,6 +118,8 @@ export class AuditQueryService {
       WHEN 'evidence' THEN ${evidenceVisible}
       WHEN 'product' THEN ${has('product:read') ? sql`TRUE` : sql`FALSE`}
       WHEN 'delivery' THEN ${deliveryVisible}
+      WHEN 'lot' THEN ${has('lot:read') ? sql`TRUE` : sql`FALSE`}
+      WHEN 'process_run' THEN ${has('lot:read') ? sql`TRUE` : sql`FALSE`}
       ELSE TRUE END)`;
   }
 

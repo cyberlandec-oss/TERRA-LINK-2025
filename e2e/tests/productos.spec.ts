@@ -125,18 +125,18 @@ test('usuario sin permiso: sin enlace en el menú y acceso directo denegado', as
   await bctx.close();
 });
 
-test('P0-013 hitos (CTE): consulta de solo lectura con versión, vigencia e integración (P0-012 integrada); sin acciones operativas', async ({ browser }) => {
+test('P0-013 hitos (CTE): consulta de solo lectura con versión, vigencia e integración (P0-012 y fermentación integradas; secado pendiente); sin acciones operativas', async ({ browser }) => {
   const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
   await page.goto(`${orgUrl}/trazabilidad/hitos`);
   const table = page.getByRole('table', { name: 'Hitos de trazabilidad' });
   await expect(table.locator('tbody tr')).toHaveCount(11);
-  await expect(page.getByText(/Catálogo versión 1\.1\.0/)).toBeVisible();
+  await expect(page.getByText(/Catálogo versión 1\.2\.0/)).toBeVisible();
   await expect(table).toContainText('DELIVERY@2');
   await expect(table).toContainText('DeliveryRegistered');
-  await expect(page.getByText(/4 operación\(es\) integrada\(s\) y 7 pendiente\(s\)/)).toBeVisible();
+  await expect(page.getByText(/5 operación\(es\) integrada\(s\) y 6 pendiente\(s\)/)).toBeVisible();
   await expect(page.getByRole('button', { name: /cosecha|entrega|recepción|procesar|registrar/i })).toHaveCount(0);
   await page.getByLabel('Mostrar definiciones retiradas o sustituidas').press('Space');
-  await expect(table.locator('tbody tr')).toHaveCount(15); // las 4 versiones 1 sustituidas en 1.1.0 siguen consultables
+  await expect(table.locator('tbody tr')).toHaveCount(16); // las 5 versiones sustituidas (1.1.0 y 1.2.0) siguen consultables
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });
@@ -359,5 +359,56 @@ test('P0-012 entregas: registrar con periodo por mes, recibir sin documento con 
   const row = page.getByRole('table', { name: 'Entregas' }).locator('tbody tr').first();
   await expect(row).toContainText('300 kg');
   await expect(row).toContainText('120 kg');
+  await ctx.close();
+});
+
+test('P0-016 lotes y fermentación: formar lote, reservar, rechazo de balance, cierre 800 → 750 + 50 con rendimiento; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  const orgId = orgUrl.split('/organizaciones/')[1];
+  const h = { authorization: `Bearer ${token}` };
+  const o = `${API_URL}/api/v1/organizations/${orgId}`;
+  const products = (await (await page.request.get(`${o}/products?limit=100`, { headers: h })).json()).items as Array<{ id: string; code: string }>;
+  const baba = products.find((p) => p.code === 'CACAO_BABA_E2E')!.id;
+  await page.request.post(`${o}/products`, { headers: h, data: { code: 'CACAO_FERM_E2E', name: 'Cacao fermentado E2E', product_state: 'CACAO_FERMENTADO', unit: 'KG' } });
+  const producer = (await (await page.request.get(`${o}/producers?q=ENT-E2E-1`, { headers: h })).json()).items[0].id;
+  const plotId = (await (await page.request.get(`${o}/plots?limit=100`, { headers: h })).json()).items.find((p: { plot_code: string }) => p.plot_code === 'ENT-E2E-P1').id;
+  const center = (await (await page.request.get(`${o}/locations`, { headers: h })).json()).find((l: { code: string }) => l.code === 'CA-E2E').id;
+  const today = new Date().toISOString().slice(0, 10);
+  const d = (await (await page.request.post(`${o}/deliveries`, { headers: h, data: { operation_id: crypto.randomUUID(), producer_id: producer, product_id: baba, delivery_date: today, quantity_declared: '800', unit: 'KG', origins: [{ plot_id: plotId }], register: true } })).json()).delivery;
+  await page.request.post(`${o}/deliveries/${d.id}/receptions`, { headers: h, data: { operation_id: crypto.randomUUID(), location_id: center, received_at: new Date().toISOString(), weighing: { method: 'Báscula E2E', quantity: '800', unit: 'KG', weighed_on: today } } });
+  // formar lote
+  await page.goto(`${orgUrl}/lotes`);
+  await page.getByLabel(`Asignar de ${d.delivery_code}`).fill('800');
+  await page.getByRole('button', { name: 'Formar lote' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: /Lote LOT-/ })).toBeVisible();
+  await expect(page.getByText(/No es inventario/).first()).toBeVisible();
+  await expect(page.getByText('Calidad pendiente de evaluación en algún insumo')).toBeVisible();
+  const lotCode = (await page.getByRole('heading', { name: /Lote LOT-/ }).innerText()).replace('Lote ', '');
+  // preparar e iniciar fermentación
+  await page.goto(`${orgUrl}/procesos`);
+  await page.getByLabel('Producto de salida').selectOption({ label: 'Cacao fermentado E2E (CACAO_FERM_E2E)' });
+  await page.getByRole('button', { name: 'Preparar proceso' }).click();
+  await expect(page.getByRole('heading', { name: /Fermentación PRC-/ })).toBeVisible();
+  await page.getByLabel(`Reservar de ${lotCode}`).fill('800');
+  await page.getByRole('button', { name: 'Iniciar proceso' }).click();
+  await expect(page.getByText('En curso (entradas reservadas)')).toBeVisible();
+  // balance que no cuadra → rechazo explicado; luego 750 + 50
+  await page.getByLabel('Salida (kg)').fill('760');
+  await page.getByLabel('Pérdida (kg)').fill('50');
+  await page.getByRole('button', { name: 'Cerrar proceso' }).click();
+  await expect(page.getByText(/El balance no cuadra/)).toBeVisible();
+  await page.getByLabel('Salida (kg)').fill('750');
+  await page.getByRole('button', { name: 'Cerrar proceso' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Cerrado', { exact: true })).toBeVisible();
+  await expect(page.getByText(/rendimiento en masa 93\.75 %/)).toBeVisible();
+  await expect(page.getByText(/No es base seca/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  // la salida conserva origen y enlaza el lote padre
+  await page.getByRole('list', { name: 'Salidas del proceso' }).getByRole('link').first().click();
+  await expect(page.getByRole('list', { name: 'Origen hacia atrás' })).toContainText(lotCode);
+  await expect(page.getByText('Origen declarado en todos los insumos')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });

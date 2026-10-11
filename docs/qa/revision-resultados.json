@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-10T23:50:43.631Z",
+  "fecha": "2026-10-11T00:55:48.321Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -95,6 +95,8 @@
         "Parcelas",
         "Posibles duplicados",
         "Entregas",
+        "Lotes",
+        "Procesos",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -155,6 +157,8 @@
         "Parcelas",
         "Posibles duplicados",
         "Entregas",
+        "Lotes",
+        "Procesos",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -370,6 +374,8 @@
         "Productores",
         "Parcelas",
         "Entregas",
+        "Lotes",
+        "Procesos",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -427,6 +433,8 @@
         "Parcelas",
         "Posibles duplicados",
         "Entregas",
+        "Lotes",
+        "Procesos",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -484,6 +492,8 @@
       "navegacion": [
         "Resumen de la organización",
         "Entregas",
+        "Lotes",
+        "Procesos",
         "Productos",
         "Hitos (CTE)",
         "Mis organizaciones"
@@ -536,6 +546,8 @@
       "navegacion": [
         "Resumen de la organización",
         "Entregas",
+        "Lotes",
+        "Procesos",
         "Productos",
         "Hitos (CTE)",
         "Mis organizaciones"
@@ -591,6 +603,8 @@
         "Parcelas",
         "Posibles duplicados",
         "Entregas",
+        "Lotes",
+        "Procesos",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -650,6 +664,8 @@
         "Productores",
         "Parcelas",
         "Entregas",
+        "Lotes",
+        "Procesos",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -705,6 +721,8 @@
         "Productores",
         "Parcelas",
         "Entregas",
+        "Lotes",
+        "Procesos",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -757,6 +775,8 @@
       "organizacion_activa": "DEMO · Exportadora Pacífico",
       "navegacion": [
         "Resumen de la organización",
+        "Lotes",
+        "Procesos",
         "Productos",
         "Hitos (CTE)",
         "Mis organizaciones"
@@ -811,6 +831,8 @@
         "Productores",
         "Parcelas",
         "Entregas",
+        "Lotes",
+        "Procesos",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -868,6 +890,8 @@
         "Parcelas",
         "Posibles duplicados",
         "Entregas",
+        "Lotes",
+        "Procesos",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -977,6 +1001,8 @@
         "Parcelas",
         "Posibles duplicados",
         "Entregas",
+        "Lotes",
+        "Procesos",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -1033,6 +1059,8 @@
         "Productores",
         "Parcelas",
         "Entregas",
+        "Lotes",
+        "Procesos",
         "Productos",
         "Hitos (CTE)",
         "Documentos",
@@ -1172,7 +1200,7 @@
         },
         {
           "cuenta": "admin.cooperativa (390 px, teclado)",
-          "resultado": "11 hitos; pendientes=7; integradas=4; botones operativos=0; desborde=false",
+          "resultado": "11 hitos; pendientes=6; integradas=5; botones operativos=0; desborde=false",
           "ok": true
         },
         {
@@ -1271,7 +1299,7 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "Mostrando 25 de 368 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
+          "resultado": "Mostrando 25 de 394 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
           "ok": true
         },
         {
@@ -1318,6 +1346,37 @@
         {
           "cuenta": "calidad.acopio (390 px, teclado; cambio de organización)",
           "resultado": "Acopio sin entregas=true; puede recibir=0; resultado sin decisión registrado=true; sigue «Pendiente de evaluación»=true; puede decidir=true; desborde=false",
+          "ok": true
+        }
+      ],
+      "ok": true
+    },
+    {
+      "tipo": "lotes",
+      "casos": [
+        {
+          "cuenta": "admin.cooperativa",
+          "resultado": "salida de fermentación con origen hasta entrega y parcela, calidad pendiente conservada, saldo de procesamiento sin presentarse como inventario=true",
+          "ok": true
+        },
+        {
+          "cuenta": "admin.cooperativa (proceso cerrado)",
+          "resultado": "balance 150 = 140 + 10 y rendimiento en masa visibles=true; sin acciones de edición=true",
+          "ok": true
+        },
+        {
+          "cuenta": "coordinador.multi (MANAGER, 390 px, teclado)",
+          "resultado": "puede formar lotes=true; puede preparar procesos=false; foco con Tab=true; desborde=false",
+          "ok": true
+        },
+        {
+          "cuenta": "calidad.acopio (operador de calidad)",
+          "resultado": "secado en curso con cierre bloqueado explicado=true; puede cerrar=0",
+          "ok": true
+        },
+        {
+          "cuenta": "auditor.cooperativa",
+          "resultado": "consulta de lotes sin formularios (0)",
           "ok": true
         }
       ],

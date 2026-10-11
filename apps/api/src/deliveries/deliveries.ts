@@ -674,10 +674,14 @@ export class DeliveriesService {
     return this.db.transaction().execute(async (trx) => {
       const d = await this.loadDelivery(trx, ctx, id, 'read', true);
       const r = await this.loadReception(trx, ctx, id, receptionId);
+      // D-39.2 (P0-016): con asignaciones activas a lotes (y por tanto posibles reservas o consumo) no se corrige el peso.
+      await sql`SELECT id FROM receptions WHERE id = ${receptionId} FOR UPDATE`.execute(trx);
+      const assigned = await trx.selectFrom('lot_inputs').select('id').where('reception_id', '=', receptionId)
+        .where(({ not, exists, selectFrom }) => not(exists(selectFrom('lot_input_releases').select('input_id').whereRef('lot_input_releases.input_id', '=', 'lot_inputs.id')))).executeTakeFirst();
+      if (assigned) throw conflict('RECEPTION_ASSIGNED_TO_LOT', 'La recepción tiene cantidades asignadas a lotes: no se corrige su peso mientras exista la asignación (libérala primero si no hay reservas ni consumo).');
       const adjustments = await trx.selectFrom('reception_adjustments').selectAll().where('reception_id', '=', receptionId).orderBy('adjustment_number', 'desc').execute();
       const version = adjustments.length + 1;
       if (version !== dto.expected_version) throw conflict('VERSION_CONFLICT', 'La recepción ya fue corregida por otra persona. Recarga.');
-      // Dependencias posteriores (lotes/inventario) aún no existen (P0-016/P0-017): no hay consumo que invalidar.
       const current = adjustments[0] ? dec(adjustments[0].new_quantity)! : dec(r.quantity_received)!;
       if (scaled(current) === scaled(dto.weighing.quantity)) throw new AppError(422, 'NO_CHANGES', 'El peso corregido es igual al vigente.', []);
       const lastW = await trx.selectFrom('weighings').select('id').where('reception_id', '=', receptionId).orderBy('created_at', 'desc').orderBy('id', 'desc').executeTakeFirstOrThrow();

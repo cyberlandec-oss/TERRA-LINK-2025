@@ -4752,6 +4752,518 @@
           "deliveries"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/lot-options": {
+      "get": {
+        "operationId": "LotsController_options",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "lots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/lots": {
+      "get": {
+        "operationId": "LotsController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "lots"
+        ]
+      },
+      "post": {
+        "operationId": "LotsController_create",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLotDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "lots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/lots/{id}": {
+      "get": {
+        "operationId": "LotsController_detail",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "lots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/lots/{id}/inputs": {
+      "post": {
+        "operationId": "LotsController_assign",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "lots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/lots/{id}/inputs/{inputId}/release": {
+      "post": {
+        "operationId": "LotsController_release",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "inputId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "lots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/lots/{id}/close-for-input": {
+      "post": {
+        "operationId": "LotsController_closeForInput",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "lots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/process-runs": {
+      "get": {
+        "operationId": "LotsController_runs",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "lots"
+        ]
+      },
+      "post": {
+        "operationId": "LotsController_createRun",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRunDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "lots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/process-runs/{id}": {
+      "get": {
+        "operationId": "LotsController_run",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "lots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/process-runs/{id}/start": {
+      "post": {
+        "operationId": "LotsController_start",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "lots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/process-runs/{id}/close": {
+      "post": {
+        "operationId": "LotsController_close",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "lots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/process-runs/{id}/cancel": {
+      "post": {
+        "operationId": "LotsController_cancel",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "lots"
+        ]
+      }
     }
   },
   "info": {
@@ -5127,17 +5639,21 @@
       "AssignDto": {
         "type": "object",
         "properties": {
-          "expected_version": {
-            "type": "number"
+          "reception_id": {
+            "type": "string"
           },
-          "membership_id": {
-            "type": "object",
-            "nullable": true
+          "quantity": {
+            "type": "string",
+            "description": "KG, texto decimal"
+          },
+          "operation_id": {
+            "type": "string"
           }
         },
         "required": [
-          "expected_version",
-          "membership_id"
+          "reception_id",
+          "quantity",
+          "operation_id"
         ]
       },
       "StatusDto": {
@@ -6094,6 +6610,190 @@
         "required": [
           "method",
           "operation_id"
+        ]
+      },
+      "InputDto": {
+        "type": "object",
+        "properties": {
+          "reception_id": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "KG, texto decimal"
+          }
+        },
+        "required": [
+          "reception_id",
+          "quantity"
+        ]
+      },
+      "CreateLotDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InputDto"
+            }
+          }
+        },
+        "required": [
+          "operation_id",
+          "inputs"
+        ]
+      },
+      "ReleaseDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "reason"
+        ]
+      },
+      "CreateRunDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "process_type": {
+            "type": "string",
+            "enum": [
+              "FERMENTATION",
+              "DRYING"
+            ]
+          },
+          "output_product_id": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "process_type",
+          "output_product_id"
+        ]
+      },
+      "RunInputDto": {
+        "type": "object",
+        "properties": {
+          "lot_id": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "lot_id",
+          "quantity"
+        ]
+      },
+      "StartDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": "string",
+            "description": "ISO 8601 con zona"
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunInputDto"
+            }
+          }
+        },
+        "required": [
+          "operation_id",
+          "started_at",
+          "inputs"
+        ]
+      },
+      "OutputDto": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "quantity"
+        ]
+      },
+      "MoistureDto": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string",
+            "description": "Sin unidad definida (D-32)"
+          }
+        },
+        "required": [
+          "value"
+        ]
+      },
+      "CloseDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "closed_at": {
+            "type": "string"
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutputDto"
+            }
+          },
+          "loss_quantity": {
+            "type": "string",
+            "description": "Pérdida explícita en KG (0 admitido)"
+          },
+          "moisture": {
+            "$ref": "#/components/schemas/MoistureDto"
+          }
+        },
+        "required": [
+          "operation_id",
+          "closed_at",
+          "outputs",
+          "loss_quantity"
+        ]
+      },
+      "CancelDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "reason"
         ]
       }
     }

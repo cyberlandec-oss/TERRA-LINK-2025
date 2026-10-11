@@ -179,3 +179,16 @@ Eventos emitidos (misma transacción que dominio, compuerta, outbox y auditoría
 ### Contrato de calidad (revisión P0-012, KDE 1.2.0)
 
 `CLASSIFICATION_LIMITS_VERSION` se publica como **«Referencia de límites declarada (no verificada)»**: texto escrito por quien decide; no existe catálogo publicado de parámetros ni límites, el sistema no comprueba la referencia ni contrasta mediciones. La decisión (liberar/rechazar) es humana, con responsable, y **no habilita** operaciones posteriores (`downstream_enablement = NOT_EVALUATED`). Sin parámetros, límites ni tolerancias nuevos.
+
+## P0-016 — Procesos y compuertas (2026-10-10)
+
+CTE 1.2.0: **FERMENTATION → INTEGRATED** (PROCESSING_RUN_CLOSE / ProcessingRunClosed). **DRYING sigue PENDING**: su cierre está bloqueado hasta definir la unidad de humedad (D-32, D-39.3); se integrará por separado cuando su operación pueda demostrarse. KDE 1.3.0 republica FERMENTATION sobre FERMENTATION@2; `lot` y `process_run` pasan a ser referencias verificables. Nuevo modo de compuerta `BLOCKED_PENDING_DECISION`: bloquea la transición aunque los datos estén presentes y no vuelve opcional ningún dato.
+
+| Transición | BLOCKING | PENDING_ALLOWED | Bloqueo por decisión pendiente |
+| --- | --- | --- | --- |
+| PROCESS_START_FERMENTATION | run, lotes de entrada, inicio | — | — |
+| PROCESS_CLOSE_FERMENTATION | run, lotes de entrada, inicio, cierre, salida, merma (0 admitido) | — | — |
+| PROCESS_START_DRYING | run, entrada | humedad (se exige al cerrar) | — |
+| PROCESS_CLOSE_DRYING | run, entrada, salida, pérdida, humedad | — | unidad de humedad (D-32) |
+
+Eventos: `LotCreated`, `LotInputAssigned`, `LotInputReleased`, `LotClosedForInput` (agregado LOT); `ProcessingRunStarted`, `ProcessingRunClosed` (entradas, salidas, pérdida, producto de entrada/salida, rendimiento en masa), `ProcessingRunCancelled` (agregado PROCESS_RUN). Preparar un proceso (DRAFT) solo audita. Balance exacto en KG; la humedad no convierte masas.

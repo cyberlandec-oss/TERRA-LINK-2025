@@ -523,7 +523,23 @@ export interface QualityResultsTable {
   recorded_by_membership_id: string; recorded_by: string; recorded_at: Generated<Timestamp>; operation_id: string;
 }
 export interface QualityMeasurementsTable { id: string; organization_id: string; result_id: string; parameter: 'MOISTURE' | 'FERMENTATION' | 'IMPURITIES'; value: string; unit: string }
-export interface GateEvaluationsTable { id: string; organization_id: string; entity_type: 'delivery' | 'reception' | 'quality_result'; entity_id: string; transition: string; release_version: string; allowed: boolean; result: unknown; evaluated_by: string; evaluated_at: Generated<Timestamp> }
+export interface GateEvaluationsTable { id: string; organization_id: string; entity_type: 'delivery' | 'reception' | 'quality_result' | 'process_run'; entity_id: string; transition: string; release_version: string; allowed: boolean; result: unknown; evaluated_by: string; evaluated_at: Generated<Timestamp> }
+
+// P0-016 Lotes y procesos
+export interface ProcessRunsTable {
+  id: string; organization_id: string; run_code: string; process_type: 'FERMENTATION' | 'DRYING'; status: 'DRAFT' | 'RUNNING' | 'CLOSED' | 'CANCELLED'; output_product_id: string;
+  started_at: Timestamp | null; closed_at: Timestamp | null; loss_quantity: string | null; moisture_value: string | null; moisture_unit: string | null; notes: string | null; cancel_reason: string | null;
+  created_by: string; operation_id: string; start_operation_id: string | null; close_operation_id: string | null; cancel_operation_id: string | null; row_version: Generated<string>; created_at: Generated<Timestamp>;
+}
+export interface LotsTable {
+  id: string; organization_id: string; lot_code: string; product_id: string; unit: string; source: 'RECEPTIONS' | 'PROCESS_OUTPUT'; status: 'OPEN' | 'CLOSED_FOR_INPUT';
+  origin_status: 'COMPLETE' | 'INCOMPLETE'; process_run_id: string | null; output_quantity: string | null; created_by: string; operation_id: string; row_version: Generated<string>; created_at: Generated<Timestamp>;
+}
+export interface LotInputsTable { id: string; organization_id: string; lot_id: string; reception_id: string; weighing_id: string; reception_version: number; quantity: string; unit: string; origin_known: boolean; assigned_by: string; assigned_at: Generated<Timestamp>; operation_id: string }
+export interface LotInputReleasesTable { input_id: string; organization_id: string; reason: string; released_by: string; released_at: Generated<Timestamp>; operation_id: string }
+export interface ProcessInputsTable { id: string; organization_id: string; run_id: string; lot_id: string; lot_version: string; quantity: string; unit: string }
+export interface LotEdgesTable { id: string; organization_id: string; parent_lot_id: string; child_lot_id: string; run_id: string; quantity: string; unit: string }
+export interface ProcessOutputsTable { id: string; organization_id: string; run_id: string; lot_id: string; quantity: string; unit: string }
 
 export interface Database {
   evidence_claim_types: EvidenceClaimTypesTable;
@@ -582,4 +598,11 @@ export interface Database {
   quality_results: QualityResultsTable;
   quality_measurements: QualityMeasurementsTable;
   gate_evaluations: GateEvaluationsTable;
+  process_runs: ProcessRunsTable;
+  lots: LotsTable;
+  lot_inputs: LotInputsTable;
+  lot_input_releases: LotInputReleasesTable;
+  process_inputs: ProcessInputsTable;
+  lot_edges: LotEdgesTable;
+  process_outputs: ProcessOutputsTable;
 }

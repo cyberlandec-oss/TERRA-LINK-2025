@@ -69,6 +69,8 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     // Operación (UX_UI §8): solo módulos conectados a operaciones reales.
     const operacion: NavItem[] = [];
     if (ws.can('delivery:read') || ws.can('delivery:read_assigned')) operacion.push({ href: `${base}/entregas`, label: 'Entregas', match: (p) => p.startsWith(`${base}/entregas`) && !p.startsWith(`${base}/entregas-eventos`) });
+    if (ws.can('lot:read')) operacion.push({ href: `${base}/lotes`, label: 'Lotes', match: (p) => p.startsWith(`${base}/lotes`) });
+    if (ws.can('lot:read')) operacion.push({ href: `${base}/procesos`, label: 'Procesos', match: (p) => p.startsWith(`${base}/procesos`) });
     if (ws.can('product:read')) operacion.push({ href: `${base}/productos`, label: 'Productos', match: (p) => p.startsWith(`${base}/productos`) });
     if (operacion.length) groups.push({ title: 'Operación', items: operacion });
     const trazabilidad: NavItem[] = [];

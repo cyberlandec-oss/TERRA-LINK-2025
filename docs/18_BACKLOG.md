@@ -54,6 +54,7 @@ Aceptación: geometría/CRS/área/duplicados/cobertura, estados y versión de re
 Depende P0-003. Como operador, necesito producto/estado/unidad coherentes.
 Aceptación: catálogo de cacao y unidades, códigos por ámbito; transformación cambia estado con evento/rendimiento, no conversión implícita. RF-11; QA-05/06.
 Capacidades (2026-10-10): «catálogo y unidades» verificada y disponible para P0-012; «transformación con evento/rendimiento» pendiente y demostrable solo con P0-016 (procesamiento). P0-011 sigue abierta hasta demostrarla.
+**2026-10-10: transformación demostrada en P0-016** (fermentación CACAO_BABA → CACAO_FERMENTADO con `ProcessingRunClosed`, rendimiento en masa y sin conversión implícita): P0-011 **DONE_LOCAL**.
 
 ### P0-012 — Entrega y recepción
 Depende P0-004/006/013/014/015 y de la **capacidad** «catálogo de productos y unidades» de P0-011 (verificada el 2026-10-10; el criterio de transformación de P0-011 no bloquea Entregas). Como recepción, necesito cantidad y origen reales.
@@ -76,7 +77,8 @@ Aceptación: envolvente/versión/tenant/actor/tiempos, append-only, correction_o
 ### P0-016 — Lotes y procesos
 Depende P0-012/015. Al cerrar un proceso se demuestra el criterio pendiente de P0-011 (transformación con evento y rendimiento) y se integra el vínculo CTE FERMENTATION/DRYING. Como trazabilidad, necesito reconstruir mezclas/transformaciones.
 Aceptación: lote con inputs/outputs/run; DAG sin ciclos; origen conservado en salida; cierre atómico y consulta upstream/downstream con cantidades y permisos. RF-16; QA-07.
-Contrato propuesto (2026-10-10, sin aprobar): `docs/decisiones/P0-016-017-PROPUESTA-LOTES-INVENTARIO.md` (asignación sin doble uso desde P0-016; ledger completo en P0-017). Decisiones bloqueantes: D-39.
+Contrato propuesto (2026-10-10, sin aprobar): `docs/decisiones/P0-016-017-PROPUESTA-LOTES-INVENTARIO.md` (asignación sin doble uso desde P0-016; ledger completo en P0-017). Decisiones bloqueantes: D-39 (adoptadas para desarrollo local el 2026-10-10).
+Estado (2026-10-10): criterios originales demostrados localmente (lote con entradas/salidas/proceso, DAG sin ciclos, origen conservado, cierre atómico, consultas con cantidades y permisos); FERMENTATION integrada. **Historia abierta** por la integración de DRYING (cierre bloqueado hasta definir la unidad de humedad, D-32), que el backlog asocia a P0-016.
 
 ### P0-017 — Inventario/balance de masa
 Depende P0-016. Como operación, necesito cantidades conservadas.

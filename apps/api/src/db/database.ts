@@ -24,6 +24,7 @@ import * as m0019 from './migrations/0019_evidence';
 import * as m0020 from './migrations/0020_audit_query';
 import * as m0021 from './migrations/0021_deliveries';
 import * as m0022 from './migrations/0022_quality_limits_reference';
+import * as m0023 from './migrations/0023_lots_processes';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -49,6 +50,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0020_audit_query': m0020,
   '0021_deliveries': m0021,
   '0022_quality_limits_reference': m0022,
+  '0023_lots_processes': m0023,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

@@ -184,3 +184,16 @@ Resultado global: 32 entradas, 0 incidencias.
 | calidad.acopio (390 px, teclado, cambio de organización) | En el Acopio no hay entregas; en la Cooperativa registra un resultado **sin decisión** sobre DEMO-M-001 (una sola vez); la recepción sigue «Pendiente de evaluación»; no puede recibir; ve la opción de decidir | `entregas--calidad-390.png` |
 
 Las segundas membresías existen **solo para la revisión DEMO** dentro de la Cooperativa: no son concesiones entre organizaciones ni prueban entregas entre empresas. Resultado global: 32 entradas, 0 incidencias.
+
+## P0-016 Lotes y procesos (2026-10-10, datos DEMO en `terra_link`, Cooperativa)
+
+DEMO: LOT-2026-00001 (150 kg de ENT-2026-00001, origen declarado), LOT-2026-00002 (120 kg de ENT-2026-00002, «Origen incompleto»), PRC-2026-00001 fermentación cerrada 150 → 140 + 10 kg → LOT-2026-00003 (cacao fermentado), PRC-2026-00002 secado en curso con cierre bloqueado. Cifras sintéticas.
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| admin.cooperativa | Lot Hub de LOT-2026-00003: origen hasta ENT-2026-00001 y DEMO-PAR-001; calidad pendiente conservada; saldo de procesamiento (no inventario); proceso cerrado con balance y rendimiento en masa 93,33 % | `lotes--admin-hub.png`, `lotes--admin-fermentacion.png` |
+| coordinador.multi (MANAGER, 390 px, teclado) | Puede formar lotes; no prepara procesos; foco con Tab; sin desborde | `lotes--gerente-390.png` |
+| calidad.acopio (QUALITY_OPERATOR) | Ve el secado en curso con el cierre bloqueado explicado; no puede cerrar | `lotes--calidad-secado.png` |
+| auditor.cooperativa | Consulta sin formularios | — |
+
+Resultado global: 33 entradas, 0 incidencias.
