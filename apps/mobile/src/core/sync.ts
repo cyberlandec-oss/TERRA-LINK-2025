@@ -80,6 +80,21 @@ export async function syncOnce(store: LocalStore, t: SyncTransport, deviceId: st
       if (te.kind === 'NETWORK' || te.status === 401 || te.code === 'DEVICE_REVOKED') { s.stopped = blocking(te); return s; }
     }
   }
+  // 2b) estado del análisis de fotos ya subidas (sin reenviar archivos)
+  const waiting = await store.attachmentsAwaitingAnalysis();
+  if (waiting.length) {
+    try {
+      const res = await t.push(deviceId, waiting.map(({ op: o }) => ({ operation_id: o.operation_id, operation_type: o.operation_type, entity_id: o.entity_id, base_version: o.base_version, depends_on: o.depends_on, captured_at: o.captured_at, payload: o.payload, content_hash: o.content_hash })));
+      for (const w of waiting) {
+        const r = res.find((x) => x.operation_id === w.op.operation_id);
+        const att = (r?.result as { attachment?: { status?: string; note?: string } } | null | undefined)?.attachment;
+        if (att?.status) await store.setAttachmentState(w.id, att.status === 'AWAITING_CONTENT' ? 'LOCAL' : 'UPLOADED', att.status === 'AWAITING_CONTENT' ? null : att.status, att.note ?? null);
+      }
+    } catch (e) {
+      const te = e instanceof TransportError ? e : new TransportError('NETWORK', null, 'NETWORK', 'Sin respuesta del servidor.');
+      s.stopped = blocking(te); return s;
+    }
+  }
   // 3) pull
   try {
     let cursor = await store.meta('sync_cursor');

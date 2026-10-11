@@ -58,6 +58,17 @@ export async function runSelfTest(): Promise<{ environment: string; ok: boolean;
     return [n === 1, `filas=${n}`];
   });
   await SQLite.deleteDatabaseAsync(name).catch(() => undefined);
+  // 4b) Almacén real con transacciones sobre la base cifrada (migraciones + escritura transaccional)
+  await step('almacen_cifrado_transaccional', async () => {
+    const key = `selftest-tx-${hex(4)}`;
+    const st = await LocalStore.open(expoPlatform, key);
+    await st.replaceDataset([{ id: '00000000-0000-4000-8000-000000000001', plot_code: 'AUTO-1', name: null, row_version: 1, status: 'ACTIVE', producer_id: '00000000-0000-4000-8000-0000000000a1', producer_code: null, producer_display_name: null, geometry_status: null }]);
+    const n = (await st.plots()).length;
+    const enc = st.encrypted;
+    await st.close();
+    await SQLite.deleteDatabaseAsync(`tl-${key}.db`).catch(() => undefined);
+    return [n === 1 && enc, `transacción confirmada; parcelas=${n}; cifrado=${enc}`];
+  });
   // 5) Lógica de fallo cerrado de la app en este runtime: un almacén que reporta base sin cifrar no se abre
   const fakeNone = { ...expoPlatform, environment: 'NATIVE_BUILD' as const, openDb: async (dbName: string) => ({ ...(await expoPlatform.openDb(dbName)), cipher: async () => 'NONE' as const }) };
   const r = await LocalStore.open(fakeNone, `selftest-${hex(4)}`).then(async (s) => { await s.close(); return 'abrió'; }).catch((e) => (e instanceof EncryptionRequiredError ? 'rechazado' : `otro error: ${(e as Error).message}`));

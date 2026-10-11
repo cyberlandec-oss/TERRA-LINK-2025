@@ -137,3 +137,13 @@ Entorno en el perfil de usuario: `JAVA_HOME=%LOCALAPPDATA%\Programs\Microsoft\jd
 `emulator -avd tl-api30 -no-window -no-snapshot -wipe-data -partition-size 1000`; `adb install -r app-release.apk`;
 autoprueba `adb shell am start -a android.intent.action.VIEW -d "terralinkcampo://autoprueba" ec.agtech.terralink.campo`
 y `adb logcat -s ReactNativeJS:V` (línea `TL_SELFTEST`). Evidencia: `docs/qa/EVIDENCIA_LIMPIEZA_Y_ANDROID_2026-10-11.md`.
+
+### Recorrido en emulador y prueba negativa (2026-10-11)
+
+- Recorrido: `node e2e/movil/proxy.mjs <log>` (proxy 4001 → 4000; control 4002), `adb reverse tcp:4000 tcp:4001`,
+  `node e2e/movil/recorrido-emulador.mjs <paso>...` (preparar, login, descargar, capturar, foto, guardarOffline,
+  cierreForzado, cortarTrasCommit, fotoAnalisis, conflicto, cambioCuenta, vencimiento, almacenamientoLleno, revocacion).
+- Prueba negativa: `TL_VARIANT=negativa npx expo prebuild --platform android --no-install --clean` y
+  `gradlew assembleRelease -PreactNativeArchitectures=x86_64` (identificador `ec.agtech.terralink.campo.pruebanegativa`).
+- Orientación: `node e2e/review/orientacion-visual.mjs` (requiere `npm run build -w apps/api`).
+- Bloqueo 2026-10-11: 2,73 GB libres en C:; reiniciar Windows y medir antes de compilar (guardia de 4 GB).

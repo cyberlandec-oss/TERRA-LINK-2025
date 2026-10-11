@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { runSelfTest, type SelfTestCase } from '../adapters/selftest';
-import { cleanupCacheTemps, encryptionStatus, expoPlatform, expoUploader, runtimeEnvironment, writeCacheFile } from '../adapters/expo';
+import { appVariant, cleanupCacheTemps, encryptionStatus, expoPlatform, expoUploader, probeEncryption, protectedStorageInventory, runtimeEnvironment, writeCacheFile } from '../adapters/expo';
 import { fixtureJpeg, fixtureLocation } from '../core/fixtures';
 import { ApiFailure, SessionManager } from '../app/session-manager';
 import { EncryptionRequiredError, isStorageFull } from '../core/ports';
@@ -32,7 +32,13 @@ export function Root() {
   const [openDraft, setOpenDraft] = useState<string | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
   const [selfTest, setSelfTest] = useState(false);
+  const [probe, setProbe] = useState<{ active: boolean; version: string | null } | null>(null);
 
+  useEffect(() => {
+    // Build nativo: sin cifrado comprobado no hay inicio de sesión ni almacenamiento (fallo cerrado).
+    if (runtimeEnvironment === 'NATIVE_BUILD') void probeEncryption().then(async (r) => { setProbe(r); if (!r.active) console.log(`TL_NEGATIVE ${JSON.stringify({ variant: appVariant, probe: r, inventario: await protectedStorageInventory() })}`); });
+    else setProbe({ active: false, version: null });
+  }, []);
   useEffect(() => { cleanupCacheTemps(); void Linking.getInitialURL().then((u) => { if (u?.includes('autoprueba')) setSelfTest(true); }); void sessions.load().then((x) => { setSession(x); setBoot(false); }); }, []);
   const chooseOrg = async (s0: StoredSession, id: string) => {
     if (store) await store.close();
@@ -49,7 +55,12 @@ export function Root() {
   };
 
   if (selfTest) return <View style={s.screen}><Header sub="Autoprueba de seguridad" /><ScrollView contentContainerStyle={s.body}><SelfTest /><Button kind="secondary" label="Volver" onPress={() => setSelfTest(false)} /></ScrollView></View>;
-  if (boot) return <View style={s.screen}><Header sub="Cargando…" /></View>;
+  if (boot || !probe) return <View style={s.screen}><Header sub="Cargando…" /></View>;
+  if (runtimeEnvironment === 'NATIVE_BUILD' && !probe.active) return (
+    <View style={s.screen}><Header sub={appVariant === 'PRUEBA_NEGATIVA_SIN_SQLCIPHER' ? 'APK DE PRUEBA NEGATIVA (sin SQLCipher)' : 'Build nativo'} /><ScrollView contentContainerStyle={s.body}>
+      <Notice tone="blocked" title="Almacenamiento protegido no disponible">Este build no pudo inicializar el cifrado de la base local (SQLCipher). Por seguridad no se permite iniciar sesión, descargar datos ni guardar capturas en este dispositivo.</Notice>
+    </ScrollView></View>
+  );
   if (!session) return <Login onDone={setSession} />;
   if (fatal) return <View style={s.screen}><Header sub={session.email} /><ScrollView contentContainerStyle={s.body}><Notice tone="blocked" title="Almacenamiento protegido no disponible">{fatal}</Notice><Button kind="secondary" label="Volver" onPress={() => setFatal(null)} /></ScrollView></View>;
   if (!orgId || !store) return <OrgPicker session={session} onPick={(id) => void chooseOrg(session, id)} onLogout={() => void logout()} />;
@@ -75,6 +86,7 @@ export function Root() {
 }
 
 function Header({ sub }: { sub: string }) {
+  if (appVariant === 'PRUEBA_NEGATIVA_SIN_SQLCIPHER') sub = `PRUEBA NEGATIVA · ${sub}`;
   return <View style={s.header}><Text accessibilityRole="header" accessibilityLabel="Terra Link" style={s.brand}>TERRA LINK</Text><Text style={s.sub}>{sub}</Text></View>;
 }
 

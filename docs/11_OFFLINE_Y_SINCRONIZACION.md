@@ -172,3 +172,13 @@ Una nota sin ubicación ni foto no tiene entidad en el servidor y no se encola.
 - Build nativo Android generado; autoprueba de seguridad aprobada **en emulador** (SQLCipher 4.7.0 activo, archivo no
   legible, clave incorrecta rechazada, temporales limpiados): `docs/qa/EVIDENCIA_LIMPIEZA_Y_ANDROID_2026-10-11.md`.
   Teléfono físico: pendiente.
+
+## Revisión 2026-10-11 (3): defecto de transacción con SQLCipher y sonda de cifrado
+
+- El recorrido en emulador encontró que `withExclusiveTransactionAsync` (expo-sqlite) usa una conexión nueva sin
+  `PRAGMA key`: con SQLCipher la primera transacción falla («file is not a database»). El adaptador usa ahora una sola
+  conexión con clave, cola de operaciones y `BEGIN IMMEDIATE/COMMIT/ROLLBACK` explícitos (la garantía de que solo las
+  sentencias del callback entran en la transacción se mantiene con la cola). Pendiente de recompilar y verificar en
+  emulador.
+- Build nativo: sonda de cifrado al iniciar; sin SQLCipher, bloqueo antes del inicio de sesión (sin token, dataset ni
+  fotos). HTTP sin TLS solo hacia localhost/127.0.0.1 (configuración de seguridad de red).

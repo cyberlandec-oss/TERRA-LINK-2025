@@ -47,7 +47,8 @@ expo-sqlite.
 - EAS: `npx eas build --platform android --profile development` (requiere `eas.json` y cuenta; no incluido).
 - Verificación: «Diagnóstico» debe mostrar «Base local cifrada (SQLCipher)». Prueba de rechazo: un build nativo sin
   SQLCipher debe mostrar «Almacenamiento protegido no disponible» y no descargar datos.
-- APK generado: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk` (regenerable con `npx expo prebuild --platform android --no-install` y `cd android && gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64`). Instalar con `adb install -r app-release.apk`.
+- **El APK disponible (`apps/mobile/dist-apk/terra-link-campo-aceptacion-43f26c95.apk`) NO es apto para el ensayo físico**: contiene el defecto de transacción con SQLCipher hallado en el emulador (corregido en código, pendiente de recompilar). Tras recompilar, copiar el APK a `apps/mobile/dist-apk/` con su hash y registrar el SHA-256 completo.
+- Ruta de compilación: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk` (regenerable con `npx expo prebuild --platform android --no-install` y `cd android && gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64`). Instalar con `adb install -r app-release.apk`.
 - Autoprueba en el teléfono: «Diagnóstico» → «Ejecutar autoprueba de seguridad», o `adb shell am start -a android.intent.action.VIEW -d "terralinkcampo://autoprueba" ec.agtech.terralink.campo`; todos los casos deben salir «Correcto».
 - Teléfono físico: activar «Opciones de desarrollador» → «Depuración USB», conectar por USB, aceptar la huella del
   equipo, comprobar con `adb devices`. Para la API local: `adb reverse tcp:4000 tcp:4000` y servidor `http://localhost:4000`.

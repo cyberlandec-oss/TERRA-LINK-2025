@@ -263,6 +263,20 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
 
+### Revisión 2026-10-11 (3) — recorrido en emulador, prueba negativa y orientación
+
+Móvil (separado de `npm run validate`): `validation-results/2026-10-11T17-08-34-732Z-movil` (typecheck, 25 pruebas de núcleo, recorrido contra la API, bundle Android, expo-doctor). API: solo cambió una prueba (`sync.int-spec.ts` 7/7, lint OK); la última `npm run validate` sigue siendo `validation-results/2026-10-11T07-46-54-839Z`. Evidencia: `docs/qa/EVIDENCIA_EMULADOR_Y_NEGATIVA_2026-10-11.md`.
+
+| Punto | Estado | Evidencia |
+| --- | --- | --- |
+| Recorrido integrado en emulador | **INTERRUMPIDO** | Login por la interfaz OK; apertura del almacén cifrado falló (defecto real) |
+| Defecto SQLCipher + transacción (conexión sin clave) | CORREGIDO EN CÓDIGO, **APK SIN RECOMPILAR** | `apps/mobile/src/adapters/expo.ts`; guardia de disco detuvo Gradle |
+| Prueba negativa sin SQLCipher | PREPARADA, **NO COMPILADA** | Variante aislada en `app.config.js`; 2,73 GB libres |
+| Sonda de cifrado antes del login | IMPLEMENTADA (sin ejecutar en emulador) | Bloquea sin token/dataset/fotos |
+| Orientación visual y aceptación del servidor | DEMOSTRADO | Chromium + `sync.int-spec.ts` |
+| APK para el ensayo físico | **NO APTO** (`43f26c95…` contiene el defecto) | Recompilar tras recuperar espacio |
+| Teléfono físico | NO EJECUTADO | — |
+
 ### Revisión 2026-10-11 (2) — limpieza, build nativo y autoprueba en emulador
 
 Validación web/API: `npm run validate` APROBADA (`validation-results/2026-10-11T07-46-54-839Z`): 290/290 unitarias + integración, 55/55 E2E, OpenAPI 146 rutas. Móvil (separado): `validation-results/2026-10-11T07-58-10-356Z-movil` (typecheck, 24 pruebas de núcleo, recorrido contra la API en contenedor, bundle Android, expo-doctor).

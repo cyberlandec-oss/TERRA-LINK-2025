@@ -21,21 +21,31 @@ export const encryptionStatus = () => encryption;
 
 const safeKey = (s: string) => s.replace(/[^A-Za-z0-9._-]/g, '_');
 
+/**
+ * Una sola conexión (la que recibió PRAGMA key). No se usa withExclusiveTransactionAsync: abre una conexión NUEVA sin la
+ * clave de SQLCipher («file is not a database», hallado en el recorrido en emulador). Para que solo las sentencias del
+ * callback entren en la transacción, todas las operaciones pasan por una cola: mientras hay una transacción abierta,
+ * nada externo se ejecuta en la conexión.
+ */
 function wrap(db: SQLite.SQLiteDatabase, cipherActive: boolean): SqlDb {
-  const base = (d: SQLite.SQLiteDatabase): SqlDb => ({
-    exec: (s) => d.execAsync(s),
-    run: async (s, p: SqlValue[] = []) => { await d.runAsync(s, p); },
-    all: <T>(s: string, p: SqlValue[] = []) => d.getAllAsync<T>(s, p),
-    get: async <T>(s: string, p: SqlValue[] = []) => (await d.getFirstAsync<T>(s, p)) ?? undefined,
-    transaction: async <T>(fn: (tx: SqlDb) => Promise<T>) => {
-      let out: T | undefined;
-      await d.withExclusiveTransactionAsync(async (txn) => { out = await fn({ ...base(txn as unknown as SQLite.SQLiteDatabase), transaction: () => { throw new Error('transacción anidada no admitida'); } }); });
-      return out as T;
+  let queue: Promise<unknown> = Promise.resolve();
+  const serial = <T>(fn: () => Promise<T>): Promise<T> => { const p = queue.then(fn, fn); queue = p.catch(() => undefined); return p; };
+  const raw = (scoped: boolean): SqlDb => ({
+    exec: (sql) => (scoped ? db.execAsync(sql) : serial(() => db.execAsync(sql))),
+    run: async (sql, p: SqlValue[] = []) => { const f = async () => { await db.runAsync(sql, p as SQLite.SQLiteBindValue[]); }; return scoped ? f() : serial(f); },
+    all: <T>(sql: string, p: SqlValue[] = []) => { const f = () => db.getAllAsync<T>(sql, p as SQLite.SQLiteBindValue[]); return scoped ? f() : serial(f); },
+    get: async <T>(sql: string, p: SqlValue[] = []) => { const f = async () => (await db.getFirstAsync<T>(sql, p as SQLite.SQLiteBindValue[])) ?? undefined; return scoped ? f() : serial(f); },
+    transaction: <T>(fn: (tx: SqlDb) => Promise<T>) => {
+      if (scoped) throw new Error('transacción anidada no admitida');
+      return serial(async () => {
+        await db.execAsync('BEGIN IMMEDIATE');
+        try { const r = await fn(raw(true)); await db.execAsync('COMMIT'); return r; } catch (e) { await db.execAsync('ROLLBACK').catch(() => undefined); throw e; }
+      });
     },
-    close: () => d.closeAsync(),
+    close: () => serial(() => db.closeAsync()),
     cipher: async () => (cipherActive ? 'ACTIVE' : 'NONE'),
   });
-  return base(db);
+  return raw(false);
 }
 
 async function openDb(name: string, secrets: SecretStore): Promise<SqlDb> {
@@ -122,4 +132,33 @@ export function cleanupCacheTemps(): number {
     for (const e of Paths.cache.list()) if (e instanceof File && /^(tl-upload-|fixture-)/.test(e.name)) { e.delete(); n += 1; }
   } catch { /* caché no disponible: se reintenta en el próximo inicio */ }
   return n;
+}
+
+export const appVariant: string = (Constants.expoConfig?.extra as { variant?: string } | undefined)?.variant ?? 'ACEPTACION';
+
+/**
+ * Sonda de cifrado al iniciar (build nativo): abre una base temporal con clave y mide PRAGMA cipher_version. Si no hay
+ * SQLCipher, la app se bloquea ANTES del inicio de sesión: no se guarda token, dataset ni fotos en ningún lugar.
+ */
+export async function probeEncryption(): Promise<{ active: boolean; version: string | null }> {
+  const name = `tl-sonda-${Crypto.randomUUID()}.db`;
+  try {
+    const db = await SQLite.openDatabaseAsync(name);
+    await db.execAsync(`PRAGMA key = "x'${Array.from(Crypto.getRandomBytes(32)).map((b) => b.toString(16).padStart(2, '0')).join('')}'"`);
+    const v = await db.getFirstAsync<{ cipher_version?: string }>('PRAGMA cipher_version').catch(() => null);
+    await db.closeAsync();
+    return { active: !!v?.cipher_version, version: v?.cipher_version ?? null };
+  } catch { return { active: false, version: null }; } finally { await SQLite.deleteDatabaseAsync(name).catch(() => undefined); }
+}
+
+/** Inventario para la evidencia de la prueba negativa: archivos de la app y presencia (no valor) de secretos. */
+export async function protectedStorageInventory() {
+  const list = (d: Directory, prefix = ''): string[] => {
+    try { return d.list().flatMap((e) => (e instanceof Directory ? list(e, `${prefix}${e.name}/`) : [`${prefix}${e.name}`])); } catch { return []; }
+  };
+  const dbDir = String(SQLite.defaultDatabaseDirectory);
+  const keys = ['tl.session.token', 'tl.session.data', 'tl.device.id', 'tl.api.url'];
+  const secrets: Record<string, boolean> = {};
+  for (const k of keys) secrets[k] = (await SecureStore.getItemAsync(safeKey(k)).catch(() => null)) !== null;
+  return { documentos: list(Paths.document), bases: list(new Directory(dbDir.startsWith('file://') ? dbDir : `file://${dbDir}`)), secretos_presentes: secrets };
 }

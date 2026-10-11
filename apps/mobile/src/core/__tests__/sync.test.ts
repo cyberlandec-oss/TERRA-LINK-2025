@@ -104,6 +104,21 @@ describe('P0-024 motor de sincronización del dispositivo', () => {
     expect(v.photos[0]).toMatchObject({ upload_state: 'UPLOADED', server_status: 'AVAILABLE' });
   });
 
+  it('estado del análisis: una foto subida con análisis pendiente se actualiza a disponible en una sincronización posterior', async () => {
+    const { s } = await queuedCapture();
+    let scan = 'PENDING_SCAN';
+    const t = fake((o) => o.map((x) => ({ operation_id: x.operation_id, status: 'ACCEPTED' as const, result: x.operation_type === 'PLOT_PHOTO_ATTACH' ? { attachment: { status: scan } } : {} })),
+      { async upload() { return { status: 'PENDING_SCAN', note: 'análisis pendiente' }; } });
+    await syncOnce(s, t, 'dev');
+    expect((await s.drafts())[0].photos[0]).toMatchObject({ upload_state: 'UPLOADED', server_status: 'PENDING_SCAN' });
+    scan = 'AVAILABLE';
+    await syncOnce(s, t, 'dev');
+    expect((await s.drafts())[0].photos[0]).toMatchObject({ upload_state: 'UPLOADED', server_status: 'AVAILABLE' });
+    const sentBefore = t.sent.length;
+    await syncOnce(s, t, 'dev');
+    expect(t.sent.length).toBe(sentBefore); // disponible: ya no se vuelve a consultar
+  });
+
   it('pull: cursor caducado → descarga completa sin tocar operaciones pendientes; tombstones eliminan del dataset', async () => {
     const { s, ops } = await queuedCapture(false);
     let calls = 0;

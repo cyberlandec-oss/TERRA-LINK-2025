@@ -254,6 +254,12 @@ export class LocalStore {
     return this.db.all(`SELECT a.id, o.operation_id, a.sha256, a.size_bytes, a.mime_type FROM attachments a JOIN outbox o ON o.operation_type = 'PLOT_PHOTO_ATTACH' AND o.attachment_refs LIKE '%' || a.id || '%'
       WHERE a.upload_state = 'LOCAL' AND o.state = 'SYNCED' ORDER BY o.seq`);
   }
+  /** Fotos ya subidas cuyo análisis no ha concluido: se consulta su estado reenviando su operación confirmada (idempotente). */
+  async attachmentsAwaitingAnalysis(): Promise<Array<{ id: string; op: OutboxOp }>> {
+    const rows = await this.db.all<Row & { attachment_id: string }>(`SELECT o.*, a.id AS attachment_id FROM attachments a JOIN outbox o ON o.operation_type = 'PLOT_PHOTO_ATTACH' AND o.attachment_refs LIKE '%' || a.id || '%'
+      WHERE a.upload_state = 'UPLOADED' AND coalesce(a.server_status, '') NOT IN ('AVAILABLE', 'REJECTED') AND o.state = 'SYNCED' ORDER BY o.seq`);
+    return rows.map((r) => ({ id: r.attachment_id, op: toOp(r) }));
+  }
   async attachmentBytes(id: string): Promise<Uint8Array> {
     const a = await this.db.get<{ storage: string; content: Uint8Array | null; path: string | null }>('SELECT storage, content, path FROM attachments WHERE id = ?', [id]);
     if (!a) throw new Error('Adjunto inexistente.');
