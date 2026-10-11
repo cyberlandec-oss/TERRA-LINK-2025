@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { SessionManager, type FetchLike } from '../session-manager';
 import type { Uploader } from '../transport';
-import { nodePlatform } from '../../core/__tests__/node-platform';
+import { nodePlatform, syntheticJpeg } from '../../core/__tests__/node-platform';
 
 // Recorrido OPCIONAL (TL_API_SMOKE=1) del cliente móvil en Node contra la API local levantada (terra_link, DEMO).
 // Credenciales del archivo local más reciente (CREDENCIALES*.csv, ignorado por git), nunca impresas.
@@ -54,7 +54,7 @@ run('P0-023/P0-024 cliente móvil contra la API local (DEMO)', () => {
     expect(plots1.length).toBe(n1);
     const plot = (await st.plots())[0];
     const photo = join(root, 'cam.jpg');
-    writeFileSync(photo, Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from(`foto sintética ${randomUUID()}`), Buffer.from([0xff, 0xd9])]));
+    writeFileSync(photo, syntheticJpeg({ exif: true, seed: randomUUID() }));
     const d = await st.createDraft(plot.id);
     await st.setNote(d, 'Prueba sintética de sincronización (P0-024)');
     await st.addPhoto(d, photo, 'image/jpeg', new Date().toISOString());

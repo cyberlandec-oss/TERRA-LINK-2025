@@ -140,3 +140,23 @@ Endpoints (`/api/v1/organizations/{org}`): `POST /devices`, `GET /devices`, `POS
 | Productores, parcelas nuevas, entregas, recepciones, calidad, lotes, inventario | No (`UNSUPPORTED_OPERATION_TYPE`) | No |
 
 Una nota sin ubicación ni foto no tiene entidad en el servidor y no se encola.
+
+## Revisión 2026-10-11: escáner en contenedor, D-41, Expo Go y entorno Android
+
+- **Escáner**: el servicio `api` de docker-compose no recibía `SCANNER_HOST` (corregido, commit `761d07f`). Recorrido por
+  la API en contenedor con ClamAV real (`e2e/review/escaner-contenedor.mjs`, evidencia en
+  `docs/qa/evidencia-escaner-contenedor.json`): foto sintética `AWAITING_CONTENT → AVAILABLE`; con el escáner detenido la
+  versión queda `FAILED` (`PENDING_SCAN`), **nunca CLEAN**; al volver el escáner, el reintento la deja `AVAILABLE`.
+  Observación: `/health/ready` responde 200 aunque el escáner no esté disponible (no lo comprueba).
+- **D-41 (adoptada para el MVP local)**: «Fotografía de campo», dato personal, sin autenticidad ni valor probatorio
+  automático. El móvil elimina EXIF/XMP/IPTC/comentarios antes del hash; el servidor rechaza fotos con metadatos
+  (`PHOTO_METADATA_PRESENT`). El documento usa título y nombre de archivo neutros (la nota libre de campo no se publica;
+  queda solo en el registro de sincronización de su autor). Eventos y auditoría no incluyen leyenda, nombre de archivo ni
+  coordenadas (probado).
+- **Expo Go**: pertenecer a una organización DEMO **no** vuelve sintética una captura real. En Expo Go la app usa solo
+  fixtures sintéticos (foto y ubicación de prueba); la cámara y la ubicación reales solo existen en el build nativo.
+- **Copia temporal de subida**: archivo `tl-upload-*` en la caché privada de la app, sin cifrar mientras dura la subida;
+  se borra al terminar (éxito o fallo) y, si una interrupción lo deja, se borra al abrir la app (la base es la fuente).
+- **Entorno Android**: no se instaló SDK/JDK ni se generó build: el único disco (C:) tenía 6,3 GB libres, insuficientes
+  para NDK, caché de Gradle, salidas de compilación e imagen de emulador sin arriesgar los volúmenes de PostgreSQL/Docker.
+  SQLCipher real, fallo cerrado nativo y ensayo en dispositivo: **no ejecutados**.

@@ -103,3 +103,23 @@ export async function expoUploader(url: string, bytes: Uint8Array, mimeType: str
     if (tmp.exists) tmp.delete();
   }
 }
+
+/** Escribe bytes en un archivo temporal de la caché y devuelve su URI (fixtures de Expo Go). */
+export function writeCacheFile(bytes: Uint8Array, name: string): string {
+  const f = new File(Paths.cache, name);
+  f.create({ overwrite: true });
+  f.write(bytes);
+  return f.uri;
+}
+
+/**
+ * Al abrir la app: borra copias temporales de subida (`tl-upload-*`) y fixtures (`fixture-*`) que una interrupción
+ * (cierre forzado, falta de energía) pudo dejar en la caché. La fuente de verdad es la base: no se pierde nada.
+ */
+export function cleanupCacheTemps(): number {
+  let n = 0;
+  try {
+    for (const e of Paths.cache.list()) if (e instanceof File && /^(tl-upload-|fixture-)/.test(e.name)) { e.delete(); n += 1; }
+  } catch { /* caché no disponible: se reintenta en el próximo inicio */ }
+  return n;
+}

@@ -111,3 +111,19 @@ del núcleo (Node + SQLite real), recorrido opcional contra la API local, bundle
 Nota de entorno (2026-10-11): el servicio `api` de `docker-compose.yml` no recibía `SCANNER_HOST`, por lo que los
 documentos subidos a la API en contenedor quedaban «análisis pendiente» (`SCANNER_UNAVAILABLE`). Se añadió
 `SCANNER_HOST: scanner` **localmente**; el cambio de ese archivo raíz no está confirmado en git (pendiente de autorización).
+
+### Entorno Android inspeccionado (2026-10-11)
+
+- Herramientas: sin Android SDK, sin JDK, sin `adb`; Chocolatey presente; winget no disponible en la sesión; 23,7 GB de RAM;
+  hipervisor presente (Docker/WSL2).
+- **Bloqueo**: C: es el único disco y tenía **6,3 GB libres**. Requisitos oficiales (docs.expo.dev, build local Android):
+  Microsoft OpenJDK 17 (`choco install -y microsoft-openjdk17`), Android SDK Platform 36, Build-Tools, Platform-Tools,
+  Emulator, `ANDROID_HOME=%LOCALAPPDATA%\Android\Sdk` y `platform-tools` en PATH; además NDK/CMake que Gradle descarga
+  para módulos nativos (SQLCipher). Estimación: ≥ 15 GB libres recomendados. No se liberó espacio sin autorización.
+- Pasos cuando haya espacio: ver `apps/mobile/README.md` § B.
+
+### Evidencia del escáner en contenedor
+
+`node e2e/review/escaner-contenedor.mjs disponible|caido|reintento` (el operador detiene y arranca el escáner con
+`docker compose stop scanner` / `docker compose start scanner`; los volúmenes se conservan). Resultado acumulado en
+`docs/qa/evidencia-escaner-contenedor.json`.

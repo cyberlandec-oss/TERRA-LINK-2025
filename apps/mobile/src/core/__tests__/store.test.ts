@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { LocalStore, type DatasetPlot } from '../store';
 import { accountKey, captureGate, CaptureBlockedError, type StoredSession } from '../session';
 import { EncryptionRequiredError, isStorageFull } from '../ports';
-import { nodePlatform } from './node-platform';
+import { nodePlatform, syntheticJpeg } from './node-platform';
 
 // Evidencia en Node (motor SQLite real + archivos reales). NO es evidencia de emulador ni de dispositivo Android.
 const PLOT: DatasetPlot = { id: '00000000-0000-4000-8000-000000000001', plot_code: 'P-SINT-1', name: null, row_version: 3, status: 'ACTIVE', producer_id: '00000000-0000-4000-8000-0000000000a1', producer_code: 'PR-SINT', producer_display_name: 'Productor sintético', geometry_status: 'NONE' };
@@ -13,7 +13,7 @@ const SAMPLE = { latitude: -0.8479, longitude: -80.1601, accuracy_m: null, acqui
 function setup(opts: Parameters<typeof nodePlatform>[1] = {}) {
   const root = mkdtempSync(join(tmpdir(), 'tl-mobile-'));
   const photo = join(root, 'camera-cache.jpg');
-  writeFileSync(photo, Buffer.from('\xff\xd8\xff\xe0 foto sintética de prueba \xff\xd9', 'binary'));
+  writeFileSync(photo, syntheticJpeg({ exif: true, seed: root }));
   return { root, photo, p: nodePlatform(root, opts) };
 }
 
@@ -85,6 +85,22 @@ describe('P0-023 almacén local (Node + SQLite real)', () => {
     expect(view.photos[0]).toMatchObject({ storage: 'DB', file_present: true });
     expect(view.photos[0].sha256).toMatch(/^[0-9a-f]{64}$/);
     expect((await s.attachmentBytes(id)).length).toBe(view.photos[0].size_bytes);
+    await s.close();
+  });
+
+  it('D-41: la foto se guarda sin EXIF/XMP (coordenadas, dispositivo); el hash corresponde a los bytes sin metadatos', async () => {
+    const { p, photo } = setup();
+    const s = await LocalStore.open(p, 'acc1');
+    await s.replaceDataset([PLOT]);
+    const d = await s.createDraft(PLOT.id);
+    const original = require('node:fs').readFileSync(photo) as Buffer;
+    expect(original.includes(Buffer.from('GPSLatitude'))).toBe(true);
+    const id = await s.addPhoto(d, photo, 'image/jpeg', null);
+    const stored = Buffer.from(await s.attachmentBytes(id));
+    expect(stored.includes(Buffer.from('Exif'))).toBe(false);
+    expect(stored.includes(Buffer.from('GPSLatitude'))).toBe(false);
+    expect(stored.includes(Buffer.from('datos-sinteticos'))).toBe(true); // la imagen se conserva
+    expect((await s.drafts())[0].photos[0].sha256).toBe(require('node:crypto').createHash('sha256').update(stored).digest('hex'));
     await s.close();
   });
 

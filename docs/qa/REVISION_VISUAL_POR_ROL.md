@@ -280,3 +280,11 @@ ahora» con resumen (confirmadas, conflictos, rechazadas, pendientes, fotos); en
 Sincronizado / Rechazado / Conflicto / Bloqueado por acceso, foto con estado propio («archivo pendiente de subir»,
 «análisis pendiente», «disponible») y botón «Reenviar sobre la versión actual del servidor» que conserva la original.
 **Pendiente**: revisión visual, teclado/lector de pantalla y 390 px en Android real.
+
+## Escáner real por la API en contenedor (2026-10-11)
+
+Foto SINTÉTICA (fixture JPEG sin EXIF, generado por el script; no es una foto real) enviada por sincronización a la API
+del servicio `api` de docker compose con ClamAV real. Fases registradas en `docs/qa/evidencia-escaner-contenedor.json`:
+disponible (`AWAITING_CONTENT → AVAILABLE`), escáner detenido (`PENDING_SCAN`, análisis `FAILED`, nunca `CLEAN`) y
+reintento con el escáner activo (`SCAN_FAILED → AVAILABLE`). El primer intento de la fase «reintento» falló por un error
+del script después de ejecutar el reintento (registrado como «ya reintentado»); se repitió el ciclo completo limpio.

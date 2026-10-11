@@ -1,8 +1,10 @@
+import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { encryptionStatus, expoPlatform, expoUploader, runtimeEnvironment } from '../adapters/expo';
+import { cleanupCacheTemps, encryptionStatus, expoPlatform, expoUploader, runtimeEnvironment, writeCacheFile } from '../adapters/expo';
+import { fixtureJpeg, fixtureLocation } from '../core/fixtures';
 import { ApiFailure, SessionManager } from '../app/session-manager';
 import { EncryptionRequiredError, isStorageFull } from '../core/ports';
 import type { SyncSummary } from '../core/sync';
@@ -29,7 +31,7 @@ export function Root() {
   const [openDraft, setOpenDraft] = useState<string | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
 
-  useEffect(() => { void sessions.load().then((x) => { setSession(x); setBoot(false); }); }, []);
+  useEffect(() => { cleanupCacheTemps(); void sessions.load().then((x) => { setSession(x); setBoot(false); }); }, []);
   const chooseOrg = async (s0: StoredSession, id: string) => {
     if (store) await store.close();
     setFatal(null);
@@ -89,7 +91,7 @@ function Login({ onDone }: { onDone: (x: StoredSession) => void }) {
       <Header sub="Captura de campo" />
       <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
         <Text accessibilityRole="header" style={s.h1}>Iniciar sesión</Text>
-        {runtimeEnvironment === 'EXPO_GO_SYNTHETIC' && <Notice tone="review" title="Entorno de prueba sin cifrado">Expo Go no cifra la base local: úsalo solo con organizaciones DEMO y datos sintéticos. Para datos reales hace falta el build nativo de aceptación.</Notice>}
+        {runtimeEnvironment === 'EXPO_GO_SYNTHETIC' && <Notice tone="review" title="Entorno de prueba sin cifrado">Expo Go no cifra la base local: solo admite fixtures sintéticos (no usa cámara ni ubicación reales) en organizaciones DEMO. Pertenecer a una organización DEMO no vuelve sintética una captura real. El ensayo real se hace con el build nativo cifrado.</Notice>}
         <Notice tone="process" title="Requiere conexión">El inicio de sesión solo funciona con conexión. Podrás capturar sin red mientras siga vigente la sesión emitida por el servidor; al vencer, lo guardado se conserva y para seguir hay que iniciar sesión.</Notice>
         <Field label="Servidor (URL de la API)" value={api} onChangeText={setApi} autoCapitalize="none" autoCorrect={false} keyboardType="url" />
         <Field label="Correo" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" />
@@ -139,7 +141,7 @@ function Home({ session, orgId, store, recovery, onCapture, onSwitch, onLogout }
   return (
     <>
       <Text accessibilityRole="header" style={s.h1}>Mi jornada</Text>
-      {runtimeEnvironment === 'EXPO_GO_SYNTHETIC' && <Notice tone="review" title="Entorno de prueba sin cifrado">Solo datos sintéticos (organizaciones DEMO).</Notice>}
+      {runtimeEnvironment === 'EXPO_GO_SYNTHETIC' && <Notice tone="review" title="Entorno de prueba sin cifrado">Solo fixtures sintéticos: ni cámara ni ubicación reales.</Notice>}
       {gate.allowed ? <Notice tone="valid" title="Captura habilitada">{gate.note} Sesión vigente hasta {fmt(gate.until)}.</Notice>
         : <Notice tone="blocked" title="Captura bloqueada">{gate.note}</Notice>}
       {recovery && (recovery.recovered_operations.length > 0 || recovery.incomplete_temp_files.length > 0 || recovery.missing_files.length > 0) &&
@@ -199,6 +201,13 @@ function Capture({ session, orgId, store, draftId, onDraft, onQueued }: { sessio
   );
   if (!draft) return <Text style={s.muted}>Cargando borrador…</Text>;
   const editable = draft.status === 'DRAFT' && gate.allowed;
+  const testEnv = runtimeEnvironment === 'EXPO_GO_SYNTHETIC';
+  // Entorno de prueba sin cifrado: solo fixtures (ni cámara ni ubicación reales).
+  const fixtureLoc = () => act(() => store.setLocation(draft.id, fixtureLocation(new Date())), 'Ubicación de prueba (sintética) guardada.');
+  const fixturePhoto = () => act(async () => {
+    const id = Crypto.randomUUID();
+    await store.addPhoto(draft.id, writeCacheFile(fixtureJpeg(id), `fixture-${id}.jpg`), 'image/jpeg', new Date().toISOString());
+  }, 'Foto de prueba (sintética) guardada.');
   const captureLocation = () => act(async () => {
     const perm = await Location.requestForegroundPermissionsAsync();
     if (!perm.granted) throw new Error('Permiso de ubicación denegado. Puedes concederlo en los ajustes del sistema; el borrador, la nota y las fotos se conservan y puedes encolar sin ubicación.');
@@ -223,6 +232,7 @@ function Capture({ session, orgId, store, draftId, onDraft, onQueued }: { sessio
   return (
     <>
       <Text accessibilityRole="header" style={s.h1}>Captura · {draft.plot_code ?? 'parcela'}</Text>
+      {testEnv && <Notice tone="review" title="Entorno de prueba sin cifrado">Solo fixtures sintéticos: esta compilación no usa la cámara ni la ubicación reales. El ensayo real se hace con el build nativo cifrado.</Notice>}
       <Badge tone={draft.status === 'DRAFT' ? 'neutral' : 'process'}>{draft.status === 'DRAFT' ? 'Borrador local' : 'En cola (pendiente de sincronización)'}</Badge>
       {!gate.allowed && <Notice tone="blocked">{gate.note}</Notice>}
       <Card title="Ubicación">
@@ -234,13 +244,17 @@ function Capture({ session, orgId, store, draftId, onDraft, onQueued }: { sessio
             <Text style={s.muted}>Procedencia: servicio de ubicación del dispositivo (no se afirma GPS){draft.location.mocked ? ' · el sistema la marcó como simulada' : ''}</Text>
           </>
         ) : <Text style={s.muted}>Sin ubicación.</Text>}
-        {editable && <Button kind="secondary" label={draft.location ? 'Volver a capturar ubicación' : 'Capturar ubicación'} onPress={() => void captureLocation()} disabled={busy} />}
+        {editable && (testEnv
+          ? <Button kind="secondary" label="Usar ubicación de prueba (sintética)" hint="Expo Go no captura ubicación real" onPress={() => void fixtureLoc()} disabled={busy} />
+          : <Button kind="secondary" label={draft.location ? 'Volver a capturar ubicación' : 'Capturar ubicación'} onPress={() => void captureLocation()} disabled={busy} />)}
       </Card>
       <Card title="Fotos">
         {draft.photos.length === 0 ? <Text style={s.muted}>Sin fotos.</Text> : draft.photos.map((p) => (
           <Text key={p.id} style={s.p}>{p.file_present ? '✓' : '⚠'} {Math.round(p.size_bytes / 1024)} KB · SHA-256 {p.sha256.slice(0, 10)}… · recibida {fmt(p.captured_at)}{p.file_present ? '' : ' · ARCHIVO FALTANTE'}</Text>
         ))}
-        {editable && <Button kind="secondary" label="Tomar foto" onPress={() => void takePhoto()} disabled={busy} />}
+        {editable && (testEnv
+          ? <Button kind="secondary" label="Usar foto de prueba (sintética)" hint="Expo Go no usa la cámara real" onPress={() => void fixturePhoto()} disabled={busy} />
+          : <Button kind="secondary" label="Tomar foto" onPress={() => void takePhoto()} disabled={busy} />)}
       </Card>
       <Card title="Nota">
         {editable ? <Field label="Observación de campo" value={note} onChangeText={setNote} onEndEditing={() => void act(() => store.setNote(draft.id, note))} multiline maxLength={1000} /> : <Text style={s.p}>{draft.note || '—'}</Text>}

@@ -15,6 +15,7 @@ import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { EVENT_STORE, type EventStore } from '../events/events';
 import { PlotsService } from '../plots/plots';
 import { DocumentsService } from '../documents/documents';
+import { hasImageMetadata } from './image-metadata';
 
 // P0-024 Sync (RF-24, QA-08/02; docs/11 §Contrato de servidor). Cada petición revalida sesión (guardia JWT + estado del
 // usuario), dispositivo (del usuario, en la organización, no revocado), membresía, organización y permisos. El device_id
@@ -187,7 +188,7 @@ export class SyncService {
   private async attachmentStatus(orgId: string, operationId: string) {
     const u = await this.db.selectFrom('sync_attachment_uploads').selectAll().where('organization_id', '=', orgId).where('operation_id', '=', operationId).executeTakeFirst();
     if (!u) return { status: 'AWAITING_CONTENT', note: 'El registro llegó; el archivo todavía no. Metadata recibida no significa archivo disponible.' };
-    const scan = (await sql<{ result: string | null }>`SELECT result FROM document_version_scans WHERE version_id = ${u.version_id} ORDER BY scanned_at DESC LIMIT 1`.execute(this.db)).rows[0]?.result ?? null;
+    const scan = (await sql<{ result: string | null }>`SELECT result FROM document_version_scans WHERE version_id = ${u.version_id} ORDER BY id DESC LIMIT 1`.execute(this.db)).rows[0]?.result ?? null;
     return { status: scan === 'CLEAN' ? 'AVAILABLE' : scan === 'INFECTED' ? 'REJECTED' : 'PENDING_SCAN', document_id: u.document_id, version_id: u.version_id,
       note: scan === 'CLEAN' ? 'Archivo íntegro y analizado; disponible según los permisos de Documentos.' : 'Archivo recibido; análisis antimalware pendiente o fallido: no disponible todavía.' };
   }
@@ -287,8 +288,17 @@ export class SyncService {
       await this.audit.record(this.db, { organizationId: orgId, actorUserId: user.id, action: 'sync.attachment_rejected', entityType: 'device', entityId: device.id, requestId, result: 'DENIED', after: { reason: 'ATTACHMENT_INTEGRITY_MISMATCH' } });
       throw new AppError(422, 'ATTACHMENT_INTEGRITY_MISMATCH', 'El archivo recibido no coincide con el registrado (tamaño o SHA-256): transferencia incompleta o alterada. Se conserva en el dispositivo; reintenta.', [{ field: 'file', reason: 'INTEGRITY_MISMATCH' }]);
     }
-    const up = await this.documents.upload(user, orgId, { operation_id: operationId, document_type: 'FIELD_PHOTO', owner_type: 'plot', owner_id: r.plot_id, title: r.caption },
-      { buffer: file.buffer, mimetype: r.mime_type, originalname: file.originalname || 'foto.jpg' } as never, null, requestId);
+    // D-41: metadatos embebidos (EXIF/XMP con coordenadas o dispositivo) eludirían la clasificación: se rechaza.
+    if (hasImageMetadata(new Uint8Array(file.buffer), r.mime_type)) {
+      await this.audit.record(this.db, { organizationId: orgId, actorUserId: user.id, action: 'sync.attachment_rejected', entityType: 'device', entityId: device.id, requestId, result: 'DENIED', after: { reason: 'PHOTO_METADATA_PRESENT' } });
+      throw new AppError(422, 'PHOTO_METADATA_PRESENT', 'La foto conserva metadatos embebidos (EXIF/XMP) o no tiene una estructura válida: la app debe quitarlos antes de enviarla.', [{ field: 'file', reason: 'METADATA_PRESENT' }]);
+    }
+    // Título y nombre de archivo neutros: la leyenda libre de campo no se publica en el documento (podría contener datos
+    // personales visibles sin permiso de identidad); se conserva solo en el registro de sincronización de su autor.
+    const plotCode = await this.plots.get(user, orgId, r.plot_id).then((x) => (x as { plot_code: string }).plot_code).catch(() => 'parcela');
+    const ext = r.mime_type === 'image/png' ? 'png' : 'jpg';
+    const up = await this.documents.upload(user, orgId, { operation_id: operationId, document_type: 'FIELD_PHOTO', owner_type: 'plot', owner_id: r.plot_id, title: `Fotografía de campo · ${plotCode}` },
+      { buffer: file.buffer, mimetype: r.mime_type, originalname: `foto-campo-${operationId.slice(0, 8)}.${ext}` } as never, null, requestId);
     const docView = up.document as { id: string; versions: Array<{ id: string; operation_id?: string; sha256?: string }> };
     const version = await this.db.selectFrom('document_versions').select('id').where('organization_id', '=', orgId).where('operation_id', '=', operationId).executeTakeFirstOrThrow();
     await this.db.insertInto('sync_attachment_uploads').values({ operation_id: operationId, organization_id: orgId, document_id: docView.id, version_id: version.id, sha256: sha, uploaded_by: user.id, device_id: device.id })

@@ -67,7 +67,7 @@ Ninguna decisión es un bloqueo global. Solo bloquea la historia cuyo criterio d
 | ADR-0001 / ADR-0005 sin ratificar | Stack y autenticación adoptados para desarrollo | No en local |
 | D-05, D-06… (GIS, stock) | Historias futuras | Se evaluarán en su historia |
 | D-40 | Autorización local de captura más larga que la sesión (P0-023, **propuesta no aprobada y NO aplicada**): hoy la captura termina al vencer el JWT (1 h). Si se requiere trabajo de campo más largo, decidir credencial local emitida por el servidor por dispositivo (duración, desbloqueo local, revocación, retención, borrado remoto; contrato en docs/11) | Seguridad/producto | Política aprobada y ensayo Android |
-| D-41 | Fotografía de campo (P0-024, provisional): tipo de documento `FIELD_PHOTO` con titular parcela y clasificación PERSONAL_DATA (una foto puede mostrar personas). Extiende D-36 | Producto/datos personales | Clasificación y retención confirmadas |
+| D-41 | Fotografía de campo — **adoptada provisionalmente para el MVP local (2026-10-11, instrucción del responsable)**: tipo `FIELD_PHOTO`, titular parcela, clasificada como dato personal; sin autenticidad ni valor probatorio automático (una foto disponible no verifica ninguna afirmación ni demuestra captura real). Versiones, hash, análisis antimalware y revisión siguen como dimensiones separadas. Metadatos embebidos eliminados en el dispositivo y rechazados en el servidor; título y nombre de archivo neutros | Producto/datos personales | Retención y uso probatorio definidos fuera del MVP |
 | GitHub Actions / facturación | Ninguno: Actions inactivo; validación local | **No** (eliminado como bloqueo) |
 
 ### Supuestos vigentes de desarrollo (2026-10-10)

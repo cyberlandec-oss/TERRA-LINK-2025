@@ -263,6 +263,19 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
 
+### Revisión 2026-10-11 — escáner, D-41, Expo Go y entorno Android
+
+Validación web/API: `npm run validate` APROBADA (`validation-results/2026-10-11T05-58-21-233Z`): unitarias + integración (API y web) 289/289, E2E 55/55, OpenAPI 146 rutas. Móvil (separado): `validation-results/2026-10-11T05-56-44-934Z-movil (typecheck, 17 pruebas de núcleo, recorrido contra la API en contenedor, bundle Android, expo-doctor)`.
+
+| Punto | Estado | Evidencia |
+| --- | --- | --- |
+| SCANNER_HOST en docker-compose | CONFIRMADO (commit `761d07f`) | Servicio `api` recreado conservando volúmenes; `printenv SCANNER_HOST` = scanner |
+| Foto sintética pendiente → disponible por la API en contenedor | DEMOSTRADO | `docs/qa/evidencia-escaner-contenedor.json` (fase disponible) |
+| Escáner inaccesible nunca da limpio | DEMOSTRADO | Fase caído: `FAILED`/`PENDING_SCAN`; fase reintento: `AVAILABLE` tras volver el escáner |
+| D-41 adoptada; metadatos sin eludir clasificación | DEMOSTRADO (servidor y Node) | EXIF eliminado en el móvil; `PHOTO_METADATA_PRESENT` en el servidor; título/nombre neutros; eventos y auditoría sin leyenda, nombre ni coordenadas |
+| Expo Go solo con fixtures | IMPLEMENTADO (no ejecutado en teléfono) | La app reemplaza cámara y ubicación por fixtures en Expo Go |
+| SDK/JDK, build nativo, SQLCipher real, emulador, dispositivo | **NO EJECUTADO** | Bloqueado: 6,3 GB libres en el único disco |
+
 ### P0-024 — criterios
 
 Validación web/API: `npm run validate` APROBADA (`validation-results/2026-10-11T05-28-58-923Z`): unitarias + integración (API y web) 289/289, E2E 55/55, OpenAPI 146 rutas; revisión por rol 40 entradas, 0 incidencias (corrida previa FALLIDA por lint en 2026-10-11T05-27-10-806Z, corregida). Móvil (separado): `validation-results/2026-10-11T05-25-49-416Z-movil`. Recorrido cliente-API: foto sincronizada con archivo verificado y escaneado (`AVAILABLE`), conflicto sin efecto, idempotencia y separación de cuentas. **No es validación en dispositivo.**

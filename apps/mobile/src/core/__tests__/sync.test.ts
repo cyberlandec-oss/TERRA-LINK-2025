@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { LocalStore, type DatasetPlot, type ServerOutcome } from '../store';
 import { syncOnce, TransportError, type SyncTransport, type WireOperation } from '../sync';
-import { nodePlatform } from './node-platform';
+import { nodePlatform, syntheticJpeg } from './node-platform';
 
 // Motor de sincronización con transporte SIMULADO (Node + SQLite real). El recorrido contra la API real está en
 // src/app/__tests__/session.api.test.ts (TL_API_SMOKE=1). Ninguno es emulador ni dispositivo.
@@ -13,7 +13,7 @@ const SAMPLE = { latitude: -0.8, longitude: -80.1, accuracy_m: 12, acquired_at: 
 async function queuedCapture(withPhoto = true) {
   const root = mkdtempSync(join(tmpdir(), 'tl-sync-'));
   const photo = join(root, 'cam.jpg');
-  writeFileSync(photo, Buffer.from('\xff\xd8\xff foto \xff\xd9', 'binary'));
+  writeFileSync(photo, syntheticJpeg({ exif: true, seed: root }));
   const s = await LocalStore.open(nodePlatform(root), 'acc');
   await s.replaceDataset([PLOT]);
   const d = await s.createDraft(PLOT.id);

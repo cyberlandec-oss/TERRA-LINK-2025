@@ -1,4 +1,5 @@
 import { operationCanonical } from './canonical';
+import { stripImageMetadata } from './metadata';
 import { migrate } from './schema';
 import { CaptureBlockedError, type CaptureGate } from './session';
 import { EncryptionRequiredError, StorageFullError, isStorageFull, type Platform, type SqlDb } from './ports';
@@ -135,8 +136,8 @@ export class LocalStore {
   }
 
   /**
-   * Foto: se leen los bytes de la caché temporal de la cámara, se verifican tamaño y SHA-256 y se guardan como BLOB en la
-   * base en una transacción (o todo o nada). Después se borra la copia de la cámara (mejor esfuerzo).
+   * Foto: se leen los bytes de la caché temporal de la cámara, se eliminan sus metadatos embebidos (D-41), se calculan
+   * tamaño y SHA-256 y se guardan como BLOB en la base en una transacción (o todo o nada). Después se borra la copia de la cámara (mejor esfuerzo).
    */
   async addPhoto(draftId: string, sourceUri: string, mimeType: string, capturedAt: string | null): Promise<string> {
     this.writable();
@@ -145,8 +146,10 @@ export class LocalStore {
     if (free !== null && free < MIN_FREE_BYTES) throw new StorageFullError('Queda menos de 5 MB libres: libera espacio antes de adjuntar la foto. El borrador se conserva.');
     const id = this.p.uuid();
     try {
-      const bytes = await this.p.files.readExternal(sourceUri);
-      if (bytes.length <= 0) throw new Error('La foto está vacía: escritura incompleta de la cámara.');
+      const raw = await this.p.files.readExternal(sourceUri);
+      if (raw.length <= 0) throw new Error('La foto está vacía: escritura incompleta de la cámara.');
+      // D-41: sin EXIF/XMP/IPTC/comentarios (coordenadas, dispositivo, hora). La ubicación va aparte con su procedencia.
+      const bytes = stripImageMetadata(raw, mimeType);
       if (bytes.length > MAX_PHOTO_BYTES) throw new Error('La foto supera 15 MB.');
       const hash = await this.p.sha256(bytes);
       await this.db.transaction(async (tx) => {

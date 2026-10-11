@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { FileStore, Platform, SqlDb, SqlValue } from '../ports';
+import { fixtureJpeg } from '../fixtures';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { DatabaseSync } = require('node:sqlite') as { DatabaseSync: new (path: string) => { exec(s: string): void; prepare(s: string): { run(...p: SqlValue[]): unknown; all(...p: SqlValue[]): unknown[]; get(...p: SqlValue[]): unknown }; close(): void } };
@@ -66,4 +67,9 @@ export function nodePlatform(root: string, opts: Parameters<typeof nodeFiles>[1]
     uuid: () => randomUUID(),
     now: opts.clock ?? (() => new Date()),
   };
+}
+
+/** JPEG SINTÉTICO mínimo y válido (el mismo fixture que usa la app en Expo Go). No es una foto. */
+export function syntheticJpeg(opts: { exif?: boolean; seed?: string } = {}): Buffer {
+  return Buffer.from(fixtureJpeg(opts.seed ?? 'x', !!opts.exif));
 }
