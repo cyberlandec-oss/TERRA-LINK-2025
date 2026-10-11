@@ -83,6 +83,7 @@ Estado (2026-10-10): criterios originales demostrados localmente (lote con entra
 ### P0-017 — Inventario/balance de masa
 Depende P0-016. Como operación, necesito cantidades conservadas.
 Aceptación: ledger, merma, traslado, reserva/despacho y ajuste con motivo; 800→750+50 válido, exceso rechazado; prueba concurrente impide doble consumo/saldo negativo. RF-17; QA-06.
+Estado (2026-10-10): ledger como única fuente, merma, traslado, ajuste con motivo, 800→750+50 y concurrencia demostrados localmente; STORAGE integrada. **Historia abierta**: «reserva/despacho» requiere embarques (docs/06 `reservations.shipment_id` R) → P0-029. Efectos por operación: `docs/decisiones/P0-017-EFECTOS-LEDGER.md`.
 
 ### P0-018 — Documentos
 Depende P0-003/025. Como usuario, necesito soportes privados/versionados.

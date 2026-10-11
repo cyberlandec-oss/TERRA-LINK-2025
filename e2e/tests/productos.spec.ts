@@ -130,13 +130,13 @@ test('P0-013 hitos (CTE): consulta de solo lectura con versión, vigencia e inte
   await page.goto(`${orgUrl}/trazabilidad/hitos`);
   const table = page.getByRole('table', { name: 'Hitos de trazabilidad' });
   await expect(table.locator('tbody tr')).toHaveCount(11);
-  await expect(page.getByText(/Catálogo versión 1\.2\.0/)).toBeVisible();
+  await expect(page.getByText(/Catálogo versión 1\.3\.0/)).toBeVisible();
   await expect(table).toContainText('DELIVERY@2');
   await expect(table).toContainText('DeliveryRegistered');
-  await expect(page.getByText(/5 operación\(es\) integrada\(s\) y 6 pendiente\(s\)/)).toBeVisible();
+  await expect(page.getByText(/6 operación\(es\) integrada\(s\) y 5 pendiente\(s\)/)).toBeVisible();
   await expect(page.getByRole('button', { name: /cosecha|entrega|recepción|procesar|registrar/i })).toHaveCount(0);
   await page.getByLabel('Mostrar definiciones retiradas o sustituidas').press('Space');
-  await expect(table.locator('tbody tr')).toHaveCount(16); // las 5 versiones sustituidas (1.1.0 y 1.2.0) siguen consultables
+  await expect(table.locator('tbody tr')).toHaveCount(17); // las 6 versiones sustituidas (1.1.0, 1.2.0 y 1.3.0) siguen consultables
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });
@@ -382,7 +382,7 @@ test('P0-016 lotes y fermentación: formar lote, reservar, rechazo de balance, c
   await page.getByRole('button', { name: 'Formar lote' }).focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: /Lote LOT-/ })).toBeVisible();
-  await expect(page.getByText(/No es inventario/).first()).toBeVisible();
+  await expect(page.getByText(/Reservar no reduce la existencia/).first()).toBeVisible();
   await expect(page.getByText('Calidad pendiente de evaluación en algún insumo')).toBeVisible();
   const lotCode = (await page.getByRole('heading', { name: /Lote LOT-/ }).innerText()).replace('Lote ', '');
   // preparar e iniciar fermentación
@@ -409,6 +409,43 @@ test('P0-016 lotes y fermentación: formar lote, reservar, rechazo de balance, c
   await page.getByRole('list', { name: 'Salidas del proceso' }).getByRole('link').first().click();
   await expect(page.getByRole('list', { name: 'Origen hacia atrás' })).toContainText(lotCode);
   await expect(page.getByText('Origen declarado en todos los insumos')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await ctx.close();
+});
+
+test('P0-017 inventario: existencia, reservado y disponible; traslado y merma con motivo; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  const orgId = orgUrl.split('/organizaciones/')[1];
+  const h = { authorization: `Bearer ${token}` };
+  expect((await page.request.post(`${API_URL}/api/v1/organizations/${orgId}/locations`, { headers: h, data: { code: 'BOD-E2E', name: 'Bodega E2E', location_type: 'WAREHOUSE' } })).status()).toBe(201);
+  await page.goto(`${orgUrl}/inventario`);
+  await expect(page.getByRole('heading', { name: 'Totales' })).toBeVisible();
+  const table = page.getByRole('table', { name: 'Existencias por lote y centro' });
+  const outRow = table.locator('tbody tr').filter({ hasText: 'Cacao fermentado E2E' }).first();
+  await expect(outRow).toContainText('750 kg');
+  await expect(outRow).toContainText('Centro E2E (CA-E2E)');
+  // traslado con teclado
+  await page.getByLabel('Movimiento', { exact: true }).selectOption({ value: 'transfer' });
+  const option = await page.getByLabel('Lote y centro de origen').locator('option').filter({ hasText: 'Centro E2E' }).filter({ hasText: '750 kg' }).first().getAttribute('value');
+  await page.getByLabel('Lote y centro de origen').selectOption(option!);
+  await page.getByLabel('Centro de destino').selectOption({ label: 'Bodega E2E (BOD-E2E)' });
+  await page.getByLabel(/Cantidad \(kg\)/).fill('100');
+  await page.getByRole('button', { name: 'Registrar movimiento' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Movimiento registrado.')).toBeVisible();
+  await expect(table.locator('tbody tr').filter({ hasText: 'Bodega E2E' }).first()).toContainText('100 kg');
+  // merma sin motivo no se envía; con motivo se registra y aparece en movimientos
+  await page.getByLabel('Movimiento', { exact: true }).selectOption({ value: 'loss' });
+  const bod = await page.getByLabel('Lote y centro de origen').locator('option').filter({ hasText: 'Bodega E2E' }).first().getAttribute('value');
+  await page.getByLabel('Lote y centro de origen').selectOption(bod!);
+  await page.getByLabel(/Cantidad \(kg\)/).fill('2');
+  await page.getByLabel(/^Motivo/).fill('Granos dañados (E2E)');
+  await page.getByRole('button', { name: 'Registrar movimiento' }).click();
+  await expect(page.getByText('Movimiento registrado.')).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Movimientos del ledger' })).toContainText('Merma');
+  await expect(page.getByText(/Reserva y despacho para embarques requieren embarques/)).toBeVisible();
+  await page.getByRole('button', { name: 'Comprobar conciliación' }).click();
+  await expect(page.getByText(/Conciliado:/)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });

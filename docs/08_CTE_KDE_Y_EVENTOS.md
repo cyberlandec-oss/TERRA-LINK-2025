@@ -192,3 +192,7 @@ CTE 1.2.0: **FERMENTATION → INTEGRATED** (PROCESSING_RUN_CLOSE / ProcessingRun
 | PROCESS_CLOSE_DRYING | run, entrada, salida, pérdida, humedad | — | unidad de humedad (D-32) |
 
 Eventos: `LotCreated`, `LotInputAssigned`, `LotInputReleased`, `LotClosedForInput` (agregado LOT); `ProcessingRunStarted`, `ProcessingRunClosed` (entradas, salidas, pérdida, producto de entrada/salida, rendimiento en masa), `ProcessingRunCancelled` (agregado PROCESS_RUN). Preparar un proceso (DRAFT) solo audita. Balance exacto en KG; la humedad no convierte masas.
+
+## P0-017 — Ledger e integración STORAGE (2026-10-10)
+
+CTE 1.3.0: **STORAGE → INTEGRATED** (STOCK_MOVEMENT / StockMovementRecorded) para merma, traslado, asignación de ubicación y ajuste. KDE 1.4.0 republica STORAGE sobre STORAGE@2; compuerta `STOCK_MOVEMENT` BLOCKING en lote, ubicación, cantidad, dirección (IN/OUT) y responsable (sesión); en un traslado se valida cada línea; al asignar una ubicación pendiente se valida la entrada (la salida es justamente lo pendiente). Recepciones, asignaciones y procesos escriben su efecto en el ledger con sus propios eventos (sin duplicar StockMovementRecorded). Efectos exactos: `docs/decisiones/P0-017-EFECTOS-LEDGER.md`.

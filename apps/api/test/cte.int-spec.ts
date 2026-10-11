@@ -34,18 +34,18 @@ describeDb('P0-013 catálogo de hitos críticos (CTE)', () => {
 
   it('catálogo vigente 1.1.0: hitos de las fuentes; P0-012 integra entrega, recepción, pesaje y clasificación; el resto sigue PENDIENTE', async () => {
     const r = (await cat('trazabilidad@test.local').expect(200)).body;
-    expect(r).toMatchObject({ scope: 'SYSTEM', current_release: { version: '1.2.0' } }); // 1.2.0: FERMENTATION integrada (P0-016)
+    expect(r).toMatchObject({ scope: 'SYSTEM', current_release: { version: '1.3.0' } }); // 1.3.0: STORAGE integrada (P0-017)
     const codes = r.definitions.map((d: { code: string }) => d.code);
     expect(codes.sort()).toEqual([...S1, 'CLASSIFICATION'].sort());
     expect(new Set(codes).size).toBe(codes.length); // únicos en el ámbito
-    const P0012 = ['DELIVERY', 'RECEPTION', 'WEIGHING', 'CLASSIFICATION', 'FERMENTATION']; // integradas (P0-012, P0-016)
+    const P0012 = ['DELIVERY', 'RECEPTION', 'WEIGHING', 'CLASSIFICATION', 'FERMENTATION', 'STORAGE']; // integradas (P0-012, P0-016, P0-017)
     for (const d of r.definitions) {
       const v = P0012.includes(d.code) ? 2 : 1;
       expect(d).toMatchObject({ version: v, status: 'ACTIVE', reference: `${d.code}@${v}` });
       expect(d.operations.length).toBeGreaterThan(0);
       expect(d.operations.every((o: { integration_status: string }) => o.integration_status === (P0012.includes(d.code) ? 'INTEGRATED' : 'PENDING'))).toBe(true);
     }
-    expect(r.summary).toMatchObject({ definitions: 11, integrated_operations: 5, pending_operations: 6 }); // DRYING sigue pendiente
+    expect(r.summary).toMatchObject({ definitions: 11, integrated_operations: 6, pending_operations: 5 }); // DRYING sigue pendiente
     const blob = JSON.stringify(r);
     for (const masterData of ['ProducerCreated', 'PlotGeometryVersionCreated', 'ProductCreated', 'PlotCreated']) expect(blob).not.toContain(masterData);
     expect(r.definitions.find((d: { code: string }) => d.code === 'DELIVERY').operations[0]).toMatchObject({ event_type: 'DeliveryRegistered', story: 'P0-012' });
@@ -87,7 +87,7 @@ describeDb('P0-013 catálogo de hitos críticos (CTE)', () => {
     const all = (await cat('admin-a@test.local', orgA, '?include_retired=true').expect(200)).body.definitions;
     expect(all.filter((d: { code: string }) => d.code === 'WEIGHING').map((d: { version: number; status: string }) => [d.version, d.status])).toEqual([[1, 'RETIRED'], [2, 'RETIRED'], [3, 'ACTIVE']]);
     const rel = (await http().get(`/api/v1/organizations/${orgA}/cte-catalog/releases`).set(as('admin-a@test.local')).expect(200)).body;
-    expect(rel.map((x: { version: string }) => x.version)).toEqual(['2.1.0', '1.2.0', '1.1.0', '1.0.0']);
+    expect(rel.map((x: { version: string }) => x.version)).toEqual(['2.1.0', '1.3.0', '1.2.0', '1.1.0', '1.0.0']);
     // códigos únicos por versión en el ámbito
     await expect(sql`INSERT INTO cte_definitions (id, code, version, name, description, stage, source, release_version) VALUES (gen_random_uuid(), 'WEIGHING', 3, 'x', 'x', 'INTERNAL', 'x', '2.1.0')`.execute(h.db)).rejects.toThrow(/cte_definitions_code_version_uq/);
   });
@@ -115,6 +115,6 @@ describeDb('P0-013 catálogo de hitos críticos (CTE)', () => {
     const r = (await cat('admin-a@test.local').expect(200)).body;
     expect(r.definitions.find((d: { code: string }) => d.code === 'SHIPMENT').operations[0].integration_status).toBe('INTEGRATED');
     expect(r.definitions.find((d: { code: string }) => d.code === 'DRYING').operations[0].integration_status).toBe('PENDING'); // DRYING se integra aparte
-    expect(r.summary.integrated_operations).toBe(5); // DELIVERY, RECEPTION, CLASSIFICATION, FERMENTATION + SHIPMENT simulado (WEIGHING redefinido PENDING en la prueba 2.1.0)
+    expect(r.summary.integrated_operations).toBe(6); // DELIVERY, RECEPTION, CLASSIFICATION, FERMENTATION, STORAGE + SHIPMENT simulado (WEIGHING redefinido PENDING en la prueba 2.1.0)
   });
 });

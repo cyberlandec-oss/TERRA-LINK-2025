@@ -537,9 +537,13 @@ export interface LotsTable {
 }
 export interface LotInputsTable { id: string; organization_id: string; lot_id: string; reception_id: string; weighing_id: string; reception_version: number; quantity: string; unit: string; origin_known: boolean; assigned_by: string; assigned_at: Generated<Timestamp>; operation_id: string }
 export interface LotInputReleasesTable { input_id: string; organization_id: string; reason: string; released_by: string; released_at: Generated<Timestamp>; operation_id: string }
-export interface ProcessInputsTable { id: string; organization_id: string; run_id: string; lot_id: string; lot_version: string; quantity: string; unit: string }
+export interface ProcessInputsTable { id: string; organization_id: string; run_id: string; lot_id: string; lot_version: string; quantity: string; unit: string; location_id: string | null }
 export interface LotEdgesTable { id: string; organization_id: string; parent_lot_id: string; child_lot_id: string; run_id: string; quantity: string; unit: string }
 export interface ProcessOutputsTable { id: string; organization_id: string; run_id: string; lot_id: string; quantity: string; unit: string }
+
+// P0-017 ledger
+export interface StockMovementsTable { id: string; organization_id: string; movement_type: string; source_type: string | null; source_id: string | null; operation_id: string | null; actor_id: string | null; reason: string | null; process_loss: string | null; reference: unknown; recorded_at: Generated<Timestamp> }
+export interface StockEntriesTable { id: string; organization_id: string; movement_id: string; reception_id: string | null; lot_id: string | null; location_id: string | null; bucket: 'PHYSICAL' | 'RESERVED'; signed_quantity: string; unit: string }
 
 export interface Database {
   evidence_claim_types: EvidenceClaimTypesTable;
@@ -605,4 +609,6 @@ export interface Database {
   process_inputs: ProcessInputsTable;
   lot_edges: LotEdgesTable;
   process_outputs: ProcessOutputsTable;
+  stock_movements: StockMovementsTable;
+  stock_entries: StockEntriesTable;
 }

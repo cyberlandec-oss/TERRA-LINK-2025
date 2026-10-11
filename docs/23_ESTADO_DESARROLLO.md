@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-017 Inventario y balance de masa | **Criterios demostrados localmente excepto reserva/despacho**; STORAGE integrada (CTE 1.3.0). **Historia abierta**: reserva y despacho dependen de embarques (P0-029) | Ver criterios abajo |
 | P0-016 Lotes y procesos | **Criterios originales demostrados localmente**; FERMENTATION integrada (CTE 1.2.0). **Historia abierta**: integración de DRYING pendiente (cierre bloqueado por la unidad de humedad, D-32/D-39.3) | Ver criterios abajo |
 | P0-012 Entregas y recepción | **Capacidades demostradas: verificadas localmente** (entrega, peso recibido, parciales, vínculos, calidad básica como decisión humana, no duplicación). **Historia completa: ABIERTA**, pendiente del criterio «diferencias con causa» (cierre y tolerancias sin política, D-33). Evidencia por criterio abajo (entrega, recepción física parcial, pesaje, soportes, calidad separada, correcciones, compuertas por transición) con decisiones de diseño MVP D-33/34/35 no validadas en campo; cierre por debajo de lo declarado, tolerancias, catálogo de límites, centros asignados e inventario (P0-017) pendientes | Ver criterios abajo |
 | P0-025 Auditoría | **DONE_LOCAL** (criterios de la historia sobre los módulos existentes); auditoría de riesgo, entregas, procesamiento, expediente y concesiones pendiente de sus historias; formato de exportación provisional (D-38) | Ver criterios abajo |
@@ -256,6 +257,21 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 | **Concesiones externas y elevación** | **Pendientes en P0-003** | — |
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
+
+### P0-017 — criterios
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-11T01-20-07-037Z`): API 259/259, web 4/4, E2E 52/52, OpenAPI 122 rutas. Corrida previa fallida conservada: `2026-10-11T01-15-41-630Z` (expectativas de catálogo CTE/KDE/RBAC desactualizadas; código correcto). Revisión por rol: 34 entradas, 0 incidencias. DEMO incorporado al ledger por la migración 0024 (2 entradas por recepción, 2 asignaciones, 2 reservas, 1 cierre) y conciliado sin diferencias.
+
+| Criterio original (backlog) | Estado | Evidencia (`inventory.int-spec.ts`; `lots.int-spec.ts`; E2E; revisión) |
+| --- | --- | --- |
+| Ledger | DEMOSTRADO | Única fuente de existencia/reserva/disponible para recepciones, asignaciones, procesos y movimientos; append-only; trigger diferido de saldos; referencias exactas, actor y `operation_id` |
+| Merma | DEMOSTRADO | Con motivo; nunca sobre lo reservado; pérdida de proceso registrada una sola vez |
+| Traslado | DEMOSTRADO | Conserva el total de la organización; centro de otra organización 404; lo reservado no se traslada; asignación de ubicación pendiente |
+| Reserva/despacho | **NO DEMOSTRADO** | Reservas de proceso sí (reducen disponible, no existencia). Reserva y despacho para **embarques** requieren `shipment_id` (docs/06) → P0-029 |
+| Ajuste con motivo | DEMOSTRADO | Solo `stock:adjust`; nunca por debajo de lo reservado; no opera sobre recepciones; historia intocable |
+| 800 → 750 + 50 válido, exceso rechazado | DEMOSTRADO | Existencia total −50 una sola vez; 3 líneas en el cierre; excesos rechazados (P0-016) |
+| Concurrencia: sin doble consumo ni saldo negativo | DEMOSTRADO | Traslados y mermas simultáneos (201/409); reservas y cierres concurrentes; red de seguridad en base |
+| Datos existentes | DEMOSTRADO | Incorporación idempotente (repetida no crea nada); conciliación informa diferencias sin ajustes |
 
 ### P0-016 — criterios
 

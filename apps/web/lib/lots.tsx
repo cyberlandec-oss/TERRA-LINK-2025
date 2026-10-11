@@ -2,7 +2,7 @@
 import type { GateItem } from './deliveries';
 
 export interface Qty { value: string; unit: string }
-export interface LotQuantities { base: string; reserved: string; consumed: string; available: string; unit?: string; note?: string }
+export interface LotQuantities { base: string; reserved: string; consumed: string; available: string; physical: string; unit?: string; note?: string; by_location: Array<{ location_id: string | null; location: string | null; pending_location: boolean; physical: string; reserved: string; available: string }> }
 export interface LotQuality { status: string; label: string; note: string }
 export interface LotRow { id: string; lot_code: string; source: string; status: string; origin_status: string; product_name: string; product_code: string; quantities: LotQuantities; quality: LotQuality }
 export interface Lot {

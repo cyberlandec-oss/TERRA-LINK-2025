@@ -42,10 +42,11 @@ export default function LotDetailPage() {
         <dl className="props">
           <dt>Origen</dt><dd>{l.origin.status === 'COMPLETE' ? <StatusBadge tone="valid">{l.origin.label}</StatusBadge> : <StatusBadge tone="review">{l.origin.label}</StatusBadge>}{l.origin.note && <div className="field-help">{l.origin.note}</div>}</dd>
           <dt>Calidad</dt><dd>{l.quality.label}<div className="field-help">{l.quality.note}</div></dd>
-          <dt>Cantidad base</dt><dd>{kg(l.quantities.base)}</dd>
+          <dt>Existencia física</dt><dd>{kg(l.quantities.physical)}</dd>
           <dt>Reservado</dt><dd>{kg(l.quantities.reserved)}</dd>
-          <dt>Consumido</dt><dd>{kg(l.quantities.consumed)}</dd>
-          <dt>Saldo de procesamiento</dt><dd><strong>{kg(l.quantities.available)}</strong><div className="field-help">{l.quantities.note}</div></dd>
+          <dt>Disponible</dt><dd><strong>{kg(l.quantities.available)}</strong><div className="field-help">{l.quantities.note}</div></dd>
+          <dt>Formado o producido</dt><dd>{kg(l.quantities.base)} <span className="muted">· consumido por procesos {kg(l.quantities.consumed)}</span></dd>
+          <dt>Por centro</dt><dd>{l.quantities.by_location.length === 0 ? <span className="muted">sin existencia</span> : <ul className="plain" aria-label="Existencia por centro">{l.quantities.by_location.map((b) => <li key={b.location_id ?? 'pend'}>{b.pending_location ? <StatusBadge tone="review">Pendiente de asignación</StatusBadge> : b.location}: {kg(b.physical)} (reservado {kg(b.reserved)})</li>)}</ul>}</dd>
         </dl>
       </section>
       <section className="card" aria-labelledby="lt-op">
@@ -76,7 +77,7 @@ export default function LotDetailPage() {
         <h3>Hacia adelante</h3>
         {l.downstream.length === 0 ? <p className="muted">Sin salidas.</p> : <ul className="plain" aria-label="Destino hacia adelante">{l.downstream.map((d) => <li key={d.lot_id}>{'↳ '.repeat(d.depth)}<Link href={`/organizaciones/${orgId}/lotes/${d.lot_id}`}>{d.lot_code}</Link> · vía {d.via_run}</li>)}</ul>}
       </section>
-      <Alert tone="info">Un lote no es inventario ni expediente: ubicaciones, traslados y despacho llegan con P0-017; calidad y origen se muestran como dimensiones separadas.</Alert>
+      <Alert tone="info">Existencia, calidad y origen son dimensiones separadas: tener existencia no significa calidad liberada ni origen completo. Movimientos en <Link href={`/organizaciones/${orgId}/inventario`}>Inventario</Link>; reserva y despacho para embarques llegan con P0-029.</Alert>
       <section className="card" aria-labelledby="lt-hist">
         <h2 id="lt-hist">Historia</h2>
         <ol className="plain" aria-label="Historia del lote">{l.history.map((h) => <li key={h.version}><strong>{h.event_type}</strong> <span className="muted">· {h.actor} · {new Date(h.occurred_at).toLocaleString('es-EC')}</span></li>)}</ol>

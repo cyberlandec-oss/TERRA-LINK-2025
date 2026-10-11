@@ -69,7 +69,8 @@ describeDb('P0-016 lotes, asignaciones, procesos y grafo de origen', () => {
     const r1 = await reception('300');
     const l = (await createLot('recepcion@test.local', [{ reception_id: r1, quantity: '120' }]).expect(201)).body.lot;
     expect(l).toMatchObject({ source: 'RECEPTIONS', status: 'OPEN', origin: { status: 'COMPLETE' }, quantities: { base: '120', available: '120', unit: 'KG' }, quality: { status: 'PENDING_EVALUATION' } });
-    expect(l.quantities.note).toMatch(/No es inventario/);
+    expect(l.quantities).toMatchObject({ physical: '120', reserved: '0', available: '120' }); // ledger: única fuente
+    expect(l.quantities.note).toMatch(/Reservar no reduce la existencia/);
     const w = await h.db.selectFrom('weighings').select('id').where('reception_id', '=', r1).executeTakeFirstOrThrow();
     expect(l.inputs[0]).toMatchObject({ reception_id: r1, weighing_id: w.id, reception_version: 1, quantity: { value: '120' }, origin_known: true });
     const second = (await http().post(`${base(orgA)}/lots/${l.id}/inputs`).set(as('recepcion@test.local')).send({ operation_id: randomUUID(), reception_id: r1, quantity: '180' }).expect(201)).body.lot;
@@ -84,9 +85,12 @@ describeDb('P0-016 lotes, asignaciones, procesos y grafo de origen', () => {
     expect((await createLot(ADMIN, [{ reception_id: rk, quantity: '10' }, { reception_id: (await reception('20', { producer: pUnknown })), quantity: '5' }]).expect(422)).body.error.code).toBe('ORIGIN_MIXING_BLOCKED');
     const rs = await reception('40', { product: seco });
     expect((await http().post(`${base(orgA)}/lots/${second.id}/inputs`).set(as(ADMIN)).send({ operation_id: randomUUID(), reception_id: rs, quantity: '10' }).expect(422)).body.error.code).toBe('PRODUCT_MISMATCH');
-    // red de seguridad en base: insertar por fuera una asignación que supera el peso vigente falla
-    await expect(sql`INSERT INTO lot_inputs (id, organization_id, lot_id, reception_id, weighing_id, reception_version, quantity, unit, origin_known, assigned_by, operation_id)
-      SELECT gen_random_uuid(), organization_id, ${l.id}, reception_id, weighing_id, 1, 1, 'KG', true, assigned_by, gen_random_uuid() FROM lot_inputs WHERE lot_id = ${l.id} LIMIT 1`.execute(h.db)).rejects.toThrow(/supera el peso vigente/);
+    // red de seguridad en base (P0-017: el ledger es la única fuente): sacar de la recepción más de lo que tiene falla al confirmar
+    await expect(h.db.transaction().execute(async (trx) => {
+      const mid = randomUUID();
+      await sql`INSERT INTO stock_movements (id, organization_id, movement_type, source_type, source_id, operation_id, actor_id) VALUES (${mid}, ${orgA}, 'LOT_ASSIGN', NULL, NULL, ${randomUUID()}, NULL)`.execute(trx);
+      await sql`INSERT INTO stock_entries (id, organization_id, movement_id, reception_id, location_id, bucket, signed_quantity, unit) VALUES (${randomUUID()}, ${orgA}, ${mid}, ${r1}, ${center}, 'PHYSICAL', -1, 'KG')`.execute(trx);
+    })).rejects.toThrow(/doble consumo o saldo negativo/);
     await expect(sql`UPDATE lot_inputs SET quantity = 1 WHERE lot_id = ${l.id}`.execute(h.db)).rejects.toThrow(/append-only/);
   });
 

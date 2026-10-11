@@ -28,8 +28,8 @@ export async function reviewLots({ browser, BASE, accounts, DEMO_ORGS, orgIdByNa
     await page.getByRole('heading', { name: /Lote LOT-/ }).waitFor({ timeout: 15000 });
     const text = await page.locator('main').innerText();
     await page.screenshot({ path: join(shots, 'lotes--admin-hub.png'), fullPage: true });
-    const ok = text.includes('Cacao fermentado') && text.includes('Origen declarado en todos los insumos') && text.includes('Calidad pendiente de evaluación') && /No es inventario/.test(text) && text.includes('ENT-2026-00001') && text.includes('DEMO-PAR-001');
-    casos.push({ cuenta: 'admin.cooperativa', resultado: `salida de fermentación con origen hasta entrega y parcela, calidad pendiente conservada, saldo de procesamiento sin presentarse como inventario=${ok}`, ok });
+    const ok = text.includes('Cacao fermentado') && text.includes('Origen declarado en todos los insumos') && text.includes('Calidad pendiente de evaluación') && /Reservar no reduce la existencia/.test(text) && text.includes('ENT-2026-00001') && text.includes('DEMO-PAR-001');
+    casos.push({ cuenta: 'admin.cooperativa', resultado: `salida de fermentación con origen hasta entrega y parcela, calidad pendiente conservada, existencia, reserva y disponible del ledger separados de calidad y origen=${ok}`, ok });
     await page.getByRole('link', { name: /PRC-/ }).first().click();
     await page.getByRole('heading', { name: /Fermentación PRC-/ }).waitFor({ timeout: 15000 });
     const run = await page.locator('main').innerText();

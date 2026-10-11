@@ -163,3 +163,10 @@ Clasificación de la identidad del productor: documento, teléfono y dirección 
 | process_inputs | 0023 | Reserva (RUNNING) → consumo (CLOSED) → liberada (CANCELLED); trigger: no supera la cantidad del lote |
 | process_outputs / lot_edges | 0023 | Salidas como lotes nuevos; aristas padre → hijo con control de ciclos en toda inserción; append-only |
 | reception_adjustments (trigger nuevo) | 0023 | Rechaza corregir una recepción con asignaciones activas (D-39.2) |
+
+| Tabla (P0-017) | Migración | Notas |
+| --- | --- | --- |
+| stock_movements | 0024 | Cabecera: tipo, fuente original (`source_type`/`source_id`, único por tipo → incorporación idempotente), `operation_id`, actor, motivo (obligatorio en merma y ajuste), pérdida de proceso; append-only |
+| stock_entries | 0024 | Líneas firmadas por tenedor (recepción **o** lote), ubicación (o pendiente = NULL) y cubeta PHYSICAL/RESERVED; trigger diferido: físico ≥ 0, reservado ≥ 0, reservado ≤ físico; append-only. Equivale a `stock_entries` de docs/06 extendido con la recepción como tenedor |
+| process_inputs.location_id | 0024 | Centro donde se reservó la entrada |
+| Triggers de cantidad de P0-016 | 0024 | Reemplazados por el ledger (una sola fuente de disponibilidad) |

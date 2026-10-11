@@ -14,6 +14,7 @@ import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { EVENT_STORE, type EventStore } from '../events/events';
 import { KdeService } from '../traceability/kde';
 import { scaled } from '../traceability/kde-validator';
+import { postMovement } from '../inventory/ledger';
 
 // P0-012 Entregas y recepción (RF-12, QA-05/06; UX_UI §14). Decisiones de diseño del MVP local D-33/D-34/D-35
 // (docs/22, pendientes de validación en campo).
@@ -509,6 +510,9 @@ export class DeliveriesService {
           id: wid, organization_id: orgId, reception_id: rid, method: dto.weighing.method.trim(), quantity: dto.weighing.quantity, unit: dto.weighing.unit, weighed_on: dto.weighing.weighed_on,
           responsible_membership_id: ctx.membershipId, responsible_user_id: user.id, corrects_weighing_id: null,
         }).execute();
+        // P0-017: única entrada física de este cacao en el ledger (recepción @ centro), en la misma transacción.
+        await postMovement(trx, { organizationId: orgId, type: 'RECEPTION_IN', sourceType: 'reception', sourceId: rid, operationId: null, actorId: user.id, reference: { delivery_id: id, weighing_id: wid },
+          lines: [{ reception_id: rid, location_id: dto.location_id, bucket: 'PHYSICAL', quantity: dto.weighing.quantity }] });
         const values = { ...(await this.deliveryValues(trx, d)), ...(await this.receptionValues(trx, rid)) };
         const g = await this.gate(trx, ctx, 'RECEPTION_CONFIRM', values);
         if (!g.allowed) throw this.blocked(g, 'confirmar la recepción');
@@ -678,6 +682,10 @@ export class DeliveriesService {
       await sql`SELECT id FROM receptions WHERE id = ${receptionId} FOR UPDATE`.execute(trx);
       const assigned = await trx.selectFrom('lot_inputs').select('id').where('reception_id', '=', receptionId)
         .where(({ not, exists, selectFrom }) => not(exists(selectFrom('lot_input_releases').select('input_id').whereRef('lot_input_releases.input_id', '=', 'lot_inputs.id')))).executeTakeFirst();
+      // Aunque la asignación se liberara, si su lote llegó a consumirse no hay corrección de efectos posteriores.
+      const consumed = await sql<{ n: number }>`SELECT count(*)::int AS n FROM lot_inputs i JOIN process_inputs p ON p.lot_id = i.lot_id JOIN process_runs pr ON pr.id = p.run_id
+        WHERE i.reception_id = ${receptionId} AND pr.status = 'CLOSED'`.execute(trx);
+      if (consumed.rows[0].n > 0) throw conflict('RECEPTION_CONSUMED_DOWNSTREAM', 'Material de esta recepción llegó a un lote ya consumido por un proceso: no se corrige su peso (no existe corrección de efectos posteriores).');
       if (assigned) throw conflict('RECEPTION_ASSIGNED_TO_LOT', 'La recepción tiene cantidades asignadas a lotes: no se corrige su peso mientras exista la asignación (libérala primero si no hay reservas ni consumo).');
       const adjustments = await trx.selectFrom('reception_adjustments').selectAll().where('reception_id', '=', receptionId).orderBy('adjustment_number', 'desc').execute();
       const version = adjustments.length + 1;
@@ -697,10 +705,14 @@ export class DeliveriesService {
       const ev = await this.record(trx, ctx, user.id, d, { type: 'ReceptionCorrected', aggregateType: 'RECEPTION', aggregateId: receptionId, version: version + 1, correctionOf: { eventId: lastEvent.event_id, reason: dto.reason.trim() },
         payload: { reception_id: receptionId, delivery_id: id, previous_quantity: current, new_quantity: dto.weighing.quantity, unit: dto.weighing.unit, weighing_id: wid } },
       'reception.correct', { reception_id: receptionId, quantity: dto.weighing.quantity, unit: dto.weighing.unit, corrected_event_id: lastEvent.event_id, reason: dto.reason.trim() }, requestId);
+      const adjId = randomUUID();
       await trx.insertInto('reception_adjustments').values({
-        id: randomUUID(), organization_id: orgId, reception_id: receptionId, adjustment_number: version, weighing_id: wid, previous_quantity: current, new_quantity: dto.weighing.quantity,
+        id: adjId, organization_id: orgId, reception_id: receptionId, adjustment_number: version, weighing_id: wid, previous_quantity: current, new_quantity: dto.weighing.quantity,
         reason: dto.reason.trim(), corrected_event_id: lastEvent.event_id, correction_event_id: ev!.event_id, created_by: user.id, operation_id: dto.operation_id,
       }).execute();
+      // Ledger: solo la diferencia; la entrada original se conserva (append-only).
+      await postMovement(trx, { organizationId: orgId, type: 'RECEPTION_CORRECTION', sourceType: 'reception_adjustment', sourceId: adjId, operationId: dto.operation_id, actorId: user.id, reason: dto.reason.trim(),
+        lines: [{ reception_id: receptionId, location_id: r.location_id, bucket: 'PHYSICAL', quantity: unscaled(scaled(dto.weighing.quantity) - scaled(current)) }] });
       return { replayed: false, delivery: await this.view(trx, ctx, d) };
     });
   }
@@ -879,7 +891,7 @@ export class DeliveriesService {
       totals: { declared: declared ? { value: declared, unit: d.unit } : null, received: receivedStr ? { value: receivedStr, unit: 'KG' } : null, reception_status: recStatus, reception_status_label: RECEPTION_LABEL[recStatus],
         closure: { status: 'NOT_DEFINED', note: 'El cierre de una entrega por debajo de lo declarado y las tolerancias no están definidos (D-33). La entrega no se cierra automáticamente ni se ajusta su declaración.' } },
       gates, history,
-      inventory_effect: { status: 'NOT_IMPLEMENTED', note: 'La recepción no crea stock: el ledger de inventario y los lotes llegan con P0-017/P0-016.' },
+      inventory_effect: { status: 'RECORDED_IN_LEDGER', note: 'Cada recepción confirmada es la única entrada física de ese cacao en el ledger (recepción @ centro). Formar lotes mueve cantidad, no crea existencias. Ver Inventario.' },
       disclaimer: 'Registrar una entrega o una recepción con pendientes no es un expediente completo, producto liberado ni cumplimiento EUDR.',
       registered_at: d.registered_at, created_at: d.created_at,
       actions: {

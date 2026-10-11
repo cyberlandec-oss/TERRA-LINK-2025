@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-11T00:55:48.321Z",
+  "fecha": "2026-10-11T01:29:39.568Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -96,6 +96,7 @@
         "Posibles duplicados",
         "Entregas",
         "Lotes",
+        "Inventario",
         "Procesos",
         "Productos",
         "Hitos (CTE)",
@@ -158,6 +159,7 @@
         "Posibles duplicados",
         "Entregas",
         "Lotes",
+        "Inventario",
         "Procesos",
         "Productos",
         "Hitos (CTE)",
@@ -375,6 +377,7 @@
         "Parcelas",
         "Entregas",
         "Lotes",
+        "Inventario",
         "Procesos",
         "Productos",
         "Hitos (CTE)",
@@ -434,6 +437,7 @@
         "Posibles duplicados",
         "Entregas",
         "Lotes",
+        "Inventario",
         "Procesos",
         "Productos",
         "Hitos (CTE)",
@@ -493,6 +497,7 @@
         "Resumen de la organización",
         "Entregas",
         "Lotes",
+        "Inventario",
         "Procesos",
         "Productos",
         "Hitos (CTE)",
@@ -547,6 +552,7 @@
         "Resumen de la organización",
         "Entregas",
         "Lotes",
+        "Inventario",
         "Procesos",
         "Productos",
         "Hitos (CTE)",
@@ -604,6 +610,7 @@
         "Posibles duplicados",
         "Entregas",
         "Lotes",
+        "Inventario",
         "Procesos",
         "Productos",
         "Hitos (CTE)",
@@ -665,6 +672,7 @@
         "Parcelas",
         "Entregas",
         "Lotes",
+        "Inventario",
         "Procesos",
         "Productos",
         "Hitos (CTE)",
@@ -722,6 +730,7 @@
         "Parcelas",
         "Entregas",
         "Lotes",
+        "Inventario",
         "Procesos",
         "Productos",
         "Hitos (CTE)",
@@ -776,6 +785,7 @@
       "navegacion": [
         "Resumen de la organización",
         "Lotes",
+        "Inventario",
         "Procesos",
         "Productos",
         "Hitos (CTE)",
@@ -832,6 +842,7 @@
         "Parcelas",
         "Entregas",
         "Lotes",
+        "Inventario",
         "Procesos",
         "Productos",
         "Hitos (CTE)",
@@ -891,6 +902,7 @@
         "Posibles duplicados",
         "Entregas",
         "Lotes",
+        "Inventario",
         "Procesos",
         "Productos",
         "Hitos (CTE)",
@@ -1002,6 +1014,7 @@
         "Posibles duplicados",
         "Entregas",
         "Lotes",
+        "Inventario",
         "Procesos",
         "Productos",
         "Hitos (CTE)",
@@ -1060,6 +1073,7 @@
         "Parcelas",
         "Entregas",
         "Lotes",
+        "Inventario",
         "Procesos",
         "Productos",
         "Hitos (CTE)",
@@ -1200,7 +1214,7 @@
         },
         {
           "cuenta": "admin.cooperativa (390 px, teclado)",
-          "resultado": "11 hitos; pendientes=6; integradas=5; botones operativos=0; desborde=false",
+          "resultado": "11 hitos; pendientes=5; integradas=6; botones operativos=0; desborde=false",
           "ok": true
         },
         {
@@ -1299,7 +1313,7 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "Mostrando 25 de 394 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
+          "resultado": "Mostrando 25 de 408 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
           "ok": true
         },
         {
@@ -1356,7 +1370,7 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "salida de fermentación con origen hasta entrega y parcela, calidad pendiente conservada, saldo de procesamiento sin presentarse como inventario=true",
+          "resultado": "salida de fermentación con origen hasta entrega y parcela, calidad pendiente conservada, existencia, reserva y disponible del ledger separados de calidad y origen=true",
           "ok": true
         },
         {
@@ -1377,6 +1391,32 @@
         {
           "cuenta": "auditor.cooperativa",
           "resultado": "consulta de lotes sin formularios (0)",
+          "ok": true
+        }
+      ],
+      "ok": true
+    },
+    {
+      "tipo": "inventario",
+      "casos": [
+        {
+          "cuenta": "admin.cooperativa",
+          "resultado": "fermentado: existencia 140, reservado 140 (secado), disponible 0; lote «Origen incompleto» 120 disponible; material sin lote de ENT-2026-00001; conciliación sin diferencias=true",
+          "ok": true
+        },
+        {
+          "cuenta": "coordinador.multi (MANAGER, 390 px, teclado)",
+          "resultado": "lectura de existencias; formularios de movimiento=0; desborde=false",
+          "ok": true
+        },
+        {
+          "cuenta": "recepcion.acopio",
+          "resultado": "consulta sin formularios (0) ni conciliación (0)",
+          "ok": true
+        },
+        {
+          "cuenta": "auditor.cooperativa",
+          "resultado": "consulta sin formularios (0) ni conciliación (0)",
           "ok": true
         }
       ],

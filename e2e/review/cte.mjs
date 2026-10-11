@@ -47,7 +47,7 @@ export async function reviewCte({ browser, BASE, accounts, DEMO_ORGS, orgIdByNam
     await page.screenshot({ path: join(shots, 'kde--admin-entrega-390.png'), fullPage: true });
     casos.push({ cuenta: 'admin.cooperativa — KDE de Entrega (390 px, teclado)', resultado: `${kdeRows} datos mínimos; cantidades en KG=${kg}; formularios=${forms}; desborde=${kdeOverflow}`, ok: kdeRows === 7 && kg === 1 && forms === 0 && !kdeOverflow });
     casos.push({ cuenta: 'admin.cooperativa (390 px, teclado)', resultado: `${r.rows} hitos; pendientes=${r.pending}; integradas=${r.integrated}; botones operativos=${r.actions}; desborde=${overflow}`,
-      ok: r.rows === 11 && r.pending === 6 && r.integrated === 5 && r.actions === 0 && !overflow }); // P0-012 integró 4 operaciones y P0-016 la fermentación (CTE 1.2.0)
+      ok: r.rows === 11 && r.pending === 5 && r.integrated === 6 && r.actions === 0 && !overflow }); // P0-012 integró 4 operaciones y P0-016 la fermentación (CTE 1.2.0)
     await ctx.close();
   }
   {

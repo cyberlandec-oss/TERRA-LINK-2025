@@ -14,12 +14,13 @@ import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { EVENT_STORE, type EventStore } from '../events/events';
 import { KdeService } from '../traceability/kde';
 import { scaled } from '../traceability/kde-validator';
+import { closeLines, holderBalances, postMovement, singleLocationWith } from '../inventory/ledger';
 
 // P0-016 Lotes y procesos (RF-16, QA-07; UX_UI §15). Reglas D-39 adoptadas para desarrollo local (2026-10-10):
 // origen incompleto separado y conservado; corrección de peso bloqueada con asignaciones/reservas/consumo; secado
 // inicia pero no cierra hasta definir la unidad de humedad (D-32); cerrar exige `process:close`.
-// Cantidades: asignado/reservado/consumido como PROYECCIÓN mínima para no usar dos veces la misma cantidad; no es
-// inventario (ledger, ubicaciones, traslados y despacho: P0-017). Calidad y origen son dimensiones separadas del lote.
+// Cantidades (P0-017): el ledger de inventario es la ÚNICA fuente de existencia, reserva y disponible. Cada asignación,
+// liberación, inicio, cancelación y cierre escribe su movimiento en la MISMA transacción (docs/decisiones/P0-017-EFECTOS-LEDGER.md). Calidad y origen son dimensiones separadas del lote.
 // Protección: bloqueo de filas en orden determinista + recálculo en el servidor + triggers de base como red de
 // seguridad + operation_id. Dominio, compuerta, evento, outbox y auditoría en la MISMA transacción.
 
@@ -108,8 +109,9 @@ export class LotsService {
 
   /** Recepción bloqueada para asignar: peso vigente, pesaje vigente, versión, asignado activo, producto y origen. */
   private async receptionForAssign(trx: Transaction<Database>, ctx: TenantContext, receptionId: string) {
-    const r = (await sql<{ id: string; delivery_id: string; product_id: string; current: string; weighing_id: string; version: number; assigned: string; origin_known: boolean; unit: string }>`
-      SELECT r.id, r.delivery_id, d.product_id, reception_current_quantity(r.id)::text AS current, r.unit,
+    const r = (await sql<{ id: string; delivery_id: string; product_id: string; location_id: string; physical: string; current: string; weighing_id: string; version: number; assigned: string; origin_known: boolean; unit: string }>`
+      SELECT r.id, r.delivery_id, d.product_id, r.location_id, reception_current_quantity(r.id)::text AS current, r.unit,
+             coalesce((SELECT sum(e.signed_quantity) FROM stock_entries e WHERE e.reception_id = r.id AND e.bucket = 'PHYSICAL'), 0)::text AS physical,
              (SELECT w.id FROM weighings w WHERE w.reception_id = r.id ORDER BY w.created_at DESC, w.id DESC LIMIT 1) AS weighing_id,
              (SELECT count(*)::int + 1 FROM reception_adjustments a WHERE a.reception_id = r.id) AS version,
              coalesce((SELECT sum(i.quantity) FROM lot_inputs i WHERE i.reception_id = r.id AND NOT EXISTS (SELECT 1 FROM lot_input_releases x WHERE x.input_id = i.id)), 0)::text AS assigned,
@@ -119,16 +121,21 @@ export class LotsService {
       WHERE r.organization_id = ${ctx.organizationId} AND r.id = ${receptionId} AND ${this.deliveryVisible(ctx)}
       FOR UPDATE OF r`.execute(trx)).rows[0];
     if (!r) throw notFound('La recepción no existe o no está disponible para ti.');
-    return { ...r, available: scaled(r.current) - scaled(r.assigned) };
+    return { ...r, available: scaled(r.physical) }; // existencia física de la recepción sin lote (ledger)
   }
 
-  private async lotQuantities(db: Db, lotId: string) {
-    const q = (await sql<{ base: string; reserved: string; consumed: string }>`
-      SELECT lot_base_quantity(${lotId})::text AS base,
-             coalesce((SELECT sum(p.quantity) FROM process_inputs p JOIN process_runs r ON r.id = p.run_id WHERE p.lot_id = ${lotId} AND r.status = 'RUNNING'), 0)::text AS reserved,
+  /** Existencia, reserva y disponible desde el ledger (única fuente); base y consumo como referencia del dominio. */
+  async lotQuantities(db: Db, lotId: string) {
+    const q = (await sql<{ base: string; consumed: string; org: string }>`
+      SELECT lot_base_quantity(${lotId})::text AS base, (SELECT organization_id FROM lots WHERE id = ${lotId}) AS org,
              coalesce((SELECT sum(p.quantity) FROM process_inputs p JOIN process_runs r ON r.id = p.run_id WHERE p.lot_id = ${lotId} AND r.status = 'CLOSED'), 0)::text AS consumed`.execute(db)).rows[0];
-    const available = scaled(q.base ?? '0') - scaled(q.reserved) - scaled(q.consumed);
-    return { base: dec(q.base ?? '0')!, reserved: dec(q.reserved)!, consumed: dec(q.consumed)!, available: unscaled(available) };
+    const rows = await holderBalances(db, q.org, { lot_id: lotId });
+    const sum = (k: 'physical' | 'reserved' | 'available') => rows.reduce((a, b) => a + scaled(b[k]), 0n);
+    return {
+      base: dec(q.base ?? '0')!, consumed: dec(q.consumed)!, physical: unscaled(sum('physical')), reserved: unscaled(sum('reserved')), available: unscaled(sum('available')),
+      by_location: rows.filter((b) => scaled(b.physical) !== 0n || scaled(b.reserved) !== 0n).map((b) => ({ location_id: b.location_id, location: b.location_id ? `${b.location_name} (${b.location_code})` : null,
+        pending_location: b.location_id === null, physical: dec(b.physical)!, reserved: dec(b.reserved)!, available: dec(b.available)! })),
+    };
   }
 
   private async loadLot(db: Db, ctx: TenantContext, id: string, lock = false) {
@@ -149,6 +156,9 @@ export class LotsService {
     if (q > r.available) throw new AppError(409, 'INSUFFICIENT_AVAILABLE', `La cantidad supera lo disponible de la recepción (${unscaled(r.available < 0n ? 0n : r.available)} kg).`, [{ field: 'quantity', reason: 'AVAILABLE_QUANTITY_EXCEEDED' }]);
     const id = randomUUID();
     await trx.insertInto('lot_inputs').values({ id, organization_id: ctx.organizationId, lot_id: lot.id, reception_id: r.id, weighing_id: r.weighing_id, reception_version: r.version, quantity: input.quantity, unit: 'KG', origin_known: r.origin_known, assigned_by: userId, operation_id: operationId }).execute();
+    // Mover cantidad de la recepción al lote en el mismo centro: no es una entrada física nueva.
+    await postMovement(trx, { organizationId: ctx.organizationId, type: 'LOT_ASSIGN', sourceType: 'lot_input', sourceId: id, operationId, actorId: userId, reference: { lot_id: lot.id },
+      lines: [{ reception_id: r.id, location_id: r.location_id, bucket: 'PHYSICAL', quantity: `-${input.quantity}` }, { lot_id: lot.id, location_id: r.location_id, bucket: 'PHYSICAL', quantity: input.quantity }] });
     const after = await trx.updateTable('lots').set({ row_version: sql`row_version + 1` } as never).where('id', '=', lot.id).returningAll().executeTakeFirstOrThrow();
     await this.record(trx, ctx, userId, { type: 'lot', id: lot.id, code: lot.lot_code }, { type: 'LotInputAssigned', aggregateType: 'LOT', aggregateId: lot.id, version: Number(after.row_version),
       payload: { lot_id: lot.id, input_id: id, reception_id: r.id, weighing_id: r.weighing_id, reception_version: r.version, quantity: dec(input.quantity), unit: 'KG', origin_known: r.origin_known } },
@@ -188,7 +198,7 @@ export class LotsService {
   /** Un trigger de seguridad (23514) se traduce en conflicto comprensible; nunca 500 por una carrera. */
   private mapCheck(err: unknown) {
     const e = err as { code?: string; message?: string };
-    if (e.code === '23514' && /lot_inputs|process_inputs/.test(e.message ?? '')) return new AppError(409, 'INSUFFICIENT_AVAILABLE', 'Otra operación usó esa cantidad al mismo tiempo. Recarga para ver lo disponible.', [{ field: 'quantity', reason: 'AVAILABLE_QUANTITY_EXCEEDED' }]);
+    if (e.code === '23514' && /lot_inputs|process_inputs|stock_entries/.test(e.message ?? '')) return new AppError(409, 'INSUFFICIENT_AVAILABLE', 'Otra operación usó esa cantidad al mismo tiempo. Recarga para ver lo disponible.', [{ field: 'quantity', reason: 'AVAILABLE_QUANTITY_EXCEEDED' }]);
     if (e.code === '23514' && /lot_input_releases/.test(e.message ?? '')) return conflict('LOT_HAS_RESERVATIONS', 'El lote tiene reservas o consumo de procesos: no se puede liberar la asignación.');
     return err;
   }
@@ -226,8 +236,10 @@ export class LotsService {
           .where('lot_inputs.id', '=', inputId).where('lot_inputs.lot_id', '=', lotId).executeTakeFirst();
         if (!i) throw notFound();
         if (i.released) throw conflict('INPUT_ALREADY_RELEASED', 'La asignación ya fue liberada.');
-        await sql`SELECT id FROM receptions WHERE id = ${i.reception_id} FOR UPDATE`.execute(trx);
+        const rec = (await sql<{ location_id: string }>`SELECT location_id FROM receptions WHERE id = ${i.reception_id} FOR UPDATE`.execute(trx)).rows[0];
         await trx.insertInto('lot_input_releases').values({ input_id: inputId, organization_id: orgId, reason: dto.reason.trim(), released_by: user.id, operation_id: dto.operation_id }).execute();
+        await postMovement(trx, { organizationId: orgId, type: 'LOT_RELEASE', sourceType: 'lot_input_release', sourceId: inputId, operationId: dto.operation_id, actorId: user.id, reason: dto.reason.trim(), reference: { lot_id: lotId },
+          lines: [{ lot_id: lotId, location_id: rec.location_id, bucket: 'PHYSICAL', quantity: `-${dec(i.quantity)}` }, { reception_id: i.reception_id, location_id: rec.location_id, bucket: 'PHYSICAL', quantity: dec(i.quantity)! }] });
         const after = await trx.updateTable('lots').set({ row_version: sql`row_version + 1` } as never).where('id', '=', lotId).returningAll().executeTakeFirstOrThrow();
         await this.record(trx, ctx, user.id, { type: 'lot', id: lotId, code: lot.lot_code }, { type: 'LotInputReleased', aggregateType: 'LOT', aggregateId: lotId, version: Number(after.row_version),
           payload: { lot_id: lotId, input_id: inputId, reception_id: i.reception_id, quantity: dec(i.quantity), unit: 'KG' } }, 'lot.release_input', { reception_id: i.reception_id, quantity: dec(i.quantity), reason: dto.reason.trim() }, requestId);
@@ -308,7 +320,13 @@ export class LotsService {
           if (scaled(i.quantity) <= 0n) throw new AppError(422, 'MUST_BE_POSITIVE', 'La cantidad debe ser mayor que cero.', [{ field: 'inputs', reason: 'MUST_BE_POSITIVE' }]);
           const q = await this.lotQuantities(trx, i.lot_id);
           if (scaled(i.quantity) > scaled(q.available)) throw new AppError(409, 'INSUFFICIENT_AVAILABLE', `La cantidad supera lo disponible del lote ${lots[k].lot_code} (${q.available} kg).`, [{ field: 'inputs', reason: 'AVAILABLE_QUANTITY_EXCEEDED' }]);
-          await trx.insertInto('process_inputs').values({ id: randomUUID(), organization_id: orgId, run_id: runId, lot_id: i.lot_id, lot_version: lots[k].row_version, quantity: i.quantity, unit: 'KG' }).execute();
+          // Reserva en el centro donde el lote tiene el disponible (PROPUESTA 2): si está repartido, trasladar antes.
+          const loc = await singleLocationWith(trx, orgId, i.lot_id, i.quantity);
+          if (loc === undefined) throw new AppError(422, 'LOCATION_AMBIGUOUS', `El disponible del lote ${lots[k].lot_code} está repartido entre centros: traslada primero la cantidad a un solo centro.`, [{ field: 'inputs', reason: 'LOCATION_AMBIGUOUS' }]);
+          const pid = randomUUID();
+          await trx.insertInto('process_inputs').values({ id: pid, organization_id: orgId, run_id: runId, lot_id: i.lot_id, lot_version: lots[k].row_version, quantity: i.quantity, unit: 'KG', location_id: loc }).execute();
+          await postMovement(trx, { organizationId: orgId, type: 'PROCESS_RESERVE', sourceType: 'process_input', sourceId: pid, operationId: null, actorId: user.id, reference: { run_id: runId, location_id: loc },
+            lines: [{ lot_id: i.lot_id, location_id: loc, bucket: 'RESERVED', quantity: i.quantity }] });
         }
         const total = sorted.reduce((a, i) => a + scaled(i.quantity), 0n);
         const g = await this.gate(trx, ctx, `PROCESS_START_${run.process_type}`, run.process_type === 'FERMENTATION'
@@ -371,6 +389,13 @@ export class LotsService {
             payload: { lot_id: id, lot_code: code, product_id: run.output_product_id, source: 'PROCESS_OUTPUT', run_id: runId, origin_status: origin, quantity: dec(o.quantity), unit: 'KG' } }, 'lot.create', { product_id: run.output_product_id, origin_status: origin, quantity: dec(o.quantity) }, requestId);
         }
         await this.storeGate(trx, ctx, user.id, runId, g);
+        // Ledger en la MISMA transacción: liberar reservas, consumir entradas y acreditar salidas; la pérdida se registra
+        // una sola vez en el movimiento (consumo − salidas), sin un segundo descuento.
+        const reserves = (await sql<{ lot_id: string; location_id: string | null; quantity: string }>`
+          SELECT e.lot_id, e.location_id, e.signed_quantity::text AS quantity FROM stock_movements m JOIN stock_entries e ON e.movement_id = m.id
+          WHERE m.organization_id = ${orgId} AND m.movement_type = 'PROCESS_RESERVE' AND m.reference->>'run_id' = ${runId}`.execute(trx)).rows;
+        await postMovement(trx, { organizationId: orgId, type: 'PROCESS_CLOSE', sourceType: 'process_run', sourceId: runId, operationId: dto.operation_id, actorId: user.id, processLoss: dto.loss_quantity,
+          reference: { outputs: created.map((c) => c.id) }, lines: closeLines(reserves.map((x) => ({ ...x, quantity: dec(x.quantity)! })), created.map((c) => ({ lot_id: c.id, quantity: c.quantity }))) });
         const after = await trx.updateTable('process_runs').set({ status: 'CLOSED', closed_at: new Date(dto.closed_at), loss_quantity: dto.loss_quantity, close_operation_id: dto.operation_id,
           moisture_value: dto.moisture?.value ?? null, moisture_unit: dto.moisture?.unit ?? null, row_version: sql`row_version + 1` } as never).where('id', '=', runId).returningAll().executeTakeFirstOrThrow();
         const inProduct = (await trx.selectFrom('lots').select('product_id').where('id', '=', inputs[0].lot_id).executeTakeFirstOrThrow()).product_id;
@@ -393,6 +418,13 @@ export class LotsService {
       const run = await this.loadRun(trx, ctx, runId, true);
       if (run.cancel_operation_id === dto.operation_id) return;
       if (run.status !== 'DRAFT' && run.status !== 'RUNNING') throw conflict('INVALID_TRANSITION', `El proceso está ${run.status}; no se cancela.`);
+      if (run.status === 'RUNNING') {
+        const reserves = (await sql<{ lot_id: string; location_id: string | null; quantity: string }>`
+          SELECT e.lot_id, e.location_id, e.signed_quantity::text AS quantity FROM stock_movements m JOIN stock_entries e ON e.movement_id = m.id
+          WHERE m.organization_id = ${orgId} AND m.movement_type = 'PROCESS_RESERVE' AND m.reference->>'run_id' = ${runId}`.execute(trx)).rows;
+        await postMovement(trx, { organizationId: orgId, type: 'PROCESS_RESERVE_RELEASE', sourceType: 'process_run', sourceId: runId, operationId: dto.operation_id, actorId: user.id, reason: dto.reason.trim(),
+          lines: reserves.map((x) => ({ lot_id: x.lot_id, location_id: x.location_id, bucket: 'RESERVED' as const, quantity: `-${dec(x.quantity)}` })) });
+      }
       const after = await trx.updateTable('process_runs').set({ status: 'CANCELLED', cancel_reason: dto.reason.trim(), cancel_operation_id: dto.operation_id, row_version: sql`row_version + 1` } as never)
         .where('id', '=', runId).returningAll().executeTakeFirstOrThrow();
       await this.record(trx, ctx, user.id, { type: 'process_run', id: runId, code: run.run_code }, run.status === 'RUNNING'
@@ -405,7 +437,7 @@ export class LotsService {
   // ---------- Lecturas ----------
 
   /** Calidad del lote derivada de sus insumos (recepciones o lotes de entrada); nunca «liberado» implícito. */
-  private async quality(db: Db, lotId: string, seen = new Set<string>()): Promise<Set<string>> {
+  async quality(db: Db, lotId: string, seen = new Set<string>()): Promise<Set<string>> {
     if (seen.has(lotId)) return new Set();
     seen.add(lotId);
     const l = await db.selectFrom('lots').select(['source', 'process_run_id']).where('id', '=', lotId).executeTakeFirstOrThrow();
@@ -421,7 +453,7 @@ export class LotsService {
     }
     return out;
   }
-  private qualitySummary(s: Set<string>) {
+  qualitySummary(s: Set<string>) {
     const k = s.has('PENDING_EVALUATION') ? 'PENDING_EVALUATION' : s.has('REJECTED') ? 'INCLUDES_REJECTED' : s.size && [...s].every((x) => x === 'RELEASED') ? 'RELEASED_BY_HUMAN_DECISION' : 'NO_INPUTS';
     return { status: k, label: QUALITY_LABEL[k], note: 'Derivada de los insumos. El lote no tiene decisión de calidad propia; no es liberación de calidad ni jurídica.' };
   }
@@ -459,7 +491,7 @@ export class LotsService {
       id: l.id, lot_code: l.lot_code, source: l.source, status: l.status, row_version: Number(l.row_version), product,
       origin: { status: l.origin_status, label: l.origin_status === 'COMPLETE' ? 'Origen declarado en todos los insumos' : 'Origen incompleto', note: l.origin_status === 'INCOMPLETE' ? 'Algún insumo procede de una entrega sin origen declarado. No se mezcla con material de origen conocido y la condición se conserva en las salidas (D-39).' : null },
       quality: this.qualitySummary(await this.quality(db, id)),
-      quantities: { ...(await this.lotQuantities(db, id)), unit: 'KG', note: 'Saldo de procesamiento (asignado − reservado − consumido). No es inventario: ubicaciones, traslados y ledger llegan con P0-017.' },
+      quantities: { ...(await this.lotQuantities(db, id)), unit: 'KG', note: 'Existencia física, reserva y disponible salen del ledger de inventario (única fuente). Reservar no reduce la existencia. Tener existencia no significa calidad liberada ni origen completo.' },
       // Solo insumos cuya entrega puede leer el usuario; los demás se omiten sin conteos ni marcadores.
       inputs: inputs.filter((i) => i.visible).map((i) => ({ id: i.id, reception_id: i.reception_id, delivery_code: i.delivery_code, producer_code: i.producer_code, received_at: i.received_at,
         weighing_id: i.weighing_id, reception_version: i.reception_version, quantity: { value: dec(i.quantity), unit: 'KG' }, origin_known: i.origin_known,
@@ -468,7 +500,7 @@ export class LotsService {
       used_by: uses.rows.map((u) => ({ run_id: u.run_id, run_code: u.run_code, process_type: u.process_type, status: u.status, effect: u.status === 'RUNNING' ? 'RESERVED' : u.status === 'CLOSED' ? 'CONSUMED' : 'RELEASED', quantity: { value: dec(u.quantity), unit: 'KG' } })),
       upstream: await this.upstream(db, ctx, id), downstream: await this.downstream(db, ctx, id),
       history: history.map((h) => ({ event_type: h.event_type, version: Number(h.aggregate_version), occurred_at: h.occurred_at, actor: `${h.first_name ?? ''} ${h.last_name ?? ''}`.trim() || 'Miembro' })),
-      actions: { assign: l.status === 'OPEN' && l.source === 'RECEPTIONS' && this.has(ctx, 'lot:create'), release_input: this.has(ctx, 'lot:release_input'), close_for_input: l.status === 'OPEN' && this.has(ctx, 'lot:create') },
+      actions: { stock_move: this.has(ctx, 'stock:move'), stock_adjust: this.has(ctx, 'stock:adjust'), assign: l.status === 'OPEN' && l.source === 'RECEPTIONS' && this.has(ctx, 'lot:create'), release_input: this.has(ctx, 'lot:release_input'), close_for_input: l.status === 'OPEN' && this.has(ctx, 'lot:create') },
     };
   }
 

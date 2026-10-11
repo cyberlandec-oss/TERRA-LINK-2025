@@ -197,3 +197,13 @@ DEMO: LOT-2026-00001 (150 kg de ENT-2026-00001, origen declarado), LOT-2026-0000
 | auditor.cooperativa | Consulta sin formularios | — |
 
 Resultado global: 33 entradas, 0 incidencias.
+
+## P0-017 Inventario (2026-10-10, datos DEMO en `terra_link`, Cooperativa)
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| admin.cooperativa | LOT-2026-00003 (fermentado): existencia 140, reservado 140 por el secado, disponible 0; LOT-2026-00002 «Origen incompleto» 120 disponible; material sin lote de ENT-2026-00001 (50 kg); conciliación sin diferencias | `inventario--admin.png` |
+| coordinador.multi (MANAGER, 390 px, teclado) | Lectura de existencias; sin formularios de movimiento; sin desborde | `inventario--gerente-390.png` |
+| recepcion.acopio · auditor.cooperativa | Consulta sin formularios ni conciliación | — |
+
+Resultado global: 34 entradas, 0 incidencias.

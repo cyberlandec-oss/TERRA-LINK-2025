@@ -105,7 +105,7 @@ describeDb('P0-012 entregas, recepción física, soportes y calidad', () => {
     expect(reg.gates.completeness.allowed).toBe(false); // trazabilidad incompleta: no es expediente ni conformidad
     expect(reg.gates.downstream).toMatchObject({ allowed: true, blocking: [], not_evaluated: [expect.objectContaining({ code: null, note: expect.stringMatching(/P0-016/) })] });
     expect(reg.disclaimer).toMatch(/no es un expediente completo, producto liberado ni cumplimiento EUDR/);
-    expect(reg.inventory_effect.status).toBe('NOT_IMPLEMENTED');
+    expect(reg.inventory_effect.status).toBe('RECORDED_IN_LEDGER'); // P0-017: la recepción es la única entrada física
     // registrada = inmutable (edición rechazada, trigger en base)
     expect((await http().patch(`${base(orgA)}/deliveries/${draft.id}`).set(as('tecnico1@test.local')).send({ expected_version: reg.row_version, notes: 'x' }).expect(409)).body.error.code).toBe('DELIVERY_REGISTERED');
     await expect(sql`UPDATE deliveries SET quantity_declared = 1 WHERE id = ${draft.id}`.execute(h.db)).rejects.toThrow(/registrada no se modifica/);
@@ -372,7 +372,7 @@ describeDb('P0-012 entregas, recepción física, soportes y calidad', () => {
     expect(over.quantity_declared.value).toBe('200');
     // no existe operación de cierre (política pendiente) ni efecto de inventario
     await http().post(`${base(orgA)}/deliveries/${d.id}/close`).set(as('admin-a@test.local')).send({}).expect(404);
-    expect(over.inventory_effect.status).toBe('NOT_IMPLEMENTED');
+    expect(over.inventory_effect.status).toBe('RECORDED_IN_LEDGER');
     expect(JSON.stringify(over)).not.toMatch(/available_quantity|stock_balance/);
   });
 });
