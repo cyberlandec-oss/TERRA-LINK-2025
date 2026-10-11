@@ -25,6 +25,7 @@ import { AuditController, AuditQueryService } from './audit/audit-query';
 import { DeliveriesController, DeliveriesService } from './deliveries/deliveries';
 import { LotsController, LotsService } from './lots/lots';
 import { InventoryController, InventoryService } from './inventory/inventory';
+import { RiskController, RiskService } from './risk/risk';
 import { AuthController, AuthGuard, CurrentUser, Public, type AuthUser, type AuthedRequest } from './auth/auth';
 import { AuthorizationService } from './authz/authorization.service';
 import { PLATFORM_PERMISSIONS, RBAC_CATALOG_VERSION, ROLE_PERMISSIONS } from './authz/catalog';
@@ -177,7 +178,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
-        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController, KdeController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController,
+        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController, KdeController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController,
       ],
       providers: [
         { provide: APP_CONFIG, useValue: config },
@@ -218,6 +219,7 @@ export class AppModule implements NestModule {
         DeliveriesService,
         LotsService,
         InventoryService,
+        RiskService,
         AuthorizationService,
         OrganizationsService,
       ],

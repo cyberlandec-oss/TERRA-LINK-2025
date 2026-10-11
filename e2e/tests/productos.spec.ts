@@ -449,3 +449,28 @@ test('P0-017 inventario: existencia, reservado y disponible; traslado y merma co
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });
+
+test('P0-020 riesgo: evaluar un lote, dimensiones separadas, no evaluable visible, revisión humana; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  await page.goto(`${orgUrl}/riesgo`);
+  const table = page.getByRole('table', { name: 'Riesgo por lote' });
+  await table.locator('tbody tr').filter({ hasText: 'Cacao fermentado E2E' }).first().getByRole('link').click();
+  await expect(page.getByRole('heading', { name: /Riesgo del lote LOT-/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Evaluar' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Evaluación 1' })).toBeVisible();
+  await expect(page.getByText('Incompleto: hay reglas no evaluables o datos faltantes', { exact: true })).toBeVisible(); // nunca favorable por defecto
+  await expect(page.getByText('Indeterminada')).toBeVisible();
+  await expect(page.getByRole('list', { name: 'No evaluable o faltante' })).toContainText('GEOLOCATION_PROFILE');
+  await expect(page.getByRole('list', { name: 'No evaluable o faltante' })).toContainText('D-05');
+  await expect(page.getByText(/no prueba ausencia de deforestación/).first()).toBeVisible();
+  await page.getByLabel('Motivo para iniciar la revisión').fill('Revisión de datos faltantes (E2E)');
+  await page.getByRole('button', { name: 'Iniciar revisión' }).click();
+  await expect(page.getByRole('list', { name: 'Historia de revisión' })).toContainText('Revisión iniciada');
+  await expect(page.getByText('Incompleto: hay reglas no evaluables o datos faltantes', { exact: true })).toBeVisible(); // la revisión no cambia el resultado
+  await page.getByRole('button', { name: 'Reevaluar (nueva versión)' }).click();
+  await expect(page.getByRole('heading', { name: 'Evaluación 2' })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Versiones de la evaluación' })).toContainText('Evaluación 1');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await ctx.close();
+});

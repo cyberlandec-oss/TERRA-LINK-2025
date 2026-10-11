@@ -207,3 +207,13 @@ Resultado global: 33 entradas, 0 incidencias.
 | recepcion.acopio · auditor.cooperativa | Consulta sin formularios ni conciliación | — |
 
 Resultado global: 34 entradas, 0 incidencias.
+
+## P0-020 Riesgo (2026-10-10, datos DEMO en `terra_link`, Cooperativa)
+
+DEMO: evaluaciones de LOT-2026-00001 y LOT-2026-00002 con reglas 0.1.0 sin aprobar; sin revisiones humanas.
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| admin.cooperativa | LOT-2026-00002 «Origen incompleto»: BLOCKED (MATERIAL_OF_UNKNOWN_ORIGIN, DATA_MISSING_ORIGIN) sin dilución; LOT-2026-00001: incompleto con reglas no evaluables visibles (D-05, satélite, mitigaciones); conclusión indeterminada; sin puntuación | `riesgo--admin-bloqueado.png` |
+| auditor.cooperativa (390 px, teclado) | Lectura sin evaluar ni revisar; sin desborde | `riesgo--auditor-390.png` |
+| coordinador.multi (MANAGER) | Sin enlace; acceso directo denegado | — |

@@ -523,7 +523,7 @@ export interface QualityResultsTable {
   recorded_by_membership_id: string; recorded_by: string; recorded_at: Generated<Timestamp>; operation_id: string;
 }
 export interface QualityMeasurementsTable { id: string; organization_id: string; result_id: string; parameter: 'MOISTURE' | 'FERMENTATION' | 'IMPURITIES'; value: string; unit: string }
-export interface GateEvaluationsTable { id: string; organization_id: string; entity_type: 'delivery' | 'reception' | 'quality_result' | 'process_run'; entity_id: string; transition: string; release_version: string; allowed: boolean; result: unknown; evaluated_by: string; evaluated_at: Generated<Timestamp> }
+export interface GateEvaluationsTable { id: string; organization_id: string; entity_type: 'delivery' | 'reception' | 'quality_result' | 'process_run' | 'stock_movement'; entity_id: string; transition: string; release_version: string; allowed: boolean; result: unknown; evaluated_by: string; evaluated_at: Generated<Timestamp> }
 
 // P0-016 Lotes y procesos
 export interface ProcessRunsTable {
@@ -544,6 +544,13 @@ export interface ProcessOutputsTable { id: string; organization_id: string; run_
 // P0-017 ledger
 export interface StockMovementsTable { id: string; organization_id: string; movement_type: string; source_type: string | null; source_id: string | null; operation_id: string | null; actor_id: string | null; reason: string | null; process_loss: string | null; reference: unknown; recorded_at: Generated<Timestamp> }
 export interface StockEntriesTable { id: string; organization_id: string; movement_id: string; reception_id: string | null; lot_id: string | null; location_id: string | null; bucket: 'PHYSICAL' | 'RESERVED'; signed_quantity: string; unit: string }
+
+// P0-020 riesgo
+export interface RiskEvaluationsTable {
+  id: string; organization_id: string; subject_type: 'LOT'; subject_id: string; evaluation_number: number; rule_set_version: string; parameters: unknown; snapshot: unknown; snapshot_hash: string;
+  factors: unknown; categories: unknown; technical_result: string; severity: string; conclusion: string; evaluated_by: string; evaluated_at: Generated<Timestamp>; operation_id: string;
+}
+export interface RiskReviewsTable { id: string; organization_id: string; evaluation_id: string; action: 'START_REVIEW' | 'RESOLVE'; reason: string; reviewer_id: string; reviewed_at: Generated<Timestamp>; operation_id: string }
 
 export interface Database {
   evidence_claim_types: EvidenceClaimTypesTable;
@@ -611,4 +618,6 @@ export interface Database {
   process_outputs: ProcessOutputsTable;
   stock_movements: StockMovementsTable;
   stock_entries: StockEntriesTable;
+  risk_evaluations: RiskEvaluationsTable;
+  risk_reviews: RiskReviewsTable;
 }

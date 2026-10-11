@@ -2,6 +2,8 @@ import { randomUUID } from 'crypto';
 import { sql } from 'kysely';
 import { PASSWORD, describeDb, setupHarness } from './helpers';
 import { AuditService } from '../src/audit/audit.service';
+import { AuthorizationService } from '../src/authz/authorization.service';
+import { KdeService } from '../src/traceability/kde';
 
 // Integración P0-017 Inventario y balance de masa con PostgreSQL real. Datos SINTÉTICOS.
 // El ledger es la única fuente de existencia, reserva y disponible (docs/decisiones/P0-017-EFECTOS-LEDGER.md).
@@ -148,12 +150,12 @@ describeDb('P0-017 ledger de inventario: única fuente, conservación y concurre
     // ajuste: solo ORG_ADMIN; nunca por debajo de lo reservado
     await post('adjustments', { lot_id: out, location_id: c1, quantity: '-1', reason: 'Conteo' }).expect(403);
     const run = (await http().post(`${base(orgA)}/process-runs`).set(as(TRAZ)).send({ operation_id: randomUUID(), process_type: 'FERMENTATION', output_product_id: fermentado }).expect(201)).body.run;
-    await http().post(`${base(orgA)}/process-runs/${run.id}/start`).set(as(TRAZ)).send({ operation_id: randomUUID(), started_at: new Date().toISOString(), inputs: [{ lot_id: out, quantity: '170' }] }).expect(200);
-    expect((await post('adjustments', { lot_id: out, location_id: c1, quantity: '-6', reason: 'Conteo físico' }, ADMIN).expect(409)).body.error.code).toBe('ADJUSTMENT_BELOW_RESERVED');
+    await http().post(`${base(orgA)}/process-runs/${run.id}/start`).set(as(TRAZ)).send({ operation_id: randomUUID(), started_at: new Date().toISOString(), inputs: [{ lot_id: out, quantity: '165' }] }).expect(200);
+    expect((await post('adjustments', { lot_id: out, location_id: c1, quantity: '-11', reason: 'Conteo físico' }, ADMIN).expect(409)).body.error.code).toBe('ADJUSTMENT_BELOW_RESERVED');
     const adj = (await post('adjustments', { lot_id: out, location_id: c1, quantity: '-5', reason: 'Conteo físico' }, ADMIN).expect(201)).body;
-    expect(adj.lot.quantities).toMatchObject({ physical: '170', reserved: '170', available: '0' });
-    const up = (await post('adjustments', { lot_id: out, location_id: c1, quantity: '2.5', reason: 'Conteo físico (sobrante)' }, ADMIN).expect(201)).body;
-    expect(up.lot.quantities.physical).toBe('172.5');
+    expect(adj.lot.quantities).toMatchObject({ physical: '170', reserved: '165', available: '5' });
+    // ajuste positivo en lote de origen declarado: rechazado (atribuiría origen a cantidad sin trazabilidad)
+    expect((await post('adjustments', { lot_id: out, location_id: c1, quantity: '2.5', reason: 'Conteo físico (sobrante)' }, ADMIN).expect(422)).body.error.code).toBe('ADJUSTMENT_WOULD_ATTRIBUTE_ORIGIN');
     // idempotencia: mismo identificador → un solo movimiento
     const op = randomUUID();
     const t1 = (await http().post(`${base(orgA)}/inventory/losses`).set(as(TRAZ)).send({ operation_id: op, lot_id: out, location_id: c1, quantity: '1', reason: 'Merma' }).expect(201)).body;
@@ -171,7 +173,7 @@ describeDb('P0-017 ledger de inventario: única fuente, conservación y concurre
     await expect(sql`DELETE FROM stock_movements WHERE id = ${t1.movement_id}`.execute(h.db)).rejects.toThrow(/append-only/);
     // evento STORAGE y catálogo
     const ev = await h.db.selectFrom('domain_events').select('payload').where('event_type', '=', 'StockMovementRecorded').where('aggregate_id', '=', out).execute();
-    expect(ev.length).toBeGreaterThanOrEqual(4);
+    expect(ev.length).toBe(3); // merma, ajuste negativo y merma idempotente (una sola vez)
     const cat = (await http().get(`${base(orgA)}/cte-catalog`).set(as(ADMIN)).expect(200)).body.definitions;
     expect(cat.find((x: { code: string }) => x.code === 'STORAGE').operations[0].integration_status).toBe('INTEGRATED');
   });
@@ -222,5 +224,50 @@ describeDb('P0-017 ledger de inventario: única fuente, conservación y concurre
     const filtered = (await http().get(`${base(orgA)}/inventory/movements?lot_id=${out}`).set(as(ADMIN)).expect(200)).body;
     expect(filtered.every((m: { lines: Array<{ holder: string }> }) => m.lines.some((l) => l.holder.startsWith('Lote ')))).toBe(true);
     await http().get(`${base(orgA)}/inventory/reconciliation`).set(as('auditor@test.local')).expect(403);
+  });
+
+  it('revisión P0-017: ajuste positivo marcado sin origen ni calidad; alcance de totales y conciliación; STORAGE con compuerta KDE guardada y bloqueo real', async () => {
+    // lote «Origen incompleto»: el ajuste positivo se admite y queda identificado como cantidad sin trazabilidad
+    const d = (await http().post(`${base(orgA)}/deliveries`).set(as(ADMIN)).send({ operation_id: randomUUID(), producer_id: producer, product_id: baba, delivery_date: today, quantity_declared: '40', unit: 'KG', register: true }).expect(201)).body.delivery;
+    const r = (await http().post(`${base(orgA)}/deliveries/${d.id}/receptions`).set(as(ADMIN)).send({ operation_id: randomUUID(), location_id: c1, received_at: new Date().toISOString(), weighing: { method: 'B', quantity: '40', unit: 'KG', weighed_on: today } }).expect(201)).body.reception_id;
+    const lot = (await http().post(`${base(orgA)}/lots`).set(as(ADMIN)).send({ operation_id: randomUUID(), inputs: [{ reception_id: r, quantity: '40' }] }).expect(201)).body.lot;
+    expect(lot.origin.status).toBe('INCOMPLETE');
+    const adj = (await post('adjustments', { lot_id: lot.id, location_id: c1, quantity: '1.5', reason: 'Sobrante de conteo' }, ADMIN).expect(201)).body;
+    expect(adj.lot.quantities).toMatchObject({ physical: '41.5', adjustments: { added: '1.5', added_traceability: 'PENDING', note: expect.stringMatching(/sin origen, evidencia ni calidad/) } });
+    const hub = (await http().get(`${base(orgA)}/lots/${lot.id}`).set(as(ADMIN)).expect(200)).body;
+    expect(hub.quantities.adjustments.added).toBe('1.5');
+    expect(hub.inputs.every((i: { quantity: { value: string } }) => i.quantity.value === '40')).toBe(true); // el ajuste no se atribuye a una recepción
+    const mv = await sql<{ reason: string; actor_id: string }>`SELECT reason, actor_id FROM stock_movements WHERE movement_type = 'ADJUSTMENT' AND reference->>'lot_id' = ${lot.id}`.execute(h.db);
+    expect(mv.rows[0].reason).toBe('Sobrante de conteo');
+    expect(mv.rows[0].actor_id).toBeTruthy();
+    // alcance: los totales de quien no lee entregas no incluyen material de recepciones ocultas
+    await reception('7'); // material recibido sin lote, oculto para quien no lee entregas
+    const ex = (await http().get(`${base(orgA)}/inventory/balances`).set(as('export@test.local')).expect(200)).body;
+    const sum = ex.lots.reduce((a: number, x: { physical: string }) => a + Number(x.physical), 0);
+    expect(Number(ex.totals.physical)).toBeCloseTo(sum, 6);
+    const adminB = (await http().get(`${base(orgA)}/inventory/balances`).set(as(ADMIN)).expect(200)).body;
+    expect(Number(adminB.totals.physical)).toBeGreaterThan(Number(ex.totals.physical)); // el administrador ve también el material sin lote
+    // conciliación: exige alcance de organización completo aunque se tenga el permiso
+    const orig = AuthorizationService.prototype.tenantContext;
+    jest.spyOn(AuthorizationService.prototype, 'tenantContext').mockImplementation(async function (this: AuthorizationService, user, orgId) {
+      const ctx = await orig.call(this, user, orgId);
+      return ctx && user.email === 'export@test.local' ? { ...ctx, permissions: [...ctx.permissions, 'stock:incorporate'] } : ctx;
+    });
+    expect((await http().get(`${base(orgA)}/inventory/reconciliation`).set(as('export@test.local')).expect(403)).body.error.message).toMatch(/alcance de toda la organización/);
+    jest.restoreAllMocks();
+    // STORAGE: cada movimiento guarda su compuerta STOCK_MOVEMENT con los KDE evaluados
+    const tr = (await post('transfers', { lot_id: lot.id, from_location_id: c1, to_location_id: c2, quantity: '10' }).expect(201)).body;
+    const gates = (await sql<{ allowed: boolean; result: { direction: string; checked: string[] } }>`SELECT allowed, result FROM gate_evaluations WHERE entity_type = 'stock_movement' AND entity_id = ${tr.movement_id} ORDER BY evaluated_at`.execute(h.db)).rows;
+    expect(gates.map((g) => g.result.direction).sort()).toEqual(['IN', 'OUT']);
+    expect(gates.every((g) => g.allowed && g.result.checked.includes('STORAGE_LOCATION'))).toBe(true);
+    const ev = await h.db.selectFrom('domain_events').select('payload').where('event_type', '=', 'StockMovementRecorded').where('aggregate_id', '=', lot.id).execute();
+    expect(ev.map((e) => (e.payload as { movement_type: string }).movement_type)).toEqual(expect.arrayContaining(['ADJUSTMENT', 'TRANSFER']));
+    // la compuerta bloquea de verdad: sin ubicación o sin dirección válida, el movimiento no pasa (datos mínimos no opcionales)
+    const kde = h.app.get(KdeService);
+    const member = await h.db.selectFrom('memberships as m').innerJoin('users as u', 'u.id', 'm.user_id').select('m.id').where('u.email', '=', TRAZ).where('m.organization_id', '=', orgA).executeTakeFirstOrThrow();
+    const ctx = { organizationId: orgA, organizationStatus: 'ACTIVE' as const, membershipId: member.id, roles: ['TRACEABILITY_MANAGER'], permissions: ['lot:read', 'location:read'] as never };
+    const blocked = await kde.evaluateTransition(ctx, 'STOCK_MOVEMENT', { STORAGE_LOT: lot.id, STORAGE_LOCATION: null, STORAGE_QUANTITY: { value: '1', unit: 'KG' }, STORAGE_DIRECTION: 'SIDEWAYS', STORAGE_RESPONSIBLE: member.id });
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.blocking.map((b) => b.code).sort()).toEqual(['STORAGE_DIRECTION', 'STORAGE_LOCATION']);
   });
 });

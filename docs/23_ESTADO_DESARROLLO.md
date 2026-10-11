@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-020 Riesgo | **DONE_LOCAL** para sus criterios originales con reglas técnicas **no aprobadas**: severidad NOT_ASSESSED y conclusión UNDETERMINED por diseño; reglas dependientes de D-05, P0-028 y P0-021 no evaluables | Ver criterios abajo |
 | P0-017 Inventario y balance de masa | **Criterios demostrados localmente excepto reserva/despacho**; STORAGE integrada (CTE 1.3.0). **Historia abierta**: reserva y despacho dependen de embarques (P0-029) | Ver criterios abajo |
 | P0-016 Lotes y procesos | **Criterios originales demostrados localmente**; FERMENTATION integrada (CTE 1.2.0). **Historia abierta**: integración de DRYING pendiente (cierre bloqueado por la unidad de humedad, D-32/D-39.3) | Ver criterios abajo |
 | P0-012 Entregas y recepción | **Capacidades demostradas: verificadas localmente** (entrega, peso recibido, parciales, vínculos, calidad básica como decisión humana, no duplicación). **Historia completa: ABIERTA**, pendiente del criterio «diferencias con causa» (cierre y tolerancias sin política, D-33). Evidencia por criterio abajo (entrega, recepción física parcial, pesaje, soportes, calidad separada, correcciones, compuertas por transición) con decisiones de diseño MVP D-33/34/35 no validadas en campo; cierre por debajo de lo declarado, tolerancias, catálogo de límites, centros asignados e inventario (P0-017) pendientes | Ver criterios abajo |
@@ -257,6 +258,24 @@ Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-
 | **Concesiones externas y elevación** | **Pendientes en P0-003** | — |
 
 Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
+
+### P0-020 — criterios
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-11T02-28-47-248Z`): API 265/265, web 4/4, E2E 53/53, OpenAPI 127 rutas; revisión por rol 35 entradas, 0 incidencias. Otra corrida fallida conservada: 2026-10-11T02-23-01-580Z (segundo localizador ambiguo en la E2E de riesgo). Corridas previas fallidas conservadas: `2026-10-11T01-58-59-343Z` (localizador ambiguo en la prueba E2E) y `2026-10-11T02-05-01-152Z` (el servidor web de E2E no arrancó en 240 s por lentitud del equipo; puertos libres; sin pruebas ejecutadas).
+
+| Criterio original (backlog) | Estado | Evidencia (`risk.int-spec.ts`; E2E; revisión) |
+| --- | --- | --- |
+| Categorías / factores / reglas / snapshot | DEMOSTRADO | 10 categorías de docs/13 (las que no tienen reglas: «sin reglas»); 8 reglas versionadas (0.1.0, NO aprobadas) con fuente, límite y evidencia requerida; instantánea con versiones de datos y evidencias y hash SHA-256 |
+| Separar severidad / proceso / conclusión | DEMOSTRADO | Hallazgos técnicos · calidad de datos · resultado de riesgo (severidad NOT_ASSESSED, conclusión UNDETERMINED: CHECK en base) · revisión humana (OPEN → UNDER_REVIEW → RESOLVED) sin cambiar el resultado |
+| Faltantes no son score cero | DEMOSTRADO | Sin puntuación; no evaluables → INCOMPLETE como máximo, nunca favorable |
+| Reevaluación crea versión | DEMOSTRADO | Número de evaluación creciente; la anterior queda STALE sin modificarse (append-only); un trabajo basado en una evaluación vieja se rechaza (`STALE_BASE`) |
+| Factor crítico no se diluye | DEMOSTRADO | Resultado por precedencia: un bloqueante da BLOCKED aunque el resto no tenga hallazgos |
+| Autorización | DEMOSTRADO | Requiere alcance de organización completo; otra organización 404; roles sin permiso 403; sin referencias de recursos ocultos |
+| Límites declarados | — | TL_GIS_TECH = validez técnica, no deforestación; D-05, satélite (P0-028) y mitigaciones (P0-021) no evaluables; no hay perfil jurídico |
+
+### P0-017 — revisión enfocada (2026-10-10)
+
+Brechas corregidas: (1) ajuste positivo en lote de origen declarado ahora rechazado y cantidad añadida identificada sin trazabilidad; (2) conciliación/incorporación con alcance de organización completo; (3) compuerta STOCK_MOVEMENT guardada por línea y bloqueo real probado. Totales y movimientos ya respetaban el alcance (prueba añadida). P0-017 sigue **abierta** por reserva/despacho (P0-029).
 
 ### P0-017 — criterios
 

@@ -60,3 +60,19 @@ ajustes para cuadrar totales.
   liberada, terminó en un lote con consumo cerrado.
 - No hay corrección de efectos posteriores: los movimientos históricos nunca se borran ni se reescriben; un ajuste no puede
   dejar físico < reservado ni operar sobre recepciones, así que no sirve de atajo al control de cantidades.
+
+## Revisión enfocada (2026-10-10) y estado de las políticas
+
+Procedencia: este documento (contrato de implementación redactado en la sesión). **Ninguna política nueva tiene aprobación del usuario.**
+
+| Política | Estado |
+| --- | --- |
+| Ubicación de la salida: centro común de las entradas o pendiente | **Implementada para desarrollo** (provisional) |
+| Reserva en un único centro; si está repartido, trasladar antes | **Implementada para desarrollo** (provisional) |
+| Ajuste positivo con motivo y `stock:adjust` | **Implementada para desarrollo, restringida tras la revisión**: solo en lotes «Origen incompleto»; en un lote de origen declarado se rechaza (`ADJUSTMENT_WOULD_ATTRIBUTE_ORIGIN`) porque atribuiría origen, evidencia o calidad a una cantidad sin trazabilidad y eludiría el bloqueo de mezcla (D-39.1). La cantidad añadida queda identificada (`adjustments.added`, `added_traceability = PENDING`) con motivo, actor e historia; no se atribuye a ninguna recepción |
+| Permisos `stock:*` | **Implementados para desarrollo** (provisional; matriz docs/07) |
+| Reserva/despacho para embarques | **No implementada** (P0-029) |
+
+Revisión de alcance: saldos, totales y movimientos solo cuentan lo visible (las recepciones sin lote y sus movimientos se omiten para quien no lee entregas y no entran en los totales); la conciliación y la incorporación exigen además lectura de organización completa (`delivery:read`, `lot:read`, `stock:read`) aunque se tenga `stock:incorporate`.
+
+Revisión de STORAGE: la operación real (merma, traslado, asignación de ubicación, ajuste) evalúa la compuerta `STOCK_MOVEMENT` sobre los KDE STORAGE obligatorios (BLOCKING, ninguno opcional), guarda el resultado por línea en `gate_evaluations` (`stock_movement`) y emite `StockMovementRecorded`. Prueba: la compuerta guardada en un traslado (entrada y salida) y un bloqueo real con ubicación ausente y dirección inválida. Se mantiene INTEGRATED con esa evidencia.

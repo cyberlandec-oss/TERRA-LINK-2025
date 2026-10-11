@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString, IsUUID, Length, Matches, ValidateIf } from 'class-validator';
+import { randomUUID } from 'crypto';
 import { sql, type Kysely, type Transaction } from 'kysely';
 import { DB } from '../db/database';
 import type { Database } from '../db/schema';
@@ -144,13 +145,21 @@ export class InventoryService {
         lines: m.lines.map((x) => ({ holder: x.lot_code ? `Lote ${x.lot_code}` : `Recepción de ${x.delivery_code}`, location: x.location_code ?? 'pendiente de asignación', bucket: x.bucket, quantity: dec(x.quantity) })) }));
   }
 
+  /** La conciliación e incorporación recorren TODA la organización: exigen lectura de organización completa. */
+  private requireOrgScope(ctx: TenantContext) {
+    const need: Permission[] = ['delivery:read', 'lot:read', 'stock:read'];
+    if (!need.every((p) => this.has(ctx, p))) throw forbidden('PERMISSION_DENIED', 'La conciliación requiere alcance de toda la organización.');
+  }
+
   async reconciliation(user: AuthUser, orgId: string) {
     const ctx = await this.ctx(user, orgId, 'stock:incorporate', false);
+    this.requireOrgScope(ctx);
     return reconcile(this.db, ctx.organizationId);
   }
 
   async incorporate(user: AuthUser, orgId: string, requestId?: string) {
     const ctx = await this.ctx(user, orgId, 'stock:incorporate', true);
+    this.requireOrgScope(ctx);
     const res = await this.db.transaction().execute(async (trx) => {
       await sql`SELECT pg_advisory_xact_lock(hashtext(${'stock-incorporate:' + orgId}))`.execute(trx);
       const r = await incorporateOrganization(trx, ctx.organizationId, user.id);
@@ -179,17 +188,25 @@ export class InventoryService {
 
   /** Compuerta STOCK_MOVEMENT (KDE STORAGE) por línea con ubicación; el responsable es la membresía de la sesión. */
   private async gate(trx: Transaction<Database>, ctx: TenantContext, lines: Array<{ lot_id: string; location_id: string | null; quantity: string; direction: 'IN' | 'OUT' }>) {
+    const results = [];
     for (const l of lines) {
       const g = await this.kde.evaluateTransition({ ...ctx, permissions: [...new Set([...ctx.permissions, 'lot:read', 'location:read'] as Permission[])] }, 'STOCK_MOVEMENT', {
         STORAGE_LOT: l.lot_id, STORAGE_LOCATION: l.location_id, STORAGE_QUANTITY: { value: l.quantity, unit: 'KG' }, STORAGE_DIRECTION: l.direction, STORAGE_RESPONSIBLE: ctx.membershipId,
       }, trx);
       if (!g.allowed) throw new AppError(422, 'TRANSITION_BLOCKED', 'Movimiento incompleto: lote, ubicación, cantidad, dirección o responsable no válidos.', g.blocking.map((b) => ({ field: b.code, reason: b.error_code ?? b.result })));
+      results.push({ direction: l.direction, g });
     }
+    return results;
   }
 
   private async move(user: AuthUser, ctx: TenantContext, op: string, type: MovementType, lot: { id: string; lot_code: string; row_version: string }, lines: Line[], gateLines: Array<{ lot_id: string; location_id: string | null; quantity: string; direction: 'IN' | 'OUT' }>, reason: string | null, trx: Transaction<Database>, requestId?: string) {
-    await this.gate(trx, ctx, gateLines);
+    const gates = await this.gate(trx, ctx, gateLines);
     const mid = await postMovement(trx, { organizationId: ctx.organizationId, type, sourceType: null, sourceId: null, operationId: op, actorId: user.id, reason, reference: { lot_id: lot.id }, lines });
+    // Compuerta STOCK_MOVEMENT guardada por línea (KDE STORAGE evaluados, sin valores): evidencia de la validación.
+    for (const x of gates) {
+      await trx.insertInto('gate_evaluations').values({ id: randomUUID(), organization_id: ctx.organizationId, entity_type: 'stock_movement', entity_id: mid, transition: x.g.transition, release_version: x.g.release,
+        allowed: x.g.allowed, result: JSON.stringify({ direction: x.direction, blocking: x.g.blocking, pending: x.g.pending, not_evaluated: x.g.not_evaluated, checked: ['STORAGE_LOT', 'STORAGE_LOCATION', 'STORAGE_QUANTITY', 'STORAGE_DIRECTION', 'STORAGE_RESPONSIBLE'] }), evaluated_by: user.id }).execute();
+    }
     const after = await trx.updateTable('lots').set({ row_version: sql`row_version + 1` } as never).where('id', '=', lot.id).returning('row_version').executeTakeFirstOrThrow();
     await this.events.append(trx, { organizationId: ctx.organizationId, eventType: 'StockMovementRecorded', schemaVersion: 1, aggregateType: 'LOT', aggregateId: lot.id, aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId,
       payload: { movement_id: mid, movement_type: type, lot_id: lot.id, lines: lines.map((l) => ({ location_id: l.location_id, bucket: l.bucket, quantity: dec(l.quantity), unit: 'KG' })), reason } });
@@ -261,6 +278,10 @@ export class InventoryService {
     const res = await this.run(ctx, dto.operation_id, async (trx) => {
       const lot = await this.lockLot(trx, ctx, dto.lot_id);
       await this.checkLocation(trx, ctx, dto.location_id);
+      // Un ajuste positivo añade cantidad SIN origen, evidencia ni calidad: no puede entrar en un lote de origen declarado
+      // (equivaldría a mezclar origen desconocido con conocido, D-39.1). En un lote «Origen incompleto» queda marcada.
+      const origin = (await trx.selectFrom('lots').select('origin_status').where('id', '=', lot.id).executeTakeFirstOrThrow()).origin_status;
+      if (q > 0n && origin === 'COMPLETE') throw new AppError(422, 'ADJUSTMENT_WOULD_ATTRIBUTE_ORIGIN', 'Un ajuste positivo no puede añadirse a un lote de origen declarado: la cantidad añadida no tiene origen, evidencia ni calidad. Regístrala en un lote separado de origen incompleto o corrige el registro de origen.', [{ field: 'quantity', reason: 'ORIGIN_MIXING_BLOCKED' }]);
       const a = await this.available(trx, ctx, lot.id, dto.location_id);
       // Un ajuste no es atajo: nunca deja físico por debajo de lo reservado ni opera sobre recepciones.
       if (q < 0n && -q > a.available) throw new AppError(409, 'ADJUSTMENT_BELOW_RESERVED', `El ajuste dejaría la existencia por debajo de lo reservado (disponible ${unscaled(a.available)} kg).`, [{ field: 'quantity', reason: 'BELOW_RESERVED' }]);

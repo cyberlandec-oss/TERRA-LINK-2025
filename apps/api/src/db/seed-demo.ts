@@ -447,6 +447,17 @@ async function main(): Promise<void> {
       }
     }
 
+    // 4h) Evaluaciones técnicas de riesgo DEMO (P0-020) de los lotes de recepciones: reglas sin aprobar; sin revisión humana.
+    // Idempotente: solo lotes sin evaluación.
+    if (passwords.has(coopAdmin)) {
+      const t = await tokenOf(coopAdmin);
+      const o = `/api/v1/organizations/${orgIds.get('coop')!}`;
+      const risk = (await call<Array<{ lot_id: string; lot_code: string; evaluation_id: string | null }>>('GET', `${o}/risk/lots`, t)).data;
+      for (const r of risk.filter((x) => !x.evaluation_id && ['LOT-2026-00001', 'LOT-2026-00002'].includes(x.lot_code))) {
+        await call('POST', `${o}/risk/lots/${r.lot_id}/evaluations`, t, { operation_id: randomUUID() });
+      }
+    }
+
     // 5) Verificación: login real de cada cuenta con contraseña conocida.
     const verified = new Map<string, boolean>();
     for (const [mail, pwd] of passwords) {

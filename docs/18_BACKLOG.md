@@ -96,6 +96,7 @@ Aceptación: claim, fuentes/versiones y enlaces tipados; soporta contradicción,
 ### P0-020 — Risk engine
 Depende P0-010/016/019. Como EUDR_MANAGER, necesito causas reproducibles.
 Aceptación: categorías/factores/reglas/snapshot; separar severidad/proceso/conclusión; faltantes no son score cero; reevaluación crea versión y factor crítico no se diluye. RF-20; QA-10.
+Estado (2026-10-10): criterios demostrados localmente con reglas técnicas de docs/13 **no aprobadas** (sin pesos, umbrales ni severidades); conclusión regulatoria UNDETERMINED. Reglas dependientes de D-05, proveedor satelital (P0-028) y mitigaciones (P0-021) quedan no evaluables. Sin mitigaciones ni expediente (P0-021/P0-022).
 
 ### P0-021 — Mitigación
 Depende P0-020. Como responsable, necesito resolver causa con evidencia.

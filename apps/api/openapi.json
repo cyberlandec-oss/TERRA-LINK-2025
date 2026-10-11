@@ -5490,6 +5490,198 @@
           "inventory"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/risk/lots": {
+      "get": {
+        "operationId": "RiskController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "risk"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/risk/lots/{lotId}": {
+      "get": {
+        "operationId": "RiskController_lot",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "risk"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/risk/lots/{lotId}/evaluations": {
+      "post": {
+        "operationId": "RiskController_evaluate",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "risk"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/risk/evaluations/{id}": {
+      "get": {
+        "operationId": "RiskController_evaluation",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "risk"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/risk/evaluations/{id}/reviews": {
+      "post": {
+        "operationId": "RiskController_review",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "risk"
+        ]
+      }
     }
   },
   "info": {
@@ -6169,9 +6361,9 @@
           "operation_id": {
             "type": "string"
           },
-          "plot_version_id": {
+          "based_on_evaluation_id": {
             "type": "string",
-            "description": "Versión a evaluar; por omisión la vigente"
+            "description": "Última evaluación conocida por quien solicita: si ya hay una posterior, se rechaza (un trabajo antiguo no pisa uno nuevo)"
           }
         },
         "required": [
@@ -6272,11 +6464,14 @@
       "ReviewDto": {
         "type": "object",
         "properties": {
-          "decision": {
+          "operation_id": {
+            "type": "string"
+          },
+          "action": {
             "type": "string",
             "enum": [
-              "ACCEPTED",
-              "REJECTED"
+              "START_REVIEW",
+              "RESOLVE"
             ]
           },
           "reason": {
@@ -6284,7 +6479,8 @@
           }
         },
         "required": [
-          "decision",
+          "operation_id",
+          "action",
           "reason"
         ]
       },

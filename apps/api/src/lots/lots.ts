@@ -131,7 +131,12 @@ export class LotsService {
              coalesce((SELECT sum(p.quantity) FROM process_inputs p JOIN process_runs r ON r.id = p.run_id WHERE p.lot_id = ${lotId} AND r.status = 'CLOSED'), 0)::text AS consumed`.execute(db)).rows[0];
     const rows = await holderBalances(db, q.org, { lot_id: lotId });
     const sum = (k: 'physical' | 'reserved' | 'available') => rows.reduce((a, b) => a + scaled(b[k]), 0n);
+    const adj = (await sql<{ added: string; removed: string }>`
+      SELECT coalesce(sum(e.signed_quantity) FILTER (WHERE e.signed_quantity > 0), 0)::text AS added, coalesce(-sum(e.signed_quantity) FILTER (WHERE e.signed_quantity < 0), 0)::text AS removed
+      FROM stock_entries e JOIN stock_movements m ON m.id = e.movement_id WHERE e.lot_id = ${lotId} AND m.movement_type = 'ADJUSTMENT'`.execute(db)).rows[0];
     return {
+      adjustments: { added: dec(adj.added)!, removed: dec(adj.removed)!, added_traceability: scaled(adj.added) > 0n ? 'PENDING' : null,
+        note: scaled(adj.added) > 0n ? 'Cantidad añadida por ajuste: sin origen, evidencia ni calidad atribuidos (trazabilidad pendiente).' : null },
       base: dec(q.base ?? '0')!, consumed: dec(q.consumed)!, physical: unscaled(sum('physical')), reserved: unscaled(sum('reserved')), available: unscaled(sum('available')),
       by_location: rows.filter((b) => scaled(b.physical) !== 0n || scaled(b.reserved) !== 0n).map((b) => ({ location_id: b.location_id, location: b.location_id ? `${b.location_name} (${b.location_code})` : null,
         pending_location: b.location_id === null, physical: dec(b.physical)!, reserved: dec(b.reserved)!, available: dec(b.available)! })),
