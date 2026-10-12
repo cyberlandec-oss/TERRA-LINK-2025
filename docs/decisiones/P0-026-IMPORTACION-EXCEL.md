@@ -51,9 +51,45 @@ baja → error de fila; no se reactiva por importación. Lotes de otra organizac
 
 **Permiso nuevo** `import:manage` (catálogo `2026-10-11.20`): ORG_ADMIN y MANAGER. No concede nada sobre entidades.
 
+## Plantilla de productos `PRODUCTOS_V1` (2026-10-12)
+
+Mismo pipeline (carga, mapeo explícito, vista previa, errores por fila, confirmación atómica, informe). Diferencias:
+
+- **Campos**: solo los de la entidad producto (P0-011): `codigo_producto` (clave), `nombre`, `estado_presentacion`,
+  `unidad`, `nombre_cientifico`, `variedad`. El estado ACTIVO/INACTIVO no se importa (activar/desactivar es un caso de uso
+  con motivo).
+- **Catálogos reales**: estado/presentación ∈ `product_states` y unidad ∈ `measurement_units` (hoy solo `KG`), por
+  **código exacto**. «kg» o «LB» son errores de fila: no hay equivalencias ni conversiones (D-32).
+- **Inmutables**: código, estado/presentación y unidad no cambian después del alta. En una reimportación, un valor distinto
+  es `PRODUCT_FIELD_IMMUTABLE` en esa fila y el lote entero no se puede confirmar (sin escritura parcial). Un valor igual se acepta.
+- **Obligatorios de alta**: nombre, estado/presentación y unidad (`REQUIRED_FOR_CREATE`); en una actualización, la celda
+  vacía no cambia nada.
+- **#BORRAR** solo en opcionales editables (nombre científico, variedad); en nombre, estado o unidad → `CANNOT_CLEAR`.
+- **Desactivados**: `PRODUCT_INACTIVE`; ni se reactivan ni se editan.
+- **Altas ACTIVAS**, igual que el alta manual de P0-011.
+- **Procedencia** conforme al modelo existente: `product_versions.change_type` sigue siendo `CREATED`/`UPDATED` (su CHECK
+  no admite otros valores y no se cambió); la procedencia va en `product_versions.reason` («Importación Excel <lote> · fila
+  <n>») y en `source` del evento `ProductCreated`/`ProductUpdated` y de la auditoría. Sin cambios → sin versión ni evento.
+- **Autorización**: la plantilla exige `product:manage` además de `import:manage` para plantilla, carga, mapeo, vista
+  previa, informe, confirmación y para ver sus lotes; cada fila vuelve a comprobarlo. MANAGER (tiene `import:manage`, no
+  `product:manage`) recibe 403 y la UI le muestra «Productos» deshabilitado con el motivo.
+- **Casos de uso reutilizados**: `ProductsService.createInTx` / `updateInTx`, extraídos de `create`/`update` sin cambiar su
+  comportamiento (catálogo, inmutables, inactivo, versión esperada, versión, evento, auditoría).
+- **Migración 0031** (amplía 0030 sin reescribirla): plantilla `PRODUCTOS_V1` e `import_rows.product_id` (FK compuesta
+  mismo tenant; una fila apunta a un productor o a un producto, nunca a ambos).
+
+## Protecciones de productores revisadas (2026-10-12)
+
+- Código inexistente que el rol no puede crear y código ocupado fuera del alcance de lectura devuelven **la misma**
+  respuesta (`CODE_NOT_AVAILABLE`, mismo mensaje, columna y campo), sin id, datos ni estado del productor. Antes, el primer
+  caso respondía `PERMISSION_DENIED_CREATE` y era distinguible. Si el rol sí puede crear, un código ocupado sigue siendo
+  distinguible de uno libre, exactamente como en el alta manual (la unicidad por organización es del contrato P0-005).
+- Probado con **fixtures de autorización** (`test/imports-authz-fixtures.int-spec.ts`): permisos sintéticos sustituidos en
+  memoria en `AuthorizationService.tenantContext` para dos usuarios de prueba. No se cambió ningún rol de producción ni la
+  base de datos de roles.
+
 ## Pendiente (motivo de que la historia siga abierta)
 
-1. Plantillas de parcelas, entregas, productos y lotes (S1 §62).
-2. `CODE_NOT_AVAILABLE` y `MAPPING_IDENTITY_NOT_ALLOWED` no son alcanzables con el catálogo actual (todo rol con
-   `import:manage` tiene `producer:read` y `producer:read_identity`); existen como defensa y **no** tienen prueba de integración.
-3. Evidencia de navegador sobre datos DEMO en desarrollo local; no hay uso con un Excel real de una asociación.
+1. Plantillas de parcelas, entregas y lotes (S1 §62). Entregas deben conservar estados y pendientes de P0-012 y no
+   confirmar recepción, calidad, inventario ni debida diligencia; parcelas no deben inventar geometría (P0-009/D-05).
+2. Evidencia de navegador con archivos sintéticos y datos DEMO en desarrollo local; no hay uso con un Excel real de una asociación.

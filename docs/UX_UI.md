@@ -71,7 +71,7 @@ Los valores nuevos de espaciado, breakpoints, colores auxiliares y distribución
 
 Esta especificación cubre backoffice web y diseño móvil de campo. El portal comprador es una extensión P1 según F1. Sirve para implementar historias progresivamente, no para habilitar todo el menú antes de disponer de datos y operaciones reales.
 
-Se trabaja exclusivamente sobre `C:\Users\mario\TERRA LINK 2025` y `cyberlandec-oss/TERRA-LINK-2025`. La base técnica reportada es NestJS/Next.js/React y aplicación móvil Expo planificada; las versiones y rutas concretas se consultan en el repositorio. No importar decisiones, roles, resultados de pruebas o componentes del proyecto `cacao`.
+Se trabaja exclusivamente sobre `D:\PROYECTOS CYBER LAND\TERRA LINK EUDR 2026\TERRA LINK 2025` (antes en `C:\Users\mario\TERRA LINK 2025`) y `cyberlandec-oss/TERRA-LINK-2025`. La base técnica reportada es NestJS/Next.js/React y aplicación móvil Expo planificada; las versiones y rutas concretas se consultan en el repositorio. No importar decisiones, roles, resultados de pruebas o componentes del proyecto `cacao`.
 
 La plataforma se ejecuta y verifica localmente con los servicios del proyecto. GitHub puede conservar el código; GitHub Actions no es una dependencia UX ni una condición de esta especificación. Este documento no modifica por sí solo la definición global de DONE: la decisión de validar esta etapa en local debe reflejarse también en las instrucciones y el backlog del repositorio.
 

@@ -11,24 +11,28 @@ import { Alert, Breadcrumb, EmptyState, ErrorPanel, Loading, PageHeader, StatusB
 
 interface TemplateInfo {
   template: string;
+  entity: string;
+  key_field: string;
+  new_status: string;
   clear_token: string;
-  fields: Array<{ field: string; header: string; label: string; required: boolean; identity: boolean; rule: string }>;
+  fields: Array<{ field: string; header: string; label: string; required: boolean; required_on_create: boolean; immutable: boolean; identity: boolean; rule: string }>;
   rules: string[];
   atomicity: { mode: string; description: string };
   limits: { max_file_bytes: number; max_rows: number; formats: string[] };
   not_implemented: string[];
 }
+interface TemplateOption { template: string; slug: 'producers' | 'products'; entity: string; usable: boolean; required_permission: string | null }
 interface Column { column: string; header: string | null; mapped_field: string | null; suggested_field: string | null; samples: string[] | null }
 interface Batch {
-  id: string; status: 'UPLOADED' | 'MAPPED' | 'COMMITTED' | 'DISCARDED'; row_version: number; row_count: number; created_at: string;
+  id: string; template: string; status: 'UPLOADED' | 'MAPPED' | 'COMMITTED' | 'DISCARDED'; row_version: number; row_count: number; created_at: string;
   file: { filename: string | null; byte_size: number; sha256: string; sheet: string };
   columns: Column[]; samples_hidden_reason: string | null; summary: Summary | null; can_map_identity: boolean;
   same_file_previous_imports: Array<{ id: string; status: string; created_at: string }>;
 }
-interface Summary { created: number; updated: number; unchanged: number; failed: number; duplicate_reviews_pending: number }
+interface Summary { created: number; updated: number; unchanged: number; failed: number; duplicate_reviews_pending: number; new_status: string }
 interface Issue { column: string | null; field: string | null; code: string; message: string }
 interface PreviewRow {
-  row_number: number; producer_code: string | null; action: 'CREATE' | 'UPDATE' | 'UNCHANGED' | 'ERROR'; changed_fields: string[];
+  row_number: number; code: string | null; action: 'CREATE' | 'UPDATE' | 'UNCHANGED' | 'ERROR'; changed_fields: string[];
   fields: Record<string, { state: string; quality: string; value?: string | null }>; errors: Issue[]; warnings: Issue[];
 }
 interface Preview {
@@ -36,10 +40,12 @@ interface Preview {
   summary: { total: number; create: number; update: number; unchanged: number; error: number; warnings: number };
   rows: PreviewRow[];
 }
-interface BatchListItem { id: string; status: Batch['status']; original_filename: string | null; row_count: number; created_at: string }
+interface BatchListItem { id: string; template: string; status: Batch['status']; original_filename: string | null; row_count: number; created_at: string }
 
+const NEW_STATUS: Record<string, string> = { DRAFT: 'borrador', ACTIVE: 'activo' };
+const ENTITY_LABEL: Record<string, string> = { PRODUCTORES_V1: 'Productores', PRODUCTOS_V1: 'Productos' };
 const ACTION: Record<PreviewRow['action'], { label: string; tone: Tone }> = {
-  CREATE: { label: 'Se creará (borrador)', tone: 'process' },
+  CREATE: { label: 'Se creará', tone: 'process' },
   UPDATE: { label: 'Se actualizará', tone: 'review' },
   UNCHANGED: { label: 'Sin cambios', tone: 'neutral' },
   ERROR: { label: 'Error', tone: 'blocked' },
@@ -54,6 +60,8 @@ export default function ImportsPage() {
   const ws = useWorkspace();
   const allowed = ws.can('import:manage');
   const base = `/api/v1/organizations/${orgId}/imports`;
+  const [options, setOptions] = useState<TemplateOption[] | null>(null);
+  const [slug, setSlug] = useState<'producers' | 'products'>('producers');
   const [info, setInfo] = useState<TemplateInfo | null>(null);
   const [list, setList] = useState<BatchListItem[] | null>(null);
   const [batch, setBatch] = useState<Batch | null>(null);
@@ -70,11 +78,12 @@ export default function ImportsPage() {
     if (!allowed) return;
     setError(null);
     try {
-      const [i, l] = await Promise.all([api<TemplateInfo>(`${base}/templates/producers`), api<BatchListItem[]>(base)]);
+      const [o, i, l] = await Promise.all([api<TemplateOption[]>(`${base}/templates`), api<TemplateInfo>(`${base}/templates/${slug}`), api<BatchListItem[]>(base)]);
+      setOptions(o);
       setInfo(i);
       setList(l);
     } catch (err) { fail(err); }
-  }, [allowed, base, fail]);
+  }, [allowed, base, fail, slug]);
   useEffect(() => { void load(); }, [load]);
 
   const loadPreview = useCallback(async (id: string, offset = 0) => {
@@ -85,6 +94,8 @@ export default function ImportsPage() {
     setError(null); setPreview(null); setResult(null);
     try {
       const b = await api<Batch>(`${base}/${id}`);
+      const s = options?.find((o) => o.template === b.template)?.slug;
+      if (s && s !== slug) setSlug(s);
       setBatch(b);
       if (b.status === 'MAPPED') await loadPreview(id);
       if (b.status === 'COMMITTED') setResult(b.summary);
@@ -97,12 +108,27 @@ export default function ImportsPage() {
   return (
     <>
       <Breadcrumb items={[{ label: ws.activeOrg?.name ?? 'Organización', href: `/organizaciones/${orgId}` }, { label: 'Importar datos (Excel)' }]} />
-      <PageHeader title="Importar productores desde Excel" meta="Migra registros existentes. Nada se guarda hasta que confirmes, y los datos importados quedan como heredados y no validados." />
+      <PageHeader title="Importar datos desde Excel" meta="Migra registros existentes. Nada se guarda hasta que confirmes, y los datos importados quedan como heredados y no validados." />
+      {options && (
+        <section className="card" aria-labelledby="que-importar">
+          <h2 id="que-importar">¿Qué quieres importar?</h2>
+          <fieldset>
+            <legend className="visually-hidden">Plantilla</legend>
+            {options.map((o) => (
+              <label key={o.slug} className="checkbox-row">
+                <input type="radio" name="plantilla" value={o.slug} checked={slug === o.slug} disabled={!o.usable || (!!batch && batch.status !== 'COMMITTED' && batch.status !== 'DISCARDED')}
+                  onChange={() => { setSlug(o.slug); setBatch(null); setPreview(null); setResult(null); setInfo(null); }} />
+                {ENTITY_LABEL[o.template] ?? o.entity}{!o.usable && <span className="muted"> — tu rol no gestiona {o.entity}; el permiso general de importación no basta</span>}
+              </label>
+            ))}
+          </fieldset>
+        </section>
+      )}
       {error && <ErrorPanel error={error} onRetry={load} />}
       {!info && !error && <Loading label="Cargando plantilla…" />}
       {info && (
         <>
-          <TemplateStep orgId={orgId} info={info} onError={fail} />
+          <TemplateStep orgId={orgId} slug={slug} info={info} onError={fail} />
           <UploadStep base={base} info={info} onUploaded={(b) => { setBatch(b); setPreview(null); setResult(null); void load(); }} onError={setError} />
           {batch && batch.status !== 'COMMITTED' && batch.status !== 'DISCARDED' && (
             <MappingStep base={base} batch={batch} info={info} onMapped={async (b) => { setBatch(b); try { await loadPreview(b.id); } catch (err) { fail(err); } }} />
@@ -113,7 +139,7 @@ export default function ImportsPage() {
               onStale={() => loadPreview(batch.id).catch(fail)}
               onDiscarded={() => { setBatch(null); setPreview(null); void load(); }} />
           )}
-          {batch && result && <ResultStep base={base} batch={batch} summary={result} orgId={orgId} />}
+          {batch && result && <ResultStep base={base} batch={batch} summary={result} orgId={orgId} info={info} />}
           <section className="card" aria-labelledby="recientes">
             <h2 id="recientes">Cargas recientes</h2>
             {!list && <Loading label="Cargando…" />}
@@ -121,11 +147,11 @@ export default function ImportsPage() {
             {list && list.length > 0 && (
               <div className="table-wrap">
                 <table aria-label="Cargas recientes">
-                  <thead><tr><th>Archivo</th><th>Filas</th><th>Estado</th><th>Fecha</th><th><span className="visually-hidden">Acción</span></th></tr></thead>
+                  <thead><tr><th>Archivo</th><th>Datos</th><th>Filas</th><th>Estado</th><th>Fecha</th><th><span className="visually-hidden">Acción</span></th></tr></thead>
                   <tbody>
                     {list.map((b) => (
                       <tr key={b.id}>
-                        <td>{b.original_filename ?? '—'}</td><td>{b.row_count}</td><td>{STATUS[b.status]}</td>
+                        <td>{b.original_filename ?? '—'}</td><td>{ENTITY_LABEL[b.template] ?? b.template}</td><td>{b.row_count}</td><td>{STATUS[b.status]}</td>
                         <td>{new Date(b.created_at).toLocaleString('es-EC')}</td>
                         <td>{b.status !== 'DISCARDED' && <button type="button" className="secondary inline" onClick={() => open(b.id)}>Abrir</button>}</td>
                       </tr>
@@ -141,18 +167,18 @@ export default function ImportsPage() {
   );
 }
 
-function TemplateStep({ orgId, info, onError }: { orgId: string; info: TemplateInfo; onError: (e: unknown) => void }) {
+function TemplateStep({ orgId, slug, info, onError }: { orgId: string; slug: string; info: TemplateInfo; onError: (e: unknown) => void }) {
   return (
     <section className="card" aria-labelledby="paso-plantilla">
       <h2 id="paso-plantilla">1. Plantilla</h2>
-      <p>Plantilla <strong>{info.template}</strong>. Por ahora solo productores; {info.not_implemented.join(', ')} todavía no se pueden importar.</p>
-      <button type="button" onClick={() => apiDownload(`/api/v1/organizations/${orgId}/imports/templates/producers.xlsx`, 'plantilla-productores.xlsx').catch(onError)}>Descargar plantilla (.xlsx)</button>
+      <p>Plantilla <strong>{info.template}</strong> ({info.entity}). Los nuevos quedan en estado <strong>{NEW_STATUS[info.new_status] ?? info.new_status}</strong>. Todavía no se pueden importar: {info.not_implemented.join(', ')}.</p>
+      <button type="button" onClick={() => apiDownload(`/api/v1/organizations/${orgId}/imports/templates/${slug}.xlsx`, `plantilla-${slug}.xlsx`).catch(onError)}>Descargar plantilla (.xlsx)</button>
       <details>
         <summary>Campos y reglas</summary>
         <div className="table-wrap">
           <table aria-label="Campos de la plantilla">
             <thead><tr><th>Columna</th><th>Campo</th><th>Regla</th></tr></thead>
-            <tbody>{info.fields.map((f) => <tr key={f.field}><td><code>{f.header}</code></td><td>{f.label}{f.required ? ' (obligatorio)' : ''}{f.identity ? ' · identidad' : ''}</td><td>{f.rule}</td></tr>)}</tbody>
+            <tbody>{info.fields.map((f) => <tr key={f.field}><td><code>{f.header}</code></td><td>{f.label}{f.required ? ' (obligatorio)' : f.required_on_create ? ' (obligatorio en altas)' : ''}{f.immutable ? ' · no cambia tras el alta' : ''}{f.identity ? ' · identidad' : ''}</td><td>{f.rule}</td></tr>)}</tbody>
           </table>
         </div>
         <ul>{info.rules.map((r) => <li key={r}>{r}</li>)}</ul>
@@ -242,7 +268,7 @@ function MappingStep({ base, batch, info, onMapped }: { base: string; batch: Bat
                     <label htmlFor={`map-${c.column}`} className="visually-hidden">Campo para la columna {c.column}</label>
                     <select id={`map-${c.column}`} value={cols[c.column] ?? ''} onChange={(e) => setCols({ ...cols, [c.column]: e.target.value })}>
                       <option value="">No importar</option>
-                      {info.fields.map((f) => <option key={f.field} value={f.field} disabled={f.identity && !batch.can_map_identity}>{f.label}{f.required ? ' *' : ''}{f.identity ? ' (identidad)' : ''}</option>)}
+                      {info.fields.map((f) => <option key={f.field} value={f.field} disabled={f.identity && !batch.can_map_identity}>{f.label}{f.required ? ' *' : ''}{f.immutable ? ' (no cambia tras el alta)' : ''}{f.identity ? ' (identidad)' : ''}</option>)}
                     </select>
                   </td>
                 </tr>
@@ -251,8 +277,8 @@ function MappingStep({ base, batch, info, onMapped }: { base: string; batch: Bat
           </table>
         </div>
         {dup.length > 0 && <Alert tone="blocked">Un campo está asociado a dos columnas. Elige solo una.</Alert>}
-        <button type="submit" disabled={busy || dup.length > 0 || !chosen.includes('producer_code')}>{busy ? 'Guardando…' : 'Guardar mapeo y ver vista previa'}</button>
-        {!chosen.includes('producer_code') && <p className="muted">Asocia el código de productor: es la clave para no duplicar.</p>}
+        <button type="submit" disabled={busy || dup.length > 0 || !chosen.includes(info.key_field)}>{busy ? 'Guardando…' : 'Guardar mapeo y ver vista previa'}</button>
+        {!chosen.includes(info.key_field) && <p className="muted">Asocia el {info.fields.find((x) => x.field === info.key_field)?.label.toLowerCase() ?? 'código'}: es la clave para no duplicar.</p>}
         {error && <ErrorPanel error={error} />}
       </form>
     </section>
@@ -306,7 +332,7 @@ function PreviewStep({ base, batch, preview, info, onPage, onCommitted, onStale,
               {preview.rows.map((r) => (
                 <tr key={r.row_number}>
                   <td>{r.row_number}</td>
-                  <td>{r.producer_code ?? '—'}</td>
+                  <td>{r.code ?? '—'}</td>
                   <td><StatusBadge tone={ACTION[r.action].tone}>{ACTION[r.action].label}</StatusBadge></td>
                   <td>
                     {r.errors.map((e, i) => <div key={i} className="error">{e.column ? `Columna ${e.column}: ` : ''}{e.message}</div>)}
@@ -334,13 +360,14 @@ function PreviewStep({ base, batch, preview, info, onPage, onCommitted, onStale,
         <h2 id="paso-confirmar">5. Confirmación</h2>
         <Alert tone={s.error ? 'blocked' : 'review'} title="Importación atómica: todo o nada">{info.atomicity.description}</Alert>
         <ul>
-          <li>Repetidos: se identifican por código de productor; las filas sin diferencias no generan cambios.</li>
-          <li>Los productores nuevos quedan en <strong>borrador</strong>. Importar no valida identidad ni confirma entregas, calidad, inventario o debida diligencia.</li>
-          <li>Una coincidencia de documento abre una revisión de posible duplicado; nunca se fusiona.</li>
+          <li>Repetidos: se identifican por código dentro de tu organización; las filas sin diferencias no generan cambios.</li>
+          <li>Los {info.entity} nuevos quedan en estado <strong>{NEW_STATUS[info.new_status] ?? info.new_status}</strong>. Importar no valida datos ni confirma entregas, calidad, inventario o debida diligencia.</li>
+          {info.template === 'PRODUCTORES_V1' && <li>Una coincidencia de documento abre una revisión de posible duplicado; nunca se fusiona.</li>}
+          {info.template === 'PRODUCTOS_V1' && <li>Código, estado/presentación y unidad no cambian después del alta; un producto inactivo no se reactiva.</li>}
         </ul>
         {preview.can_commit ? (
           <>
-            <label className="checkbox-row"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /> Revisé la vista previa y entiendo que se crearán {s.create} y se actualizarán {s.update} productores.</label>
+            <label className="checkbox-row"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /> Revisé la vista previa y entiendo que se crearán {s.create} y se actualizarán {s.update} {info.entity}.</label>
             <div className="actions">
               <button type="button" disabled={!ack || busy} onClick={commit}>{busy ? 'Confirmando…' : 'Confirmar importación'}</button>
               <button type="button" className="secondary" disabled={busy} onClick={discard}>Descartar carga</button>
@@ -358,16 +385,17 @@ function PreviewStep({ base, batch, preview, info, onPage, onCommitted, onStale,
   );
 }
 
-function ResultStep({ base, batch, summary, orgId }: { base: string; batch: Batch; summary: Summary; orgId: string }) {
+function ResultStep({ base, batch, summary, orgId, info }: { base: string; batch: Batch; summary: Summary; orgId: string; info: TemplateInfo }) {
+  const products = batch.template === 'PRODUCTOS_V1';
   const [error, setError] = useState<ApiError | null>(null);
   return (
     <section className="card" aria-labelledby="paso-resultado">
       <h2 id="paso-resultado">6. Resultado</h2>
-      <Alert tone="valid" title="Importación confirmada">Creados {summary.created} (en borrador), actualizados {summary.updated}, sin cambios {summary.unchanged}, fallidos {summary.failed}.</Alert>
+      <Alert tone="valid" title="Importación confirmada">Creados {summary.created} (estado {NEW_STATUS[summary.new_status ?? info.new_status] ?? info.new_status}), actualizados {summary.updated}, sin cambios {summary.unchanged}, fallidos {summary.failed}.</Alert>
       {summary.duplicate_reviews_pending > 0 && <Alert tone="review">Se abrieron {summary.duplicate_reviews_pending} revisión(es) de posible duplicado. <a href={`/organizaciones/${orgId}/productores/coincidencias`}>Revisarlas</a></Alert>}
       <div className="actions">
         <button type="button" className="secondary" onClick={() => apiDownload(`${base}/${batch.id}/report`, 'informe-importacion.xlsx').catch((e) => setError(e as ApiError))}>Descargar informe (.xlsx)</button>
-        <a href={`/organizaciones/${orgId}/productores?status=DRAFT`}>Ver productores</a>
+        <a href={products ? `/organizaciones/${orgId}/productos` : `/organizaciones/${orgId}/productores?status=DRAFT`}>Ver {info.entity}</a>
       </div>
       {error && <ErrorPanel error={error} />}
     </section>

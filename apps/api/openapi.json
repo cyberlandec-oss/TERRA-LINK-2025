@@ -6541,9 +6541,38 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/imports/templates": {
+      "get": {
+        "operationId": "ImportsController_templates",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Plantillas de importación y si tu rol puede usarlas",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/imports/templates/producers": {
       "get": {
-        "operationId": "ImportsController_templateInfo",
+        "operationId": "ImportsController_producersInfo",
         "parameters": [
           {
             "name": "orgId",
@@ -6572,7 +6601,7 @@
     },
     "/api/v1/organizations/{orgId}/imports/templates/producers.xlsx": {
       "get": {
-        "operationId": "ImportsController_templateFile",
+        "operationId": "ImportsController_producersFile",
         "parameters": [
           {
             "name": "orgId",
@@ -6594,6 +6623,64 @@
           }
         ],
         "summary": "Descargar la plantilla de productores",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/imports/templates/products": {
+      "get": {
+        "operationId": "ImportsController_productsInfo",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reglas de la plantilla de productos (PRODUCTOS_V1); exige product:manage",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/imports/templates/products.xlsx": {
+      "get": {
+        "operationId": "ImportsController_productsFile",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Descargar la plantilla de productos; exige product:manage",
         "tags": [
           "imports"
         ]
@@ -6634,8 +6721,10 @@
                   "template": {
                     "type": "string",
                     "enum": [
-                      "PRODUCTORES_V1"
-                    ]
+                      "PRODUCTORES_V1",
+                      "PRODUCTOS_V1"
+                    ],
+                    "default": "PRODUCTORES_V1"
                   }
                 }
               }

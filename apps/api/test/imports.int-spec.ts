@@ -72,7 +72,7 @@ describeDb('P0-026 importación Excel de productores (PostgreSQL real)', () => {
       ['PRD-002', '', '', 'Finca Río SA', '', '', '', 'Manabí'],
     ]));
     expect(s.up.batch.columns[0]).toMatchObject({ column: 'A', header: 'codigo_productor', suggested_field: 'producer_code', mapped_field: null });
-    expect(s.preview).toMatchObject({ persisted: false, can_commit: true, summary: { total: 2, create: 2, update: 0, unchanged: 0, error: 0 }, new_producers_status: 'DRAFT' });
+    expect(s.preview).toMatchObject({ persisted: false, can_commit: true, summary: { total: 2, create: 2, update: 0, unchanged: 0, error: 0 }, new_status: 'DRAFT' });
     const r1 = s.preview.rows[0];
     expect(r1.fields.province).toEqual({ state: 'MISSING', quality: 'MISSING' });
     expect(r1.fields.phone).toEqual({ state: 'NOT_MAPPED', quality: 'UNKNOWN' });
@@ -81,7 +81,7 @@ describeDb('P0-026 importación Excel de productores (PostgreSQL real)', () => {
     expect(await counts(orgA)).toEqual(before);
 
     const c = await commit(ADMIN, orgA, s.id, s.preview.plan_hash).expect(201);
-    expect(c.body.summary).toMatchObject({ created: 2, updated: 0, unchanged: 0, failed: 0, new_producers_status: 'DRAFT' });
+    expect(c.body.summary).toMatchObject({ created: 2, updated: 0, unchanged: 0, failed: 0, new_status: 'DRAFT' });
     const p1 = await producer(orgA, 'PRD-001');
     expect(p1).toMatchObject({ status: 'DRAFT', first_name: 'Ana', community: 'La Unión', province: null });
     expect(p1!.document_number_enc).not.toContain('0912345678'); // identidad cifrada por el caso de uso

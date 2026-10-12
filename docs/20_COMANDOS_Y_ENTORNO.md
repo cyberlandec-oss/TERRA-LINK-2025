@@ -1,6 +1,6 @@
 # Comandos y entorno comprobables
 
-Actualizado: 2026-10-10. Repositorio `cyberlandec-oss/TERRA-LINK-2025`, rama `main`, en `C:\Users\mario\TERRA LINK 2025`.
+Actualizado: 2026-10-12. Repositorio `cyberlandec-oss/TERRA-LINK-2025` (https://github.com/cyberlandec-oss/TERRA-LINK-2025.git), rama de trabajo `feat/tech-001-ci-p0-002`, en `D:\PROYECTOS CYBER LAND\TERRA LINK EUDR 2026\TERRA LINK 2025` (trasladado desde `C:\Users\mario\TERRA LINK 2025`, que ya no existe).
 
 > Corrección: la versión anterior de este documento registraba comandos de otro proyecto (`cyberlandec-oss/cacao`, `refactor/...`). Eran ajenos a Terra Link 2025 y se eliminaron.
 
@@ -166,3 +166,11 @@ y `adb logcat -s ReactNativeJS:V` (línea `TL_SELFTEST`). Evidencia: `docs/qa/EV
 - `node e2e/seed/comprobar-seed-demo.mjs`: seed DEMO en base desechable `terra_link_seedcheck` (idempotencia, membresías, contraseñas, rotación). No toca `terra_link` ni `CREDENCIALES.csv`.
 - Entorno Android en variables de usuario (2026-10-11): `ANDROID_HOME`/`ANDROID_SDK_ROOT` = `C:\Users\mario\AppData\Local\Android\Sdk`, `JAVA_HOME` = JDK 17.0.20.1, `Path` con `platform-tools`, `emulator` y `%JAVA_HOME%\bin`. Abrir una terminal nueva para que apliquen.
 - El repositorio vigente está en `D:\PROYECTOS CYBER LAND\TERRA LINK EUDR 2026\TERRA LINK 2025` (la ruta `C:\Users\mario\TERRA LINK 2025` ya no existe).
+
+### Importación de productos (P0-026) y traslado a D: (2026-10-12)
+
+- `npx jest --runInBand test/imports.int-spec.ts test/imports-products.int-spec.ts test/imports-authz-fixtures.int-spec.ts src/imports` (desde `apps/api`).
+- `npm run build -w apps/api && node e2e/review/importaciones-productos.mjs`: revisión en navegador de la plantilla de productos (archivos sintéticos; crea productos `DEMO-IMP-*` activos en el catálogo DEMO).
+- Imagen de la API: la construye el servicio `migrate` (`docker compose --profile app build migrate`); `build api` no la reconstruye. Después: `docker compose --profile app up -d --wait`.
+- El proyecto Compose sigue siendo `terra-link` (mismos volúmenes); `docker compose ls` lista ambos archivos de configuración (C: y D:) porque los contenedores se crearon desde C: y se recrearon desde D:.
+- Cachés nativas Android (`apps/mobile/android/app/.cxx`, `apps/mobile/android/app/build`, `apps/mobile/android/build`, no versionadas) conservan rutas de C:; la próxima compilación nativa desde D: probablemente necesitará regenerarlas (no se borraron sin autorización).

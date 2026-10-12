@@ -12,31 +12,40 @@ export type ImportField =
   | 'producer_code' | 'first_name' | 'last_name' | 'legal_name' | 'document_type' | 'document_number' | 'phone' | 'address'
   | 'community' | 'province' | 'canton' | 'parish';
 
-export interface TemplateField {
-  field: ImportField;
+export interface TemplateField<F extends string = string> {
+  field: F;
   header: string;
   label: string;
   rule: string;
   identity: boolean;
+  /** Obligatorio en toda fila (la clave). */
   required?: boolean;
+  /** Obligatorio solo para dar de alta. */
+  requiredOnCreate?: boolean;
+  /** No cambia después del alta: un valor distinto en una reimportación es error de fila. */
+  immutable?: boolean;
+  /** #BORRAR permitido (campo opcional editable). */
+  clearable?: boolean;
+  /** Valor de un catálogo de sistema (código exacto). */
+  catalog?: 'product_states' | 'measurement_units';
   maxLength: number;
   pattern?: RegExp;
 }
 
-export const PRODUCER_FIELDS: TemplateField[] = [
+export const PRODUCER_FIELDS: Array<TemplateField<ImportField>> = [
   { field: 'producer_code', header: 'codigo_productor', label: 'Código de productor', required: true, identity: false, maxLength: 40, pattern: /^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$/,
     rule: 'Obligatorio. Clave de la importación: único en tu organización. 1–40 caracteres: letras, números, punto, guion o guion bajo. Si ya existe, la fila actualiza ese productor; no se cambia por importación.' },
-  { field: 'first_name', header: 'nombres', label: 'Nombres', identity: false, maxLength: 100, rule: 'Hasta 100 caracteres. Nombre y apellido, o razón social.' },
-  { field: 'last_name', header: 'apellidos', label: 'Apellidos', identity: false, maxLength: 100, rule: 'Hasta 100 caracteres.' },
-  { field: 'legal_name', header: 'razon_social', label: 'Razón social', identity: false, maxLength: 200, rule: 'Hasta 200 caracteres. Alternativa a nombre y apellido.' },
-  { field: 'document_type', header: 'tipo_documento', label: 'Tipo de documento', identity: true, maxLength: 40, rule: 'Dato de identidad. Va junto con el número de documento.' },
-  { field: 'document_number', header: 'numero_documento', label: 'Número de documento', identity: true, maxLength: 40, rule: 'Dato de identidad. Escríbelo como texto para conservar ceros iniciales.' },
-  { field: 'phone', header: 'telefono', label: 'Teléfono', identity: true, maxLength: 20, pattern: /^[+0-9 ()-]{6,20}$/, rule: 'Dato de identidad. 6–20 caracteres: números, espacios, +, paréntesis y guion.' },
-  { field: 'address', header: 'direccion', label: 'Dirección', identity: true, maxLength: 300, rule: 'Dato de identidad. Hasta 300 caracteres.' },
-  { field: 'community', header: 'comunidad', label: 'Comunidad', identity: false, maxLength: 120, rule: 'Hasta 120 caracteres.' },
-  { field: 'province', header: 'provincia', label: 'Provincia', identity: false, maxLength: 100, rule: 'Hasta 100 caracteres.' },
-  { field: 'canton', header: 'canton', label: 'Cantón', identity: false, maxLength: 100, rule: 'Hasta 100 caracteres.' },
-  { field: 'parish', header: 'parroquia', label: 'Parroquia', identity: false, maxLength: 100, rule: 'Hasta 100 caracteres.' },
+  { field: 'first_name', clearable: true, header: 'nombres', label: 'Nombres', identity: false, maxLength: 100, rule: 'Hasta 100 caracteres. Nombre y apellido, o razón social.' },
+  { field: 'last_name', clearable: true, header: 'apellidos', label: 'Apellidos', identity: false, maxLength: 100, rule: 'Hasta 100 caracteres.' },
+  { field: 'legal_name', clearable: true, header: 'razon_social', label: 'Razón social', identity: false, maxLength: 200, rule: 'Hasta 200 caracteres. Alternativa a nombre y apellido.' },
+  { field: 'document_type', clearable: true, header: 'tipo_documento', label: 'Tipo de documento', identity: true, maxLength: 40, rule: 'Dato de identidad. Va junto con el número de documento.' },
+  { field: 'document_number', clearable: true, header: 'numero_documento', label: 'Número de documento', identity: true, maxLength: 40, rule: 'Dato de identidad. Escríbelo como texto para conservar ceros iniciales.' },
+  { field: 'phone', clearable: true, header: 'telefono', label: 'Teléfono', identity: true, maxLength: 20, pattern: /^[+0-9 ()-]{6,20}$/, rule: 'Dato de identidad. 6–20 caracteres: números, espacios, +, paréntesis y guion.' },
+  { field: 'address', clearable: true, header: 'direccion', label: 'Dirección', identity: true, maxLength: 300, rule: 'Dato de identidad. Hasta 300 caracteres.' },
+  { field: 'community', clearable: true, header: 'comunidad', label: 'Comunidad', identity: false, maxLength: 120, rule: 'Hasta 120 caracteres.' },
+  { field: 'province', clearable: true, header: 'provincia', label: 'Provincia', identity: false, maxLength: 100, rule: 'Hasta 100 caracteres.' },
+  { field: 'canton', clearable: true, header: 'canton', label: 'Cantón', identity: false, maxLength: 100, rule: 'Hasta 100 caracteres.' },
+  { field: 'parish', clearable: true, header: 'parroquia', label: 'Parroquia', identity: false, maxLength: 100, rule: 'Hasta 100 caracteres.' },
 ];
 
 export const FIELD_BY_KEY = new Map(PRODUCER_FIELDS.map((f) => [f.field, f]));
