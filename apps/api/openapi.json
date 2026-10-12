@@ -1432,6 +1432,52 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/plots/{id}/declared-area": {
+      "post": {
+        "operationId": "PlotsController_declaredArea",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredAreaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/plots/{id}/location-samples": {
       "post": {
         "operationId": "PlotsController_captureLocation",
@@ -6686,6 +6732,64 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/imports/templates/deliveries": {
+      "get": {
+        "operationId": "ImportsController_deliveriesInfo",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reglas de la plantilla de entregas (ENTREGAS_V1, solo borradores); exige permiso de alta de entregas",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/imports/templates/deliveries.xlsx": {
+      "get": {
+        "operationId": "ImportsController_deliveriesFile",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Descargar la plantilla de entregas",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/imports/templates/plots": {
       "get": {
         "operationId": "ImportsController_plotsInfo",
@@ -6781,7 +6885,8 @@
                     "enum": [
                       "PRODUCTORES_V1",
                       "PRODUCTOS_V1",
-                      "PARCELAS_V1"
+                      "PARCELAS_V1",
+                      "ENTREGAS_V1"
                     ],
                     "default": "PRODUCTORES_V1"
                   }
@@ -7603,6 +7708,26 @@
         "required": [
           "expected_version",
           "survey_method"
+        ]
+      },
+      "DeclaredAreaDto": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "number",
+            "description": "row_version de la parcela leída"
+          },
+          "area_declared_ha": {
+            "type": "number",
+            "description": "Hectáreas declaradas (> 0, hasta 4 decimales)"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_version",
+          "area_declared_ha"
         ]
       },
       "CaptureLocationDto": {

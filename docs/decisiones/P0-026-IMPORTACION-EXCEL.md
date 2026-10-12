@@ -116,8 +116,35 @@ Mismo pipeline (carga, mapeo explícito, vista previa, errores por fila, confirm
   comportamiento) y `updateDeclaredAreaInTx` (superficie declarada que conserva la geometría). Procedencia en el motivo del historial, `notes` de la versión, `source` del evento y auditoría.
 - **Migración 0032** (amplía 0030/0031): plantilla `PARCELAS_V1` e `import_rows.plot_id` (FK compuesta mismo tenant).
 
+## Plantilla de entregas `ENTREGAS_V1` (2026-10-12)
+
+- **Alcance**: solo **borradores** (P0-012), con los casos de uso `DeliveriesService.createDraftInTx` / `updateDraftInTx`
+  (extraídos de `create`/`update` sin cambiar su comportamiento: referencias, cantidad positiva con unidad explícita,
+  periodo, compuerta `DELIVERY_DRAFT_SAVE`, auditoría). **No** registra la entrega ni confirma recepción, pesaje, calidad,
+  inventario, cierre ni debida diligencia; no emite eventos de entrega. Registrar sigue siendo una acción explícita desde
+  la entrega, con sus compuertas. Las decisiones D-33/D-34/D-35 no cambian.
+- **Campos** (los del borrador): código de entrega, productor, producto, centro (por código exacto), fecha de entrega
+  (texto AAAA-MM-DD), cantidad **declarada** con unidad (solo `KG`, sin conversiones; el peso recibido no se importa),
+  periodo de cosecha (`DAY`/`MONTH`/`UNKNOWN`, inicio y fin, guardado **como se declara**: día, intervalo de días, mes,
+  intervalo de meses o desconocido; validado con `harvestColumns` del contrato), parcelas de origen del productor con
+  cantidad opcional, notas. El periodo **nunca** se deduce de la fecha de entrega.
+- **Soportes**: no se importan (exigen la versión exacta de un documento y permiso de documentos); se vinculan desde la
+  entrega. Vincular no implica revisión ni aprobación.
+- **Clave**: el código asignado por el sistema (`ENT-AAAA-NNNNN`, único por organización) para actualizar un borrador.
+  Una fila sin código crea una entrega nueva cuyo `operation_id` (idempotencia del contrato) es una **huella** del
+  contenido mapeado de la fila: reimportar la misma fila no vuelve a crearla (`ALREADY_IMPORTED`). Dos filas sin código
+  idénticas en un archivo son ambiguas → error en ambas. Cambiar una fila sin código crea otra entrega: para actualizar,
+  usa el código que devuelve el informe.
+- **Entregas registradas**: una fila igual a lo registrado → «sin cambios»; distinta → error `DELIVERY_REGISTERED` que
+  remite a la corrección de la entrega (nunca se elude).
+- **Reimportación**: celda vacía o columna no asociada no cambian; `#BORRAR` solo en campos opcionales del borrador
+  (producto, centro, fecha, cantidad, unidad, periodo, orígenes, notas); el productor no se cambia.
+- **Autorización**: `import:manage` + `delivery:create` o `delivery:create_assigned` (alcance por asignación del
+  productor), revalidados al confirmar con bloqueo de filas. Productor inexistente o fuera de alcance, y entrega
+  inexistente o fuera de alcance, responden igual. Recepción (tiene `delivery:create`, no `import:manage`) → 403.
+- **Migración 0034**: plantilla `ENTREGAS_V1` e `import_rows.delivery_id` (FK compuesta mismo tenant).
+
 ## Pendiente (motivo de que la historia siga abierta)
 
-1. Plantillas de entregas y lotes (S1 §62). Deben conservar estados y pendientes de P0-012/P0-016 y no confirmar
-   recepción, calidad, inventario ni debida diligencia.
+1. Plantilla de lotes (S1 §62). Debe conservar estados de P0-016 y no confirmar procesos, inventario ni debida diligencia.
 2. Evidencia de navegador con archivos sintéticos y datos DEMO en desarrollo local; no hay uso con un Excel real de una asociación.

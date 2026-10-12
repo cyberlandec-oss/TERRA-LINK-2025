@@ -25,6 +25,8 @@ import {
 import { PRODUCT_FIELDS, PRODUCT_TEMPLATE_RULES, PRODUCT_TEMPLATE_SHEET, PRODUCT_TEMPLATE_VERSION } from './product-template';
 import { PLOT_FIELDS, PLOT_TEMPLATE_RULES, PLOT_TEMPLATE_SHEET, PLOT_TEMPLATE_VERSION } from './plot-template';
 import { PlotsService, type PlotEditable } from '../plots/plots';
+import { DeliveriesService, harvestColumns, ymd, type UpdateDeliveryDto } from '../deliveries/deliveries';
+import { DELIVERY_FIELDS, DELIVERY_TEMPLATE_RULES, DELIVERY_TEMPLATE_SHEET, DELIVERY_TEMPLATE_VERSION } from './delivery-template';
 
 // P0-026 — Importación Excel (RF-26, QA-03; S1 §§61–63; docs/09 «Importación»; docs/UX_UI §20.3).
 // Flujo común a todas las plantillas: plantilla → carga (análisis del archivo, sin tocar entidades) → mapeo explícito →
@@ -74,8 +76,12 @@ interface ApplyFrom { reason: string; source: Record<string, unknown> }
 
 /** Plantilla: campos, reglas y la parte específica de su entidad (resolver contra lo registrado y aplicar). */
 interface ImportTemplate {
-  version: 'PRODUCTORES_V1' | 'PRODUCTOS_V1' | 'PARCELAS_V1';
-  slug: 'producers' | 'products' | 'plots';
+  version: 'PRODUCTORES_V1' | 'PRODUCTOS_V1' | 'PARCELAS_V1' | 'ENTREGAS_V1';
+  slug: 'producers' | 'products' | 'plots' | 'deliveries';
+  /** La clave puede faltar (fila nueva sin código asignado). */
+  keyOptional?: boolean;
+  /** El mapeo debe incluir al menos uno de estos campos (por omisión, la clave). */
+  mappingRequiredAnyOf?: string[];
   sheet: string;
   entity: string;
   keyField: string;
@@ -89,7 +95,7 @@ interface ImportTemplate {
    */
   samplePermissions: Permission[];
   newStatus: string;
-  entityColumn: 'producer_id' | 'product_id' | 'plot_id';
+  entityColumn: 'producer_id' | 'product_id' | 'plot_id' | 'delivery_id';
   keyFormatMessage: string;
   resolve(db: Db, ctx: TenantContext, rows: PlannedRow[], colOf: Map<string, string>, lock: boolean): Promise<void>;
   apply(trx: Transaction<Database>, ctx: TenantContext, user: AuthUser, p: PlannedRow, from: ApplyFrom, requestId?: string): Promise<{ id: string; reviews: number }>;
@@ -130,13 +136,14 @@ export class ImportsService {
     private readonly producers: ProducersService,
     private readonly products: ProductsService,
     private readonly plots: PlotsService,
+    private readonly deliveries: DeliveriesService,
   ) {
-    this.templates = { PRODUCTORES_V1: this.producerTemplate(), PRODUCTOS_V1: this.productTemplate(), PARCELAS_V1: this.plotTemplate() };
+    this.templates = { PRODUCTORES_V1: this.producerTemplate(), PRODUCTOS_V1: this.productTemplate(), PARCELAS_V1: this.plotTemplate(), ENTREGAS_V1: this.deliveryTemplate() };
   }
 
   private tpl(version: string): ImportTemplate {
     const t = this.templates[version as ImportTemplate['version']];
-    if (!t) throw new AppError(422, 'TEMPLATE_NOT_AVAILABLE', 'Esa plantilla no está disponible. Plantillas: productores, productos y parcelas.', [{ field: 'template', reason: 'NOT_IMPLEMENTED' }]);
+    if (!t) throw new AppError(422, 'TEMPLATE_NOT_AVAILABLE', 'Esa plantilla no está disponible. Plantillas: productores, productos, parcelas y entregas.', [{ field: 'template', reason: 'NOT_IMPLEMENTED' }]);
     return t;
   }
   private bySlug(slug: string): ImportTemplate {
@@ -271,6 +278,196 @@ export class ImportsService {
     };
   }
 
+  private deliveryTemplate(): ImportTemplate {
+    const deliveries = this.deliveries;
+    const producers = this.producers;
+    const products = this.products;
+    /** Identificador estable de una fila SIN código: huella del contenido mapeado (operation_id del alta). */
+    const fingerprint = (orgId: string, p: PlannedRow) => {
+      const h = createHash('sha256').update(JSON.stringify([orgId, DELIVERY_TEMPLATE_VERSION, Object.entries(p.patch).filter(([k]) => !k.startsWith('_')).sort()])).digest('hex');
+      return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${(8 | (parseInt(h[16], 16) & 3)).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`;
+    };
+    const normDec = (v: string | null | undefined) => {
+      if (v === null || v === undefined) return null;
+      const [i, f = ''] = String(v).split('.');
+      const ii = i.replace(/^0+(?=\d)/, '');
+      const ff = f.replace(/0+$/, '');
+      return ff ? `${ii}.${ff}` : ii;
+    };
+    type Dto = { product_id?: string | null; location_id?: string | null; delivery_date?: string | null; quantity_declared?: string | null; unit?: 'KG' | null;
+      harvest_period?: { precision: 'DAY' | 'MONTH' | 'UNKNOWN'; start?: string; end?: string } | null; origins?: Array<{ plot_id: string; quantity?: string }>; notes?: string | null };
+    return {
+      version: DELIVERY_TEMPLATE_VERSION, slug: 'deliveries', sheet: DELIVERY_TEMPLATE_SHEET, entity: 'entregas', keyField: 'delivery_code', keyOptional: true,
+      mappingRequiredAnyOf: ['delivery_code', 'producer_code'],
+      fields: DELIVERY_FIELDS, rules: DELIVERY_TEMPLATE_RULES, newStatus: 'DRAFT', entityColumn: 'delivery_id',
+      usePermissions: ['delivery:create', 'delivery:create_assigned'], samplePermissions: ['producer:read_identity'],
+      keyFormatMessage: 'Código de entrega no válido: usa el código asignado por Terra Link (p. ej. ENT-2026-00012).',
+      concurrency: { codes: ['VERSION_CONFLICT', 'DELIVERY_REGISTERED', 'PRODUCER_INACTIVE', 'PRODUCT_INACTIVE', 'LOCATION_INACTIVE', 'PLOT_INACTIVE', 'NOT_FOUND'], constraints: ['deliveries_operation_uq', 'deliveries_org_code_uq'] },
+      codeOf: async (db, orgId, ids) => new Map((ids.length ? await db.selectFrom('deliveries').select(['id', 'delivery_code']).where('organization_id', '=', orgId).where('id', 'in', ids).execute() : []).map((r) => [r.id, r.delivery_code])),
+      resolve: async (db, ctx, planned, colOf, lock) => {
+        const org = ctx.organizationId;
+        const col = (f: string) => colOf.get(f) ?? null;
+        const err = (p: PlannedRow, field: string | null, code: string, message: string) => p.errors.push({ column: field ? col(field) : null, field, code, message });
+        const keyed = planned.filter((p) => p.key).map((p) => p.key!);
+        let byCodeQ = db.selectFrom('deliveries as d').innerJoin('producers as pr', (j) => j.onRef('pr.id', '=', 'd.producer_id').onRef('pr.organization_id', '=', 'd.organization_id'))
+          .selectAll('d').select(['pr.assigned_membership_id as producer_assignee', 'pr.producer_code']).where('d.organization_id', '=', org);
+        if (lock) byCodeQ = byCodeQ.orderBy('d.id').forUpdate('d');
+        const fps = new Map<PlannedRow, string>();
+        for (const p of planned) if (!p.key) fps.set(p, fingerprint(org, p));
+        const existingByCode = new Map((keyed.length ? await byCodeQ.where('d.delivery_code', 'in', keyed).execute() : []).map((r) => [r.delivery_code, r]));
+        const opIds = [...fps.values()];
+        const existingByOp = new Map((opIds.length ? await db.selectFrom('deliveries as d').innerJoin('producers as pr', (j) => j.onRef('pr.id', '=', 'd.producer_id').onRef('pr.organization_id', '=', 'd.organization_id'))
+          .select(['d.id', 'd.operation_id', 'd.delivery_code', 'pr.assigned_membership_id as producer_assignee']).where('d.organization_id', '=', org).where('d.operation_id', 'in', opIds).execute() : []).map((r) => [r.operation_id, r]));
+        const producerRows = await producers.byCodes(db, org, [...new Set(planned.map((p) => p.patch.producer_code).filter((c): c is string => typeof c === 'string'))]);
+        const productRows = await products.byCodes(db, org, [...new Set(planned.map((p) => p.patch.product_code).filter((c): c is string => typeof c === 'string'))]);
+        const locCodes = [...new Set(planned.map((p) => p.patch.location_code).filter((c): c is string => typeof c === 'string'))];
+        const locationRows = new Map((locCodes.length ? await db.selectFrom('locations').select(['id', 'code', 'status']).where('organization_id', '=', org).where('code', 'in', locCodes).execute() : []).map((r) => [r.code, r]));
+        const parsedOrigins = new Map<PlannedRow, Array<{ code: string; quantity?: string }>>();
+        for (const p of planned) {
+          const o = p.patch.origins;
+          if (typeof o === 'string') parsedOrigins.set(p, o.split(';').map((x) => { const [code, quantity] = x.split(':'); return { code, ...(quantity ? { quantity } : {}) }; }));
+        }
+        const plotCodes = [...new Set([...parsedOrigins.values()].flat().map((o) => o.code))];
+        const plotRows = plotCodes.length ? await db.selectFrom('plots').select(['id', 'plot_code', 'producer_id', 'status']).where('organization_id', '=', org).where('plot_code', 'in', plotCodes).execute() : [];
+        const existingIds = [...existingByCode.values()].map((d) => d.id);
+        const originRows = existingIds.length ? await db.selectFrom('delivery_origins').select(['delivery_id', 'plot_id', sql<string | null>`origin_quantity::text`.as('q')]).where('organization_id', '=', org).where('delivery_id', 'in', existingIds).execute() : [];
+        const originsOf = (id: string) => originRows.filter((o) => o.delivery_id === id).map((o) => `${o.plot_id}:${normDec(o.q) ?? ''}`).sort().join(';');
+
+        // Filas sin código idénticas dentro del archivo: ambiguas (¿una entrega o dos?) → error en todas.
+        const fpSeen = new Map<string, number[]>();
+        for (const [p, fp] of fps) fpSeen.set(fp, [...(fpSeen.get(fp) ?? []), p.row_number]);
+        for (const [p, fp] of fps) if (fpSeen.get(fp)!.length > 1) err(p, null, 'DUPLICATE_IN_FILE', `Filas sin código idénticas (${fpSeen.get(fp)!.join(', ')}): indica el código de entrega o diferencia las filas.`);
+
+        for (const p of planned) {
+          if (p.errors.length) continue;
+          const v = p.patch;
+          const dto: Dto = {};
+          if (v.product_code !== undefined) dto.product_id = null;
+          if (v.location_code !== undefined) dto.location_id = null;
+          if (v.delivery_date !== undefined) {
+            if (v.delivery_date !== null && (Number.isNaN(Date.parse(`${v.delivery_date}T00:00:00Z`)) || new Date(`${v.delivery_date}T00:00:00Z`).toISOString().slice(0, 10) !== v.delivery_date)) { err(p, 'delivery_date', 'DATE_INVALID', 'Fecha de entrega no válida.'); continue; }
+            dto.delivery_date = v.delivery_date;
+          }
+          if (v.quantity_declared !== undefined) {
+            if (v.quantity_declared !== null && !(Number(v.quantity_declared) > 0)) { err(p, 'quantity_declared', 'MUST_BE_POSITIVE', 'La cantidad declarada debe ser mayor que cero.'); continue; }
+            if (v.quantity_declared !== null && typeof v.unit !== 'string') { err(p, 'unit', 'UNIT_REQUIRED', 'Indica la unidad (KG) de la cantidad declarada; no se asume ninguna.'); continue; }
+            dto.quantity_declared = v.quantity_declared;
+          }
+          if (v.unit !== undefined) dto.unit = v.unit as 'KG' | null;
+          if (v.notes !== undefined) dto.notes = v.notes;
+          // Periodo de cosecha: se trata como una unidad, tal como se declara; nunca se deduce de la fecha de entrega.
+          if (v.harvest_precision === null) {
+            if (typeof v.harvest_start === 'string' || typeof v.harvest_end === 'string') { err(p, 'harvest_precision', 'PERIOD_DATES_WITHOUT_PRECISION', 'Para quitar el periodo deja vacías sus fechas.'); continue; }
+            dto.harvest_period = null;
+          } else if (typeof v.harvest_precision === 'string') {
+            const hp = { precision: v.harvest_precision as 'DAY' | 'MONTH' | 'UNKNOWN', ...(typeof v.harvest_start === 'string' ? { start: v.harvest_start } : {}), ...(typeof v.harvest_end === 'string' ? { end: v.harvest_end } : {}) };
+            try { harvestColumns(hp); } catch (e) { const ae = e as AppError; err(p, 'harvest_precision', ae.code ?? 'HARVEST_PERIOD_INVALID', ae.message); continue; }
+            dto.harvest_period = hp;
+          } else if (typeof v.harvest_start === 'string' || typeof v.harvest_end === 'string') {
+            err(p, 'harvest_precision', 'PERIOD_PRECISION_REQUIRED', 'Indica la precisión del periodo (DAY, MONTH o UNKNOWN); no se deduce de las fechas.'); continue;
+          }
+
+          // Entrega existente: por código o (sin código) por la huella de una importación anterior.
+          let existing: (typeof existingByCode extends Map<string, infer R> ? R : never) | undefined;
+          if (p.key) {
+            existing = existingByCode.get(p.key);
+            if (!existing || !deliveries.canReadFor(ctx, existing.producer_assignee)) { err(p, 'delivery_code', 'CODE_NOT_AVAILABLE', 'Ese código de entrega no está disponible para tu importación.'); continue; }
+          } else {
+            const prior = existingByOp.get(fps.get(p)!);
+            if (prior) {
+              if (!deliveries.canReadFor(ctx, prior.producer_assignee)) { err(p, null, 'CODE_NOT_AVAILABLE', 'Esta fila no está disponible para tu importación.'); continue; }
+              p.entity_id = prior.id;
+              p.action = 'UNCHANGED';
+              p.warnings.push({ column: null, field: null, code: 'ALREADY_IMPORTED', message: `Esta fila ya se importó como ${prior.delivery_code}; no se vuelve a crear.` });
+              continue;
+            }
+          }
+          const producerCode = v.producer_code;
+          let producerId: string;
+          if (existing) {
+            if (typeof producerCode === 'string' && producerCode !== existing.producer_code) { err(p, 'producer_code', 'DELIVERY_PRODUCER_CHANGE_NOT_ALLOWED', 'El productor no coincide con el de la entrega: no se cambia por importación.'); continue; }
+            producerId = existing.producer_id;
+          } else {
+            if (typeof producerCode !== 'string') { err(p, 'producer_code', 'REQUIRED_FOR_CREATE', 'Código de productor: obligatorio para una entrega nueva.'); continue; }
+            const pr = producerRows.get(producerCode);
+            // Inexistente o fuera del alcance de alta: misma respuesta (no revela existencia, id, datos ni estado).
+            if (!pr || !deliveries.canWriteFor(ctx, pr.assigned_membership_id)) { err(p, 'producer_code', 'PRODUCER_NOT_AVAILABLE', 'El productor indicado no está disponible para ti en esta organización.'); continue; }
+            if (pr.status !== 'ACTIVE') { err(p, 'producer_code', 'PRODUCER_INACTIVE', 'El productor no está activo; no se le registran entregas.'); continue; }
+            producerId = pr.id;
+          }
+          if (typeof v.product_code === 'string') {
+            const pd = productRows.get(v.product_code);
+            if (!pd) { err(p, 'product_code', 'PRODUCT_NOT_AVAILABLE', 'El producto indicado no está disponible en esta organización.'); continue; }
+            if (pd.status !== 'ACTIVE') { err(p, 'product_code', 'PRODUCT_INACTIVE', 'El producto no está activo.'); continue; }
+            dto.product_id = pd.id;
+          }
+          if (typeof v.location_code === 'string') {
+            const l = locationRows.get(v.location_code);
+            if (!l) { err(p, 'location_code', 'LOCATION_NOT_AVAILABLE', 'El centro indicado no está disponible en esta organización.'); continue; }
+            if (l.status !== 'ACTIVE') { err(p, 'location_code', 'LOCATION_INACTIVE', 'El centro no está activo.'); continue; }
+            dto.location_id = l.id;
+          }
+          if (v.origins === null) dto.origins = [];
+          else if (parsedOrigins.has(p)) {
+            const list = parsedOrigins.get(p)!;
+            if (new Set(list.map((o) => o.code)).size !== list.length) { err(p, 'origins', 'ORIGIN_DUPLICATED', 'Una parcela aparece dos veces en los orígenes.'); continue; }
+            const out: Array<{ plot_id: string; quantity?: string }> = [];
+            let bad = false;
+            for (const o of list) {
+              const pl = plotRows.find((x) => x.plot_code === o.code && x.producer_id === producerId);
+              // Inexistente o de otro productor: misma respuesta.
+              if (!pl) { err(p, 'origins', 'ORIGIN_NOT_AVAILABLE', `La parcela ${o.code} no está disponible como origen de esta entrega.`); bad = true; break; }
+              if (pl.status !== 'ACTIVE') { err(p, 'origins', 'PLOT_INACTIVE', `La parcela ${o.code} no está activa.`); bad = true; break; }
+              if (o.quantity !== undefined && !(Number(o.quantity) > 0)) { err(p, 'origins', 'MUST_BE_POSITIVE', 'La cantidad por origen debe ser mayor que cero.'); bad = true; break; }
+              out.push({ plot_id: pl.id, ...(o.quantity !== undefined ? { quantity: o.quantity } : {}) });
+            }
+            if (bad) continue;
+            dto.origins = out;
+          }
+
+          if (!existing) {
+            p.action = 'CREATE';
+            p.changed_fields = Object.keys(dto).filter((k) => (dto as Record<string, unknown>)[k] !== null);
+            p.patch = { _producer_id: producerId, _operation_id: fps.get(p)!, _dto: JSON.stringify(dto) };
+            continue;
+          }
+          // Comparación con lo registrado para no generar efectos si nada cambia.
+          const cur = existing;
+          const changed: string[] = [];
+          if ('product_id' in dto && dto.product_id !== cur.product_id) changed.push('product_id');
+          if ('location_id' in dto && dto.location_id !== cur.location_id) changed.push('location_id');
+          if ('delivery_date' in dto && dto.delivery_date !== ymd(cur.delivery_date)) changed.push('delivery_date');
+          if ('quantity_declared' in dto && normDec(dto.quantity_declared) !== normDec(cur.quantity_declared as string | null)) changed.push('quantity_declared');
+          if ('unit' in dto && dto.unit !== cur.unit) changed.push('unit');
+          if ('notes' in dto && (dto.notes ?? null) !== (cur.notes ?? null)) changed.push('notes');
+          if ('harvest_period' in dto) {
+            const h = harvestColumns(dto.harvest_period ?? null)!;
+            if (h.harvest_precision !== cur.harvest_precision || h.harvest_start !== cur.harvest_start || h.harvest_end !== cur.harvest_end) changed.push('harvest_period');
+          }
+          if (dto.origins && dto.origins.map((o) => `${o.plot_id}:${normDec(o.quantity) ?? ''}`).sort().join(';') !== originsOf(cur.id)) changed.push('origins');
+          if (changed.length && cur.status === 'REGISTERED') { err(p, null, 'DELIVERY_REGISTERED', `La entrega ${cur.delivery_code} está registrada: no se modifica por importación; usa la corrección de la entrega.`); continue; }
+          if (changed.length && !deliveries.canWriteFor(ctx, cur.producer_assignee)) { err(p, null, 'PERMISSION_DENIED_UPDATE', 'Tu rol no permite modificar esta entrega.'); continue; }
+          if (changed.length && 'quantity_declared' in dto && dto.quantity_declared && !('unit' in dto)) { err(p, 'unit', 'UNIT_REQUIRED', 'Indica la unidad (KG) de la cantidad declarada.'); continue; }
+          p.entity_id = cur.id;
+          p.expected_version = Number(cur.row_version);
+          p.changed_fields = changed;
+          const field = (k: string) => (k === 'harvest_period' ? 'harvest_period' : k);
+          p.patch = { _dto: JSON.stringify(Object.fromEntries(changed.map((k) => [field(k), (dto as Record<string, unknown>)[k]]).concat(changed.includes('quantity_declared') && !changed.includes('unit') ? [['unit', dto.unit ?? cur.unit]] : []))) };
+          p.action = changed.length ? 'UPDATE' : 'UNCHANGED';
+        }
+      },
+      apply: async (trx, ctx, user, p, from, requestId) => {
+        const dto = JSON.parse(p.patch._dto ?? '{}') as Dto;
+        if (p.action === 'CREATE') {
+          const row = await deliveries.createDraftInTx(trx, ctx, user.id, { ...dto, producer_id: p.patch._producer_id! }, p.patch._operation_id!, requestId, from);
+          return { id: row.id, reviews: 0 };
+        }
+        await deliveries.updateDraftInTx(trx, ctx, user.id, p.entity_id!, { ...dto, expected_version: p.expected_version! } as UpdateDeliveryDto, requestId, from);
+        return { id: p.entity_id!, reviews: 0 };
+      },
+    };
+  }
+
   private plotTemplate(): ImportTemplate {
     const plots = this.plots;
     const producers = this.producers;
@@ -358,7 +555,7 @@ export class ImportsService {
       fields: t.fields.map((f) => ({ field: f.field, header: f.header, label: f.label, required: !!f.required, required_on_create: !!f.requiredOnCreate, immutable: !!f.immutable, clearable: !!f.clearable, catalog: f.catalog ?? null, identity: f.identity, max_length: f.maxLength, rule: f.rule })),
       rules: t.rules, atomicity: ATOMICITY,
       limits: { max_file_bytes: MAX_FILE_BYTES, max_rows: DEFAULT_XLSX_LIMITS.maxRows, max_columns: DEFAULT_XLSX_LIMITS.maxColumns, formats: ['.xlsx'] },
-      not_implemented: ['entregas', 'lotes'],
+      not_implemented: ['lotes'],
     };
   }
 
@@ -544,7 +741,8 @@ export class ImportsService {
         used.add(field);
         out[col] = def.field;
       }
-      if (!used.has(t.keyField)) issues.push({ field: t.keyField, reason: 'REQUIRED_FIELD_NOT_MAPPED' });
+      const anyOf = t.mappingRequiredAnyOf ?? [t.keyField];
+      if (!anyOf.some((f) => used.has(f))) issues.push({ field: anyOf.join('|'), reason: 'REQUIRED_FIELD_NOT_MAPPED' });
       if (issues.length) throw new AppError(422, 'MAPPING_INVALID', 'Revisa el mapeo: cada campo una sola vez, columnas existentes y el código asociado.', issues);
       const identityMapped = Object.values(out).filter((f) => byKey.get(f)!.identity);
       if (identityMapped.length && !this.identity(ctx)) {
@@ -585,7 +783,7 @@ export class ImportsService {
           continue;
         }
         if (raw.length > def.maxLength) issue('TOO_LONG', `Máximo ${def.maxLength} caracteres.`);
-        else if (def.pattern && !def.pattern.test(raw)) issue('INVALID_FORMAT', def.field === t.keyField ? t.keyFormatMessage : 'Formato no válido.');
+        else if (def.pattern && !def.pattern.test(raw)) issue('INVALID_FORMAT', def.field === t.keyField ? t.keyFormatMessage : def.formatMessage ?? 'Formato no válido.');
         if (cell?.n && (def.field === 'document_number' || def.field === 'phone')) {
           p.warnings.push({ column: col, field: def.field, code: 'NUMERIC_CELL', message: 'Celda numérica de Excel: comprueba que no se perdieron ceros iniciales.' });
         }
@@ -593,7 +791,7 @@ export class ImportsService {
         if (def.field === t.keyField) p.key = raw;
         else p.patch[def.field] = raw;
       }
-      if (!p.key && !p.errors.some((e) => e.field === t.keyField)) p.errors.push({ column: colOf.get(t.keyField)!, field: t.keyField, code: 'REQUIRED', message: 'Falta el código.' });
+      if (!p.key && !t.keyOptional && !p.errors.some((e) => e.field === t.keyField)) p.errors.push({ column: colOf.get(t.keyField)!, field: t.keyField, code: 'REQUIRED', message: 'Falta el código.' });
       return p;
     });
 
@@ -723,9 +921,9 @@ export class ImportsService {
     const head = ['fila', 'codigo', 'resultado', 'campos_cambiados', 'errores', 'advertencias', ...t.fields.map((f) => `estado_${f.header}`)];
     let body: string[][];
     if (b.status === 'COMMITTED') {
-      const rows = await this.db.selectFrom('import_rows').select(['row_number', 'result_action', 'changed_fields', 'producer_id', 'product_id', 'plot_id'])
+      const rows = await this.db.selectFrom('import_rows').select(['row_number', 'result_action', 'changed_fields', 'producer_id', 'product_id', 'plot_id', 'delivery_id'])
         .where('organization_id', '=', orgId).where('batch_id', '=', id).orderBy('row_number').execute();
-      const idOf = (r: { producer_id: string | null; product_id: string | null; plot_id: string | null }) => (r.producer_id ?? r.product_id ?? r.plot_id) as string;
+      const idOf = (r: { producer_id: string | null; product_id: string | null; plot_id: string | null; delivery_id: string | null }) => (r.producer_id ?? r.product_id ?? r.plot_id ?? r.delivery_id) as string;
       const codes = await t.codeOf(this.db, orgId, rows.map(idOf).filter(Boolean));
       body = rows.map((r) => [String(r.row_number), codes.get(idOf(r)) ?? '', r.result_action ?? '', (r.changed_fields ?? []).join(' '), '', '']);
     } else if (b.status === 'MAPPED') {
@@ -780,6 +978,18 @@ export class ImportsController {
     return this.sendTemplate(user, orgId, 'products', res);
   }
 
+  @Get('templates/deliveries')
+  @ApiOperation({ summary: 'Reglas de la plantilla de entregas (ENTREGAS_V1, solo borradores); exige permiso de alta de entregas' })
+  deliveriesInfo(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string) {
+    return this.service.templateInfo(user, orgId, 'deliveries');
+  }
+
+  @Get('templates/deliveries.xlsx')
+  @ApiOperation({ summary: 'Descargar la plantilla de entregas' })
+  deliveriesFile(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Res() res: Response) {
+    return this.sendTemplate(user, orgId, 'deliveries', res);
+  }
+
   @Get('templates/plots')
   @ApiOperation({ summary: 'Reglas de la plantilla de parcelas (PARCELAS_V1); exige permiso de alta o edición de parcelas' })
   plotsInfo(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string) {
@@ -802,7 +1012,7 @@ export class ImportsController {
 
   @Post()
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ schema: { type: 'object', required: ['file', 'operation_id'], properties: { file: { type: 'string', format: 'binary' }, operation_id: { type: 'string', format: 'uuid' }, template: { type: 'string', enum: [PRODUCER_TEMPLATE_VERSION, PRODUCT_TEMPLATE_VERSION, PLOT_TEMPLATE_VERSION], default: PRODUCER_TEMPLATE_VERSION } } } })
+  @ApiBody({ schema: { type: 'object', required: ['file', 'operation_id'], properties: { file: { type: 'string', format: 'binary' }, operation_id: { type: 'string', format: 'uuid' }, template: { type: 'string', enum: [PRODUCER_TEMPLATE_VERSION, PRODUCT_TEMPLATE_VERSION, PLOT_TEMPLATE_VERSION, DELIVERY_TEMPLATE_VERSION], default: PRODUCER_TEMPLATE_VERSION } } } })
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_BYTES, files: 1 } }))
   async upload(
     @CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @UploadedFile() file: UploadedXlsx | undefined,

@@ -30,6 +30,8 @@ export interface TemplateField<F extends string = string> {
   catalog?: 'product_states' | 'measurement_units';
   maxLength: number;
   pattern?: RegExp;
+  /** Mensaje de formato propio (si no, «Formato no válido.»). */
+  formatMessage?: string;
 }
 
 export const PRODUCER_FIELDS: Array<TemplateField<ImportField>> = [

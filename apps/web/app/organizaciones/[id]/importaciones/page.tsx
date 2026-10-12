@@ -21,7 +21,7 @@ interface TemplateInfo {
   limits: { max_file_bytes: number; max_rows: number; formats: string[] };
   not_implemented: string[];
 }
-type Slug = 'producers' | 'products' | 'plots';
+type Slug = 'producers' | 'products' | 'plots' | 'deliveries';
 interface TemplateOption { template: string; slug: Slug; entity: string; usable: boolean; required_permission: string | null }
 interface Column { column: string; header: string | null; mapped_field: string | null; suggested_field: string | null; samples: string[] | null }
 interface Batch {
@@ -44,7 +44,7 @@ interface Preview {
 interface BatchListItem { id: string; template: string; status: Batch['status']; original_filename: string | null; row_count: number; created_at: string }
 
 const NEW_STATUS: Record<string, string> = { DRAFT: 'borrador', ACTIVE: 'activo' };
-const ENTITY_LABEL: Record<string, string> = { PRODUCTORES_V1: 'Productores', PRODUCTOS_V1: 'Productos', PARCELAS_V1: 'Parcelas' };
+const ENTITY_LABEL: Record<string, string> = { PRODUCTORES_V1: 'Productores', PRODUCTOS_V1: 'Productos', PARCELAS_V1: 'Parcelas', ENTREGAS_V1: 'Entregas (borradores)' };
 const ACTION: Record<PreviewRow['action'], { label: string; tone: Tone }> = {
   CREATE: { label: 'Se creará', tone: 'process' },
   UPDATE: { label: 'Se actualizará', tone: 'review' },
@@ -173,6 +173,11 @@ function TemplateStep({ orgId, slug, info, onError }: { orgId: string; slug: str
     <section className="card" aria-labelledby="paso-plantilla">
       <h2 id="paso-plantilla">1. Plantilla</h2>
       <p>Plantilla <strong>{info.template}</strong> ({info.entity}). Los nuevos quedan en estado <strong>{NEW_STATUS[info.new_status] ?? info.new_status}</strong>. Todavía no se pueden importar: {info.not_implemented.join(', ')}.</p>
+      {info.template === 'ENTREGAS_V1' && (
+        <Alert tone="info" title="Esta plantilla solo crea o actualiza BORRADORES de entrega">
+          No registra entregas ni confirma recepción, pesaje, calidad, inventario, cierre ni debida diligencia. Registrar es una acción explícita desde cada entrega. Una entrega registrada no se modifica por importación: usa su corrección.
+        </Alert>
+      )}
       {info.template === 'PARCELAS_V1' && (
         <Alert tone="info" title="Esta plantilla NO importa coordenadas ni geometría">
           Solo datos descriptivos y superficie declarada (ha). La geometría existente se conserva tal cual, también al actualizar la superficie declarada (versión nueva, no una captura). Las coordenadas se registran desde la parcela o con GeoJSON. Importar no valida la parcela ni hereda evaluaciones GIS.
@@ -338,7 +343,7 @@ function PreviewStep({ base, batch, preview, info, onPage, onCommitted, onStale,
               {preview.rows.map((r) => (
                 <tr key={r.row_number}>
                   <td>{r.row_number}</td>
-                  <td>{r.code ?? '—'}</td>
+                  <td>{r.code ?? (r.action === 'CREATE' ? 'nuevo (código al confirmar)' : '—')}</td>
                   <td><StatusBadge tone={ACTION[r.action].tone}>{ACTION[r.action].label}</StatusBadge></td>
                   <td>
                     {r.errors.map((e, i) => <div key={i} className="error">{e.column ? `Columna ${e.column}: ` : ''}{e.message}</div>)}
@@ -370,6 +375,7 @@ function PreviewStep({ base, batch, preview, info, onPage, onCommitted, onStale,
           <li>Los {info.entity} nuevos quedan en estado <strong>{NEW_STATUS[info.new_status] ?? info.new_status}</strong>. Importar no valida datos ni confirma entregas, calidad, inventario o debida diligencia.</li>
           {info.template === 'PRODUCTORES_V1' && <li>Una coincidencia de documento abre una revisión de posible duplicado; nunca se fusiona.</li>}
           {info.template === 'PRODUCTOS_V1' && <li>Código, estado/presentación y unidad no cambian después del alta; un producto inactivo no se reactiva.</li>}
+          {info.template === 'ENTREGAS_V1' && <li>Se crean o actualizan borradores. Sin código, la fila crea una entrega nueva; si esa misma fila ya se importó, no se repite. El periodo de cosecha se guarda como se declara; el peso es el declarado, en KG.</li>}
           {info.template === 'PARCELAS_V1' && <li>No se importan coordenadas ni geometría. La superficie declarada crea una versión nueva sin validar que conserva la geometría vigente; no se reasigna productor ni se reactivan parcelas.</li>}
         </ul>
         {preview.can_commit ? (
@@ -393,7 +399,7 @@ function PreviewStep({ base, batch, preview, info, onPage, onCommitted, onStale,
 }
 
 function ResultStep({ base, batch, summary, orgId, info }: { base: string; batch: Batch; summary: Summary; orgId: string; info: TemplateInfo }) {
-  const listPath = batch.template === 'PRODUCTOS_V1' ? 'productos' : batch.template === 'PARCELAS_V1' ? 'parcelas' : 'productores?status=DRAFT';
+  const listPath = batch.template === 'PRODUCTOS_V1' ? 'productos' : batch.template === 'PARCELAS_V1' ? 'parcelas' : batch.template === 'ENTREGAS_V1' ? 'entregas?status=DRAFT' : 'productores?status=DRAFT';
   const [error, setError] = useState<ApiError | null>(null);
   return (
     <section className="card" aria-labelledby="paso-resultado">

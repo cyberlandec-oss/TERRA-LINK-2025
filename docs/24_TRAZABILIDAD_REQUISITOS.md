@@ -13,7 +13,7 @@ Referencias S1–S4 y secciones corresponden a los originales conservados en `so
 | S1 §§43–44; S4 §15 | RF-22 | P0-022 | 09/13 | QA-12 |
 | S1 §§45–48; S3 §18; S4 §§5–6 | RF-23–24, RNF-04 | P0-023–024 | 11/14 | QA-08/02 |
 | S1 §§56–59; S4 §18 | RF-25, RNF-03/07 | P0-025 | 07/08/12 | QA-13 |
-| S1 §§61–63; S3 §§15–16 | RF-26 | P0-026 | 06/09/14 | QA-03 · `test/imports.int-spec.ts` (11), `test/imports-products.int-spec.ts` (11), `test/imports-plots.int-spec.ts` (13, con fixtures de autorización), `test/imports-authz-fixtures.int-spec.ts` (3), `src/imports/xlsx.spec.ts` (7), `e2e/review/importaciones*.mjs`; ABIERTA: entregas y lotes |
+| S1 §§61–63; S3 §§15–16 | RF-26 | P0-026 | 06/09/14 | QA-03 · `test/imports.int-spec.ts` (11), `test/imports-products.int-spec.ts` (11), `test/imports-plots.int-spec.ts` (13), `test/imports-deliveries.int-spec.ts` (11), `test/imports-authz-fixtures.int-spec.ts` (3), `src/imports/xlsx.spec.ts` (7), `e2e/review/importaciones*.mjs`; ABIERTA: lotes |
 | S1 §§64–69; S4 §§1–24 | RF-27, RNF-09 | P0-027; P1-003 | 14 | QA-14 |
 | S1 §§39–41, 54, 95; S2 §§4–9 | RF-28 | P0-028 | 10/13/15 | QA-15 |
 | S1 §§27–29, 44; S4 §16 | RF-29 | P0-029 | 05/06/13/14 | QA-06/12 |

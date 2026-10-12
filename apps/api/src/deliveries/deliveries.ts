@@ -35,16 +35,16 @@ const DEC = /^\d{1,14}(\.\d{1,6})?$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-class HarvestPeriodDto {
+export class HarvestPeriodDto {
   @ApiProperty({ enum: ['DAY', 'MONTH', 'UNKNOWN'] }) @IsIn(['DAY', 'MONTH', 'UNKNOWN']) precision!: 'DAY' | 'MONTH' | 'UNKNOWN';
   @ApiPropertyOptional({ description: 'DAY: AAAA-MM-DD · MONTH: AAAA-MM' }) @IsOptional() @IsString() @Length(7, 10) start?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @Length(7, 10) end?: string;
 }
-class OriginDto {
+export class OriginDto {
   @ApiProperty() @IsUUID() plot_id!: string;
   @ApiPropertyOptional({ description: 'Cantidad atribuida a esta parcela (KG, texto decimal); omitir si no se conoce' }) @IsOptional() @IsString() @Matches(DEC) quantity?: string;
 }
-class DeliveryFieldsDto {
+export class DeliveryFieldsDto {
   @ApiPropertyOptional() @IsOptional() @IsUUID() product_id?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsUUID() location_id?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsString() @Matches(DAY) delivery_date?: string | null;
@@ -59,7 +59,7 @@ class CreateDeliveryDto extends DeliveryFieldsDto {
   @ApiProperty() @IsUUID() producer_id!: string;
   @ApiPropertyOptional({ description: 'Registrar en la misma operación (si la compuerta lo permite)' }) @IsOptional() @IsBoolean() register?: boolean;
 }
-class UpdateDeliveryDto extends DeliveryFieldsDto {
+export class UpdateDeliveryDto extends DeliveryFieldsDto {
   @ApiProperty() @IsInt() @Min(1) expected_version!: number;
 }
 class VersionDto { @ApiProperty() @IsInt() @Min(1) expected_version!: number }
@@ -312,12 +312,12 @@ export class DeliveriesService {
       g.blocking.map((b) => ({ field: b.code, reason: b.error_code ?? b.result })));
   }
 
-  private async record(trx: Transaction<Database>, ctx: TenantContext, userId: string, d: { id: string; delivery_code: string }, ev: { type: string; aggregateType: string; aggregateId: string; version: number; payload: Record<string, unknown>; correctionOf?: { eventId: string; reason: string } } | null, action: string, after: Record<string, unknown>, requestId?: string) {
+  private async record(trx: Transaction<Database>, ctx: TenantContext, userId: string, d: { id: string; delivery_code: string }, ev: { type: string; aggregateType: string; aggregateId: string; version: number; payload: Record<string, unknown>; correctionOf?: { eventId: string; reason: string } } | null, action: string, after: Record<string, unknown>, requestId?: string, reason?: string) {
     const event = ev ? await this.events.append(trx, {
       organizationId: ctx.organizationId, eventType: ev.type, schemaVersion: 1, aggregateType: ev.aggregateType, aggregateId: ev.aggregateId, aggregateVersion: ev.version,
       actorId: userId, correlationId: requestId, correctionOf: ev.correctionOf ?? null, payload: ev.payload,
     }) : null;
-    await this.audit.record(trx, { organizationId: ctx.organizationId, actorUserId: userId, action, entityType: 'delivery', entityId: d.id, requestId, result: 'SUCCESS', after: { delivery_code: d.delivery_code, ...after } });
+    await this.audit.record(trx, { organizationId: ctx.organizationId, actorUserId: userId, action, entityType: 'delivery', entityId: d.id, requestId, result: 'SUCCESS', ...(reason ? { reason } : {}), after: { delivery_code: d.delivery_code, ...after } });
     return event;
   }
 
@@ -345,22 +345,11 @@ export class DeliveriesService {
     }
     await this.checkProducer(this.db, ctx, dto.producer_id);
     await this.checkFields(this.db, ctx, dto.producer_id, dto);
-    const harvest = harvestColumns(dto.harvest_period) ?? harvestColumns(null)!;
     try {
       const id = await this.db.transaction().execute(async (trx) => {
-        const id = randomUUID();
-        const code = await this.nextCode(trx, orgId, dto.delivery_date ?? null);
-        const row = await trx.insertInto('deliveries').values({
-          id, organization_id: orgId, delivery_code: code, status: 'DRAFT', producer_id: dto.producer_id, product_id: dto.product_id ?? null, location_id: dto.location_id ?? null,
-          delivery_date: dto.delivery_date ?? null, quantity_declared: dto.quantity_declared ?? null, unit: dto.unit ?? null, ...harvest, notes: dto.notes?.trim() || null,
-          created_by: user.id, operation_id: dto.operation_id,
-        }).returningAll().executeTakeFirstOrThrow();
-        if (dto.origins?.length) await this.replaceOrigins(trx, ctx, id, dto.origins);
-        const g = await this.gate(trx, ctx, 'DELIVERY_DRAFT_SAVE', await this.deliveryValues(trx, row));
-        if (!g.allowed) throw this.blocked(g, 'guardar el borrador');
-        await this.record(trx, ctx, user.id, row, null, 'delivery.draft_create', { status: 'DRAFT', pending: g.pending.map((p) => p.code) }, requestId);
+        const row = await this.createDraftInTx(trx, ctx, user.id, dto, dto.operation_id, requestId);
         if (dto.register) await this.registerIn(trx, ctx, user.id, row, requestId);
-        return id;
+        return row.id;
       });
       return { replayed: false, delivery: await this.view(this.db, ctx, await this.loadDelivery(this.db, ctx, id, 'read')) };
     } catch (err) {
@@ -375,23 +364,66 @@ export class DeliveriesService {
   async update(user: AuthUser, orgId: string, id: string, dto: UpdateDeliveryDto, requestId?: string) {
     const ctx = await this.ctx(user, orgId, ['delivery:create', 'delivery:create_assigned'], true);
     return this.db.transaction().execute(async (trx) => {
-      const d = await this.loadDelivery(trx, ctx, id, 'write', true);
-      if (d.status !== 'DRAFT') throw conflict('DELIVERY_REGISTERED', 'La entrega ya está registrada: no se edita; registra una corrección.');
-      if (Number(d.row_version) !== dto.expected_version) throw conflict('VERSION_CONFLICT', 'Otra persona modificó esta entrega. Recarga para ver la versión actual; tus datos siguen en el formulario.');
-      await this.checkFields(trx, ctx, d.producer_id, dto);
-      const changes: Record<string, unknown> = {};
-      for (const k of ['product_id', 'location_id', 'delivery_date', 'quantity_declared', 'unit'] as const) if (dto[k] !== undefined) changes[k] = dto[k];
-      if (dto.notes !== undefined) changes.notes = dto.notes?.trim() || null;
-      const harvest = harvestColumns(dto.harvest_period);
-      if (harvest) Object.assign(changes, harvest);
-      const after = await trx.updateTable('deliveries').set({ ...changes, row_version: sql`row_version + 1`, updated_at: new Date() } as never)
-        .where('id', '=', id).where('organization_id', '=', orgId).returningAll().executeTakeFirstOrThrow();
-      if (dto.origins) await this.replaceOrigins(trx, ctx, id, dto.origins);
-      const g = await this.gate(trx, ctx, 'DELIVERY_DRAFT_SAVE', await this.deliveryValues(trx, after));
-      if (!g.allowed) throw this.blocked(g, 'guardar el borrador');
-      await this.record(trx, ctx, user.id, after, null, 'delivery.draft_update', { changed_fields: [...Object.keys(changes), ...(dto.origins ? ['origins'] : [])].filter((k) => !k.startsWith('harvest_derived')), version: Number(after.row_version) }, requestId);
+      const { after, d } = await this.updateDraftInTx(trx, ctx, user.id, id, dto, requestId);
       return this.view(trx, ctx, { ...after, producer_assignee: d.producer_assignee });
     });
+  }
+
+  /**
+   * Alta de BORRADOR dentro de una transacción del llamador (también P0-026 Importación). Mismos controles que create():
+   * productor activo en el alcance de alta, referencias de la organización (producto, centro, parcelas del productor),
+   * cantidad positiva con unidad explícita, periodo tal como se declara, código asignado por el sistema, compuerta
+   * DELIVERY_DRAFT_SAVE y auditoría. No registra la entrega ni genera efectos físicos (sin evento de dominio).
+   */
+  async createDraftInTx(trx: Transaction<Database>, ctx: TenantContext, userId: string, dto: DeliveryFieldsDto & { producer_id: string }, operationId: string, requestId?: string, from?: { reason: string; source: Record<string, unknown> }) {
+    const orgId = ctx.organizationId;
+    await this.checkProducer(trx, ctx, dto.producer_id);
+    await this.checkFields(trx, ctx, dto.producer_id, dto);
+    const harvest = harvestColumns(dto.harvest_period) ?? harvestColumns(null)!;
+    const id = randomUUID();
+    const code = await this.nextCode(trx, orgId, dto.delivery_date ?? null);
+    const row = await trx.insertInto('deliveries').values({
+      id, organization_id: orgId, delivery_code: code, status: 'DRAFT', producer_id: dto.producer_id, product_id: dto.product_id ?? null, location_id: dto.location_id ?? null,
+      delivery_date: dto.delivery_date ?? null, quantity_declared: dto.quantity_declared ?? null, unit: dto.unit ?? null, ...harvest, notes: dto.notes?.trim() || null,
+      created_by: userId, operation_id: operationId,
+    }).returningAll().executeTakeFirstOrThrow();
+    if (dto.origins?.length) await this.replaceOrigins(trx, ctx, id, dto.origins);
+    const g = await this.gate(trx, ctx, 'DELIVERY_DRAFT_SAVE', await this.deliveryValues(trx, row));
+    if (!g.allowed) throw this.blocked(g, 'guardar el borrador');
+    await this.record(trx, ctx, userId, row, null, 'delivery.draft_create', { status: 'DRAFT', pending: g.pending.map((p) => p.code), ...(from ? { source: from.source } : {}) }, requestId, from?.reason);
+    return row;
+  }
+
+  /**
+   * Edición de BORRADOR dentro de una transacción del llamador (también P0-026 Importación). Mismos controles que update():
+   * alcance de escritura (bloqueo), solo borradores (una registrada se corrige con su mecanismo), versión esperada,
+   * referencias, compuerta y auditoría. El productor no cambia. Un campo ausente (undefined) no cambia.
+   */
+  async updateDraftInTx(trx: Transaction<Database>, ctx: TenantContext, userId: string, id: string, dto: UpdateDeliveryDto, requestId?: string, from?: { reason: string; source: Record<string, unknown> }) {
+    const orgId = ctx.organizationId;
+    const d = await this.loadDelivery(trx, ctx, id, 'write', true);
+    if (d.status !== 'DRAFT') throw conflict('DELIVERY_REGISTERED', 'La entrega ya está registrada: no se edita; registra una corrección.');
+    if (Number(d.row_version) !== dto.expected_version) throw conflict('VERSION_CONFLICT', 'Otra persona modificó esta entrega. Recarga para ver la versión actual; tus datos siguen en el formulario.');
+    await this.checkFields(trx, ctx, d.producer_id, dto);
+    const changes: Record<string, unknown> = {};
+    for (const k of ['product_id', 'location_id', 'delivery_date', 'quantity_declared', 'unit'] as const) if (dto[k] !== undefined) changes[k] = dto[k];
+    if (dto.notes !== undefined) changes.notes = dto.notes?.trim() || null;
+    const harvest = harvestColumns(dto.harvest_period);
+    if (harvest) Object.assign(changes, harvest);
+    const after = await trx.updateTable('deliveries').set({ ...changes, row_version: sql`row_version + 1`, updated_at: new Date() } as never)
+      .where('id', '=', id).where('organization_id', '=', orgId).returningAll().executeTakeFirstOrThrow();
+    if (dto.origins) await this.replaceOrigins(trx, ctx, id, dto.origins);
+    const g = await this.gate(trx, ctx, 'DELIVERY_DRAFT_SAVE', await this.deliveryValues(trx, after));
+    if (!g.allowed) throw this.blocked(g, 'guardar el borrador');
+    await this.record(trx, ctx, userId, after, null, 'delivery.draft_update', { changed_fields: [...Object.keys(changes), ...(dto.origins ? ['origins'] : [])].filter((k) => !k.startsWith('harvest_derived')), version: Number(after.row_version), ...(from ? { source: from.source } : {}) }, requestId, from?.reason);
+    return { after, d };
+  }
+
+  /** P0-026: alcance de escritura de entregas para un productor (misma regla que el alta). */
+  canWriteFor(ctx: TenantContext, producerAssignee: string | null) { return this.canWrite(ctx, producerAssignee); }
+  /** P0-026: alcance de lectura de entregas para un productor (misma regla que loadDelivery). */
+  canReadFor(ctx: TenantContext, producerAssignee: string | null) {
+    return this.has(ctx, 'delivery:read') || (this.has(ctx, 'delivery:read_assigned') && producerAssignee === ctx.membershipId);
   }
 
   private async registerIn(trx: Transaction<Database>, ctx: TenantContext, userId: string, d: Delivery, requestId?: string) {

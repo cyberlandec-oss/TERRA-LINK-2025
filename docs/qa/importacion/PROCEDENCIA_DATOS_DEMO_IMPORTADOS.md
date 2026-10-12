@@ -36,12 +36,22 @@ Confirmación hecha **con teclado** (captura `pa04-admin-resultado-parcelas.png`
 del archivo no se mapeó ni se importó. Historial con el lote y la fila en el motivo; eventos `PlotRegistered` y
 `PlotGeometryVersionCreated` con `source`.
 
+## Entregas (revisión del 2026-10-12, `e2e/review/importaciones-entregas.mjs`)
+
+| Código | Estado | Productor | Notas | Archivo |
+| --- | --- | --- | --- | --- |
+| `ENT-2026-00004` | BORRADOR | `DEMO-RV-008` | «Entrega importada (demo) A»: CACAO_SECO, centro DEMO-CA-01, 180.5 KG declarados, periodo MONTH 2026-09, orígenes DEMO-IMP-PAR-001 (100 KG) y DEMO-IMP-PAR-002 | `demo-importacion-entregas.xlsx` (sintético) |
+| `ENT-2026-00005` | BORRADOR | `DEMO-RV-008` | «Entrega importada (demo) B»: periodo UNKNOWN, sin cantidad | idem |
+
+Confirmación hecha **con teclado** (captura `en04-admin-resultado-entregas.png`). No se registraron: sin recepción, pesaje,
+muestra, movimiento de inventario, compuerta de registro ni evento de entrega (comprobado en la base por la revisión).
+
 ## Cómo comprobarlo
 
 ```sql
 -- productores y productos importados, con su lote y fila de origen
-SELECT coalesce(p.producer_code, pr.code, pl.plot_code) AS codigo, r.batch_id, r.row_number, r.result_action, b.template, b.sha256
+SELECT coalesce(p.producer_code, pr.code, pl.plot_code, d.delivery_code) AS codigo, r.batch_id, r.row_number, r.result_action, b.template, b.sha256
 FROM import_rows r JOIN import_batches b ON b.id = r.batch_id
-LEFT JOIN producers p ON p.id = r.producer_id LEFT JOIN products pr ON pr.id = r.product_id LEFT JOIN plots pl ON pl.id = r.plot_id
+LEFT JOIN producers p ON p.id = r.producer_id LEFT JOIN products pr ON pr.id = r.product_id LEFT JOIN plots pl ON pl.id = r.plot_id LEFT JOIN deliveries d ON d.id = r.delivery_id
 WHERE r.result_action = 'CREATED' ORDER BY b.created_at, r.row_number;
 ```

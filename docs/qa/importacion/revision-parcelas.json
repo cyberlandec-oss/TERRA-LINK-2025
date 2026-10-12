@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-12T04:14:23.825Z",
+  "fecha": "2026-10-12T05:07:46.810Z",
   "base": "http://localhost:3000",
   "entorno": "DESARROLLO local (contenedores), datos DEMO y archivos sintéticos",
   "ok": true,
@@ -11,7 +11,7 @@
       "captura": "docs/qa/capturas/importacion/pa01-admin-plantilla-parcelas.png"
     },
     {
-      "caso": "admin: productor inexistente y de baja, coma decimal y superficie sobre geometría son errores de fila; no confirmable",
+      "caso": "admin: productor inexistente y de baja y coma decimal son errores de fila; la superficie sobre una parcela con geometría se acepta (la conserva); no confirmable",
       "ok": true,
       "detalle": "",
       "captura": "docs/qa/capturas/importacion/pa02-admin-errores-parcelas.png"

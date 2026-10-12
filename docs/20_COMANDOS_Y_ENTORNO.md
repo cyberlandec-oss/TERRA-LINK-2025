@@ -180,3 +180,9 @@ y `adb logcat -s ReactNativeJS:V` (línea `TL_SELFTEST`). Evidencia: `docs/qa/EV
 - `npx jest --runInBand test/imports-plots.int-spec.ts` (desde `apps/api`): integración con PostGIS real y fixtures de autorización.
 - `npm run build -w apps/api && node e2e/review/importaciones-parcelas.mjs`: revisión en navegador (archivos sintéticos; crea `DEMO-IMP-PAR-001/002` del productor `DEMO-RV-008`, sin geometría).
 - Cachés Android con rutas de C: identificadas y **no** borradas en esta tarea (no hubo que recompilar): `apps/mobile/android/app/.cxx`, `apps/mobile/android/app/build`, `apps/mobile/android/build`. Están ignoradas (`apps/mobile/.gitignore`: `/android`, salida del prebuild) y son regenerables. Autorizado regenerarlas cuando haya que recompilar; conservar `apps/mobile/dist-apk/`, claves de firma, SDK/JDK y cachés globales.
+
+### Superficie declarada e importación de entregas (2026-10-12)
+
+- `npx jest --runInBand test/plot-declared-area.int-spec.ts test/imports-deliveries.int-spec.ts` (desde `apps/api`).
+- `npm run build -w apps/api && node e2e/review/importaciones-entregas.mjs`: revisión en navegador (archivos sintéticos; crea borradores DEMO del productor `DEMO-RV-008` y comprueba en la base que no hay efectos físicos).
+- Anomalía observada (no reproducida): la primera ejecución de `imports-deliveries.int-spec.ts` duró 690 s; según `test-results/harness-timings.jsonl`, el reinicio del esquema, las migraciones y las pruebas tardaron ~6 s, así que el tiempo se fue antes del arnés (carga/transpilación de jest). La repetición tardó 9,6 s. Causa no determinada.
