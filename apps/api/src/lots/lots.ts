@@ -593,9 +593,9 @@ export class LotsService {
     // «origen declarado» es del lote y se conserva aunque las parcelas no sean visibles; nunca se cuentan las ocultas.
     const plotScope = this.has(ctx, 'plot:read') ? sql`TRUE` : this.has(ctx, 'plot:read_assigned') ? sql`pr.assigned_membership_id = ${ctx.membershipId}` : sql`FALSE`;
     const producerScope = this.has(ctx, 'producer:read') ? sql`TRUE` : this.has(ctx, 'producer:read_assigned') ? sql`pr.assigned_membership_id = ${ctx.membershipId}` : sql`FALSE`;
-    const receptions = roots.length ? (await sql<{ lot_id: string; quantity: string; delivery_id: string; delivery_code: string; producer_id: string; producer_visible: boolean; producer_code: string; legal_name: string | null; first_name: string | null; last_name: string | null; declared: boolean; plots: Array<{ id: string; code: string }> | null }>`
+    const receptions = roots.length ? (await sql<{ lot_id: string; quantity: string; delivery_id: string; delivery_code: string; producer_id: string; producer_visible: boolean; producer_code: string; legal_name: string | null; first_name: string | null; last_name: string | null; declared: boolean; plot_visible: boolean; plots: Array<{ id: string; code: string }> | null }>`
       SELECT i.lot_id, i.quantity::text, d.id AS delivery_id, d.delivery_code, pr.id AS producer_id, (${producerScope}) AS producer_visible, pr.producer_code, pr.legal_name, pr.first_name, pr.last_name,
-             EXISTS (SELECT 1 FROM delivery_origins o WHERE o.delivery_id = d.id) AS declared,
+             EXISTS (SELECT 1 FROM delivery_origins o WHERE o.delivery_id = d.id) AS declared, (${plotScope}) AS plot_visible,
              CASE WHEN ${plotScope} THEN (SELECT json_agg(json_build_object('id', p.id, 'code', p.plot_code) ORDER BY p.plot_code) FROM delivery_origins o JOIN plots p ON p.id = o.plot_id WHERE o.delivery_id = d.id) ELSE NULL END AS plots
       FROM lot_inputs i JOIN receptions r ON r.id = i.reception_id JOIN deliveries d ON d.id = r.delivery_id JOIN producers pr ON pr.id = d.producer_id
       WHERE i.lot_id = ANY(${roots}::uuid[]) AND NOT EXISTS (SELECT 1 FROM lot_input_releases x WHERE x.input_id = i.id) AND ${this.deliveryVisible(ctx)}
@@ -604,8 +604,10 @@ export class LotsService {
       lots: lots.filter((l) => l.depth > 0).map((l) => ({ lot_id: l.id, lot_code: l.lot_code, depth: l.depth, contributed: l.quantity ? { value: dec(l.quantity), unit: 'KG' } : null })),
       receptions: receptions.map((r) => ({ lot_id: r.lot_id, delivery_id: r.delivery_id, delivery_code: r.delivery_code, producer_code: r.producer_code, producer_id: r.producer_visible ? r.producer_id : null,
         producer_name: identity ? (r.legal_name ?? `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim()) || null : null,
-        plots: (r.plots ?? []).map((p) => p.code), plot_links: r.plots ?? [], plots_restricted: r.declared && r.plots === null,
-        origin_known: r.declared, quantity: { value: dec(r.quantity), unit: 'KG' } })),
+        // Sin lectura de parcelas, el aviso sale por permiso/alcance y no por los datos: una recepción con 0, 1 o n parcelas
+        // ocultas produce la misma forma (sin existencia, códigos ni cantidades; origin_known por recepción se omite).
+        plots: (r.plots ?? []).map((p) => p.code), plot_links: r.plots ?? [], plots_restricted: !r.plot_visible,
+        origin_known: r.plot_visible ? r.declared : null, quantity: { value: dec(r.quantity), unit: 'KG' } })),
       note: 'Cantidades registradas por enlace (aportado al proceso o asignado al lote). Cualquier reparto proporcional tras una mezcla es un cálculo, no identificación física.',
     };
   }

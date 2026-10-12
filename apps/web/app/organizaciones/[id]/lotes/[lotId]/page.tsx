@@ -77,7 +77,7 @@ export default function LotDetailPage() {
             <li key={i}>Recepción {r.delivery_id ? <Link href={`/organizaciones/${orgId}/entregas/${r.delivery_id}`}>{r.delivery_code}</Link> : r.delivery_code}
               {' · '}{r.producer_id ? <Link href={`/organizaciones/${orgId}/productores/${r.producer_id}`}>{r.producer_code}</Link> : r.producer_code}{r.producer_name ? ` (${r.producer_name})` : ''}
               {' · '}{r.plot_links && r.plot_links.length ? <>parcelas {r.plot_links.map((p, j) => <span key={p.id}>{j ? ', ' : ''}<Link href={`/organizaciones/${orgId}/parcelas/${p.id}`}>{p.code}</Link></span>)}</>
-                : r.plots_restricted ? <span className="muted">origen declarado; parcelas restringidas para tu rol</span> : r.origin_known ? `parcelas ${r.plots.join(', ')}` : 'origen no declarado'}
+                : r.plots_restricted ? <span className="muted">parcelas restringidas para tu rol</span> : r.origin_known ? `parcelas ${r.plots.join(', ')}` : 'origen no declarado'}
               {' · '}{kg(r.quantity.value)}
             </li>
           ))}

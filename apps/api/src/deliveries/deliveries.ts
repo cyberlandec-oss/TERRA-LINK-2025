@@ -807,6 +807,10 @@ export class DeliveriesService {
     const product = d.product_id ? await db.selectFrom('products').select(['id', 'code', 'name', 'unit', 'status']).where('id', '=', d.product_id).executeTakeFirst() : null;
     const location = d.location_id ? await db.selectFrom('locations').select(['id', 'code', 'name']).where('id', '=', d.location_id).executeTakeFirst() : null;
     const origins = await db.selectFrom('delivery_origins as o').innerJoin('plots as p', 'p.id', 'o.plot_id').select(['o.plot_id', 'p.plot_code', 'o.origin_quantity']).where('o.delivery_id', '=', d.id).orderBy('p.plot_code').execute();
+    // Parcelas de origen: con lectura de parcelas en alcance, o con la capacidad de declarar origen (las mismas parcelas que ya
+    // ofrece /deliveries/options). Si no, el aviso sale por permiso y la respuesta no revela existencia, códigos ni cantidades.
+    const assigned = d.producer_assignee === ctx.membershipId;
+    const plotsVisible = has('plot:read') || (has('plot:read_assigned') && assigned) || has('delivery:create') || (has('delivery:create_assigned') && assigned);
     const corrections = await db.selectFrom('delivery_corrections as c').leftJoin('users as u', 'u.id', 'c.created_by')
       .select(['c.correction_number', 'c.reason', 'c.changed_fields', 'c.delivery_date', 'c.quantity_declared', 'c.harvest_precision', 'c.harvest_start', 'c.harvest_end', 'c.created_at', 'c.corrected_event_id', 'c.correction_event_id', 'u.first_name', 'u.last_name'])
       .where('c.delivery_id', '=', d.id).orderBy('c.correction_number').execute();
@@ -912,8 +916,9 @@ export class DeliveriesService {
         precision: e.harvest_precision, start: e.harvest_start, end: e.harvest_end,
         derived: e.harvest_derived_start ? { start: ymd(e.harvest_derived_start)!, end: ymd(e.harvest_derived_end)!, note: 'Límites derivados para consultas; la declaración original es la de arriba.' } : null,
       } : null,
-      origins: origins.map((o) => ({ plot_id: o.plot_id, plot_code: o.plot_code, quantity: o.origin_quantity ? { value: dec(o.origin_quantity)!, unit: 'KG' } : null })),
-      origin_status: origins.length ? 'DECLARED' : 'MISSING',
+      origins: plotsVisible ? origins.map((o) => ({ plot_id: o.plot_id, plot_code: o.plot_code, quantity: o.origin_quantity ? { value: dec(o.origin_quantity)!, unit: 'KG' } : null })) : [],
+      origins_restricted: !plotsVisible,
+      origin_status: plotsVisible ? (origins.length ? 'DECLARED' : 'MISSING') : 'RESTRICTED',
       notes: e.notes,
       original_declaration: corrections.length ? { delivery_date: d.delivery_date ? ymd(d.delivery_date)! : null, quantity_declared: dec(d.quantity_declared), harvest_period: periodValue(d.harvest_precision, d.harvest_start, d.harvest_end) } : null,
       corrections: corrections.map((c) => ({ number: c.correction_number, reason: c.reason, changed_fields: c.changed_fields, delivery_date: ymd(c.delivery_date)!, quantity_declared: dec(c.quantity_declared)!,

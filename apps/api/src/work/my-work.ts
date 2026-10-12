@@ -79,15 +79,17 @@ export class MyWorkService {
       if (Number(n)) tasks.push({ code: 'DUPLICATE_REVIEWS', title: 'Posibles duplicados de productor', reason: 'Coincidencias de identidad pendientes de revisión (no se fusiona nada automáticamente).', action: 'Revisar',
         count: Number(n), items: [], list_href: `${base}/productores/coincidencias` });
     }
-    // 5) Parcelas activas sin ubicación ni superficie (plot:update / _assigned).
+    // 5) Parcelas activas sin ubicación: sin versión vigente o con versión sin geometría (p. ej. solo superficie declarada).
+    //    La superficie declarada no es ubicación; la tarea se resuelve solo con un punto o un polígono (plot:update / _assigned).
     const plotWrite = this.scope(ctx, 'plot:update', 'plot:update_assigned', prAssignee);
     if (active && plotWrite) {
       const rows = (await sql<{ id: string; plot_code: string; n: string }>`
         SELECT p.id, p.plot_code, count(*) OVER ()::text AS n FROM plots p
         JOIN producers pr ON pr.id = p.producer_id AND pr.organization_id = p.organization_id
-        WHERE p.organization_id = ${orgId} AND p.status = 'ACTIVE' AND p.current_version_id IS NULL AND ${plotWrite}
+        LEFT JOIN plot_versions v ON v.id = p.current_version_id AND v.plot_id = p.id
+        WHERE p.organization_id = ${orgId} AND p.status = 'ACTIVE' AND (p.current_version_id IS NULL OR v.geometry_type IS NULL) AND ${plotWrite}
         ORDER BY p.plot_code LIMIT ${LIMIT}`.execute(this.db)).rows;
-      if (rows.length) tasks.push({ code: 'PLOTS_WITHOUT_LOCATION', title: 'Parcelas sin ubicación ni superficie', reason: 'Falta registrar la ubicación o la superficie declarada.', action: 'Registrar',
+      if (rows.length) tasks.push({ code: 'PLOTS_WITHOUT_LOCATION', title: 'Parcelas sin ubicación', reason: 'Sin punto ni polígono vigente. La superficie declarada no es ubicación y no resuelve esta tarea.', action: 'Capturar ubicación',
         count: Number(rows[0].n), items: rows.map((r) => ({ id: r.id, label: r.plot_code, href: `${base}/parcelas/${r.id}` })), list_href: `${base}/parcelas?geometry=WITHOUT` });
     }
     // 6) Mitigaciones asignadas a mí, abiertas (mitigation:contribute).

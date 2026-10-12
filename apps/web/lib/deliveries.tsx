@@ -19,7 +19,7 @@ export interface Delivery {
   producer: { id: string; code: string; name: string | null; identity_visible: boolean };
   product: { id: string; code: string; name: string; status: string } | null; location: { id: string; code: string; name: string } | null;
   delivery_date: string | null; quantity_declared: Qty | null; harvest_period: HarvestPeriod | null;
-  origins: Array<{ plot_id: string; plot_code: string; quantity: Qty | null }>; origin_status: 'DECLARED' | 'MISSING'; notes: string | null;
+  origins: Array<{ plot_id: string; plot_code: string; quantity: Qty | null }>; origins_restricted?: boolean; origin_status: 'DECLARED' | 'MISSING' | 'RESTRICTED'; notes: string | null;
   original_declaration: { delivery_date: string | null; quantity_declared: string | null; harvest_period: { precision: string; start?: string; end?: string } | null } | null;
   corrections: Array<{ number: number; reason: string; changed_fields: string[]; delivery_date: string; quantity_declared: string; harvest_period: { precision: string; start?: string; end?: string } | null; at: string; by: string }>;
   supports: Array<{ id: string; kind: string; document_id: string; document_version_id: string; title: string; version_number: number; availability: string; validity: string; expires_at: string | null; review: string; newer_version_exists: boolean; withdrawn: { reason: string; at: string } | null }>;

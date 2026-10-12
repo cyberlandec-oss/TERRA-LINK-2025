@@ -74,10 +74,29 @@ describeDb('P0-027 Mi trabajo y Lot Hub (PostgreSQL real)', () => {
     expect(rec).toMatchObject({ count: 1, items: [expect.objectContaining({ label: expect.stringContaining('W-2') })] });
     await http().post(`${api(orgA)}/deliveries/${draft.id}/receptions`).set(as('recepcion@test.local')).send({ operation_id: randomUUID(), location_id: center, received_at: new Date().toISOString(), weighing: { method: 'B', quantity: '100', unit: 'KG', weighed_on: today } }).expect(201);
     expect(task(await work('recepcion@test.local'), 'DELIVERIES_TO_RECEIVE')).toBeUndefined();
-    expect(task(await work(T1), 'PLOTS_WITHOUT_LOCATION')!.count).toBe(1);
-    const v = await h.db.selectFrom('plots').select('row_version').where('id', '=', plotP1).executeTakeFirstOrThrow();
-    await http().post(`${api(orgA)}/plots/${plotP1}/declared-area`).set(as(T1)).send({ expected_version: Number(v.row_version), area_declared_ha: 1.5 }).expect(201);
-    expect(task(await work(T1), 'PLOTS_WITHOUT_LOCATION')).toBeUndefined();
+  });
+
+  it('Parcelas sin ubicación: sin versión y solo superficie declarada siguen en la tarea; punto y polígono la resuelven', async () => {
+    const mkPlot = async (code: string) => (await http().post(`${api(orgA)}/plots`).set(as(ADMIN)).send({ producer_id: p1, plot_code: code, crop: 'Cacao' }).expect(201)).body.id as string;
+    const rv = async (id: string) => Number((await h.db.selectFrom('plots').select('row_version').where('id', '=', id).executeTakeFirstOrThrow()).row_version);
+    const labels = async () => (task(await work(T1), 'PLOTS_WITHOUT_LOCATION')?.items ?? []).map((i) => i.label);
+    const declared = await mkPlot('W-1-DECL');
+    const point = await mkPlot('W-1-PUNTO');
+    const polygon = await mkPlot('W-1-POLI');
+    expect(await labels()).toEqual(expect.arrayContaining(['W-1-P1', 'W-1-DECL', 'W-1-PUNTO', 'W-1-POLI'])); // sin versión
+    // Superficie declarada sin coordenadas: versión vigente sin geometría → sigue sin ubicación.
+    await http().post(`${api(orgA)}/plots/${declared}/declared-area`).set(as(T1)).send({ expected_version: await rv(declared), area_declared_ha: 1.2 }).expect(201);
+    await http().post(`${api(orgA)}/plots/${point}/declared-area`).set(as(T1)).send({ expected_version: await rv(point), area_declared_ha: 0.8 }).expect(201);
+    expect(await labels()).toEqual(expect.arrayContaining(['W-1-DECL', 'W-1-PUNTO']));
+    // Punto (sobre una versión declarada) y polígono: la tarea se retira solo para esas parcelas.
+    await http().post(`${api(orgA)}/plots/${point}/geometry-versions`).set(as(T1)).send({ expected_version: await rv(point), survey_method: 'MANUAL_COORDINATES', geometry: { type: 'Point', coordinates: [-80.1601, -0.8479] } }).expect(201);
+    const ring = [[-80.16, -0.85], [-80.159, -0.85], [-80.159, -0.849], [-80.16, -0.849], [-80.16, -0.85]];
+    await http().post(`${api(orgA)}/plots/${polygon}/geometry-versions`).set(as(T1)).send({ expected_version: await rv(polygon), survey_method: 'MANUAL_COORDINATES', geometry: { type: 'Polygon', coordinates: [ring] } }).expect(201);
+    const after = await labels();
+    expect(after).toEqual(expect.arrayContaining(['W-1-P1', 'W-1-DECL']));
+    expect(after).not.toContain('W-1-PUNTO');
+    expect(after).not.toContain('W-1-POLI');
+    expect(task(await work(T1), 'PLOTS_WITHOUT_LOCATION')).toMatchObject({ title: 'Parcelas sin ubicación', count: 2 });
   });
 
   it('Lot Hub: quien lee entregas pero no parcelas no recibe códigos ni ids de parcelas de origen', async () => {
@@ -88,8 +107,41 @@ describeDb('P0-027 Mi trabajo y Lot Hub (PostgreSQL real)', () => {
     expect(adminView.upstream.receptions[0]).toMatchObject({ plots: ['W-1-P1'], plot_links: [{ id: plotP1, code: 'W-1-P1' }], plots_restricted: false, origin_known: true, delivery_id: d.id, producer_id: p1 });
     expect(adminView.inputs[0].delivery_id).toBe(d.id);
     const recView = (await http().get(`${api(orgA)}/lots/${lot.id}`).set(as('recepcion@test.local')).expect(200)).body;
-    expect(recView.upstream.receptions[0]).toMatchObject({ plots: [], plot_links: [], plots_restricted: true, origin_known: true, producer_id: null });
+    expect(recView.upstream.receptions[0]).toMatchObject({ plots: [], plot_links: [], plots_restricted: true, origin_known: null, producer_id: null });
     expect(JSON.stringify(recView)).not.toContain('W-1-P1');
     expect(JSON.stringify(recView)).not.toContain(plotP1);
+  });
+
+  it('parcelas restringidas: el aviso depende del permiso; lotes con 0, 1 o 2 parcelas ocultas son indistinguibles', async () => {
+    const extra = (await http().post(`${api(orgA)}/plots`).set(as(ADMIN)).send({ producer_id: p1, plot_code: 'W-1-OCULTA2', crop: 'Cacao' }).expect(201)).body.id;
+    const mkLot = async (origins: Array<{ plot_id: string; quantity?: string }>) => {
+      const d = (await http().post(`${api(orgA)}/deliveries`).set(as(ADMIN)).send({ operation_id: randomUUID(), producer_id: p1, product_id: product, delivery_date: today, quantity_declared: '30', unit: 'KG', origins, register: true }).expect(201)).body.delivery;
+      const r = (await http().post(`${api(orgA)}/deliveries/${d.id}/receptions`).set(as(ADMIN)).send({ operation_id: randomUUID(), location_id: center, received_at: new Date().toISOString(), weighing: { method: 'B', quantity: '30', unit: 'KG', weighed_on: today } }).expect(201)).body.reception_id;
+      return { delivery: d.id as string, lot: (await http().post(`${api(orgA)}/lots`).set(as(ADMIN)).send({ operation_id: randomUUID(), inputs: [{ reception_id: r, quantity: '30' }] }).expect(201)).body.lot.id as string };
+    };
+    const one = await mkLot([{ plot_id: plotP1, quantity: '30' }]);
+    const two = await mkLot([{ plot_id: plotP1, quantity: '10' }, { plot_id: extra, quantity: '20' }]);
+    const none = await mkLot([]);
+    const Q = 'calidad@test.local'; // lee entregas y lotes; sin lectura de parcelas ni capacidad de declarar origen
+    const shape = async (lot: string) => {
+      const v = (await http().get(`${api(orgA)}/lots/${lot}`).set(as(Q)).expect(200)).body;
+      return v.upstream.receptions.map(({ lot_id: _l, delivery_id: _d, delivery_code: _c, ...rest }: Record<string, unknown>) => rest);
+    };
+    const [s1, s2, s0] = [await shape(one.lot), await shape(two.lot), await shape(none.lot)];
+    expect(s1).toEqual([{ producer_code: 'W-1', producer_id: null, producer_name: null, plots: [], plot_links: [], plots_restricted: true, origin_known: null, quantity: { value: '30', unit: 'KG' } }]);
+    expect(s2).toEqual(s1);
+    expect(s0).toEqual(s1); // sin origen declarado: misma forma por recepción (el estado D-39 del lote es un atributo del lote, no una referencia)
+    const full1 = JSON.stringify((await http().get(`${api(orgA)}/lots/${one.lot}`).set(as(Q)).expect(200)).body);
+    const full2 = JSON.stringify((await http().get(`${api(orgA)}/lots/${two.lot}`).set(as(Q)).expect(200)).body);
+    for (const leak of ['W-1-P1', 'W-1-OCULTA2', plotP1, extra, '"10"', '"20"']) { expect(full1).not.toContain(leak); expect(full2).not.toContain(leak); }
+    // Detalle de entrega: mismo criterio.
+    for (const d of [one.delivery, two.delivery, none.delivery]) {
+      const body = (await http().get(`${api(orgA)}/deliveries/${d}`).set(as(Q)).expect(200)).body;
+      expect(body).toMatchObject({ origins: [], origins_restricted: true, origin_status: 'RESTRICTED' });
+      for (const leak of ['W-1-P1', 'W-1-OCULTA2', plotP1, extra]) expect(JSON.stringify(body)).not.toContain(leak);
+    }
+    // Con permiso, el aviso no aparece y se ven las parcelas.
+    expect((await http().get(`${api(orgA)}/lots/${two.lot}`).set(as(ADMIN)).expect(200)).body.upstream.receptions[0]).toMatchObject({ plots: ['W-1-OCULTA2', 'W-1-P1'], plots_restricted: false, origin_known: true });
+    expect((await http().get(`${api(orgA)}/lots/${none.lot}`).set(as(ADMIN)).expect(200)).body.upstream.receptions[0]).toMatchObject({ plots: [], plots_restricted: false, origin_known: false });
   });
 });

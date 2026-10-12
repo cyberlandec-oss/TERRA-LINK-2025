@@ -18,8 +18,8 @@ Fuentes: backlog P0-027, RF-27, QA-14, `docs/UX_UI.md` §6 (navegación), §7 (r
 
 - **Mi trabajo** (`GET /organizations/{orgId}/my-work`, `apps/api/src/work/my-work.ts`): tareas observables que el rol
   puede completar, contadas dentro del alcance con que su módulo las muestra (organización o asignados): borradores de
-  entrega, entregas sin recepción, resultados de calidad sin decisión, posibles duplicados, parcelas sin ubicación ni
-  superficie, mitigaciones asignadas y por verificar (sin las enviadas por uno mismo). Sin recursos ocultos; la tarea
+  entrega, entregas sin recepción, resultados de calidad sin decisión, posibles duplicados, parcelas sin ubicación (sin
+  punto ni polígono vigente; la superficie declarada no la resuelve), mitigaciones asignadas y por verificar (sin las enviadas por uno mismo). Sin recursos ocultos; la tarea
   desaparece al resolverse en el dominio. Organización suspendida: sin tareas de escritura.
 - **Inicio**: sección «Mi trabajo» (carga, error con reintento, vacío) y lista de capacidades **realmente** ausentes
   (offline en la app móvil, embarques P0-029, portal comprador P1-001, «Mi finca» UX-D08, elevación de plataforma D-04),
@@ -27,8 +27,8 @@ Fuentes: backlog P0-027, RF-27, QA-14, `docs/UX_UI.md` §6 (navegación), §7 (r
 - **Lot Hub**: secciones de Evidencias (por el origen visible: el contrato vincula evidencias a productores y parcelas) y de
   Riesgo y debida diligencia (evaluación, mitigaciones, expediente), cada una con su permiso, carga, error y vacío; enlaces
   a entrega, productor y parcela solo si son legibles. **Corregida la fuga**: el origen hacia atrás solo incluye parcelas
-  dentro del alcance de lectura de parcelas; si el origen está declarado pero no es visible, se dice «parcelas restringidas
-  para tu rol» sin contar.
+  dentro del alcance de lectura de parcelas; sin lectura de parcelas se dice «parcelas restringidas
+  para tu rol» **por permiso**, sin distinguir recepciones con o sin parcelas ocultas (reapertura 2026-10-12).
 - **Organización ajena**: el `Shell` responde «El recurso no está disponible» para cualquier página de una organización
   sin membresía activa (sin cargar datos).
 - **Filtros en la URL** (`lib/url-filters.ts`) en entregas, productores, parcelas y mitigaciones.
@@ -43,7 +43,7 @@ Fuentes: backlog P0-027, RF-27, QA-14, `docs/UX_UI.md` §6 (navegación), §7 (r
 | Formularios conservan datos | Cumplido (existente) | E2E `parcelas.spec.ts` (conflicto conserva borrador), importaciones y entregas conservan el formulario ante error |
 | Acciones con efecto de dominio | Cumplido | acción real desde «Mi trabajo» que retira la tarea (navegador y API) |
 | Sin métricas falsas | Cumplido | conteos del dominio dentro del alcance; ninguna cifra fija |
-| Acción My Work sale al resolverse (QA-14) | Cumplido | registrar borrador, recibir entrega y registrar superficie retiran su tarea |
+| Acción My Work sale al resolverse (QA-14) | Cumplido | registrar borrador y recibir entrega retiran su tarea; para parcelas, un punto o un polígono la retiran y la superficie declarada **no** (corregido en la reapertura) |
 | Teclado | Cumplido | enlace de salto con foco visible y destino `#contenido` |
 
 Con `npm run validate` aprobada sobre el commit, **P0-027 queda DONE_LOCAL**.
@@ -58,3 +58,11 @@ Con `npm run validate` aprobada sobre el commit, **P0-027 queda DONE_LOCAL**.
    organización se probó en la Cooperativa (la única con lotes DEMO).
 5. Las revisiones heredadas usaban conteos fijos del seed: se ajustaron a la presencia de los registros del seed, porque la
    DEMO incluye registros importados (P0-026) y capturas previas del emulador (P0-024).
+
+## Reapertura (2026-10-12)
+
+La evidencia inicial dio por resuelta «Parcelas sin ubicación» al registrar superficie declarada: la condición contaba
+parcelas sin versión vigente. Corregido: la tarea cuenta parcelas activas sin versión **o** con versión vigente sin
+geometría; título «Parcelas sin ubicación», acción «Capturar ubicación». El aviso de parcelas restringidas del Lot Hub y del
+detalle de entrega pasó a depender solo del permiso. Pruebas y acción real en `docs/qa/EVIDENCIA_P0-027_2026-10-12.md`.
+P0-027 vuelve a DONE_LOCAL solo con `npm run validate` aprobada sobre el commit de la corrección.

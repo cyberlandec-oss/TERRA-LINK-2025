@@ -5,7 +5,8 @@
 // GET /me/permissions), «Mi trabajo» (comparado con GET my-work), Lot Hub de un lote de la Cooperativa (secciones según
 // permiso, sin parcelas a quien no las lee), denegación dentro de la misma organización y entre organizaciones.
 // Además: filtros conservados al volver de un detalle, teclado (enlace de salto y foco visible), 390 px, zoom 200 % y una
-// acción real de «Mi trabajo» (superficie declarada de una parcela DEMO importada) que retira la tarea.
+// acción real de «Mi trabajo»: capturar un punto (geolocalización SIMULADA del navegador de prueba) en una parcela DEMO
+// importada que solo tiene superficie declarada; la superficie sola no retira la tarea, el punto sí.
 // Evidencia: docs/qa/web-por-rol/matriz.json y docs/qa/capturas/web-por-rol/*.png.
 import { chromium } from '@playwright/test';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -58,8 +59,8 @@ const matrix = [];
 const extra = [];
 const check = (list, caso, ok, detalle = '', captura = null) => { list.push({ caso, ok, detalle, captura }); console.log(`${ok ? 'OK   ' : 'FALLA'} ${caso}${detalle ? `: ${detalle}` : ''}`); };
 const shot = async (page, name) => { const f = join(shots, `${name}.png`); await page.screenshot({ path: f, fullPage: true }); return `docs/qa/capturas/web-por-rol/${name}.png`; };
-async function session(c, viewport = { width: 1280, height: 860 }) {
-  const ctx = await browser.newContext({ viewport, locale: 'es-EC' });
+async function session(c, viewport = { width: 1280, height: 860 }, extraCtx = {}) {
+  const ctx = await browser.newContext({ viewport, locale: 'es-EC', ...extraCtx });
   const page = await ctx.newPage();
   await page.goto(BASE);
   await page.getByLabel('Correo').fill(c.email);
@@ -199,26 +200,29 @@ try {
       await s2.ctx.close();
     }
   }
-  // Acción real de «Mi trabajo»: registrar la superficie declarada de una parcela DEMO importada sin ubicación.
+  // Acción real de «Mi trabajo»: la superficie declarada NO es ubicación; capturar un punto retira la parcela de la cola.
+  // La posición es SIMULADA (geolocalización emulada por Playwright); se guarda como BROWSER_GEOLOCATION en DEMO-IMP-PAR-002.
   {
     const c = combos.find((x) => x.email.startsWith('admin.cooperativa@'));
     const before = (await apiCall(`/api/v1/organizations/${coop}/my-work`, adminToken)).body.tasks.find((t) => t.code === 'PLOTS_WITHOUT_LOCATION');
     const target = before?.items.find((i) => i.label === 'DEMO-IMP-PAR-002');
     if (!target) {
-      check(extra, 'acción de Mi trabajo (no aplicable: DEMO-IMP-PAR-002 ya tiene superficie de una ejecución anterior)', true, `tarea actual: ${before ? before.count : 0}`);
+      check(extra, 'acción de Mi trabajo (no aplicable: DEMO-IMP-PAR-002 ya tiene ubicación de una ejecución anterior)', true, `tarea actual: ${before ? before.count : 0}`);
     } else {
-      const { ctx, page } = await session(c);
+      const plot = (await apiCall(`/api/v1/organizations/${coop}/plots/${target.id}`, adminToken)).body;
+      check(extra, 'DEMO-IMP-PAR-002 con solo superficie declarada sigue en «Parcelas sin ubicación»', before.title === 'Parcelas sin ubicación', `estado: ${plot.geometry_status ?? plot.plot?.geometry_status}`);
+      const { ctx, page } = await session(c, undefined, { geolocation: { latitude: -0.8479, longitude: -80.1601, accuracy: 8 }, permissions: ['geolocation'] });
       await page.goto(`${BASE}/organizaciones/${coop}`);
       await page.getByRole('link', { name: 'DEMO-IMP-PAR-002' }).click();
-      await page.getByLabel('Superficie declarada (ha)').fill('1.2');
-      await page.getByRole('button', { name: /Registrar superficie/ }).click();
-      await page.getByText('Solo superficie declarada').first().waitFor({ timeout: 15000 });
+      await page.getByRole('button', { name: 'Capturar ubicación' }).first().click();
+      await page.getByRole('button', { name: 'Guardar como nueva versión' }).click();
+      await page.getByRole('button', { name: 'Capturar otra ubicación' }).waitFor({ timeout: 15000 });
       await page.goto(`${BASE}/organizaciones/${coop}`);
       await page.getByRole('heading', { name: 'Mi trabajo' }).waitFor();
       await page.waitForLoadState('networkidle');
       const after = (await apiCall(`/api/v1/organizations/${coop}/my-work`, adminToken)).body.tasks.find((t) => t.code === 'PLOTS_WITHOUT_LOCATION');
       const listed = await page.getByRole('link', { name: 'DEMO-IMP-PAR-002' }).count();
-      check(extra, 'acción de Mi trabajo: registrar la superficie retira la parcela de la cola', listed === 0 && (after?.count ?? 0) === before.count - 1, `pendientes ${before.count} → ${after?.count ?? 0}`, await shot(page, 'admin-mi-trabajo-tras-accion'));
+      check(extra, 'acción de Mi trabajo: capturar un punto (SIMULADO) retira la parcela de la cola', listed === 0 && (after?.count ?? 0) === before.count - 1, `pendientes ${before.count} → ${after?.count ?? 0}`, await shot(page, 'admin-mi-trabajo-tras-accion'));
       await ctx.close();
     }
   }

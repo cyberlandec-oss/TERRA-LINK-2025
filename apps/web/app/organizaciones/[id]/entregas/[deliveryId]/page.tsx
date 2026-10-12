@@ -46,7 +46,7 @@ export default function DeliveryDetailPage() {
         <h2 id="dl-decl">Declaración</h2>
         <dl className="props">
           <dt>Productor</dt><dd>{d.producer.code}{d.producer.name ? ` · ${d.producer.name}` : <span className="muted"> (identidad no visible para tu rol)</span>}</dd>
-          <dt>Origen</dt><dd>{d.origin_status === 'MISSING' ? <StatusBadge tone="review">Origen faltante (pendiente)</StatusBadge> : d.origins.map((o) => `${o.plot_code}${o.quantity ? ` (${qty(o.quantity)})` : ''}`).join(', ')}</dd>
+          <dt>Origen</dt><dd>{d.origin_status === 'RESTRICTED' ? <span className="muted">parcelas restringidas para tu rol</span> : d.origin_status === 'MISSING' ? <StatusBadge tone="review">Origen faltante (pendiente)</StatusBadge> : d.origins.map((o) => `${o.plot_code}${o.quantity ? ` (${qty(o.quantity)})` : ''}`).join(', ')}</dd>
           <dt>Producto</dt><dd>{d.product ? `${d.product.name} (${d.product.code})` : <span className="muted">pendiente</span>}</dd>
           <dt>Cantidad declarada</dt><dd>{qty(d.quantity_declared)}</dd>
           <dt>Fecha de entrega</dt><dd>{d.delivery_date ?? <span className="muted">pendiente</span>}</dd>
@@ -331,7 +331,7 @@ function NewReception({ d, base, orgId, onDone }: { d: Delivery; base: string; o
       )}
       {reviewing && (
         <div className="alert info" role="status" aria-live="polite"><p className="alert-title">Revisa antes de confirmar</p>
-          <p>{d.delivery_code} · {d.producer.code} · origen: {d.origin_status === 'MISSING' ? 'faltante' : d.origins.map((o) => o.plot_code).join(', ')} · {d.product?.name ?? 'producto pendiente'}</p>
+          <p>{d.delivery_code} · {d.producer.code} · origen: {d.origin_status === 'RESTRICTED' ? 'restringido para tu rol' : d.origin_status === 'MISSING' ? 'faltante' : d.origins.map((o) => o.plot_code).join(', ')} · {d.product?.name ?? 'producto pendiente'}</p>
           <p>Declarado {qty(d.totals.declared)} · recibido hasta ahora {qty(d.totals.received)} · esta recepción {f.quantity || '—'} kg en {center?.name ?? '—'}</p>
           {d.support_status === 'PENDING' && <p>Sin soporte documental: la recepción se registra y la evidencia queda pendiente.</p>}
         </div>
