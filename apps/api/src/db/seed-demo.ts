@@ -19,7 +19,10 @@ import { AuditService } from '../audit/audit.service';
 //   nunca se regeneran ni se resetean cuentas existentes. No se imprimen.
 
 const ROOT = resolve(__dirname, '..', '..', '..', '..');
-const CSV_PATH = resolve(ROOT, 'CREDENCIALES.csv');
+// TL_CREDENTIALS_DIR: carpeta alternativa de los CSV de credenciales (solo para la comprobación del seed en una base
+// desechable: e2e/seed/comprobar-seed-demo.mjs). Por defecto, la raíz del repositorio.
+const CRED_DIR = process.env.TL_CREDENTIALS_DIR ? resolve(process.env.TL_CREDENTIALS_DIR) : ROOT;
+const CSV_PATH = resolve(CRED_DIR, 'CREDENCIALES.csv');
 const WEB_URL = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
 const DOMAIN = 'demo.terralink.local';
 
@@ -146,7 +149,7 @@ const HEADER = ['nombre_usuario', 'email', 'contrasena', 'rol', 'organizacion', 
 function loadKnownPasswords(): Map<string, string> {
   const known = new Map<string, string>();
   // También el archivo pendiente (escrito cuando CREDENCIALES.csv estaba abierto en otro programa).
-  for (const path of [CSV_PATH, resolve(ROOT, 'CREDENCIALES.pendiente.csv')]) {
+  for (const path of [CSV_PATH, resolve(CRED_DIR, 'CREDENCIALES.pendiente.csv')]) {
     if (!existsSync(path)) continue;
     const rows = parseCsv(readFileSync(path, 'utf8'));
     const head = rows.shift() ?? [];
@@ -159,7 +162,7 @@ function loadKnownPasswords(): Map<string, string> {
 
 /** ¿Se puede escribir CREDENCIALES.csv o CREDENCIALES.pendiente.csv? (abre sin escribir; no altera su contenido). */
 function canPersistCredentials(): boolean {
-  for (const path of [CSV_PATH, resolve(ROOT, 'CREDENCIALES.pendiente.csv')]) {
+  for (const path of [CSV_PATH, resolve(CRED_DIR, 'CREDENCIALES.pendiente.csv')]) {
     try { if (existsSync(path)) closeSync(openSync(path, 'r+')); return true; } catch { /* abierto en otro programa */ }
   }
   return false;
@@ -211,7 +214,7 @@ async function main(): Promise<void> {
       const user = await db.selectFrom('users').select(['id']).where('email', '=', mail).executeTakeFirst();
       const oldPwd = known.get(mail);
       if (!user || !oldPwd) throw new Error('La cuenta no existe o no tiene credencial conocida: no se rota.');
-      const files = [CSV_PATH, resolve(ROOT, 'CREDENCIALES.pendiente.csv')].filter((f) => existsSync(f)).map((f) => ({ f, text: readFileSync(f, 'utf8') }));
+      const files = [CSV_PATH, resolve(CRED_DIR, 'CREDENCIALES.pendiente.csv')].filter((f) => existsSync(f)).map((f) => ({ f, text: readFileSync(f, 'utf8') }));
       const rewrite = (text: string, pwd: string, estado: string) => {
         const rows = parseCsv(text); const head = rows.shift() ?? [];
         const iE = head.indexOf('email'); const iP = head.indexOf('contrasena'); const iS = head.indexOf('estado_acceso');
@@ -576,7 +579,7 @@ async function main(): Promise<void> {
         writeFileSync(CSV_PATH, csv, { encoding: 'utf8' });
       } catch (err) {
         // Archivo abierto en otro programa (p. ej. Excel): no se pierden credenciales nuevas.
-        const pending = resolve(ROOT, 'CREDENCIALES.pendiente.csv');
+        const pending = resolve(CRED_DIR, 'CREDENCIALES.pendiente.csv');
         // Si el pendiente ya tiene exactamente este contenido, no se reescribe (puede estar abierto en Excel).
         const pendingCurrent = existsSync(pending) ? readFileSync(pending, 'utf8') : null;
         try {

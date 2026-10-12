@@ -4,6 +4,7 @@
 // Evidencia: docs/qa/movil-emulador/recorrido.json (resultado por paso) y docs/qa/capturas/movil-emulador/*.png.
 // Requiere: emulador arrancado, APK instalado, proxy (e2e/movil/proxy.mjs) y `adb reverse tcp:4000 tcp:4001`.
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, statSync, statfsSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,7 +21,12 @@ const state = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, 'utf8')
 const save = () => { writeFileSync(evFile, `${JSON.stringify(ev, null, 2)}\n`); writeFileSync(stateFile, JSON.stringify(state, null, 2)); };
 let shotN = ev.pasos.length;
 const shot = (name) => { shotN += 1; const f = `${String(shotN).padStart(2, '0')}-${name}.png`; screenshot(join(shots, f)); return `docs/qa/capturas/movil-emulador/${f}`; };
-const record = (paso, ok, detalle, captura = null) => { ev.pasos.push({ paso, en: new Date().toISOString(), ok, detalle, captura }); save(); console.log(`${ok ? 'OK   ' : 'FALLA'} ${paso}: ${typeof detalle === 'string' ? detalle : JSON.stringify(detalle)}`); };
+// Procedencia: huella SHA-256 de ESTE archivo y commit/estado del árbol en cada paso registrado. Las ejecuciones anteriores
+// (intentos 5 y 6) no la registraron: ver docs/qa/PROCEDENCIA_SCRIPT_RECORRIDO_2026-10-11.md.
+const SCRIPT_SHA256 = createHash('sha256').update(readFileSync(fileURLToPath(import.meta.url))).digest('hex');
+const gitOut = (...a) => { try { return execFileSync('git', a, { cwd: root, encoding: 'utf8' }).trim(); } catch { return 'desconocido'; } };
+const SCRIPT_ORIGEN = { sha256: SCRIPT_SHA256, commit: gitOut('rev-parse', '--short', 'HEAD'), modificado_sin_commit: gitOut('status', '--porcelain', '--', 'e2e/movil/') !== '' };
+const record = (paso, ok, detalle, captura = null) => { ev.pasos.push({ paso, en: new Date().toISOString(), ok, detalle, captura, script: SCRIPT_ORIGEN }); save(); console.log(`${ok ? 'OK   ' : 'FALLA'} ${paso}: ${typeof detalle === 'string' ? detalle : JSON.stringify(detalle)}`); };
 
 function creds(local) {
   const file = ['CREDENCIALES.csv', 'CREDENCIALES.pendiente.csv'].map((f) => join(root, f)).filter(existsSync).sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
