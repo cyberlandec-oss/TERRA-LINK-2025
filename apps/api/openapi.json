@@ -7231,6 +7231,35 @@
           "imports"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/my-work": {
+      "get": {
+        "operationId": "MyWorkController_myWork",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mi trabajo: tareas observables del dominio que tu rol puede completar, dentro de tu alcance",
+        "tags": [
+          "work"
+        ]
+      }
     }
   },
   "info": {

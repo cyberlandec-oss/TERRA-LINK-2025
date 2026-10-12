@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-11T05:40:50.649Z",
+  "fecha": "2026-10-12T16:33:35.895Z",
   "base": "http://localhost:3000",
   "resultados": [
     {
@@ -106,6 +106,7 @@
         "Mitigaciones",
         "Debida diligencia",
         "Miembros e invitaciones",
+        "Importar datos (Excel)",
         "Centros de acopio",
         "Auditoría",
         "Entregas de eventos",
@@ -151,7 +152,9 @@
           "estado": "ERROR: No tienes permiso para realizar esta acción."
         }
       ],
-      "incidencias": [],
+      "incidencias": [
+        "Tarea: 10 productores visibles (esperado 8); 1 caso(s) de posible duplicado pendientes"
+      ],
       "login": "OK",
       "contexto": "supervisor.cooperativa@demo.terralink.local · Supervisor",
       "organizacion_activa": "DEMO · Cooperativa Río Verde",
@@ -169,6 +172,7 @@
         "Documentos",
         "Evidencias",
         "Miembros e invitaciones",
+        "Importar datos (Excel)",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Cooperativa Río Verde",
@@ -181,8 +185,8 @@
       "datos_ajenos": "ninguno",
       "tarea": {
         "tarea": "Listar productores (alcance por rol)",
-        "resultado": "8 productores visibles (esperado 8); 1 caso(s) de posible duplicado pendientes",
-        "ok": true
+        "resultado": "10 productores visibles (esperado 8); 1 caso(s) de posible duplicado pendientes",
+        "ok": false
       }
     },
     {
@@ -514,6 +518,7 @@
         "Mitigaciones",
         "Debida diligencia",
         "Miembros e invitaciones",
+        "Importar datos (Excel)",
         "Centros de acopio",
         "Auditoría",
         "Entregas de eventos",
@@ -559,7 +564,9 @@
           "estado": "ERROR: No tienes permiso para realizar esta acción."
         }
       ],
-      "incidencias": [],
+      "incidencias": [
+        "Tarea: 0 capacidad(es) pendientes rotuladas"
+      ],
       "login": "OK",
       "contexto": "recepcion.acopio@demo.terralink.local · Operador de recepción",
       "organizacion_activa": "DEMO · Acopio San Isidro",
@@ -583,8 +590,8 @@
       "datos_ajenos": "ninguno",
       "tarea": {
         "tarea": "Ver su espacio y capacidades pendientes rotuladas",
-        "resultado": "1 capacidad(es) pendientes rotuladas",
-        "ok": true,
+        "resultado": "0 capacidad(es) pendientes rotuladas",
+        "ok": false,
         "pendiente": true
       }
     },
@@ -614,7 +621,9 @@
           "estado": "ERROR: No tienes permiso para realizar esta acción."
         }
       ],
-      "incidencias": [],
+      "incidencias": [
+        "Tarea: 0 capacidad(es) pendientes rotuladas"
+      ],
       "login": "OK",
       "contexto": "recepcion.acopio@demo.terralink.local · Operador de recepción",
       "organizacion_activa": "DEMO · Cooperativa Río Verde",
@@ -638,8 +647,8 @@
       "datos_ajenos": "ninguno",
       "tarea": {
         "tarea": "Ver su espacio y capacidades pendientes rotuladas",
-        "resultado": "1 capacidad(es) pendientes rotuladas",
-        "ok": true,
+        "resultado": "0 capacidad(es) pendientes rotuladas",
+        "ok": false,
         "pendiente": true
       }
     },
@@ -669,7 +678,9 @@
           "estado": "ERROR: No tienes permiso para realizar esta acción."
         }
       ],
-      "incidencias": [],
+      "incidencias": [
+        "Tarea: 0 capacidad(es) pendientes rotuladas"
+      ],
       "login": "OK",
       "contexto": "calidad.acopio@demo.terralink.local · Operador de calidad",
       "organizacion_activa": "DEMO · Acopio San Isidro",
@@ -693,8 +704,8 @@
       "datos_ajenos": "ninguno",
       "tarea": {
         "tarea": "Ver su espacio y capacidades pendientes rotuladas",
-        "resultado": "1 capacidad(es) pendientes rotuladas",
-        "ok": true,
+        "resultado": "0 capacidad(es) pendientes rotuladas",
+        "ok": false,
         "pendiente": true
       }
     },
@@ -724,7 +735,9 @@
           "estado": "ERROR: No tienes permiso para realizar esta acción."
         }
       ],
-      "incidencias": [],
+      "incidencias": [
+        "Tarea: 0 capacidad(es) pendientes rotuladas"
+      ],
       "login": "OK",
       "contexto": "calidad.acopio@demo.terralink.local · Operador de calidad",
       "organizacion_activa": "DEMO · Cooperativa Río Verde",
@@ -748,8 +761,8 @@
       "datos_ajenos": "ninguno",
       "tarea": {
         "tarea": "Ver su espacio y capacidades pendientes rotuladas",
-        "resultado": "1 capacidad(es) pendientes rotuladas",
-        "ok": true,
+        "resultado": "0 capacidad(es) pendientes rotuladas",
+        "ok": false,
         "pendiente": true
       }
     },
@@ -800,6 +813,7 @@
         "Mitigaciones",
         "Debida diligencia",
         "Miembros e invitaciones",
+        "Importar datos (Excel)",
         "Centros de acopio",
         "Auditoría",
         "Entregas de eventos",
@@ -1103,6 +1117,7 @@
         "Mitigaciones",
         "Debida diligencia",
         "Miembros e invitaciones",
+        "Importar datos (Excel)",
         "Centros de acopio",
         "Auditoría",
         "Entregas de eventos",
@@ -1197,7 +1212,9 @@
           "estado": "ERROR: No tienes permiso para realizar esta acción."
         }
       ],
-      "incidencias": [],
+      "incidencias": [
+        "Tarea: 10 productores visibles (esperado 8); 1 caso(s) de posible duplicado pendientes"
+      ],
       "login": "OK",
       "contexto": "coordinador.multi@demo.terralink.local · Supervisor",
       "organizacion_activa": "DEMO · Cooperativa Río Verde",
@@ -1215,6 +1232,7 @@
         "Documentos",
         "Evidencias",
         "Miembros e invitaciones",
+        "Importar datos (Excel)",
         "Mis organizaciones"
       ],
       "titulo": "DEMO · Cooperativa Río Verde",
@@ -1227,8 +1245,8 @@
       "datos_ajenos": "ninguno",
       "tarea": {
         "tarea": "Listar productores (alcance por rol)",
-        "resultado": "8 productores visibles (esperado 8); 1 caso(s) de posible duplicado pendientes",
-        "ok": true
+        "resultado": "10 productores visibles (esperado 8); 1 caso(s) de posible duplicado pendientes",
+        "ok": false
       }
     },
     {
@@ -1296,7 +1314,7 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "6 parcelas; ficha: esquema=1, 5 coordenadas, 2 versiones, botones de funciones no implementadas (GPS nativo, satélite, riesgo)=0, «Capturar ubicación»=1 (foco solid); foco campo=solid; productor→parcelas=2",
+          "resultado": "8 parcelas; ficha: esquema=1, 1 coordenadas, 11 versiones, botones de funciones no implementadas (GPS nativo, satélite, riesgo)=0, «Capturar ubicación»=1 (foco solid); foco campo=solid; productor→parcelas=2",
           "ok": true
         },
         {
@@ -1311,7 +1329,7 @@
         },
         {
           "cuenta": "auditor.cooperativa (sin geometría exacta)",
-          "resultado": "6 parcelas; coordenadas en pantalla=false; aviso=1; «Capturar ubicación»=0; respuesta API con coordenadas=false",
+          "resultado": "8 parcelas; coordenadas en pantalla=false; aviso=1; «Capturar ubicación»=0; respuesta API con coordenadas=false",
           "ok": true
         },
         {
@@ -1326,7 +1344,7 @@
         },
         {
           "cuenta": "coordinador.multi",
-          "resultado": "cooperativa (Supervisor): 6 parcelas; exportadora (Trazabilidad): 0 filas, vacío autorizado=1",
+          "resultado": "cooperativa (Supervisor): 8 parcelas; exportadora (Trazabilidad): 0 filas, vacío autorizado=1",
           "ok": true
         },
         {
@@ -1384,7 +1402,7 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa (390 px, teclado)",
-          "resultado": "4 productos; unidades explícitas=true; formulario de alta=1; estados desde la API=4; confirmación explica efectos=1; desborde=false",
+          "resultado": "6 productos; unidades explícitas=true; formulario de alta=1; estados desde la API=4; confirmación explica efectos=1; desborde=false",
           "ok": true
         },
         {
@@ -1462,12 +1480,12 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "6 documento(s); disponible=true; formulario de carga=1; descarga guia-demo.pdf; puede revisar=1",
+          "resultado": "16 documento(s); disponible=true; formulario de carga=1; descarga guia-demo.pdf; puede revisar=1",
           "ok": true
         },
         {
           "cuenta": "tecnico1.cooperativa (capturador asignado, 390 px, teclado)",
-          "resultado": "6 documento(s) de sus productores; foco tras Tab en «up-title»; botón de revisión=0; desborde=false",
+          "resultado": "16 documento(s) de sus productores; foco tras Tab en «up-title»; botón de revisión=0; desborde=false",
           "ok": true
         },
         {
@@ -1509,7 +1527,7 @@
       "casos": [
         {
           "cuenta": "admin.cooperativa",
-          "resultado": "Mostrando 25 de 550 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
+          "resultado": "Mostrando 25 de 823 registros a tu alcance.; exportación con metadatos=true; hash visible=true; sin secretos=true",
           "ok": true
         },
         {

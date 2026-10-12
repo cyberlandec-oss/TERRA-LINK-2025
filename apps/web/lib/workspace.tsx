@@ -226,7 +226,13 @@ function Shell({ orgId, children }: { orgId: string | null; children: ReactNode 
             </button>
           </div>
         </header>
-        <main id="contenido" className="tl-content" tabIndex={-1}>{children}</main>
+        <main id="contenido" className="tl-content" tabIndex={-1}>
+          {/* Organización de la URL sin membresía activa (ni administración de plataforma): respuesta segura única, sin
+              revelar si existe; evita páginas en blanco y no carga datos (UX_UI §6.3, §9.2; P0-027). */}
+          {orgId && !ws.activeOrg
+            ? <ErrorPanel error={new ApiError(404, { code: 'NOT_FOUND', message: 'El recurso no existe o no está disponible para ti.', request_id: null })} />
+            : children}
+        </main>
       </div>
     </div>
   );

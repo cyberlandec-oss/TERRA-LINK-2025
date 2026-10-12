@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { useUrlFilters } from '../../../../lib/url-filters';
 import { ApiError, api } from '../../../../lib/api';
 import { useWorkspace } from '../../../../lib/workspace';
 import { Breadcrumb, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../lib/ui';
@@ -14,12 +15,14 @@ export default function MitigationsPage() {
   const ws = useWorkspace();
   const orgId = ws.activeOrg?.id ?? '';
   const [rows, setRows] = useState<Row[] | null>(null);
-  const [status, setStatus] = useState('');
+  const [filters, setFilters, ready] = useUrlFilters({ status: '' });
+  const status = filters.status;
+  const setStatus = (v: string) => setFilters({ status: v });
   const [error, setError] = useState<ApiError | null>(null);
   const load = useCallback(async () => {
-    if (!orgId || !ws.can('mitigation:read')) return;
+    if (!orgId || !ws.can('mitigation:read') || !ready) return;
     try { setRows(await api<Row[]>(`/api/v1/organizations/${orgId}/mitigations${status ? `?status=${status}` : ''}`)); setError(null); } catch (err) { setError(err as ApiError); }
-  }, [orgId, ws, status]);
+  }, [orgId, ws, status, ready]);
   useEffect(() => { void load(); }, [load]);
   if (!ws.activeOrg) return null;
   if (!ws.can('mitigation:read')) return <ErrorPanel error={new ApiError(403, { code: 'PERMISSION_DENIED', message: 'Tu rol no permite consultar mitigaciones.', request_id: null })} />;

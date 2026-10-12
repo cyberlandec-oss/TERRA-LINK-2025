@@ -193,3 +193,10 @@ y `adb logcat -s ReactNativeJS:V` (línea `TL_SELFTEST`). Evidencia: `docs/qa/EV
 - `npm run build -w apps/api && node e2e/review/importaciones-lotes.mjs` y `importaciones-entregas.mjs`: revisiones en navegador (archivos sintéticos; usan la recepción DEMO de ENT-2026-00001 y referencias DEMO-REF-*/DEMO-IMP-LOTE-*).
 - Rotación de cuentas DEMO: `node --env-file-if-exists=../../.env dist/db/seed-demo.js --rotar=<cuenta>` (desde `apps/api`, tras compilar). Si `CREDENCIALES.csv` está abierto en Excel falla con EBUSY sin activar nada: cerrarlo y repetir; no forzar la escritura.
 - El episodio de 690 s de la primera ejecución de `imports-deliveries.int-spec.ts` sigue con **causa no determinada**; no se cambiaron timeouts.
+
+### Web por rol y Lot Hub (P0-027, 2026-10-12)
+
+- `npx jest --runInBand test/my-work.int-spec.ts` (desde `apps/api`).
+- `node e2e/review/web-por-rol.mjs`: matriz de todas las combinaciones cuenta–organización–rol de `CREDENCIALES.csv` (menú, contexto, Mi trabajo, Lot Hub, denegaciones), filtros, teclado, 390 px, zoom 200 % y una acción real de Mi trabajo. Evidencia en `docs/qa/web-por-rol/`.
+- `node e2e/review/estados-web.mjs`: carga, error con reintento, vacío y sin permiso (intercepta la red solo en el navegador de prueba).
+- `node e2e/review/revision-por-rol.mjs` (heredada): sus comprobaciones de parcelas y productos ya no exigen conteos fijos del seed (la DEMO incluye registros importados y capturas del emulador).

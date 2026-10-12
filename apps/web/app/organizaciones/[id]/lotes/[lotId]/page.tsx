@@ -8,8 +8,10 @@ import { useWorkspace } from '../../../../../lib/workspace';
 import { Alert, Breadcrumb, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../../lib/ui';
 import { ErrorDetails } from '../../../../../lib/deliveries';
 import { EFFECT, RUN_TYPE, kg, type Lot } from '../../../../../lib/lots';
+import { EvidenceSection, RiskDdSection } from '../../../../../lib/lot-hub';
 
-// Lot Hub (UX_UI §15.1): resumen, origen y trazabilidad, operación e historia. Solo nodos legibles; sin conteos ocultos.
+// Lot Hub (UX_UI §15.1; P0-027): resumen, operación, origen y trazabilidad, evidencias, riesgo y debida diligencia e historia.
+// Solo nodos legibles; sin conteos ocultos. Cada sección se autoriza y carga por separado (lib/lot-hub.tsx).
 export default function LotDetailPage() {
   const ws = useWorkspace();
   const { lotId } = useParams<{ lotId: string }>();
@@ -56,7 +58,7 @@ export default function LotDetailPage() {
           <ul className="plain" aria-label="Entradas del lote">
             {l.inputs.length === 0 && <li className="muted">Sin entradas visibles.</li>}
             {l.inputs.map((i) => (
-              <li key={i.id}>{i.delivery_code} · {i.producer_code}: {kg(i.quantity.value)} <span className="muted">(recepción versión {i.reception_version}; pesaje vigente usado)</span>
+              <li key={i.id}>{i.delivery_id ? <Link href={`/organizaciones/${orgId}/entregas/${i.delivery_id}`}>{i.delivery_code}</Link> : i.delivery_code} · {i.producer_code}: {kg(i.quantity.value)} <span className="muted">(recepción versión {i.reception_version}; pesaje vigente usado)</span>
                 {i.released ? <span className="muted"> · liberada: {i.released.reason}</span> : l.actions.release_input && <> <button type="button" className="secondary inline" onClick={() => void release(i.id)}>Liberar</button></>}
               </li>
             ))}
@@ -71,12 +73,23 @@ export default function LotDetailPage() {
         {l.upstream.lots.length === 0 && l.upstream.receptions.length === 0 && <p className="muted">Sin enlaces visibles.</p>}
         <ul className="plain" aria-label="Origen hacia atrás">
           {l.upstream.lots.map((u) => <li key={u.lot_id}>{'↳ '.repeat(u.depth)}<Link href={`/organizaciones/${orgId}/lotes/${u.lot_id}`}>{u.lot_code}</Link>{u.contributed && ` · aportó ${kg(u.contributed.value)}`}</li>)}
-          {l.upstream.receptions.map((r, i) => <li key={i}>Recepción {r.delivery_code} · {r.producer_code}{r.producer_name ? ` (${r.producer_name})` : ''} · {r.plots.length ? `parcelas ${r.plots.join(', ')}` : 'origen no declarado'} · {kg(r.quantity.value)}</li>)}
+          {l.upstream.receptions.map((r, i) => (
+            <li key={i}>Recepción {r.delivery_id ? <Link href={`/organizaciones/${orgId}/entregas/${r.delivery_id}`}>{r.delivery_code}</Link> : r.delivery_code}
+              {' · '}{r.producer_id ? <Link href={`/organizaciones/${orgId}/productores/${r.producer_id}`}>{r.producer_code}</Link> : r.producer_code}{r.producer_name ? ` (${r.producer_name})` : ''}
+              {' · '}{r.plot_links && r.plot_links.length ? <>parcelas {r.plot_links.map((p, j) => <span key={p.id}>{j ? ', ' : ''}<Link href={`/organizaciones/${orgId}/parcelas/${p.id}`}>{p.code}</Link></span>)}</>
+                : r.plots_restricted ? <span className="muted">origen declarado; parcelas restringidas para tu rol</span> : r.origin_known ? `parcelas ${r.plots.join(', ')}` : 'origen no declarado'}
+              {' · '}{kg(r.quantity.value)}
+            </li>
+          ))}
         </ul>
         <p className="field-help">{l.upstream.note}</p>
         <h3>Hacia adelante</h3>
         {l.downstream.length === 0 ? <p className="muted">Sin salidas.</p> : <ul className="plain" aria-label="Destino hacia adelante">{l.downstream.map((d) => <li key={d.lot_id}>{'↳ '.repeat(d.depth)}<Link href={`/organizaciones/${orgId}/lotes/${d.lot_id}`}>{d.lot_code}</Link> · vía {d.via_run}</li>)}</ul>}
       </section>
+      <EvidenceSection orgId={orgId} can={ws.can}
+        plots={[...new Map(l.upstream.receptions.flatMap((r) => r.plot_links ?? []).map((p) => [p.id, p])).values()]}
+        producers={[...new Map(l.upstream.receptions.filter((r) => r.producer_id).map((r) => [r.producer_id!, { id: r.producer_id!, code: r.producer_code }])).values()]} />
+      <RiskDdSection orgId={orgId} lotId={l.id} can={ws.can} />
       <Alert tone="info">Existencia, calidad y origen son dimensiones separadas: tener existencia no significa calidad liberada ni origen completo. Movimientos en <Link href={`/organizaciones/${orgId}/inventario`}>Inventario</Link>; reserva y despacho para embarques llegan con P0-029.</Alert>
       <section className="card" aria-labelledby="lt-hist">
         <h2 id="lt-hist">Historia</h2>

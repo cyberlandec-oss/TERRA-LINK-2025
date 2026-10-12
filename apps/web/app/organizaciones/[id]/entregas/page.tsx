@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useUrlFilters } from '../../../../lib/url-filters';
 import { ApiError, api } from '../../../../lib/api';
 import { useWorkspace } from '../../../../lib/workspace';
 import { Breadcrumb, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../lib/ui';
@@ -16,18 +17,21 @@ export default function DeliveriesPage() {
   const canCreate = ws.can('delivery:create') || ws.can('delivery:create_assigned');
   const [rows, setRows] = useState<DeliveryRow[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
-  const [status, setStatus] = useState('');
-  const [reception, setReception] = useState('');
-  const [q, setQ] = useState('');
+  // Filtros en la URL: se conservan al volver desde el detalle (P0-027).
+  const [filters, setFilters, ready] = useUrlFilters({ status: '', reception: '', q: '' });
+  const { status, reception, q } = filters;
+  const setStatus = (v: string) => setFilters({ status: v });
+  const setReception = (v: string) => setFilters({ reception: v });
+  const setQ = (v: string) => setFilters({ q: v });
 
   const load = useCallback(async () => {
-    if (!orgId || !canRead) return;
+    if (!orgId || !canRead || !ready) return;
     const p = new URLSearchParams();
     if (status) p.set('status', status);
     if (reception) p.set('reception', reception);
     if (q.trim()) p.set('q', q.trim());
     try { setRows(await api<DeliveryRow[]>(`/api/v1/organizations/${orgId}/deliveries${p.size ? `?${p}` : ''}`)); setError(null); } catch (err) { setError(err as ApiError); }
-  }, [orgId, canRead, status, reception, q]);
+  }, [orgId, canRead, status, reception, q, ready]);
   useEffect(() => { void load(); }, [load]);
 
   if (!ws.activeOrg) return null;

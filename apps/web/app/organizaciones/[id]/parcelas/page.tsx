@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { useUrlFilters } from '../../../../lib/url-filters';
 import { ApiError, api } from '../../../../lib/api';
 import { useWorkspace } from '../../../../lib/workspace';
 import { Breadcrumb, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../lib/ui';
@@ -14,6 +15,8 @@ export default function PlotsPage() {
   const canList = ws.can('plot:read') || ws.can('plot:read_assigned');
   const [items, setItems] = useState<Plot[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
+  // Filtros aplicados en la URL: se conservan al volver desde la ficha (P0-027).
+  const [urlFilters, setUrlFilters, ready] = useUrlFilters({ q: '', status: 'ACTIVE', geometry: '' });
   const [filters, setFilters] = useState({ q: '', status: 'ACTIVE', geometry: '' });
   const [applied, setApplied] = useState(filters);
   const [error, setError] = useState<ApiError | null>(null);
@@ -30,15 +33,18 @@ export default function PlotsPage() {
       setItems((prev) => (append && prev ? [...prev, ...res.items] : res.items));
       setCursor(res.next_cursor);
       setApplied(f);
+      setUrlFilters(f);
     } catch (err) {
       setError(err as ApiError);
     }
   }, [orgId, canList, filters]);
 
   useEffect(() => {
-    void load();
-    // Solo al entrar; los filtros se aplican con el formulario.
-  }, [orgId]);
+    if (!ready) return;
+    setFilters(urlFilters);
+    void load(false, null, urlFilters);
+    // Solo al entrar (con los filtros de la URL); después se aplican con el formulario.
+  }, [orgId, ready]);
 
   if (!ws.activeOrg) return null;
   if (!canList) return <ErrorPanel error={new ApiError(403, { code: 'PERMISSION_DENIED', message: 'Tu rol no permite consultar parcelas.', request_id: null })} />;

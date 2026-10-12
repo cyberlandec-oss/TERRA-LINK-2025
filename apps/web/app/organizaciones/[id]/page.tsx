@@ -6,20 +6,51 @@ import { ApiError, ROLE_LABELS, api, type Organization } from '../../../lib/api'
 import { useWorkspace } from '../../../lib/workspace';
 import { Alert, Breadcrumb, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../lib/ui';
 
-// Experiencias por rol aún sin módulo (docs/UX_UI.md §7, §25). Se muestran en una superficie separada y
-// rotulada; nunca como entradas de menú ni con datos inventados.
+// Capacidades que SIGUEN sin implementarse para ciertos roles (docs/UX_UI.md §7; revisado 2026-10-12, P0-027). Se muestran
+// en una superficie separada y rotulada; nunca como entradas de menú ni con datos. Lo ya implementado no aparece aquí.
 const PENDING_BY_ROLE: Record<string, Array<{ capability: string; story: string }>> = {
-  MANAGER: [{ capability: 'Centro de operaciones (entregas, recepciones, lotes y excepciones)', story: 'P0-012, P0-016 y cola de trabajo (UI-04)' }],
-  FIELD_TECHNICIAN: [{ capability: 'Parcelas y captura GPS/polígono', story: 'P0-006 a P0-008' }, { capability: 'Trabajo offline y sincronización', story: 'P0-023/P0-024' }],
-  RECEPTION_OPERATOR: [{ capability: 'Nueva recepción y pesaje', story: 'P0-012' }],
-  QUALITY_OPERATOR: [{ capability: 'Cola de calidad y resultados de muestras', story: 'Backlog por confirmar (UX-D12)' }],
-  TRACEABILITY_MANAGER: [{ capability: 'Lotes, procesamiento y explorador de trazabilidad', story: 'P0-013 a P0-017' }],
-  EUDR_MANAGER: [{ capability: 'Evidencias, riesgo, mitigación y expedientes', story: 'P0-018 a P0-022' }],
-  EXPORT_MANAGER: [{ capability: 'Preparación de embarques', story: 'P0-029' }],
-  AUDITOR: [{ capability: 'Explorador de auditoría con comparación de versiones', story: 'P0-025' }],
-  BUYER: [{ capability: 'Portal comprador', story: 'P1-001; requiere contrato de concesiones entre organizaciones (UX-D09)' }],
-  PRODUCER: [{ capability: '«Mi finca»: parcelas, entregas y documentos propios', story: 'Requiere vínculo cuenta–productor (UX-D08)' }],
+  FIELD_TECHNICIAN: [{ capability: 'Trabajo de campo sin conexión', story: 'App móvil (P0-023/P0-024): el ensayo en teléfono físico sigue pendiente; la web no guarda datos sin conexión' }],
+  EXPORT_MANAGER: [{ capability: 'Preparación de embarques y despacho', story: 'P0-029' }],
+  BUYER: [{ capability: 'Portal comprador', story: 'P1-001; requiere contrato de concesiones entre organizaciones (UX-D09). Sin concesión no hay acceso implícito' }],
+  PRODUCER: [{ capability: '«Mi finca»: parcelas, entregas y documentos propios', story: 'Requiere vínculo cuenta–productor (UX-D08). Sin vínculo no hay acceso implícito' }],
 };
+const PLATFORM_PENDING = { capability: 'Acceso a datos operativos de una organización', story: 'Requiere elevación auditada (D-04, pendiente). La administración de plataforma no da acceso implícito' };
+
+interface WorkTask { code: string; title: string; reason: string; action: string; count: number; items: Array<{ id: string; label: string; href: string }>; list_href: string }
+
+/** Mi trabajo (UX_UI §11): tareas observables que el rol puede completar, dentro de su alcance (GET my-work). */
+function MyWork({ orgId }: { orgId: string }) {
+  const [data, setData] = useState<{ tasks: WorkTask[]; note: string } | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
+  const load = useCallback(async () => {
+    setError(null);
+    try { setData(await api<{ tasks: WorkTask[]; note: string }>(`/api/v1/organizations/${orgId}/my-work`)); } catch (err) { setError(err as ApiError); }
+  }, [orgId]);
+  useEffect(() => { setData(null); void load(); }, [load]);
+  return (
+    <section className="card" aria-labelledby="mi-trabajo">
+      <h2 id="mi-trabajo">Mi trabajo</h2>
+      {error ? <ErrorPanel error={error} onRetry={load} />
+        : !data ? <Loading label="Cargando tus pendientes…" />
+          : data.tasks.length === 0 ? <p>No tienes pendientes en esta organización. <span className="muted">{data.note}</span></p>
+            : (
+              <>
+                <p className="muted">{data.note}</p>
+                <ul className="plain" aria-label="Pendientes">
+                  {data.tasks.map((t) => (
+                    <li key={t.code} className="work-item">
+                      <h3>{t.title} <StatusBadge tone="review">{t.count}</StatusBadge></h3>
+                      <p className="muted">{t.reason}</p>
+                      {t.items.length > 0 && <ul className="plain">{t.items.map((i) => <li key={i.id}><Link href={i.href}>{i.label}</Link></li>)}</ul>}
+                      <Link href={t.list_href}>{t.action}{t.count > t.items.length ? ` (ver ${t.count})` : ''}</Link>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+    </section>
+  );
+}
 
 export default function OrganizationHomePage() {
   const ws = useWorkspace();
@@ -46,7 +77,8 @@ export default function OrganizationHomePage() {
     return <ErrorPanel error={new ApiError(404, { code: 'NOT_FOUND', message: 'El recurso no existe o no está disponible para ti.', request_id: null })} />;
   }
   const roles = ws.activePerms?.roles ?? [];
-  const pending = roles.flatMap((r) => (PENDING_BY_ROLE[r] ?? []).map((p) => ({ ...p, role: r })));
+  const pending = [...roles.flatMap((r) => (PENDING_BY_ROLE[r] ?? []).map((p) => ({ ...p, role: r }))),
+    ...(ws.isPlatformAdmin && !ws.activePerms ? [{ ...PLATFORM_PENDING, role: 'SUPER_ADMIN' }] : [])];
 
   return (
     <>
@@ -57,6 +89,7 @@ export default function OrganizationHomePage() {
           <Alert tone="info" title="Tu rol todavía no tiene pantallas disponibles en esta etapa.">
             <p>Tu cuenta y tu membresía están activas. Las funciones previstas para tu rol se habilitarán cuando existan sus operaciones y contratos.</p>
           </Alert>
+          {ws.activePerms && <MyWork orgId={ws.activeOrg.id} />}
         </>
       ) : error ? (
         <ErrorPanel error={error} onRetry={load} />
@@ -71,6 +104,7 @@ export default function OrganizationHomePage() {
               <span>{org.organization_type} · {org.country} · versión {org.row_version}</span>
             </>}
           />
+          {ws.activePerms && <MyWork orgId={org.id} />}
           {org.status === 'SUSPENDED' && (
             <Alert tone="review" title={`Organización suspendida: ${org.status_reason ?? ''}`}>
               <p>El historial sigue disponible para consulta; no se admiten nuevas operaciones.</p>
@@ -88,8 +122,8 @@ export default function OrganizationHomePage() {
       )}
       {pending.length > 0 && (
         <section className="card" aria-labelledby="pendientes-rol">
-          <h2 id="pendientes-rol">Próximas capacidades para tu rol</h2>
-          <p className="muted">Aún no disponibles: se listan para orientar la revisión, no son accesos.</p>
+          <h2 id="pendientes-rol">Capacidades aún no disponibles para tu rol</h2>
+          <p className="muted">Se listan para orientar, no son accesos ni se muestran como operativas.</p>
           <ul className="plain">
             {pending.map((p, i) => (
               <li key={i}>

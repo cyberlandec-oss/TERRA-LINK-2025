@@ -8,10 +8,10 @@ export interface LotRow { id: string; lot_code: string; source: string; status: 
 export interface Lot {
   id: string; lot_code: string; source: 'RECEPTIONS' | 'PROCESS_OUTPUT'; status: 'OPEN' | 'CLOSED_FOR_INPUT'; row_version: number; product: { id: string; code: string; name: string };
   origin: { status: 'COMPLETE' | 'INCOMPLETE'; label: string; note: string | null }; quality: LotQuality; quantities: LotQuantities & { unit: string; note: string };
-  inputs: Array<{ id: string; reception_id: string; delivery_code: string; producer_code: string; received_at: string; weighing_id: string; reception_version: number; quantity: Qty; origin_known: boolean; released: { reason: string; at: string } | null }>;
+  inputs: Array<{ id: string; reception_id: string; delivery_id?: string; delivery_code: string; producer_code: string; received_at: string; weighing_id: string; reception_version: number; quantity: Qty; origin_known: boolean; released: { reason: string; at: string } | null }>;
   produced_by: { run_id: string; run_code: string; process_type: string; quantity: Qty } | null;
   used_by: Array<{ run_id: string; run_code: string; process_type: string; status: string; effect: 'RESERVED' | 'CONSUMED' | 'RELEASED'; quantity: Qty }>;
-  upstream: { lots: Array<{ lot_id: string; lot_code: string; depth: number; contributed: Qty | null }>; receptions: Array<{ lot_id: string; delivery_code: string; producer_code: string; producer_name: string | null; plots: string[]; origin_known: boolean; quantity: Qty }>; note: string };
+  upstream: { lots: Array<{ lot_id: string; lot_code: string; depth: number; contributed: Qty | null }>; receptions: Array<{ lot_id: string; delivery_id?: string; delivery_code: string; producer_code: string; producer_id?: string | null; producer_name: string | null; plots: string[]; plot_links?: Array<{ id: string; code: string }>; plots_restricted?: boolean; origin_known: boolean; quantity: Qty }>; note: string };
   downstream: Array<{ lot_id: string; lot_code: string; depth: number; via_run: string; contributed: Qty }>;
   history: Array<{ event_type: string; version: number; occurred_at: string; actor: string }>;
   actions: { assign: boolean; release_input: boolean; close_for_input: boolean };

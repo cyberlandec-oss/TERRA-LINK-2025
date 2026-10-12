@@ -552,9 +552,9 @@ export class LotsService {
   private async view(db: Db, ctx: TenantContext, id: string) {
     const l = await this.loadLot(db, ctx, id);
     const product = await db.selectFrom('products').select(['id', 'code', 'name']).where('id', '=', l.product_id).executeTakeFirstOrThrow();
-    const inputs = l.source === 'RECEPTIONS' ? (await sql<{ id: string; reception_id: string; weighing_id: string; reception_version: number; quantity: string; origin_known: boolean; assigned_at: string; released_reason: string | null; released_at: string | null; visible: boolean; delivery_code: string | null; producer_code: string | null; received_at: string | null }>`
+    const inputs = l.source === 'RECEPTIONS' ? (await sql<{ id: string; reception_id: string; weighing_id: string; reception_version: number; quantity: string; origin_known: boolean; assigned_at: string; released_reason: string | null; released_at: string | null; visible: boolean; delivery_id: string | null; delivery_code: string | null; producer_code: string | null; received_at: string | null }>`
       SELECT i.id, i.reception_id, i.weighing_id, i.reception_version, i.quantity::text, i.origin_known, i.assigned_at, x.reason AS released_reason, x.released_at,
-             (${this.deliveryVisible(ctx)}) AS visible, d.delivery_code, pr.producer_code, r.received_at
+             (${this.deliveryVisible(ctx)}) AS visible, d.id AS delivery_id, d.delivery_code, pr.producer_code, r.received_at
       FROM lot_inputs i JOIN receptions r ON r.id = i.reception_id JOIN deliveries d ON d.id = r.delivery_id JOIN producers pr ON pr.id = d.producer_id
       LEFT JOIN lot_input_releases x ON x.input_id = i.id WHERE i.lot_id = ${id} ORDER BY i.assigned_at`.execute(db)).rows : [];
     const run = l.process_run_id ? await db.selectFrom('process_runs').select(['id', 'run_code', 'process_type']).where('id', '=', l.process_run_id).executeTakeFirst() : null;
@@ -569,7 +569,7 @@ export class LotsService {
       quality: this.qualitySummary(await this.quality(db, id)),
       quantities: { ...(await this.lotQuantities(db, id)), unit: 'KG', note: 'Existencia física, reserva y disponible salen del ledger de inventario (única fuente). Reservar no reduce la existencia. Tener existencia no significa calidad liberada ni origen completo.' },
       // Solo insumos cuya entrega puede leer el usuario; los demás se omiten sin conteos ni marcadores.
-      inputs: inputs.filter((i) => i.visible).map((i) => ({ id: i.id, reception_id: i.reception_id, delivery_code: i.delivery_code, producer_code: i.producer_code, received_at: i.received_at,
+      inputs: inputs.filter((i) => i.visible).map((i) => ({ id: i.id, reception_id: i.reception_id, delivery_id: i.delivery_id, delivery_code: i.delivery_code, producer_code: i.producer_code, received_at: i.received_at,
         weighing_id: i.weighing_id, reception_version: i.reception_version, quantity: { value: dec(i.quantity), unit: 'KG' }, origin_known: i.origin_known,
         released: i.released_at ? { reason: i.released_reason, at: i.released_at } : null })),
       produced_by: run ? { run_id: run.id, run_code: run.run_code, process_type: run.process_type, quantity: { value: dec(l.output_quantity), unit: 'KG' } } : null,
@@ -589,16 +589,23 @@ export class LotsService {
       SELECT up.id, l.lot_code, l.source, up.depth, up.via_run::text, up.quantity::text FROM up JOIN lots l ON l.id = up.id WHERE l.organization_id = ${ctx.organizationId} ORDER BY up.depth, l.lot_code`.execute(db)).rows;
     const roots = lots.filter((l) => l.source === 'RECEPTIONS').map((l) => l.id);
     const identity = this.has(ctx, 'producer:read_identity') && this.has(ctx, 'producer:read');
-    const receptions = roots.length ? (await sql<{ lot_id: string; quantity: string; delivery_code: string; producer_code: string; legal_name: string | null; first_name: string | null; last_name: string | null; plots: string[] | null }>`
-      SELECT i.lot_id, i.quantity::text, d.delivery_code, pr.producer_code, pr.legal_name, pr.first_name, pr.last_name,
-             (SELECT array_agg(p.plot_code ORDER BY p.plot_code) FROM delivery_origins o JOIN plots p ON p.id = o.plot_id WHERE o.delivery_id = d.id) AS plots
+    // Parcelas de origen: solo las que el usuario puede leer (plot:read o plot:read_assigned del productor). El estado
+    // «origen declarado» es del lote y se conserva aunque las parcelas no sean visibles; nunca se cuentan las ocultas.
+    const plotScope = this.has(ctx, 'plot:read') ? sql`TRUE` : this.has(ctx, 'plot:read_assigned') ? sql`pr.assigned_membership_id = ${ctx.membershipId}` : sql`FALSE`;
+    const producerScope = this.has(ctx, 'producer:read') ? sql`TRUE` : this.has(ctx, 'producer:read_assigned') ? sql`pr.assigned_membership_id = ${ctx.membershipId}` : sql`FALSE`;
+    const receptions = roots.length ? (await sql<{ lot_id: string; quantity: string; delivery_id: string; delivery_code: string; producer_id: string; producer_visible: boolean; producer_code: string; legal_name: string | null; first_name: string | null; last_name: string | null; declared: boolean; plots: Array<{ id: string; code: string }> | null }>`
+      SELECT i.lot_id, i.quantity::text, d.id AS delivery_id, d.delivery_code, pr.id AS producer_id, (${producerScope}) AS producer_visible, pr.producer_code, pr.legal_name, pr.first_name, pr.last_name,
+             EXISTS (SELECT 1 FROM delivery_origins o WHERE o.delivery_id = d.id) AS declared,
+             CASE WHEN ${plotScope} THEN (SELECT json_agg(json_build_object('id', p.id, 'code', p.plot_code) ORDER BY p.plot_code) FROM delivery_origins o JOIN plots p ON p.id = o.plot_id WHERE o.delivery_id = d.id) ELSE NULL END AS plots
       FROM lot_inputs i JOIN receptions r ON r.id = i.reception_id JOIN deliveries d ON d.id = r.delivery_id JOIN producers pr ON pr.id = d.producer_id
       WHERE i.lot_id = ANY(${roots}::uuid[]) AND NOT EXISTS (SELECT 1 FROM lot_input_releases x WHERE x.input_id = i.id) AND ${this.deliveryVisible(ctx)}
       ORDER BY d.delivery_code`.execute(db)).rows : [];
     return {
       lots: lots.filter((l) => l.depth > 0).map((l) => ({ lot_id: l.id, lot_code: l.lot_code, depth: l.depth, contributed: l.quantity ? { value: dec(l.quantity), unit: 'KG' } : null })),
-      receptions: receptions.map((r) => ({ lot_id: r.lot_id, delivery_code: r.delivery_code, producer_code: r.producer_code,
-        producer_name: identity ? (r.legal_name ?? `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim()) || null : null, plots: r.plots ?? [], origin_known: !!r.plots?.length, quantity: { value: dec(r.quantity), unit: 'KG' } })),
+      receptions: receptions.map((r) => ({ lot_id: r.lot_id, delivery_id: r.delivery_id, delivery_code: r.delivery_code, producer_code: r.producer_code, producer_id: r.producer_visible ? r.producer_id : null,
+        producer_name: identity ? (r.legal_name ?? `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim()) || null : null,
+        plots: (r.plots ?? []).map((p) => p.code), plot_links: r.plots ?? [], plots_restricted: r.declared && r.plots === null,
+        origin_known: r.declared, quantity: { value: dec(r.quantity), unit: 'KG' } })),
       note: 'Cantidades registradas por enlace (aportado al proceso o asignado al lote). Cualquier reparto proporcional tras una mezcla es un cálculo, no identificación física.',
     };
   }

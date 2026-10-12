@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useUrlFilters } from '../../../../lib/url-filters';
 import { ApiError, api } from '../../../../lib/api';
 import { useWorkspace } from '../../../../lib/workspace';
 import { Breadcrumb, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../lib/ui';
@@ -41,6 +42,8 @@ export default function ProducersPage() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
   const [applied, setApplied] = useState({ q: '', status: '' });
+  // Filtros aplicados en la URL: se conservan al volver desde la ficha (P0-027).
+  const [urlFilters, setUrlFilters, ready] = useUrlFilters({ q: '', status: '' });
   const [error, setError] = useState<ApiError | null>(null);
   const canList = ws.can('producer:read') || ws.can('producer:read_assigned');
 
@@ -57,15 +60,19 @@ export default function ProducersPage() {
       setItems((prev) => (append && prev ? [...prev, ...res.items] : res.items));
       setCursor(res.next_cursor);
       setApplied(f);
+      setUrlFilters(f);
     } catch (err) {
       setError(err as ApiError);
     }
   }, [orgId, canList, q, status]);
 
   useEffect(() => {
-    void load();
-    // Solo al entrar; la búsqueda se lanza con el formulario.
-  }, [orgId]);
+    if (!ready) return;
+    setQ(urlFilters.q);
+    setStatus(urlFilters.status);
+    void load(false, null, urlFilters);
+    // Solo al entrar (con los filtros de la URL); la búsqueda se lanza con el formulario.
+  }, [orgId, ready]);
 
   if (!ws.activeOrg) return null;
   if (!canList) {
