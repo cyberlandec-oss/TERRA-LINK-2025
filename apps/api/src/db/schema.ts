@@ -266,6 +266,7 @@ export interface PlotVersionsTable {
   created_at: Timestamp;
   created_by: string;
   source_import_id: Generated<string | null>;
+  geometry_origin_version_id: Generated<string | null>;
 }
 
 export interface PlotHistoryTable {

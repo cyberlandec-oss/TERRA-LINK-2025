@@ -15,6 +15,9 @@ export interface PlotVersion {
   validation_status: string;
   validation_rule_version: string;
   previous_version_id: string | null;
+  /** DECLARED_AREA_UPDATE: copia la geometría de la versión capturada (no es una captura nueva). */
+  change_kind?: 'GEOMETRY_CAPTURE' | 'DECLARED_AREA' | 'DECLARED_AREA_UPDATE';
+  geometry_origin_version_number?: number | null;
   notes: string | null;
   created_at: string;
   is_current?: boolean;

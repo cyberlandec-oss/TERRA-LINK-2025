@@ -167,22 +167,32 @@ describeDb('P0-026 importación Excel de parcelas (PostgreSQL real)', () => {
     expect(vs[1]).toMatchObject({ version_number: 2, survey_method: 'DECLARED', area: '3.0000', geometry_type: null, validation_status: 'NOT_VALIDATED' });
   });
 
-  it('geometría existente: se conserva; superficie declarada sobre una parcela con geometría es error explícito', async () => {
+  it('geometría existente: una edición descriptiva no la toca y la superficie declarada la conserva exacta en una versión nueva', async () => {
     const p2 = await plot(orgA, 'PAR-2');
     const polygon = { type: 'Polygon', coordinates: [[[-80.10, -0.80], [-80.09, -0.80], [-80.09, -0.79], [-80.10, -0.79], [-80.10, -0.80]]] };
     await http().post(`/api/v1/organizations/${orgA}/plots/${p2!.id}/geometry-versions`).set(as(ADMIN)).send({ expected_version: Number(p2!.row_version), survey_method: 'MANUAL_COORDINATES', geometry: polygon }).expect(201);
     const geomBefore = await versions(p2!.id);
-    const s = await staged(ADMIN, orgA, book([['PAR-2', 'PRD-1', 'Con geometría', 'Cacao', '', '1.2']]));
-    expect(errs(s.preview, 2)).toEqual(['DECLARED_AREA_WITH_GEOMETRY']);
-    await commit(ADMIN, orgA, s.id, s.preview.plan_hash).expect(422);
+    const captured = geomBefore[geomBefore.length - 1];
     const s2 = await staged(ADMIN, orgA, book([['PAR-2', 'PRD-1', 'Con geometría', 'Cacao', '', '']]));
     expect(s2.preview.rows[0]).toMatchObject({ action: 'UPDATE', changed_fields: ['name'] });
     await commit(ADMIN, orgA, s2.id, s2.preview.plan_hash).expect(201);
-    const after = await plot(orgA, 'PAR-2');
-    expect(after!.current_version_id).toBe(geomBefore[geomBefore.length - 1].id);
+    expect((await plot(orgA, 'PAR-2'))!.current_version_id).toBe(captured.id);
     expect(await versions(p2!.id)).toEqual(geomBefore);
-    // Ni la vista previa ni el informe exponen coordenadas.
+
+    const s = await staged(ADMIN, orgA, book([['PAR-2', 'PRD-1', 'Con geometría', 'Cacao', '', '1.2']]));
+    expect(s.preview.rows[0]).toMatchObject({ action: 'UPDATE', changed_fields: ['area_declared_ha'] });
     expect(JSON.stringify(s.preview)).not.toContain('-80.1');
+    await commit(ADMIN, orgA, s.id, s.preview.plan_hash).expect(201);
+    const vs = await versions(p2!.id);
+    expect(vs.slice(0, geomBefore.length)).toEqual(geomBefore); // anteriores intactas
+    const nv = vs[vs.length - 1];
+    expect(nv).toMatchObject({ survey_method: captured.survey_method, geometry_type: 'POLYGON', geometry_hash: captured.geometry_hash, area: '1.2000', calc: captured.calc, validation_status: 'NOT_VALIDATED' });
+    const same = await sql<{ same: boolean; origin: string | null }>`SELECT ST_Equals(n.geometry, c.geometry) AND ST_AsBinary(n.geometry) = ST_AsBinary(c.geometry) AS same, n.geometry_origin_version_id AS origin
+      FROM plot_versions n, plot_versions c WHERE n.id = ${nv.id} AND c.id = ${captured.id}`.execute(h.db);
+    expect(same.rows[0]).toEqual({ same: true, origin: captured.id });
+    const ev = await h.db.selectFrom('domain_events').select(['event_type', 'payload']).where('aggregate_id', '=', p2!.id).orderBy('aggregate_version', 'desc').executeTakeFirstOrThrow();
+    expect(ev).toMatchObject({ event_type: 'PlotDeclaredAreaUpdated', payload: { change_kind: 'DECLARED_AREA_UPDATE', geometry_origin_version_id: captured.id, source: { kind: 'EXCEL_IMPORT' } } });
+    expect(JSON.stringify(ev.payload)).not.toContain('-80.1');
   });
 
   it('no reasigna productor ni reactiva parcelas', async () => {
@@ -253,7 +263,7 @@ describeDb('P0-026 importación Excel de parcelas (PostgreSQL real)', () => {
   it('rollback completo: un fallo al crear la versión de la segunda fila deshace también la primera', async () => {
     const before = await counts(orgA);
     const s = await staged(ADMIN, orgA, book([['PAR-RB1', 'PRD-1', '', 'Cacao', '', ''], ['PAR-RB2', 'PRD-1', '', 'Cacao', '', '4']]));
-    const spy = jest.spyOn(PlotsService.prototype, 'declaredVersionInTx').mockRejectedValueOnce(new Error('fallo inyectado'));
+    const spy = jest.spyOn(PlotsService.prototype, 'updateDeclaredAreaInTx').mockRejectedValueOnce(new Error('fallo inyectado'));
     try {
       await commit(ADMIN, orgA, s.id, s.preview.plan_hash).expect(500);
     } finally {

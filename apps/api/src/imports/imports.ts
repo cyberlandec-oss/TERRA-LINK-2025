@@ -282,7 +282,7 @@ export class ImportsService {
       usePermissions: ['plot:create', 'plot:create_assigned', 'plot:update', 'plot:update_assigned'],
       samplePermissions: ['plot:read_geometry', 'producer:read_identity'],
       keyFormatMessage: 'Código no válido: letras, números, punto, guion o guion bajo (1–40).',
-      concurrency: { codes: ['PLOT_CODE_TAKEN', 'VERSION_CONFLICT', 'GEOMETRY_PRESENT', 'PRODUCER_NOT_AVAILABLE', 'PRODUCER_INACTIVE', 'PLOT_INACTIVE'], constraints: ['plots_code_uq', 'plot_versions_number_uq'] },
+      concurrency: { codes: ['PLOT_CODE_TAKEN', 'VERSION_CONFLICT', 'NO_CHANGE', 'PRODUCER_NOT_AVAILABLE', 'PRODUCER_INACTIVE', 'PLOT_INACTIVE'], constraints: ['plots_code_uq', 'plot_versions_number_uq'] },
       codeOf: async (db, orgId, ids) => new Map((ids.length ? await db.selectFrom('plots').select(['id', 'plot_code']).where('organization_id', '=', orgId).where('id', 'in', ids).execute() : []).map((r) => [r.id, r.plot_code])),
       resolve: async (db, ctx, planned, colOf, lock) => {
         const keyCol = colOf.get('plot_code') ?? null;
@@ -325,14 +325,8 @@ export class ImportsService {
             continue;
           }
           const changed = EDITABLE.filter((k) => k in rest && rest[k] !== row[k as PlotEditable]);
-          let areaChanged = false;
-          if (typeof area === 'string' && (row.current_area_declared_ha === null || Number(row.current_area_declared_ha) !== Number(area))) {
-            if (row.current_geometry_type) {
-              p.errors.push({ column: colOf.get('area_declared_ha') ?? null, field: 'area_declared_ha', code: 'DECLARED_AREA_WITH_GEOMETRY', message: 'La parcela tiene geometría registrada: una versión solo con superficie declarada la sustituiría. Registra la superficie desde el flujo de geometría de la parcela.' });
-              continue;
-            }
-            areaChanged = true;
-          }
+          // La superficie declarada se actualiza conservando la geometría vigente (mismo caso de uso que el formulario).
+          const areaChanged = typeof area === 'string' && (row.current_area_declared_ha === null || Number(row.current_area_declared_ha) !== Number(area));
           p.entity_id = row.id;
           p.expected_version = Number(row.row_version);
           p.changed_fields = [...changed, ...(areaChanged ? ['area_declared_ha'] : [])];
@@ -352,7 +346,7 @@ export class ImportsService {
           const r = await plots.updateInTx(trx, ctx, user, id!, version!, fields as Partial<Record<PlotEditable, string | null>>, requestId, from);
           version = Number(r.after.row_version);
         }
-        if (typeof area === 'string') await plots.declaredVersionInTx(trx, ctx, user, id!, version!, area, requestId, from);
+        if (typeof area === 'string') await plots.updateDeclaredAreaInTx(trx, ctx, user, id!, version!, area, requestId, from);
         return { id: id!, reviews: 0 };
       },
     };

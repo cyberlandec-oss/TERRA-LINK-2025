@@ -24,7 +24,7 @@ export const PLOT_FIELDS: Array<TemplateField<PlotImportField>> = [
   { field: 'canton', header: 'canton', label: 'Cantón', clearable: true, identity: false, maxLength: 100, rule: `Opcional. Hasta 100 caracteres. ${CLEAR_TOKEN} lo vacía.` },
   { field: 'parish', header: 'parroquia', label: 'Parroquia', clearable: true, identity: false, maxLength: 100, rule: `Opcional. Hasta 100 caracteres. ${CLEAR_TOKEN} la vacía.` },
   { field: 'area_declared_ha', header: 'superficie_declarada_ha', label: 'Superficie declarada (ha)', identity: false, maxLength: 13, pattern: /^\d{1,8}(\.\d{1,4})?$/,
-    rule: 'Opcional. Hectáreas DECLARADAS, mayor que 0, punto decimal y hasta 4 decimales (p. ej. 2.5). Sin conversiones de unidad. Crea una versión nueva solo con superficie declarada, sin validar. No se admite si la parcela ya tiene geometría (la sustituiría) y no se puede vaciar.' },
+    rule: 'Opcional. Hectáreas DECLARADAS, mayor que 0, punto decimal y hasta 4 decimales (p. ej. 2.5). Sin conversiones de unidad. Crea una versión nueva sin validar; si la parcela tiene geometría, la conserva tal cual (no es una captura nueva). No se puede vaciar.' },
 ];
 
 export const PLOT_TEMPLATE_RULES = [

@@ -96,11 +96,11 @@ Mismo pipeline (carga, mapeo explícito, vista previa, errores por fila, confirm
   con sus flujos existentes (coordenadas manuales, GPS, polígono, GeoJSON de P0-009), que ya validan tipo, ejes y CRS sin
   reproyectar ni reparar. La geometría existente nunca se modifica ni se sustituye.
 - **Superficie declarada**: hectáreas, > 0, punto decimal, hasta 4 decimales; «2,5» es error de formato (no se interpreta).
-  Crea una versión nueva `DECLARED` (sin geometría, sin superficie calculada, `NOT_VALIDATED`) que pasa a ser la actual;
-  las versiones anteriores no cambian. Como una versión `DECLARED` reemplazaría como vigente a una versión con geometría,
-  la importación la **rechaza** si la parcela ya tiene geometría (`DECLARED_AREA_WITH_GEOMETRY`; también lo comprueba el
-  caso de uso, `GEOMETRY_PRESENT`). Superficie declarada y calculada siguen separadas. Importar no valida ni cumple D-05.
-  Una parcela nueva sin superficie queda sin versión (no se inventa).
+  Usa el caso de uso `updateDeclaredAreaInTx` (el mismo del formulario; ver `SUPERFICIE-DECLARADA-CONSERVA-GEOMETRIA.md`):
+  versión nueva `NOT_VALIDATED` que **conserva la geometría vigente** si existe (no es una captura nueva) y no hereda
+  evaluaciones GIS. Las versiones anteriores no cambian. Superficie declarada y calculada siguen separadas. Una parcela
+  nueva sin superficie queda sin versión (no se inventa). Importar no valida ni cumple D-05. (Hasta el 2026-10-12 la
+  importación rechazaba la superficie en parcelas con geometría con `DECLARED_AREA_WITH_GEOMETRY`; ya no.)
 - **Productor**: por su código exacto en la organización (único por tenant, P0-005), nunca por parecido; no se crean
   productores. Inexistente, fuera del alcance de alta o de otra organización → misma respuesta `PRODUCER_NOT_AVAILABLE`.
   Productor dado de baja → `PRODUCER_INACTIVE` (solo dentro del alcance, como en el alta manual). En una parcela existente
@@ -113,14 +113,11 @@ Mismo pipeline (carga, mapeo explícito, vista previa, errores por fila, confirm
   muestras de columnas no mapeadas exigen `plot:read_geometry` y `producer:read_identity` (una columna suelta puede traer
   coordenadas o datos personales). Ni la vista previa, ni el informe, ni eventos, ni auditoría llevan coordenadas.
 - **Casos de uso reutilizados**: `PlotsService.createInTx`, `updateInTx` (extraídos de `create`/`update` sin cambiar su
-  comportamiento) y `declaredVersionInTx` (misma inserción que `createVersion` con método `DECLARED`, más la negativa a
-  sustituir una geometría). Procedencia en el motivo del historial, `notes` de la versión, `source` del evento y auditoría.
+  comportamiento) y `updateDeclaredAreaInTx` (superficie declarada que conserva la geometría). Procedencia en el motivo del historial, `notes` de la versión, `source` del evento y auditoría.
 - **Migración 0032** (amplía 0030/0031): plantilla `PARCELAS_V1` e `import_rows.plot_id` (FK compuesta mismo tenant).
 
 ## Pendiente (motivo de que la historia siga abierta)
 
 1. Plantillas de entregas y lotes (S1 §62). Deben conservar estados y pendientes de P0-012/P0-016 y no confirmar
    recepción, calidad, inventario ni debida diligencia.
-2. Superficie declarada de parcelas con geometría: no hay caso de uso que cree una versión con la geometría vigente y otra
-   superficie declarada; hoy se rechaza en la importación (y el formulario de versión `DECLARED` de la parcela la sustituiría).
-3. Evidencia de navegador con archivos sintéticos y datos DEMO en desarrollo local; no hay uso con un Excel real de una asociación.
+2. Evidencia de navegador con archivos sintéticos y datos DEMO en desarrollo local; no hay uso con un Excel real de una asociación.

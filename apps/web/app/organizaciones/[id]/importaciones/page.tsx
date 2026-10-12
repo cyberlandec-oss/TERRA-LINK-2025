@@ -175,7 +175,7 @@ function TemplateStep({ orgId, slug, info, onError }: { orgId: string; slug: str
       <p>Plantilla <strong>{info.template}</strong> ({info.entity}). Los nuevos quedan en estado <strong>{NEW_STATUS[info.new_status] ?? info.new_status}</strong>. Todavía no se pueden importar: {info.not_implemented.join(', ')}.</p>
       {info.template === 'PARCELAS_V1' && (
         <Alert tone="info" title="Esta plantilla NO importa coordenadas ni geometría">
-          Solo datos descriptivos y superficie declarada (ha). La geometría existente no cambia; regístrala desde la parcela o con GeoJSON. Importar no valida la parcela.
+          Solo datos descriptivos y superficie declarada (ha). La geometría existente se conserva tal cual, también al actualizar la superficie declarada (versión nueva, no una captura). Las coordenadas se registran desde la parcela o con GeoJSON. Importar no valida la parcela ni hereda evaluaciones GIS.
         </Alert>
       )}
       <button type="button" onClick={() => apiDownload(`/api/v1/organizations/${orgId}/imports/templates/${slug}.xlsx`, `plantilla-${slug}.xlsx`).catch(onError)}>Descargar plantilla (.xlsx)</button>
@@ -370,7 +370,7 @@ function PreviewStep({ base, batch, preview, info, onPage, onCommitted, onStale,
           <li>Los {info.entity} nuevos quedan en estado <strong>{NEW_STATUS[info.new_status] ?? info.new_status}</strong>. Importar no valida datos ni confirma entregas, calidad, inventario o debida diligencia.</li>
           {info.template === 'PRODUCTORES_V1' && <li>Una coincidencia de documento abre una revisión de posible duplicado; nunca se fusiona.</li>}
           {info.template === 'PRODUCTOS_V1' && <li>Código, estado/presentación y unidad no cambian después del alta; un producto inactivo no se reactiva.</li>}
-          {info.template === 'PARCELAS_V1' && <li>No se importan coordenadas ni geometría: la geometría existente no cambia. La superficie declarada crea una versión nueva sin validar; no se reasigna productor ni se reactivan parcelas.</li>}
+          {info.template === 'PARCELAS_V1' && <li>No se importan coordenadas ni geometría. La superficie declarada crea una versión nueva sin validar que conserva la geometría vigente; no se reasigna productor ni se reactivan parcelas.</li>}
         </ul>
         {preview.can_commit ? (
           <>

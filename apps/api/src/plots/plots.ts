@@ -67,6 +67,12 @@ class CreateVersionDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) notes?: string;
 }
 
+class DeclaredAreaDto {
+  @ApiProperty({ description: 'row_version de la parcela leída' }) @IsInt() @Min(1) expected_version!: number;
+  @ApiProperty({ description: 'Hectáreas declaradas (> 0, hasta 4 decimales)' }) @Type(() => Number) @IsNumber({ maxDecimalPlaces: 4 }) @Min(0.0001) @Max(99999999) area_declared_ha!: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) notes?: string;
+}
+
 const CAPTURE_FUTURE_TOLERANCE_MS = 5 * 60_000;
 
 class CaptureLocationDto {
@@ -119,6 +125,9 @@ interface VersionView {
   technically_valid: boolean | null;
   source_import_id: string | null;
   source_import_sha256: string | null;
+  geometry_origin_version_id: string | null;
+  geometry_origin_version_number: number | null;
+  change_kind: 'GEOMETRY_CAPTURE' | 'DECLARED_AREA' | 'DECLARED_AREA_UPDATE';
   sample: null | {
     id: string; source: string; captured_at: Date | string; received_at: Date | string;
     horizontal_accuracy_m: number | null; longitude?: number; latitude?: number;
@@ -136,8 +145,12 @@ const versionColumns = (withGeometry: boolean) => sql`
   v.validation_status, v.validation_rule_version, v.previous_version_id, v.notes, v.created_at,
   CASE WHEN v.geometry IS NULL THEN NULL ELSE (ST_IsValidDetail(v.geometry)).valid END AS technically_valid,
   ${withGeometry}::boolean AS geometry_visible,
-  v.source_import_id,
-  (SELECT gi.sha256 FROM geometry_imports gi WHERE gi.id = v.source_import_id AND gi.organization_id = v.organization_id) AS source_import_sha256,
+  coalesce(v.source_import_id, (SELECT o.source_import_id FROM plot_versions o WHERE o.id = v.geometry_origin_version_id AND o.organization_id = v.organization_id)) AS source_import_id,
+  (SELECT gi.sha256 FROM geometry_imports gi WHERE gi.organization_id = v.organization_id
+     AND gi.id = coalesce(v.source_import_id, (SELECT o.source_import_id FROM plot_versions o WHERE o.id = v.geometry_origin_version_id AND o.organization_id = v.organization_id))) AS source_import_sha256,
+  v.geometry_origin_version_id,
+  (SELECT o.version_number FROM plot_versions o WHERE o.id = v.geometry_origin_version_id AND o.organization_id = v.organization_id) AS geometry_origin_version_number,
+  CASE WHEN v.geometry_origin_version_id IS NOT NULL THEN 'DECLARED_AREA_UPDATE' WHEN v.geometry IS NULL THEN 'DECLARED_AREA' ELSE 'GEOMETRY_CAPTURE' END AS change_kind,
   CASE WHEN s.id IS NULL THEN NULL ELSE jsonb_strip_nulls(jsonb_build_object(
     'id', s.id, 'source', s.source, 'captured_at', s.captured_at, 'received_at', s.received_at,
     'horizontal_accuracy_m', s.horizontal_accuracy_m,
@@ -194,7 +207,7 @@ export class PlotsService {
     if (!versionId) return null;
     const r = await sql<VersionView>`
       SELECT ${versionColumns(withGeometry)}
-      FROM plot_versions v LEFT JOIN location_samples s ON s.plot_version_id = v.id AND s.organization_id = v.organization_id
+      FROM plot_versions v LEFT JOIN location_samples s ON s.plot_version_id = coalesce(v.geometry_origin_version_id, v.id) AND s.organization_id = v.organization_id
       WHERE v.organization_id = ${orgId} AND v.id = ${versionId}`.execute(db);
     return r.rows[0] ?? null;
   }
@@ -393,44 +406,80 @@ export class PlotsService {
   }
 
   /**
-   * P0-026: versión DECLARED (solo superficie declarada) dentro de una transacción del llamador. Mismo efecto que
-   * createVersion() con método DECLARED: versión nueva e inmutable que pasa a ser la actual (la anterior no cambia),
-   * NOT_VALIDATED, sin geometría y sin superficie calculada. Para no sustituir una geometría por omisión, se niega si la
-   * versión vigente tiene geometría (GEOMETRY_PRESENT): eso requiere el flujo de geometría de la parcela.
+   * Superficie declarada (adopción para desarrollo local 2026-10-12, docs/decisiones/SUPERFICIE-DECLARADA-CONSERVA-GEOMETRIA.md).
+   * Un solo caso de uso para formulario (POST declared-area y geometry-versions con método DECLARED) e importación (P0-026).
+   * Crea una versión NUEVA (append-only) que pasa a ser la actual; las anteriores no cambian:
+   * - sin geometría vigente: versión DECLARED solo con superficie (como antes);
+   * - con geometría vigente: la versión COPIA la geometría, su hash, su superficie calculada y sus datos de captura
+   *   (método, fecha, precisión) y apunta a la versión capturada (geometry_origin_version_id). No es una captura nueva:
+   *   change_kind = DECLARED_AREA_UPDATE y evento PlotDeclaredAreaUpdated (no PlotGeometryVersionCreated).
+   * Declarada y calculada siguen separadas. validation_status = NOT_VALIDATED: no hereda evaluaciones GIS (las anteriores
+   * siguen ligadas a su versión) ni aprobación alguna. Misma superficie → NO_CHANGE.
    */
-  async declaredVersionInTx(trx: Transaction<Database>, ctx: TenantContext, user: AuthUser, id: string, expectedVersion: number, areaHa: string, requestId?: string, from?: PlotChangeSource) {
+  async updateDeclaredAreaInTx(trx: Transaction<Database>, ctx: TenantContext, user: AuthUser, id: string, expectedVersion: number, areaHa: string, requestId?: string, from?: Partial<PlotChangeSource> & { notes?: string }) {
     const orgId = ctx.organizationId;
     const plot = await this.load(trx, ctx, id, 'update', true);
     if (plot.status === 'INACTIVE') throw conflict('PLOT_INACTIVE', 'La parcela está dada de baja.');
     if (Number(plot.row_version) !== expectedVersion) throw conflict('VERSION_CONFLICT', 'Otra persona modificó esta parcela. Recarga para ver la versión actual.');
-    if (plot.current_version_id) {
-      const cur = await trx.selectFrom('plot_versions').select('geometry_type').where('organization_id', '=', orgId).where('id', '=', plot.current_version_id).executeTakeFirstOrThrow();
-      if (cur.geometry_type) throw conflict('GEOMETRY_PRESENT', 'La parcela tiene geometría registrada: una versión solo con superficie declarada la sustituiría.');
-    }
+    const cur = plot.current_version_id
+      ? await trx.selectFrom('plot_versions').selectAll().where('organization_id', '=', orgId).where('id', '=', plot.current_version_id).executeTakeFirstOrThrow()
+      : null;
+    if (cur?.area_declared_ha != null && Number(cur.area_declared_ha) === Number(areaHa)) throw conflict('NO_CHANGE', 'Esa superficie declarada ya es la vigente.');
     const last = await trx.selectFrom('plot_versions').select(sql<number>`coalesce(max(version_number), 0)::int`.as('n'))
       .where('organization_id', '=', orgId).where('plot_id', '=', id).executeTakeFirstOrThrow();
     const versionId = randomUUID();
-    await sql`
-      INSERT INTO plot_versions (id, organization_id, plot_id, version_number, geometry, geometry_type, geometry_hash,
-        area_declared_ha, area_calculated_ha, survey_method, surveyed_at, accuracy_m, validation_status, validation_rule_version,
-        previous_version_id, notes, created_by)
-      VALUES (${versionId}, ${orgId}, ${id}, ${last.n + 1}, NULL, NULL, NULL, ${areaHa}::numeric, NULL, 'DECLARED', NULL, NULL,
-        'NOT_VALIDATED', ${STRUCTURAL_RULE}, ${plot.current_version_id}, ${from?.reason ?? null}, ${user.id})`.execute(trx);
+    const keeps = !!cur?.geometry_type;
+    const origin = keeps ? (cur!.geometry_origin_version_id ?? cur!.id) : null;
+    const notes = [from?.notes, from?.reason].filter(Boolean).join(' · ') || null;
+    if (keeps) {
+      await sql`
+        INSERT INTO plot_versions (id, organization_id, plot_id, version_number, geometry, geometry_type, geometry_hash,
+          area_declared_ha, area_calculated_ha, survey_method, surveyed_at, accuracy_m, validation_status, validation_rule_version,
+          previous_version_id, notes, created_by, geometry_origin_version_id)
+        SELECT ${versionId}, c.organization_id, c.plot_id, ${last.n + 1}, c.geometry, c.geometry_type, c.geometry_hash,
+          ${areaHa}::numeric, c.area_calculated_ha, c.survey_method, c.surveyed_at, c.accuracy_m, 'NOT_VALIDATED', ${STRUCTURAL_RULE},
+          c.id, ${notes}, ${user.id}, ${origin}
+        FROM plot_versions c WHERE c.id = ${cur!.id} AND c.organization_id = ${orgId}`.execute(trx);
+    } else {
+      await sql`
+        INSERT INTO plot_versions (id, organization_id, plot_id, version_number, geometry, geometry_type, geometry_hash,
+          area_declared_ha, area_calculated_ha, survey_method, surveyed_at, accuracy_m, validation_status, validation_rule_version,
+          previous_version_id, notes, created_by)
+        VALUES (${versionId}, ${orgId}, ${id}, ${last.n + 1}, NULL, NULL, NULL, ${areaHa}::numeric, NULL, 'DECLARED', NULL, NULL,
+          'NOT_VALIDATED', ${STRUCTURAL_RULE}, ${plot.current_version_id}, ${notes}, ${user.id})`.execute(trx);
+    }
     const after = await trx.updateTable('plots')
       .set({ current_version_id: versionId, updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1` })
       .where('id', '=', id).where('organization_id', '=', orgId).returningAll().executeTakeFirstOrThrow();
-    const src = from ? { source: from.source } : {};
-    await this.recordHistory(trx, after, 'GEOMETRY_VERSION', ['current_version_id'], user.id, from?.reason);
+    const src = from?.source ? { source: from.source } : {};
+    await this.recordHistory(trx, after, keeps ? 'DECLARED_AREA' : 'GEOMETRY_VERSION', ['current_version_id'], user.id, from?.reason);
+    const payload = {
+      plot_version_id: versionId, version_number: last.n + 1, previous_version_id: plot.current_version_id,
+      change_kind: keeps ? 'DECLARED_AREA_UPDATE' : 'DECLARED_AREA', geometry_origin_version_id: origin,
+      geometry_type: cur?.geometry_type ?? null, geometry_hash: keeps ? cur!.geometry_hash : null, survey_method: keeps ? cur!.survey_method : 'DECLARED', ...src,
+    };
     await this.events.append(trx, {
-      organizationId: orgId, eventType: 'PlotGeometryVersionCreated', schemaVersion: 1, aggregateType: 'PLOT', aggregateId: id,
-      aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId,
-      payload: { plot_version_id: versionId, version_number: last.n + 1, previous_version_id: plot.current_version_id, geometry_type: null, geometry_hash: null, survey_method: 'DECLARED', ...src },
+      organizationId: orgId, eventType: keeps ? 'PlotDeclaredAreaUpdated' : 'PlotGeometryVersionCreated', schemaVersion: 1, aggregateType: 'PLOT', aggregateId: id,
+      aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId, payload,
     });
     await this.audit.record(trx, {
-      organizationId: orgId, actorUserId: user.id, action: 'plot.geometry_version', entityType: 'plot', entityId: id, requestId,
-      result: 'SUCCESS', after: { plot_version_id: versionId, version_number: last.n + 1, geometry_type: null, survey_method: 'DECLARED', ...src },
+      organizationId: orgId, actorUserId: user.id, action: keeps ? 'plot.declared_area_update' : 'plot.geometry_version', entityType: 'plot', entityId: id, requestId,
+      result: 'SUCCESS', after: { plot_version_id: versionId, version_number: last.n + 1, change_kind: payload.change_kind, geometry_origin_version_id: origin, geometry_kept: keeps, ...src },
     });
-    return { after, versionId };
+    return { plot, after, versionId, keptGeometry: keeps };
+  }
+
+  /** Formulario: actualizar la superficie declarada (conserva la geometría vigente). */
+  async updateDeclaredArea(user: AuthUser, orgId: string, id: string, dto: DeclaredAreaDto, requestId?: string) {
+    const ctx = await this.authz.tenantContext(user, orgId);
+    if (!ctx) throw notFound();
+    if (!this.has(ctx, 'plot:update') && !this.has(ctx, 'plot:update_assigned')) throw forbidden();
+    if (ctx.organizationStatus !== 'ACTIVE') throw forbidden('ORGANIZATION_SUSPENDED', 'La organización está suspendida; no admite nuevas operaciones.');
+    return this.db.transaction().execute(async (trx) => {
+      const r = await this.updateDeclaredAreaInTx(trx, ctx, user, id, dto.expected_version, String(dto.area_declared_ha), requestId, dto.notes ? { notes: dto.notes } : undefined);
+      const version = (await this.versionView(trx, orgId, r.versionId, this.geometryAllowed(ctx)))!;
+      return { plot: this.view({ ...r.after, producer_code: r.plot.producer_code, first_name: r.plot.first_name, last_name: r.plot.last_name, legal_name: r.plot.legal_name }, version), version, geometry_kept: r.keptGeometry };
+    });
   }
 
   /** P0-026: parcelas de la organización por código, con el responsable de su productor y la versión vigente (sin coordenadas). */
@@ -465,6 +514,12 @@ export class PlotsService {
     if (dto.survey_method === 'DECLARED') {
       if (dto.geometry) throw new AppError(400, 'VALIDATION_FAILED', 'Una superficie declarada no lleva geometría.', [{ field: 'geometry', reason: 'NOT_ALLOWED_FOR_DECLARED' }]);
       if (dto.area_declared_ha === undefined) throw new AppError(400, 'VALIDATION_FAILED', 'Indica la superficie declarada en hectáreas.', [{ field: 'area_declared_ha', reason: 'REQUIRED' }]);
+      // Superficie declarada: el mismo caso de uso que el formulario y la importación (conserva la geometría vigente).
+      return this.db.transaction().execute(async (trx) => {
+        const r = await this.updateDeclaredAreaInTx(trx, ctx, user, id, dto.expected_version, String(dto.area_declared_ha), requestId, dto.notes ? { notes: dto.notes } : undefined);
+        const version = (await this.versionView(trx, orgId, r.versionId, this.geometryAllowed(ctx)))!;
+        return { plot: this.view({ ...r.after, producer_code: r.plot.producer_code, first_name: r.plot.first_name, last_name: r.plot.last_name, legal_name: r.plot.legal_name }, version), version };
+      });
     } else {
       if (!dto.geometry) throw new AppError(400, 'VALIDATION_FAILED', 'Indica la geometría (GeoJSON en WGS84).', [{ field: 'geometry', reason: 'REQUIRED' }]);
       const issues = structuralIssues(dto.geometry);
@@ -625,7 +680,7 @@ export class PlotsService {
     const p = await this.load(this.db, ctx, id, 'read');
     const r = await sql<VersionView>`
       SELECT ${versionColumns(this.geometryAllowed(ctx))}
-      FROM plot_versions v LEFT JOIN location_samples s ON s.plot_version_id = v.id AND s.organization_id = v.organization_id
+      FROM plot_versions v LEFT JOIN location_samples s ON s.plot_version_id = coalesce(v.geometry_origin_version_id, v.id) AND s.organization_id = v.organization_id
       WHERE v.organization_id = ${orgId} AND v.plot_id = ${id} ORDER BY v.version_number DESC`.execute(this.db);
     return r.rows.map((v) => ({ ...v, is_current: v.id === p.current_version_id }));
   }
@@ -701,6 +756,11 @@ export class PlotsController {
   @Post(':id/geometry-versions')
   createVersion(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: CreateVersionDto, @Req() req: AuthedRequest) {
     return this.service.createVersion(user, orgId, id, dto, req.requestId);
+  }
+
+  @Post(':id/declared-area')
+  declaredArea(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: DeclaredAreaDto, @Req() req: AuthedRequest) {
+    return this.service.updateDeclaredArea(user, orgId, id, dto, req.requestId);
   }
 
   @Post(':id/location-samples')

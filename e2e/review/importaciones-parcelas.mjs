@@ -2,7 +2,7 @@
 //   npm run build -w apps/api && node e2e/review/importaciones-parcelas.mjs [http://localhost:3000]
 // Archivos SINTÉTICOS (no son datos reales de una asociación). Cuentas DEMO de CREDENCIALES.csv (nunca imprime contraseñas).
 // - Administración (1280 px): elige «Parcelas», descarga la plantilla; archivo con errores (productor inexistente y de
-//   baja, coma decimal, código repetido, superficie sobre una parcela con geometría): no confirmable, se descarta;
+//   baja, coma decimal) y una superficie sobre una parcela con geometría (se acepta y la conserva): no confirmable, se descarta;
 //   archivo válido confirmado SOLO CON TECLADO. Crea DEMO-IMP-PAR-001/002 (productor DEMO-RV-008), sin geometría.
 // - Administración a 390 px: reimportación = sin cambios, sin desplazamiento horizontal.
 // - Supervisión (MANAGER, autorizado): opción «Parcelas» habilitada y plantilla visible.
@@ -90,13 +90,13 @@ try {
     await page.getByRole('button', { name: 'Descargar plantilla (.xlsx)' }).click();
     const d = await dl;
     const body0 = await page.locator('main').innerText();
-    check('admin: elige Parcelas, descarga su plantilla y ve que no se importa geometría', /plantilla-parcelas_v1\.xlsx/.test(d.suggestedFilename()) && /NO importa coordenadas ni geometría/.test(body0), d.suggestedFilename(), await shot(page, 'pa01-admin-plantilla-parcelas'));
+    check('admin: elige Parcelas, descarga su plantilla y ve que no se importa geometría', /plantilla-parcelas_v1\.xlsx/.test(d.suggestedFilename()) && /NO importa coordenadas ni geometría/.test(body0) && /se conserva tal cual/.test(body0), d.suggestedFilename(), await shot(page, 'pa01-admin-plantilla-parcelas'));
 
     await uploadAndMap(page, errorFile);
     const body = await page.locator('main').innerText();
     const noCommit = !(await page.getByRole('button', { name: 'Confirmar importación' }).count());
-    check('admin: productor inexistente y de baja, coma decimal y superficie sobre geometría son errores de fila; no confirmable',
-      /4 con error/.test(body) && /no está disponible para ti/.test(body) && /dado de baja/.test(body) && /Formato no válido/.test(body) && /tiene geometría registrada/.test(body) && noCommit, '', await shot(page, 'pa02-admin-errores-parcelas'));
+    check('admin: productor inexistente y de baja y coma decimal son errores de fila; la superficie sobre una parcela con geometría se acepta (la conserva); no confirmable',
+      /3 con error/.test(body) && /1 actualizaciones/.test(body) && /no está disponible para ti/.test(body) && /dado de baja/.test(body) && /Formato no válido/.test(body) && noCommit, '', await shot(page, 'pa02-admin-errores-parcelas'));
     await page.getByRole('button', { name: 'Descartar carga' }).click();
     await page.getByRole('heading', { name: '3. Mapeo de columnas' }).waitFor({ state: 'detached', timeout: 15000 });
 

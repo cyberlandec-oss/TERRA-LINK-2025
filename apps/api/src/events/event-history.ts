@@ -28,6 +28,7 @@ const ALLOWED_FIELDS: Record<string, string[]> = {
   PlotUpdated: ['changed_fields'],
   PlotStatusChanged: ['from_status', 'to_status'],
   PlotGeometryVersionCreated: ['version_number', 'geometry_type', 'survey_method', 'technically_valid'],
+  PlotDeclaredAreaUpdated: ['version_number', 'change_kind', 'geometry_origin_version_id'],
   ProductCreated: ['code', 'status', 'changed_fields'],
   ProductUpdated: ['code', 'status', 'changed_fields'],
   ProductDeactivated: ['code', 'status'],
