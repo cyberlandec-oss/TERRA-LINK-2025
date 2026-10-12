@@ -2,8 +2,8 @@
 //   npm run build -w apps/api && node e2e/review/importaciones-entregas.mjs [http://localhost:3000]
 // Archivos SINTÉTICOS (no son datos reales de una asociación). Cuentas DEMO de CREDENCIALES.csv (nunca imprime contraseñas).
 // - Administración (1280 px): elige «Entregas», ve que solo crea borradores; archivo con errores (entrega registrada con
-//   otro peso, productor de baja, unidad LB, periodo sin precisión): no confirmable, se descarta; archivo válido
-//   confirmado SOLO CON TECLADO. Crea dos BORRADORES del productor DEMO-RV-008 (notas «Entrega importada (demo) …»).
+//   otro peso, productor de baja, unidad LB, periodo sin precisión, fila sin referencia): no confirmable; archivo válido con
+//   REFERENCIAS DEMO-REF-C/D (dos filas con las mismas notas: dos entregas) confirmado SOLO CON TECLADO.
 //   Comprueba en la base que no se crean recepciones, pesajes, muestras, movimientos de inventario ni eventos de entrega.
 // - Administración a 390 px: reimportación = «ya importada», sin desplazamiento horizontal.
 // - Supervisión (MANAGER, autorizado): opción habilitada.
@@ -33,16 +33,17 @@ const lines = readFileSync(join(root, credFile), 'utf8').replace(/^﻿/, '').spl
 const head = lines.shift();
 const acc = (local) => { const r = lines.find((x) => x[head.indexOf('email')].startsWith(`${local}@`)); return { email: r[head.indexOf('email')], password: r[head.indexOf('contrasena')] }; };
 
-const HEAD = ['codigo_entrega', 'codigo_productor', 'codigo_producto', 'codigo_centro', 'fecha_entrega', 'cantidad_declarada', 'unidad', 'periodo_precision', 'periodo_inicio', 'periodo_fin', 'parcelas_origen', 'notas'];
+const HEAD = ['codigo_entrega', 'codigo_productor', 'codigo_producto', 'codigo_centro', 'fecha_entrega', 'cantidad_declarada', 'unidad', 'periodo_precision', 'periodo_inicio', 'periodo_fin', 'parcelas_origen', 'notas', 'referencia_importacion'];
 const valid = writeXlsx([{ name: 'entregas', rows: [HEAD,
-  ['', 'DEMO-RV-008', 'CACAO_SECO', 'DEMO-CA-01', '2026-10-05', '180.5', 'KG', 'MONTH', '2026-09', '', 'DEMO-IMP-PAR-001:100;DEMO-IMP-PAR-002', 'Entrega importada (demo) A'],
-  ['', 'DEMO-RV-008', '', '', '', '', '', 'UNKNOWN', '', '', '', 'Entrega importada (demo) B'],
+  ['', 'DEMO-RV-008', 'CACAO_SECO', 'DEMO-CA-01', '2026-10-05', '180.5', 'KG', 'MONTH', '2026-09', '', 'DEMO-IMP-PAR-001:100;DEMO-IMP-PAR-002', 'Entrega importada (demo) C', 'DEMO-REF-C'],
+  ['', 'DEMO-RV-008', '', '', '', '', '', 'UNKNOWN', '', '', '', 'Entrega importada (demo) C', 'DEMO-REF-D'],
 ] }]);
 const withErrors = writeXlsx([{ name: 'entregas', rows: [HEAD,
   ['ENT-2026-00001', '', '', '', '', '999', 'KG', '', '', '', '', ''],
-  ['', 'DEMO-RV-007', '', '', '', '', '', '', '', '', '', 'productor de baja'],
-  ['', 'DEMO-RV-008', '', '', '', '100', 'LB', '', '', '', '', 'unidad en libras'],
-  ['', 'DEMO-RV-008', '', '', '', '', '', '', '2026-08', '', '', 'periodo sin precisión'],
+  ['', 'DEMO-RV-007', '', '', '', '', '', '', '', '', '', 'productor de baja', 'DEMO-REF-E1'],
+  ['', 'DEMO-RV-008', '', '', '', '100', 'LB', '', '', '', '', 'unidad en libras', 'DEMO-REF-E2'],
+  ['', 'DEMO-RV-008', '', '', '', '', '', '', '2026-08', '', '', 'periodo sin precisión', 'DEMO-REF-E3'],
+  ['', 'DEMO-RV-008', '', '', '', '', '', '', '', '', '', 'sin referencia', ''],
 ] }]);
 const tmp = (name, buf) => { const f = join(tmpdir(), name); writeFileSync(f, buf); return f; };
 const validFile = tmp('demo-importacion-entregas.xlsx', valid);
@@ -99,8 +100,8 @@ try {
     await uploadAndMap(page, errorFile);
     const body = await page.locator('main').innerText();
     const noCommit = !(await page.getByRole('button', { name: 'Confirmar importación' }).count());
-    check('admin: registrada con otro peso, productor de baja, unidad LB y periodo sin precisión son errores de fila; no confirmable',
-      /4 con error/.test(body) && /está registrada/.test(body) && /no está activo/.test(body) && /solo KG/.test(body) && /precisión del periodo/.test(body) && noCommit, '', await shot(page, 'en02-admin-errores-entregas'));
+    check('admin: registrada con otro peso, productor de baja, unidad LB, periodo sin precisión y fila sin referencia son errores; no confirmable',
+      /5 con error/.test(body) && /ni referencia de importación/.test(body) && /está registrada/.test(body) && /no está activo/.test(body) && /solo KG/.test(body) && /precisión del periodo/.test(body) && noCommit, '', await shot(page, 'en02-admin-errores-entregas'));
     await page.getByRole('button', { name: 'Descartar carga' }).click();
     await page.getByRole('heading', { name: '3. Mapeo de columnas' }).waitFor({ state: 'detached', timeout: 15000 });
 
@@ -117,7 +118,7 @@ try {
       await page.keyboard.press('Enter');
       await page.getByRole('heading', { name: '6. Resultado' }).waitFor({ timeout: 15000 });
       check('admin: confirmación con teclado → 2 borradores creados', /Creados 2 \(estado borrador\)/.test(await page.locator('main').innerText()), `foco en «${focused}»`, await shot(page, 'en04-admin-resultado-entregas'));
-      const drafts = psql(`SELECT string_agg(delivery_code || ':' || status, ',' ORDER BY delivery_code) FROM deliveries WHERE organization_id='${coop}' AND notes LIKE 'Entrega importada (demo)%'`);
+      const drafts = psql(`SELECT string_agg(delivery_code || ':' || status, ',' ORDER BY delivery_code) FROM deliveries WHERE organization_id='${coop}' AND notes = 'Entrega importada (demo) C'`);
       check('base: borradores creados y ningún efecto físico ni evento de entrega', /DRAFT/.test(drafts) && !/REGISTERED/.test(drafts) && physical() === before, `${drafts} · recepciones/pesajes/muestras/inventario/eventos/compuertas ${before} → ${physical()}`);
     } else {
       check('admin: confirmación con teclado (no aplicable: ya importado en una ejecución anterior)', true, 'ver reimportación');
@@ -130,7 +131,7 @@ try {
     await uploadAndMap(page, validFile);
     const txt = await page.locator('main').innerText();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-    check('390 px: reimportación = 2 sin cambios («ya se importó»), nada que confirmar', /2 sin cambios/.test(txt) && /ya se importó/.test(txt) && /No hay nada que importar/.test(txt), '', await shot(page, 'en05-390-reimportacion-entregas'));
+    check('390 px: reimportación por referencia = 2 sin cambios, nada que confirmar', /2 sin cambios/.test(txt) && /ya se importó como/.test(txt) && /No hay nada que importar/.test(txt), '', await shot(page, 'en05-390-reimportacion-entregas'));
     check('390 px: sin desplazamiento horizontal de la página', overflow <= 0, `exceso ${overflow}px`);
     await page.getByRole('button', { name: 'Descartar carga' }).click();
     await ctx.close();

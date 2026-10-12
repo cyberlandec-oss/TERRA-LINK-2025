@@ -144,7 +144,60 @@ Mismo pipeline (carga, mapeo explícito, vista previa, errores por fila, confirm
   inexistente o fuera de alcance, responden igual. Recepción (tiene `delivery:create`, no `import:manage`) → 403.
 - **Migración 0034**: plantilla `ENTREGAS_V1` e `import_rows.delivery_id` (FK compuesta mismo tenant).
 
-## Pendiente (motivo de que la historia siga abierta)
+## Identidad de entregas importadas (corrección 2026-10-12)
 
-1. Plantilla de lotes (S1 §62). Debe conservar estados de P0-016 y no confirmar procesos, inventario ni debida diligencia.
-2. Evidencia de navegador con archivos sintéticos y datos DEMO en desarrollo local; no hay uso con un Excel real de una asociación.
+La huella de contenido de 0034 **no** demuestra que dos filas sean la misma entrega (dos entregas legítimas pueden tener
+datos idénticos). Desde la migración 0035 las altas sin código exigen una **referencia de importación**
+(`referencia_importacion`, tabla `import_references`, append-only, única por organización y plantilla), separada de los datos
+de negocio: misma referencia → misma entrega (reimportar no duplica; puede actualizar el borrador); referencias distintas con
+contenido idéntico → entregas distintas. Sin código ni referencia, la vista previa pide resolverlo (`REFERENCE_REQUIRED`);
+nunca se fusiona por parecido o igualdad de contenido. Los borradores importados antes conservan su procedencia como
+referencia `LEGACY_CONTENT_FINGERPRINT` (`HUELLA-<operation_id>`, con lote y fila de origen). La edición exige el alcance de
+escritura (`delivery:create` o `_assigned` sobre el productor): leer todas las entregas no concede editarlas.
+
+## Plantilla de lotes `LOTES_V1` (2026-10-12)
+
+- **Operaciones del contrato** (P0-016/P0-017): crear un lote con recepciones **confirmadas** y asignar recepciones a un
+  lote **abierto**, con `LotsService.createLotInTx` / `assignInTx` (el endpoint de alta usa el mismo caso de uso):
+  disponibilidad recalculada en el ledger con la recepción bloqueada, límites, mezcla de producto u origen bloqueada,
+  movimientos `LOT_ASSIGN`, eventos `LotCreated`/`LotInputAssigned` y auditoría. No crea recepciones, stock ni origen.
+- **Fila** = una asignación: código del lote existente o referencia de importación de un lote nuevo (varias filas con la
+  misma referencia = un lote), id exacto de la recepción (la plantilla trae la hoja `recepciones_disponibles` con lo que el
+  rol puede ver), cantidad en KG (sin conversiones ni tolerancias) y, opcionales, código de entrega y de producto como
+  verificación cruzada.
+- **Vista previa**: explica cada movimiento («Mueve X kg de la recepción de ENT-… al lote …») y comprueba la demanda
+  acumulada por recepción en todo el archivo contra la existencia sin lote del ledger.
+- **Reimportación**: una asignación activa igual → «sin cambios»; con otra cantidad → error (no se modifica ni libera por
+  importación); una asignación liberada no se vuelve a crear sin decisión explícita. Lotes cerrados o resultado de un proceso
+  no admiten entradas ni se reabren. No procesa, convierte, libera calidad ni cierra.
+- **Identidad**: `operation_id` deterministas por lote/referencia y recepción (dos confirmaciones concurrentes no asignan dos
+  veces); referencias en `import_references` (migración 0036, una entidad por referencia).
+- **Lote histórico sin recepción**: no se importa; la fila muestra el faltante (`RECEPTION_REQUIRED`). No se inventan
+  operaciones físicas.
+- **Autorización**: `import:manage` + `lot:create`; las recepciones solo se ven con alcance de entregas (sin él: misma
+  respuesta que una inexistente). Revalidado al confirmar (bloqueo de lotes y recepciones; plan_hash).
+
+## Contraste con los criterios originales (backlog P0-026, RF-26, QA-03, S1 §§61–63)
+
+| Criterio | Estado | Evidencia |
+| --- | --- | --- |
+| Plantilla (S1 §62: productores, parcelas, entregas, productos, lotes) | Cumplido (5/5) | `templates/*` y `.xlsx`; pruebas por plantilla |
+| Mapeo explícito | Cumplido | sugerencias solo aplicadas al guardar; campos únicos; identidad protegida |
+| Preview sin escrituras | Cumplido | conteos sin cambio en todas las suites; `persisted: false` |
+| Errores por fila | Cumplido | códigos por fila y columna; informe `.xlsx` sin identidad ni coordenadas |
+| Commit controlado | Cumplido | atómico; `plan_hash`; revalidación de permisos, alcance, versiones y disponibilidad; rollback forzado probado |
+| IDs no cruzan tenant | Cumplido | lotes de importación 404; referencias de otra organización = no disponibles (todas las plantillas) |
+| Reimport no duplica ni borra campos fuera de mapping | Cumplido | reimportaciones «sin cambios» sin versiones ni eventos; vacío/sin mapear no cambian; `#BORRAR` explícito |
+| Legacy/missing explícitos (S1 §63) | Cumplido | estados LEGACY / MISSING / UNKNOWN por campo y `NOT_VALIDATED`; nunca VERIFIED |
+| QA-03 (nuevo/existente, mismo código en dos tenants, Excel válido/erróneo/repetido) | Cumplido | `imports*.int-spec.ts` |
+
+Con `npm run validate` aprobada sobre el commit, P0-026 queda **DONE_LOCAL**. No acredita uso con un Excel real de una
+asociación, producción ni conformidad EUDR.
+
+## Limitaciones (no son criterios pendientes; se registran)
+
+1. Solo archivos **sintéticos** y datos DEMO: no se ha importado un Excel real de una asociación (formatos de celda,
+   encabezados, codificación y volumen reales sin observar).
+2. Los soportes documentales de entregas no se importan (se vinculan por versión exacta desde la entrega).
+3. Las entregas solo se importan como borradores; registrar es una acción explícita.
+4. Un lote histórico sin recepciones registradas no se puede importar (por diseño: no se inventan operaciones físicas).

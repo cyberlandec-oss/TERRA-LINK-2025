@@ -186,3 +186,10 @@ y `adb logcat -s ReactNativeJS:V` (línea `TL_SELFTEST`). Evidencia: `docs/qa/EV
 - `npx jest --runInBand test/plot-declared-area.int-spec.ts test/imports-deliveries.int-spec.ts` (desde `apps/api`).
 - `npm run build -w apps/api && node e2e/review/importaciones-entregas.mjs`: revisión en navegador (archivos sintéticos; crea borradores DEMO del productor `DEMO-RV-008` y comprueba en la base que no hay efectos físicos).
 - Anomalía observada (no reproducida): la primera ejecución de `imports-deliveries.int-spec.ts` duró 690 s; según `test-results/harness-timings.jsonl`, el reinicio del esquema, las migraciones y las pruebas tardaron ~6 s, así que el tiempo se fue antes del arnés (carga/transpilación de jest). La repetición tardó 9,6 s. Causa no determinada.
+
+### Importación de lotes, referencias y rotación DEMO (2026-10-12)
+
+- `npx jest --runInBand test/imports-lots.int-spec.ts test/imports-deliveries.int-spec.ts test/dd.int-spec.ts` (desde `apps/api`).
+- `npm run build -w apps/api && node e2e/review/importaciones-lotes.mjs` y `importaciones-entregas.mjs`: revisiones en navegador (archivos sintéticos; usan la recepción DEMO de ENT-2026-00001 y referencias DEMO-REF-*/DEMO-IMP-LOTE-*).
+- Rotación de cuentas DEMO: `node --env-file-if-exists=../../.env dist/db/seed-demo.js --rotar=<cuenta>` (desde `apps/api`, tras compilar). Si `CREDENCIALES.csv` está abierto en Excel falla con EBUSY sin activar nada: cerrarlo y repetir; no forzar la escritura.
+- El episodio de 690 s de la primera ejecución de `imports-deliveries.int-spec.ts` sigue con **causa no determinada**; no se cambiaron timeouts.

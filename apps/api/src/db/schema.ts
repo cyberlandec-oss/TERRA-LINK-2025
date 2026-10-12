@@ -579,7 +579,7 @@ export interface MitigationCorrectionsTable { id: string; organization_id: strin
 export interface ImportBatchesTable {
   id: string;
   organization_id: string;
-  template: 'PRODUCTORES_V1' | 'PRODUCTOS_V1' | 'PARCELAS_V1' | 'ENTREGAS_V1';
+  template: 'PRODUCTORES_V1' | 'PRODUCTOS_V1' | 'PARCELAS_V1' | 'ENTREGAS_V1' | 'LOTES_V1';
   status: 'UPLOADED' | 'MAPPED' | 'COMMITTED' | 'DISCARDED';
   sha256: string;
   byte_size: number;
@@ -611,16 +611,18 @@ export interface ImportRowsTable {
   product_id: Generated<string | null>;
   plot_id: Generated<string | null>;
   delivery_id: Generated<string | null>;
+  lot_id: Generated<string | null>;
   changed_fields: string[] | null;
 }
 
 export interface ImportReferencesTable {
   id: Generated<string>;
   organization_id: string;
-  template: 'ENTREGAS_V1';
+  template: 'ENTREGAS_V1' | 'LOTES_V1';
   reference: string;
   origin: 'FILE_REFERENCE' | 'LEGACY_CONTENT_FINGERPRINT';
-  delivery_id: string;
+  delivery_id: string | null;
+  lot_id: Generated<string | null>;
   batch_id: string;
   row_number: number;
   created_by: string;

@@ -6732,6 +6732,64 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/imports/templates/lots": {
+      "get": {
+        "operationId": "ImportsController_lotsInfo",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reglas de la plantilla de lotes (LOTES_V1: asignar recepciones confirmadas); exige lot:create",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/imports/templates/lots.xlsx": {
+      "get": {
+        "operationId": "ImportsController_lotsFile",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Descargar la plantilla de lotes (incluye la hoja de recepciones disponibles en tu alcance)",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/imports/templates/deliveries": {
       "get": {
         "operationId": "ImportsController_deliveriesInfo",
@@ -6886,7 +6944,8 @@
                       "PRODUCTORES_V1",
                       "PRODUCTOS_V1",
                       "PARCELAS_V1",
-                      "ENTREGAS_V1"
+                      "ENTREGAS_V1",
+                      "LOTES_V1"
                     ],
                     "default": "PRODUCTORES_V1"
                   }

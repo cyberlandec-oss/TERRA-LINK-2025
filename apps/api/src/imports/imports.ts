@@ -27,6 +27,9 @@ import { PLOT_FIELDS, PLOT_TEMPLATE_RULES, PLOT_TEMPLATE_SHEET, PLOT_TEMPLATE_VE
 import { PlotsService, type PlotEditable } from '../plots/plots';
 import { DeliveriesService, harvestColumns, ymd, type UpdateDeliveryDto } from '../deliveries/deliveries';
 import { DELIVERY_FIELDS, DELIVERY_TEMPLATE_RULES, DELIVERY_TEMPLATE_SHEET, DELIVERY_TEMPLATE_VERSION } from './delivery-template';
+import { LOT_FIELDS, LOT_TEMPLATE_RULES, LOT_TEMPLATE_SHEET, LOT_TEMPLATE_VERSION } from './lot-template';
+import { LotsService } from '../lots/lots';
+import { scaled } from '../traceability/kde-validator';
 
 // P0-026 — Importación Excel (RF-26, QA-03; S1 §§61–63; docs/09 «Importación»; docs/UX_UI §20.3).
 // Flujo común a todas las plantillas: plantilla → carga (análisis del archivo, sin tocar entidades) → mapeo explícito →
@@ -69,6 +72,8 @@ export interface PlannedRow {
   fields: Record<string, { state: FieldState; quality: string; value?: string | null }>;
   errors: RowIssue[];
   warnings: RowIssue[];
+  /** Efectos que la confirmación produciría (p. ej. movimientos de cantidad), explicados antes de confirmar. */
+  effects: string[];
   /** Valores a escribir (null = vaciar). Interno: no se devuelve. */
   patch: Record<string, string | null>;
 }
@@ -76,8 +81,12 @@ interface ApplyFrom { reason: string; source: Record<string, unknown> }
 
 /** Plantilla: campos, reglas y la parte específica de su entidad (resolver contra lo registrado y aplicar). */
 interface ImportTemplate {
-  version: 'PRODUCTORES_V1' | 'PRODUCTOS_V1' | 'PARCELAS_V1' | 'ENTREGAS_V1';
-  slug: 'producers' | 'products' | 'plots' | 'deliveries';
+  version: 'PRODUCTORES_V1' | 'PRODUCTOS_V1' | 'PARCELAS_V1' | 'ENTREGAS_V1' | 'LOTES_V1';
+  slug: 'producers' | 'products' | 'plots' | 'deliveries' | 'lots';
+  /** La clave puede repetirse en varias filas (varias entradas de una misma entidad). */
+  keyRepeats?: boolean;
+  /** Hojas de ayuda para la plantilla descargable (solo lectura, con los permisos del usuario). */
+  helpSheets?(ctx: TenantContext): Promise<Array<{ name: string; rows: string[][]; widths?: number[] }>>;
   /** La clave puede faltar (fila nueva sin código asignado). */
   keyOptional?: boolean;
   /** El mapeo debe incluir al menos uno de estos campos (por omisión, la clave). */
@@ -95,7 +104,7 @@ interface ImportTemplate {
    */
   samplePermissions: Permission[];
   newStatus: string;
-  entityColumn: 'producer_id' | 'product_id' | 'plot_id' | 'delivery_id';
+  entityColumn: 'producer_id' | 'product_id' | 'plot_id' | 'delivery_id' | 'lot_id';
   keyFormatMessage: string;
   resolve(db: Db, ctx: TenantContext, rows: PlannedRow[], colOf: Map<string, string>, lock: boolean): Promise<void>;
   apply(trx: Transaction<Database>, ctx: TenantContext, user: AuthUser, p: PlannedRow, from: ApplyFrom, requestId?: string): Promise<{ id: string; reviews: number }>;
@@ -137,13 +146,14 @@ export class ImportsService {
     private readonly products: ProductsService,
     private readonly plots: PlotsService,
     private readonly deliveries: DeliveriesService,
+    private readonly lots: LotsService,
   ) {
-    this.templates = { PRODUCTORES_V1: this.producerTemplate(), PRODUCTOS_V1: this.productTemplate(), PARCELAS_V1: this.plotTemplate(), ENTREGAS_V1: this.deliveryTemplate() };
+    this.templates = { PRODUCTORES_V1: this.producerTemplate(), PRODUCTOS_V1: this.productTemplate(), PARCELAS_V1: this.plotTemplate(), ENTREGAS_V1: this.deliveryTemplate(), LOTES_V1: this.lotTemplate() };
   }
 
   private tpl(version: string): ImportTemplate {
     const t = this.templates[version as ImportTemplate['version']];
-    if (!t) throw new AppError(422, 'TEMPLATE_NOT_AVAILABLE', 'Esa plantilla no está disponible. Plantillas: productores, productos, parcelas y entregas.', [{ field: 'template', reason: 'NOT_IMPLEMENTED' }]);
+    if (!t) throw new AppError(422, 'TEMPLATE_NOT_AVAILABLE', 'Esa plantilla no está disponible. Plantillas: productores, productos, parcelas, entregas y lotes.', [{ field: 'template', reason: 'NOT_IMPLEMENTED' }]);
     return t;
   }
   private bySlug(slug: string): ImportTemplate {
@@ -274,6 +284,138 @@ export class ImportsService {
         }
         await svc.updateInTx(trx, ctx.organizationId, user, p.entity_id!, { expected_version: p.expected_version!, ...p.patch } as never, requestId, from);
         return { id: p.entity_id!, reviews: 0 };
+      },
+    };
+  }
+
+  private lotTemplate(): ImportTemplate {
+    const lots = this.lots;
+    const uuidFrom = (...parts: string[]) => {
+      const h = createHash('sha256').update(JSON.stringify([LOT_TEMPLATE_VERSION, ...parts])).digest('hex');
+      return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${(8 | (parseInt(h[16], 16) & 3)).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`;
+    };
+    const kg = (n: bigint) => { const a = n < 0n ? -n : n; const f = (a % 1_000_000n).toString().padStart(6, '0').replace(/0+$/, ''); return `${n < 0n ? '-' : ''}${a / 1_000_000n}${f ? `.${f}` : ''}`; };
+    return {
+      version: LOT_TEMPLATE_VERSION, slug: 'lots', sheet: LOT_TEMPLATE_SHEET, entity: 'lotes', keyField: 'lot_code', keyOptional: true, keyRepeats: true,
+      mappingRequiredAnyOf: ['reception_id'],
+      fields: LOT_FIELDS, rules: LOT_TEMPLATE_RULES, newStatus: 'OPEN', entityColumn: 'lot_id',
+      usePermissions: ['lot:create'], samplePermissions: ['producer:read_identity'],
+      keyFormatMessage: 'Código de lote no válido: usa el código asignado por Terra Link (p. ej. LOT-2026-00003).',
+      concurrency: { codes: ['INSUFFICIENT_AVAILABLE', 'LOT_CLOSED_FOR_INPUT', 'ORIGIN_MIXING_BLOCKED', 'PRODUCT_MISMATCH', 'NOT_FOUND', 'LOT_HAS_RESERVATIONS'], constraints: ['lot_inputs_operation_uq', 'lots_operation_uq', 'import_references_ref_uq', 'import_references_lot_uq'] },
+      codeOf: async (db, orgId, ids) => new Map((ids.length ? await db.selectFrom('lots').select(['id', 'lot_code']).where('organization_id', '=', orgId).where('id', 'in', ids).execute() : []).map((r) => [r.id, r.lot_code])),
+      helpSheets: async (ctx) => {
+        const recs = lots.seesReceptions(ctx) ? await lots.availableReceptions(this.db, ctx) : [];
+        return [{ name: 'recepciones_disponibles', widths: [38, 18, 18, 22, 16, 22],
+          rows: [['id_recepcion', 'codigo_entrega', 'codigo_producto', 'recibida', 'disponible_kg', 'origen'],
+            ...recs.map((r) => [r.id, r.delivery_code, r.product_code ?? '', r.received_at.slice(0, 16), r.available, r.origin_known ? 'conocido' : 'incompleto'])] }];
+      },
+      resolve: async (db, ctx, planned, colOf, lock) => {
+        const org = ctx.organizationId;
+        const col = (f: string) => colOf.get(f) ?? null;
+        const err = (p: PlannedRow, field: string | null, code: string, message: string) => p.errors.push({ column: field ? col(field) : null, field, code, message });
+        const refs = [...new Set(planned.map((p) => p.patch.import_reference).filter((r): r is string => typeof r === 'string'))];
+        const refRows = new Map((refs.length ? await db.selectFrom('import_references').select(['reference', 'lot_id']).where('organization_id', '=', org).where('template', '=', LOT_TEMPLATE_VERSION).where('reference', 'in', refs).execute() : []).map((r) => [r.reference, r.lot_id!]));
+        const lotRows = await lots.lotsForImport(db, ctx, [...new Set(planned.filter((p) => p.key).map((p) => p.key!))], [...refRows.values()], lock);
+        const byCode = new Map(lotRows.map((l) => [l.lot_code, l]));
+        const byId = new Map(lotRows.map((l) => [l.id, l]));
+        const recIds = [...new Set(planned.map((p) => p.patch.reception_id).filter((r): r is string => typeof r === 'string').map((r) => r.toLowerCase()))];
+        const recs = lots.seesReceptions(ctx) ? await lots.receptionsForImport(db, ctx, recIds, lock) : new Map();
+        const groupKey = new Map<PlannedRow, string>();
+        for (const p of planned) {
+          if (p.errors.length) continue;
+          const v = p.patch;
+          const recId = typeof v.reception_id === 'string' ? v.reception_id.toLowerCase() : null;
+          if (!recId) { err(p, 'reception_id', 'RECEPTION_REQUIRED', 'Falta la recepción: un lote se forma con recepciones confirmadas. Si el lote histórico no tiene recepción registrada, primero registra la entrega y su recepción (no se inventan).'); continue; }
+          if (typeof v.quantity !== 'string') { err(p, 'quantity', 'QUANTITY_REQUIRED', 'Falta la cantidad en KG.'); continue; }
+          if (scaled(v.quantity) <= 0n) { err(p, 'quantity', 'MUST_BE_POSITIVE', 'La cantidad debe ser mayor que cero.'); continue; }
+          const rec = recs.get(recId);
+          // Inexistente, de otra organización o fuera del alcance de entregas: misma respuesta.
+          if (!rec) { err(p, 'reception_id', 'RECEPTION_NOT_AVAILABLE', 'La recepción indicada no está disponible para ti en esta organización.'); continue; }
+          if (typeof v.delivery_code === 'string' && v.delivery_code !== rec.delivery_code) { err(p, 'delivery_code', 'RECEPTION_REFERENCE_MISMATCH', 'La recepción no pertenece a esa entrega.'); continue; }
+          if (typeof v.product_code === 'string' && v.product_code !== rec.product_code) { err(p, 'product_code', 'RECEPTION_REFERENCE_MISMATCH', 'La recepción es de otro producto.'); continue; }
+          const reference = typeof v.import_reference === 'string' ? v.import_reference : null;
+          let lot: (typeof lotRows)[number] | undefined;
+          if (p.key) {
+            lot = byCode.get(p.key);
+            if (!lot) { err(p, 'lot_code', 'CODE_NOT_AVAILABLE', 'Ese código de lote no está disponible para tu importación.'); continue; }
+            if (reference && refRows.has(reference) && refRows.get(reference) !== lot.id) { err(p, 'import_reference', 'REFERENCE_CODE_MISMATCH', 'La referencia corresponde a otro lote distinto del código indicado.'); continue; }
+          } else if (!reference) {
+            err(p, 'import_reference', 'REFERENCE_REQUIRED', 'Fila sin código de lote ni referencia de importación: indica el lote existente o una referencia para el lote nuevo.'); continue;
+          } else if (refRows.has(reference)) {
+            lot = byId.get(refRows.get(reference)!);
+            if (!lot) { err(p, 'import_reference', 'REFERENCE_NOT_AVAILABLE', 'Esa referencia ya está en uso y no está disponible para tu importación.'); continue; }
+          }
+          p.patch = { reception_id: rec.id, quantity: v.quantity, ...(reference ? { _reference: reference } : {}) };
+          if (lot) {
+            if (lot.status !== 'OPEN' || lot.source !== 'RECEPTIONS') { err(p, 'lot_code', 'LOT_CLOSED_FOR_INPUT', `El lote ${lot.lot_code} no admite entradas (cerrado o resultado de un proceso); no se reabre por importación.`); continue; }
+            if (lot.product_id !== rec.product_id) { err(p, 'reception_id', 'PRODUCT_MISMATCH', `La recepción es de otro producto que el lote ${lot.lot_code}: no se suman productos distintos.`); continue; }
+            if (rec.origin_known !== (lot.origin_status === 'COMPLETE')) { err(p, 'reception_id', 'ORIGIN_MIXING_BLOCKED', `No se mezcla origen conocido con origen incompleto en el lote ${lot.lot_code}.`); continue; }
+            const active = lot.active.filter((i) => i.reception_id === rec.id);
+            if (active.length) {
+              const total = active.reduce((a, i) => a + scaled(i.quantity), 0n);
+              if (total === scaled(v.quantity)) { p.entity_id = lot.id; p.action = 'UNCHANGED'; p.warnings.push({ column: null, field: null, code: 'ALREADY_ASSIGNED', message: `La recepción ya está asignada al lote ${lot.lot_code} con ${kg(total)} kg: no se repite.` }); continue; }
+              err(p, 'quantity', 'INPUT_ALREADY_ASSIGNED', `La recepción ya está asignada al lote ${lot.lot_code} con ${kg(total)} kg: una asignación no se modifica por importación (libérala desde el lote si corresponde).`); continue;
+            }
+            if (lot.released.includes(rec.id)) { err(p, 'reception_id', 'INPUT_PREVIOUSLY_RELEASED', `Esta recepción se asignó y se liberó del lote ${lot.lot_code}: volver a asignarla es una decisión explícita desde el lote.`); continue; }
+            p.entity_id = lot.id;
+            p.expected_version = Number(lot.row_version);
+            p.patch._lot_id = lot.id;
+            p.action = 'UPDATE';
+            p.changed_fields = ['input'];
+            p.effects.push(`Mueve ${kg(scaled(v.quantity))} kg de la recepción de ${rec.delivery_code} al lote ${lot.lot_code} (inventario: sale de la recepción y entra al lote, mismo centro).`);
+            groupKey.set(p, `L:${lot.id}`);
+            continue;
+          }
+          p.action = 'CREATE';
+          p.changed_fields = ['input'];
+          p.effects.push(`Crea un lote nuevo (referencia ${reference}) de ${rec.product_code ?? 'producto de la recepción'}, origen ${rec.origin_known ? 'conocido' : 'incompleto'}, y mueve ${kg(scaled(v.quantity))} kg de la recepción de ${rec.delivery_code}.`);
+          groupKey.set(p, `R:${reference}`);
+        }
+        // Coherencia de cada lote nuevo: un producto y un tipo de origen; una recepción una vez por lote.
+        const groups = new Map<string, PlannedRow[]>();
+        for (const [p, g] of groupKey) groups.set(g, [...(groups.get(g) ?? []), p]);
+        for (const [, rows] of groups) {
+          const seen = new Map<string, number[]>();
+          for (const p of rows) seen.set(p.patch.reception_id!, [...(seen.get(p.patch.reception_id!) ?? []), p.row_number]);
+          for (const p of rows) if (seen.get(p.patch.reception_id!)!.length > 1) err(p, 'reception_id', 'DUPLICATE_IN_FILE', `La misma recepción aparece en las filas ${seen.get(p.patch.reception_id!)!.join(', ')} para el mismo lote.`);
+          const first = recs.get(rows[0].patch.reception_id!);
+          for (const p of rows.slice(1)) {
+            const r = recs.get(p.patch.reception_id!);
+            if (!first || !r) continue;
+            if (r.product_id !== first.product_id) err(p, 'reception_id', 'PRODUCT_MISMATCH', 'Las filas del mismo lote nuevo son de productos distintos: no se suman productos distintos.');
+            else if (r.origin_known !== first.origin_known) err(p, 'reception_id', 'ORIGIN_MIXING_BLOCKED', 'Las filas del mismo lote nuevo mezclan origen conocido con origen incompleto: usa lotes separados.');
+          }
+        }
+        // Disponibilidad: lo pedido por recepción en TODO el archivo no puede superar su existencia sin lote (ledger).
+        const demand = new Map<string, bigint>();
+        for (const p of planned) if ((p.action === 'CREATE' || p.action === 'UPDATE') && !p.errors.length) demand.set(p.patch.reception_id!, (demand.get(p.patch.reception_id!) ?? 0n) + scaled(p.patch.quantity!));
+        for (const p of planned) {
+          if ((p.action !== 'CREATE' && p.action !== 'UPDATE') || p.errors.length) continue;
+          const rec = recs.get(p.patch.reception_id!);
+          const want = demand.get(p.patch.reception_id!)!;
+          if (rec && want > scaled(rec.available)) err(p, 'quantity', 'INSUFFICIENT_AVAILABLE', `Lo pedido para esta recepción en el archivo (${kg(want)} kg) supera lo disponible sin lote (${kg(scaled(rec.available) < 0n ? 0n : scaled(rec.available))} kg).`);
+        }
+      },
+      apply: async (trx, ctx, user, p, from, requestId) => {
+        const input = { reception_id: p.patch.reception_id!, quantity: p.patch.quantity! };
+        const org = ctx.organizationId;
+        if (p.action === 'UPDATE') {
+          await lots.assignInTx(trx, ctx, user.id, p.patch._lot_id!, input, uuidFrom(org, 'INPUT', p.patch._lot_id!, input.reception_id), requestId, from);
+          return { id: p.patch._lot_id!, reviews: 0 };
+        }
+        const ref = p.patch._reference!;
+        const prior = await trx.selectFrom('import_references').select('lot_id').where('organization_id', '=', org).where('template', '=', LOT_TEMPLATE_VERSION).where('reference', '=', ref).executeTakeFirst();
+        if (prior?.lot_id) {
+          // Otra fila de este mismo lote nuevo ya lo creó en esta confirmación: se le añade la entrada.
+          await lots.assignInTx(trx, ctx, user.id, prior.lot_id, input, uuidFrom(org, 'REF-INPUT', ref, input.reception_id), requestId, from);
+          return { id: prior.lot_id, reviews: 0 };
+        }
+        const lot = await lots.createLotInTx(trx, ctx, user.id, [{ ...input, operation_id: uuidFrom(org, 'REF-INPUT', ref, input.reception_id) }], uuidFrom(org, 'REF-LOT', ref), requestId, from);
+        await trx.insertInto('import_references').values({
+          organization_id: org, template: LOT_TEMPLATE_VERSION, reference: ref, origin: 'FILE_REFERENCE', delivery_id: null, lot_id: lot.id,
+          batch_id: String(from.source.import_batch_id), row_number: p.row_number, created_by: user.id,
+        } as never).execute();
+        return { id: lot.id, reviews: 0 };
       },
     };
   }
@@ -563,7 +705,7 @@ export class ImportsService {
       fields: t.fields.map((f) => ({ field: f.field, header: f.header, label: f.label, required: !!f.required, required_on_create: !!f.requiredOnCreate, immutable: !!f.immutable, clearable: !!f.clearable, catalog: f.catalog ?? null, identity: f.identity, max_length: f.maxLength, rule: f.rule })),
       rules: t.rules, atomicity: ATOMICITY,
       limits: { max_file_bytes: MAX_FILE_BYTES, max_rows: DEFAULT_XLSX_LIMITS.maxRows, max_columns: DEFAULT_XLSX_LIMITS.maxColumns, formats: ['.xlsx'] },
-      not_implemented: ['lotes'],
+      not_implemented: [] as string[],
     };
   }
 
@@ -581,7 +723,8 @@ export class ImportsService {
 
   async template(user: AuthUser, orgId: string, slug: string) {
     const t = this.bySlug(slug);
-    await this.ctx(user, orgId, false, t);
+    const ctx = await this.ctx(user, orgId, false, t);
+    const help = t.helpSheets ? await t.helpSheets(ctx) : [];
     const catalogs = t.slug === 'products' ? await this.products.catalogs(this.db) : null;
     return {
       version: t.version,
@@ -598,6 +741,7 @@ export class ImportsService {
           ],
           widths: [20, 22, 12, 16, 100],
         },
+        ...help,
       ]),
     };
   }
@@ -775,7 +919,7 @@ export class ImportsService {
     const colOf = new Map(Object.entries(mapping).map(([c, f]) => [f, c]));
     const rows = await this.rows(db, b);
     const planned: PlannedRow[] = rows.map((r) => {
-      const p: PlannedRow = { row_number: r.row_number, key: null, action: 'ERROR', entity_id: null, expected_version: null, changed_fields: [], fields: {}, errors: [], warnings: [], patch: {} };
+      const p: PlannedRow = { row_number: r.row_number, key: null, action: 'ERROR', entity_id: null, expected_version: null, changed_fields: [], fields: {}, errors: [], warnings: [], effects: [], patch: {} };
       for (const def of t.fields) {
         const col = colOf.get(def.field);
         if (!col) { p.fields[def.field] = { state: 'NOT_MAPPED', quality: QUALITY.NOT_MAPPED }; continue; }
@@ -808,11 +952,11 @@ export class ImportsService {
     for (const p of planned) if (p.key) seen.set(p.key, [...(seen.get(p.key) ?? []), p.row_number]);
     for (const p of planned) {
       const dup = p.key ? seen.get(p.key)! : [];
-      if (dup.length > 1) p.errors.push({ column: colOf.get(t.keyField)!, field: t.keyField, code: 'DUPLICATE_IN_FILE', message: `Código repetido en las filas ${dup.join(', ')}.` });
+      if (dup.length > 1 && !t.keyRepeats) p.errors.push({ column: colOf.get(t.keyField)!, field: t.keyField, code: 'DUPLICATE_IN_FILE', message: `Código repetido en las filas ${dup.join(', ')}.` });
     }
 
     await t.resolve(db, ctx, planned, colOf, lock);
-    for (const p of planned) if (p.errors.length) { p.action = 'ERROR'; p.entity_id = null; p.expected_version = null; p.changed_fields = []; }
+    for (const p of planned) if (p.errors.length) { p.action = 'ERROR'; p.entity_id = null; p.expected_version = null; p.changed_fields = []; p.effects = []; }
 
     const hash = createHash('sha256').update(JSON.stringify([b.id, b.row_version, b.mapping, planned.map((p) => [p.row_number, p.action, p.entity_id, p.expected_version, p.changed_fields, p.errors.map((e) => e.code)])])).digest('hex');
     const count = (a: PlannedRow['action']) => planned.filter((p) => p.action === a).length;
@@ -877,7 +1021,8 @@ export class ImportsService {
           let entityId = p.entity_id;
           let action: 'CREATED' | 'UPDATED' | 'UNCHANGED' = 'UNCHANGED';
           if (p.action === 'CREATE' || p.action === 'UPDATE') {
-            const r = await t.apply(trx, ctx, user, p, from, requestId);
+            let r: { id: string; reviews: number };
+            try { r = await t.apply(trx, ctx, user, p, from, requestId); } catch (e) { throw t.slug === 'lots' ? this.lots.mapConstraintError(e) : e; }
             entityId = r.id;
             duplicateReviews += r.reviews;
             action = p.action === 'CREATE' ? 'CREATED' : 'UPDATED';
@@ -929,9 +1074,9 @@ export class ImportsService {
     const head = ['fila', 'codigo', 'resultado', 'campos_cambiados', 'errores', 'advertencias', ...t.fields.map((f) => `estado_${f.header}`)];
     let body: string[][];
     if (b.status === 'COMMITTED') {
-      const rows = await this.db.selectFrom('import_rows').select(['row_number', 'result_action', 'changed_fields', 'producer_id', 'product_id', 'plot_id', 'delivery_id'])
+      const rows = await this.db.selectFrom('import_rows').select(['row_number', 'result_action', 'changed_fields', 'producer_id', 'product_id', 'plot_id', 'delivery_id', 'lot_id'])
         .where('organization_id', '=', orgId).where('batch_id', '=', id).orderBy('row_number').execute();
-      const idOf = (r: { producer_id: string | null; product_id: string | null; plot_id: string | null; delivery_id: string | null }) => (r.producer_id ?? r.product_id ?? r.plot_id ?? r.delivery_id) as string;
+      const idOf = (r: { producer_id: string | null; product_id: string | null; plot_id: string | null; delivery_id: string | null; lot_id: string | null }) => (r.producer_id ?? r.product_id ?? r.plot_id ?? r.delivery_id ?? r.lot_id) as string;
       const codes = await t.codeOf(this.db, orgId, rows.map(idOf).filter(Boolean));
       body = rows.map((r) => [String(r.row_number), codes.get(idOf(r)) ?? '', r.result_action ?? '', (r.changed_fields ?? []).join(' '), '', '']);
     } else if (b.status === 'MAPPED') {
@@ -986,6 +1131,18 @@ export class ImportsController {
     return this.sendTemplate(user, orgId, 'products', res);
   }
 
+  @Get('templates/lots')
+  @ApiOperation({ summary: 'Reglas de la plantilla de lotes (LOTES_V1: asignar recepciones confirmadas); exige lot:create' })
+  lotsInfo(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string) {
+    return this.service.templateInfo(user, orgId, 'lots');
+  }
+
+  @Get('templates/lots.xlsx')
+  @ApiOperation({ summary: 'Descargar la plantilla de lotes (incluye la hoja de recepciones disponibles en tu alcance)' })
+  lotsFile(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Res() res: Response) {
+    return this.sendTemplate(user, orgId, 'lots', res);
+  }
+
   @Get('templates/deliveries')
   @ApiOperation({ summary: 'Reglas de la plantilla de entregas (ENTREGAS_V1, solo borradores); exige permiso de alta de entregas' })
   deliveriesInfo(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string) {
@@ -1020,7 +1177,7 @@ export class ImportsController {
 
   @Post()
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ schema: { type: 'object', required: ['file', 'operation_id'], properties: { file: { type: 'string', format: 'binary' }, operation_id: { type: 'string', format: 'uuid' }, template: { type: 'string', enum: [PRODUCER_TEMPLATE_VERSION, PRODUCT_TEMPLATE_VERSION, PLOT_TEMPLATE_VERSION, DELIVERY_TEMPLATE_VERSION], default: PRODUCER_TEMPLATE_VERSION } } } })
+  @ApiBody({ schema: { type: 'object', required: ['file', 'operation_id'], properties: { file: { type: 'string', format: 'binary' }, operation_id: { type: 'string', format: 'uuid' }, template: { type: 'string', enum: [PRODUCER_TEMPLATE_VERSION, PRODUCT_TEMPLATE_VERSION, PLOT_TEMPLATE_VERSION, DELIVERY_TEMPLATE_VERSION, LOT_TEMPLATE_VERSION], default: PRODUCER_TEMPLATE_VERSION } } } })
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_BYTES, files: 1 } }))
   async upload(
     @CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @UploadedFile() file: UploadedXlsx | undefined,

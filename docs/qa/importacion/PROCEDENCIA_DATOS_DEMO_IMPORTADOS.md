@@ -46,6 +46,19 @@ del archivo no se mapeó ni se importó. Historial con el lote y la fila en el m
 Confirmación hecha **con teclado** (captura `en04-admin-resultado-entregas.png`). No se registraron: sin recepción, pesaje,
 muestra, movimiento de inventario, compuerta de registro ni evento de entrega (comprobado en la base por la revisión).
 
+Tras la migración 0035 ambos conservan su procedencia como referencias `LEGACY_CONTENT_FINGERPRINT` (`HUELLA-…`, filas 2 y 3).
+
+### Entregas con referencia (revisión del 2026-10-12, segunda ejecución)
+
+`ENT-2026-00006` y `ENT-2026-00007` (BORRADORES, productor `DEMO-RV-008`, notas «Entrega importada (demo) C»), referencias
+`DEMO-REF-C` y `DEMO-REF-D`. Dos filas con las mismas notas y distinta referencia: dos entregas. Sin efectos físicos.
+
+## Lotes (revisión del 2026-10-12, `e2e/review/importaciones-lotes.mjs`)
+
+`LOT-2026-00004` (ABIERTO, origen conocido), referencia `DEMO-IMP-LOTE-1`: 20 kg de la recepción ya confirmada de
+`ENT-2026-00001` (la recepción pasó de 50 a 30 kg sin lote, movimiento `LOT_ASSIGN` del ledger). No se crearon recepciones ni
+stock. Confirmación hecha con teclado (captura `lo04-admin-resultado-lotes.png`).
+
 ## Cómo comprobarlo
 
 ```sql

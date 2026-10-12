@@ -26,12 +26,14 @@ import { closeLines, holderBalances, postMovement, singleLocationWith } from '..
 
 type Db = Kysely<Database> | Transaction<Database>;
 type Lot = Selectable<LotsTable>;
+/** Procedencia de un cambio hecho por otro caso de uso (P0-026 Importación). */
+export interface LotChangeSource { reason: string; source: Record<string, unknown> }
 const DEC = /^\d{1,14}(\.\d{1,6})?$/;
 const unscaled = (n: bigint) => { const neg = n < 0n; const a = neg ? -n : n; const f = (a % 1_000_000n).toString().padStart(6, '0').replace(/0+$/, ''); return `${neg ? '-' : ''}${a / 1_000_000n}${f ? `.${f}` : ''}`; };
 const dec = (v: unknown) => (v === null || v === undefined ? null : unscaled(scaled(String(v))));
 const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
 
-class InputDto { @ApiProperty() @IsUUID() reception_id!: string; @ApiProperty({ description: 'KG, texto decimal' }) @IsString() @Matches(DEC) quantity!: string }
+export class InputDto { @ApiProperty() @IsUUID() reception_id!: string; @ApiProperty({ description: 'KG, texto decimal' }) @IsString() @Matches(DEC) quantity!: string }
 class CreateLotDto {
   @ApiProperty() @IsUUID() operation_id!: string;
   @ApiProperty({ type: [InputDto] }) @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => InputDto) inputs!: InputDto[];
@@ -100,9 +102,10 @@ export class LotsService {
   }
 
   private async record(trx: Transaction<Database>, ctx: TenantContext, userId: string, entity: { type: 'lot' | 'process_run'; id: string; code: string },
-    ev: { type: string; aggregateType: 'LOT' | 'PROCESS_RUN'; aggregateId: string; version: number; payload: Record<string, unknown> } | null, action: string, after: Record<string, unknown>, requestId?: string) {
-    if (ev) await this.events.append(trx, { organizationId: ctx.organizationId, eventType: ev.type, schemaVersion: 1, aggregateType: ev.aggregateType, aggregateId: ev.aggregateId, aggregateVersion: ev.version, actorId: userId, correlationId: requestId, payload: ev.payload });
-    await this.audit.record(trx, { organizationId: ctx.organizationId, actorUserId: userId, action, entityType: entity.type, entityId: entity.id, requestId, result: 'SUCCESS', after: { code: entity.code, ...after } });
+    ev: { type: string; aggregateType: 'LOT' | 'PROCESS_RUN'; aggregateId: string; version: number; payload: Record<string, unknown> } | null, action: string, after: Record<string, unknown>, requestId?: string, from?: LotChangeSource) {
+    const src = from ? { source: from.source } : {};
+    if (ev) await this.events.append(trx, { organizationId: ctx.organizationId, eventType: ev.type, schemaVersion: 1, aggregateType: ev.aggregateType, aggregateId: ev.aggregateId, aggregateVersion: ev.version, actorId: userId, correlationId: requestId, payload: { ...ev.payload, ...src } });
+    await this.audit.record(trx, { organizationId: ctx.organizationId, actorUserId: userId, action, entityType: entity.type, entityId: entity.id, requestId, result: 'SUCCESS', ...(from ? { reason: from.reason } : {}), after: { code: entity.code, ...after, ...src } });
   }
 
   // ---------- Disponibilidad (proyección mínima; no inventario) ----------
@@ -151,7 +154,7 @@ export class LotsService {
     return l;
   }
 
-  private async assignIn(trx: Transaction<Database>, ctx: TenantContext, userId: string, lot: Lot, input: InputDto, operationId: string, requestId?: string) {
+  private async assignIn(trx: Transaction<Database>, ctx: TenantContext, userId: string, lot: Lot, input: InputDto, operationId: string, requestId?: string, from?: LotChangeSource) {
     if (lot.status !== 'OPEN' || lot.source !== 'RECEPTIONS') throw conflict('LOT_CLOSED_FOR_INPUT', 'Este lote no admite más entradas.');
     const r = await this.receptionForAssign(trx, ctx, input.reception_id);
     const q = scaled(input.quantity);
@@ -167,9 +170,88 @@ export class LotsService {
     const after = await trx.updateTable('lots').set({ row_version: sql`row_version + 1` } as never).where('id', '=', lot.id).returningAll().executeTakeFirstOrThrow();
     await this.record(trx, ctx, userId, { type: 'lot', id: lot.id, code: lot.lot_code }, { type: 'LotInputAssigned', aggregateType: 'LOT', aggregateId: lot.id, version: Number(after.row_version),
       payload: { lot_id: lot.id, input_id: id, reception_id: r.id, weighing_id: r.weighing_id, reception_version: r.version, quantity: dec(input.quantity), unit: 'KG', origin_known: r.origin_known } },
-    'lot.assign_input', { reception_id: r.id, quantity: dec(input.quantity), unit: 'KG', weighing_id: r.weighing_id }, requestId);
+    'lot.assign_input', { reception_id: r.id, quantity: dec(input.quantity), unit: 'KG', weighing_id: r.weighing_id }, requestId, from);
     return after;
   }
+
+  /**
+   * P0-026: alta de lote con sus entradas dentro de una transacción del llamador. Mismos efectos que createLot(): producto y
+   * origen fijados por la primera recepción, asignaciones con disponibilidad recalculada en el ledger (bloqueo de la
+   * recepción), mezcla de origen bloqueada, movimientos, eventos y auditoría. El llamador ya autorizó lot:create.
+   */
+  async createLotInTx(trx: Transaction<Database>, ctx: TenantContext, userId: string, inputs: Array<InputDto & { operation_id: string }>, operationId: string, requestId?: string, from?: LotChangeSource) {
+    const orgId = ctx.organizationId;
+    const sorted = [...inputs].sort((a, b) => a.reception_id.localeCompare(b.reception_id));
+    const first = await this.receptionForAssign(trx, ctx, sorted[0].reception_id);
+    const id = randomUUID();
+    const lot = await trx.insertInto('lots').values({ id, organization_id: orgId, lot_code: await this.code(trx, orgId, 'LOT'), product_id: first.product_id, unit: 'KG', source: 'RECEPTIONS', status: 'OPEN',
+      origin_status: first.origin_known ? 'COMPLETE' : 'INCOMPLETE', process_run_id: null, output_quantity: null, created_by: userId, operation_id: operationId }).returningAll().executeTakeFirstOrThrow();
+    await this.record(trx, ctx, userId, { type: 'lot', id, code: lot.lot_code }, { type: 'LotCreated', aggregateType: 'LOT', aggregateId: id, version: 1,
+      payload: { lot_id: id, lot_code: lot.lot_code, product_id: lot.product_id, source: 'RECEPTIONS', origin_status: lot.origin_status } }, 'lot.create', { product_id: lot.product_id, origin_status: lot.origin_status }, requestId, from);
+    let cur: Lot = lot;
+    for (const i of sorted) cur = await this.assignIn(trx, ctx, userId, cur, i, i.operation_id, requestId, from);
+    return cur;
+  }
+
+  /** P0-026: asignar una entrada a un lote existente dentro de una transacción del llamador (mismos controles que assign()). */
+  async assignInTx(trx: Transaction<Database>, ctx: TenantContext, userId: string, lotId: string, input: InputDto, operationId: string, requestId?: string, from?: LotChangeSource) {
+    const lot = await this.loadLot(trx, ctx, lotId, true);
+    return this.assignIn(trx, ctx, userId, lot, input, operationId, requestId, from);
+  }
+
+  /** P0-026: traduce las comprobaciones de seguridad de la base (carreras) igual que los endpoints. */
+  mapConstraintError(err: unknown) { return this.mapCheck(err); }
+
+  /**
+   * P0-026: recepciones (visibles por alcance de entregas) con lo necesario para planificar asignaciones: entrega, producto,
+   * origen conocido y existencia física SIN lote según el ledger. `lock` bloquea las filas (confirmación).
+   */
+  async receptionsForImport(db: Db, ctx: TenantContext, ids: string[], lock: boolean) {
+    if (!ids.length) return new Map<string, { id: string; delivery_code: string; product_id: string; product_code: string | null; origin_known: boolean; available: string; received_at: string }>();
+    const rows = (await sql<{ id: string; delivery_code: string; product_id: string; product_code: string | null; origin_known: boolean; available: string; received_at: string }>`
+      SELECT r.id, d.delivery_code, d.product_id, p.code AS product_code, r.received_at::text,
+             EXISTS (SELECT 1 FROM delivery_origins o WHERE o.delivery_id = d.id) AS origin_known,
+             coalesce((SELECT sum(e.signed_quantity) FROM stock_entries e WHERE e.reception_id = r.id AND e.bucket = 'PHYSICAL'), 0)::text AS available
+      FROM receptions r JOIN deliveries d ON d.id = r.delivery_id AND d.organization_id = r.organization_id
+      JOIN producers pr ON pr.id = d.producer_id AND pr.organization_id = d.organization_id
+      LEFT JOIN products p ON p.id = d.product_id AND p.organization_id = d.organization_id
+      WHERE r.organization_id = ${ctx.organizationId} AND r.id = ANY(${ids}::uuid[]) AND ${this.deliveryVisible(ctx)}
+      ORDER BY r.id ${lock ? sql`FOR UPDATE OF r` : sql``}`.execute(db)).rows;
+    return new Map(rows.map((r) => [r.id, r]));
+  }
+
+  /** P0-026: recepciones con existencia sin lote (hoja de ayuda de la plantilla). Solo lectura, alcance de entregas. */
+  async availableReceptions(db: Db, ctx: TenantContext) {
+    return (await sql<{ id: string; delivery_code: string; product_code: string | null; received_at: string; available: string; origin_known: boolean }>`
+      SELECT r.id, d.delivery_code, p.code AS product_code, r.received_at::text, x.available::text, EXISTS (SELECT 1 FROM delivery_origins o WHERE o.delivery_id = d.id) AS origin_known
+      FROM receptions r JOIN deliveries d ON d.id = r.delivery_id AND d.organization_id = r.organization_id
+      JOIN producers pr ON pr.id = d.producer_id AND pr.organization_id = d.organization_id
+      LEFT JOIN products p ON p.id = d.product_id AND p.organization_id = d.organization_id
+      CROSS JOIN LATERAL (SELECT coalesce(sum(e.signed_quantity), 0) AS available FROM stock_entries e WHERE e.reception_id = r.id AND e.bucket = 'PHYSICAL') x
+      WHERE r.organization_id = ${ctx.organizationId} AND ${this.deliveryVisible(ctx)} AND x.available > 0
+      ORDER BY d.delivery_code, r.received_at LIMIT 500`.execute(db)).rows;
+  }
+
+  /** P0-026: lotes por código o id con sus entradas activas y liberadas por recepción. `lock` bloquea los lotes. */
+  async lotsForImport(db: Db, ctx: TenantContext, codes: string[], ids: string[], lock: boolean) {
+    if (!codes.length && !ids.length) return [] as Array<Lot & { active: Array<{ reception_id: string; quantity: string }>; released: string[] }>;
+    let q = db.selectFrom('lots').selectAll().where('organization_id', '=', ctx.organizationId)
+      .where((eb) => eb.or([...(codes.length ? [eb('lot_code', 'in', codes)] : []), ...(ids.length ? [eb('id', 'in', ids)] : [])]));
+    if (lock) q = q.orderBy('id').forUpdate();
+    const lots = await q.execute();
+    const lotIds = lots.map((l) => l.id);
+    const inputs = lotIds.length ? await sql<{ lot_id: string; reception_id: string; quantity: string; released: boolean }>`
+      SELECT i.lot_id, i.reception_id, i.quantity::text, EXISTS (SELECT 1 FROM lot_input_releases x WHERE x.input_id = i.id) AS released
+      FROM lot_inputs i WHERE i.organization_id = ${ctx.organizationId} AND i.lot_id = ANY(${lotIds}::uuid[])`.execute(db) : { rows: [] };
+    return lots.map((l) => ({
+      ...l,
+      active: inputs.rows.filter((i) => i.lot_id === l.id && !i.released).map((i) => ({ reception_id: i.reception_id, quantity: i.quantity })),
+      released: inputs.rows.filter((i) => i.lot_id === l.id && i.released).map((i) => i.reception_id),
+    }));
+  }
+
+  /** ¿El contexto ve entregas/recepciones? (misma regla que receptionForAssign). */
+  seesReceptions(ctx: TenantContext) { return this.has(ctx, 'delivery:read') || this.has(ctx, 'delivery:read_assigned'); }
 
   async createLot(user: AuthUser, orgId: string, dto: CreateLotDto, requestId?: string) {
     const ctx = await this.ctx(user, orgId, 'lot:create', true);
@@ -177,19 +259,8 @@ export class LotsService {
     if (prior) return { replayed: true, lot: await this.view(this.db, ctx, prior.id) };
     if (new Set(dto.inputs.map((i) => i.reception_id)).size !== dto.inputs.length) throw new AppError(422, 'INPUT_DUPLICATED', 'Una recepción aparece dos veces.', [{ field: 'inputs', reason: 'DUPLICATED' }]);
     try {
-      const id = await this.db.transaction().execute(async (trx) => {
-        // Bloqueo en orden determinista y lectura de la primera recepción para fijar producto y origen.
-        const sorted = [...dto.inputs].sort((a, b) => a.reception_id.localeCompare(b.reception_id));
-        const first = await this.receptionForAssign(trx, ctx, sorted[0].reception_id);
-        const id = randomUUID();
-        const lot = await trx.insertInto('lots').values({ id, organization_id: orgId, lot_code: await this.code(trx, orgId, 'LOT'), product_id: first.product_id, unit: 'KG', source: 'RECEPTIONS', status: 'OPEN',
-          origin_status: first.origin_known ? 'COMPLETE' : 'INCOMPLETE', process_run_id: null, output_quantity: null, created_by: user.id, operation_id: dto.operation_id }).returningAll().executeTakeFirstOrThrow();
-        await this.record(trx, ctx, user.id, { type: 'lot', id, code: lot.lot_code }, { type: 'LotCreated', aggregateType: 'LOT', aggregateId: id, version: 1,
-          payload: { lot_id: id, lot_code: lot.lot_code, product_id: lot.product_id, source: 'RECEPTIONS', origin_status: lot.origin_status } }, 'lot.create', { product_id: lot.product_id, origin_status: lot.origin_status }, requestId);
-        let cur: Lot = lot;
-        for (const i of sorted) cur = await this.assignIn(trx, ctx, user.id, cur, i, randomUUID(), requestId);
-        return id;
-      });
+      // Bloqueo en orden determinista y lectura de la primera recepción para fijar producto y origen (createLotInTx).
+      const id = await this.db.transaction().execute(async (trx) => (await this.createLotInTx(trx, ctx, user.id, dto.inputs.map((i) => ({ ...i, operation_id: randomUUID() })), dto.operation_id, requestId)).id);
       return { replayed: false, lot: await this.view(this.db, ctx, id) };
     } catch (err) {
       if ((err as { constraint?: string }).constraint === 'lots_operation_uq') {

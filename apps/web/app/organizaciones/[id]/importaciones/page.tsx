@@ -21,7 +21,7 @@ interface TemplateInfo {
   limits: { max_file_bytes: number; max_rows: number; formats: string[] };
   not_implemented: string[];
 }
-type Slug = 'producers' | 'products' | 'plots' | 'deliveries';
+type Slug = 'producers' | 'products' | 'plots' | 'deliveries' | 'lots';
 interface TemplateOption { template: string; slug: Slug; entity: string; usable: boolean; required_permission: string | null }
 interface Column { column: string; header: string | null; mapped_field: string | null; suggested_field: string | null; samples: string[] | null }
 interface Batch {
@@ -34,7 +34,7 @@ interface Summary { created: number; updated: number; unchanged: number; failed:
 interface Issue { column: string | null; field: string | null; code: string; message: string }
 interface PreviewRow {
   row_number: number; code: string | null; action: 'CREATE' | 'UPDATE' | 'UNCHANGED' | 'ERROR'; changed_fields: string[];
-  fields: Record<string, { state: string; quality: string; value?: string | null }>; errors: Issue[]; warnings: Issue[];
+  fields: Record<string, { state: string; quality: string; value?: string | null }>; errors: Issue[]; warnings: Issue[]; effects?: string[];
 }
 interface Preview {
   plan_hash: string; can_commit: boolean; offset: number; limit: number;
@@ -43,8 +43,8 @@ interface Preview {
 }
 interface BatchListItem { id: string; template: string; status: Batch['status']; original_filename: string | null; row_count: number; created_at: string }
 
-const NEW_STATUS: Record<string, string> = { DRAFT: 'borrador', ACTIVE: 'activo' };
-const ENTITY_LABEL: Record<string, string> = { PRODUCTORES_V1: 'Productores', PRODUCTOS_V1: 'Productos', PARCELAS_V1: 'Parcelas', ENTREGAS_V1: 'Entregas (borradores)' };
+const NEW_STATUS: Record<string, string> = { DRAFT: 'borrador', ACTIVE: 'activo', OPEN: 'abierto' };
+const ENTITY_LABEL: Record<string, string> = { PRODUCTORES_V1: 'Productores', PRODUCTOS_V1: 'Productos', PARCELAS_V1: 'Parcelas', ENTREGAS_V1: 'Entregas (borradores)', LOTES_V1: 'Lotes (asignar recepciones confirmadas)' };
 const ACTION: Record<PreviewRow['action'], { label: string; tone: Tone }> = {
   CREATE: { label: 'Se creará', tone: 'process' },
   UPDATE: { label: 'Se actualizará', tone: 'review' },
@@ -173,6 +173,11 @@ function TemplateStep({ orgId, slug, info, onError }: { orgId: string; slug: str
     <section className="card" aria-labelledby="paso-plantilla">
       <h2 id="paso-plantilla">1. Plantilla</h2>
       <p>Plantilla <strong>{info.template}</strong> ({info.entity}). Los nuevos quedan en estado <strong>{NEW_STATUS[info.new_status] ?? info.new_status}</strong>. Todavía no se pueden importar: {info.not_implemented.join(', ')}.</p>
+      {info.template === 'LOTES_V1' && (
+        <Alert tone="info" title="Esta plantilla solo asigna recepciones confirmadas a lotes">
+          No crea recepciones, stock ni origen: lo disponible sale del inventario y una cantidad escrita en Excel no demuestra existencia física. La vista previa explica cada movimiento. No procesa, convierte, libera calidad, cierra ni reabre lotes. La plantilla trae una hoja con las recepciones disponibles para copiar su id.
+        </Alert>
+      )}
       {info.template === 'ENTREGAS_V1' && (
         <Alert tone="info" title="Esta plantilla solo crea o actualiza BORRADORES de entrega">
           No registra entregas ni confirma recepción, pesaje, calidad, inventario, cierre ni debida diligencia. Registrar es una acción explícita desde cada entrega. Una entrega registrada no se modifica por importación: usa su corrección.
@@ -348,7 +353,8 @@ function PreviewStep({ base, batch, preview, info, onPage, onCommitted, onStale,
                   <td>
                     {r.errors.map((e, i) => <div key={i} className="error">{e.column ? `Columna ${e.column}: ` : ''}{e.message}</div>)}
                     {r.warnings.map((w, i) => <div key={i} className="muted">Advertencia{w.column ? ` (columna ${w.column})` : ''}: {w.message}</div>)}
-                    {r.action === 'UPDATE' && <div>Cambia: {r.changed_fields.map((f) => info.fields.find((x) => x.field === f)?.label ?? f).join(', ')}</div>}
+                    {r.effects?.map((e, i) => <div key={`ef${i}`}><strong>Movimiento:</strong> {e}</div>)}
+                    {r.action === 'UPDATE' && !r.effects?.length && <div>Cambia: {r.changed_fields.map((f) => info.fields.find((x) => x.field === f)?.label ?? f).join(', ')}</div>}
                     <details>
                       <summary>Campos</summary>
                       <ul>{info.fields.map((f) => r.fields[f.field] && <li key={f.field}>{f.label}: {STATE[r.fields[f.field].state]}{r.fields[f.field].value ? ` — ${r.fields[f.field].value}` : ''}</li>)}</ul>
@@ -375,6 +381,7 @@ function PreviewStep({ base, batch, preview, info, onPage, onCommitted, onStale,
           <li>Los {info.entity} nuevos quedan en estado <strong>{NEW_STATUS[info.new_status] ?? info.new_status}</strong>. Importar no valida datos ni confirma entregas, calidad, inventario o debida diligencia.</li>
           {info.template === 'PRODUCTORES_V1' && <li>Una coincidencia de documento abre una revisión de posible duplicado; nunca se fusiona.</li>}
           {info.template === 'PRODUCTOS_V1' && <li>Código, estado/presentación y unidad no cambian después del alta; un producto inactivo no se reactiva.</li>}
+          {info.template === 'LOTES_V1' && <li>Se moverán en el inventario las cantidades indicadas en «Movimiento» (de la recepción al lote, mismo centro). La disponibilidad se vuelve a comprobar al confirmar; si cambió, no se guarda nada.</li>}
           {info.template === 'ENTREGAS_V1' && <li>Se crean o actualizan borradores. Sin código, la fila crea una entrega nueva; si esa misma fila ya se importó, no se repite. El periodo de cosecha se guarda como se declara; el peso es el declarado, en KG.</li>}
           {info.template === 'PARCELAS_V1' && <li>No se importan coordenadas ni geometría. La superficie declarada crea una versión nueva sin validar que conserva la geometría vigente; no se reasigna productor ni se reactivan parcelas.</li>}
         </ul>
@@ -399,7 +406,7 @@ function PreviewStep({ base, batch, preview, info, onPage, onCommitted, onStale,
 }
 
 function ResultStep({ base, batch, summary, orgId, info }: { base: string; batch: Batch; summary: Summary; orgId: string; info: TemplateInfo }) {
-  const listPath = batch.template === 'PRODUCTOS_V1' ? 'productos' : batch.template === 'PARCELAS_V1' ? 'parcelas' : batch.template === 'ENTREGAS_V1' ? 'entregas?status=DRAFT' : 'productores?status=DRAFT';
+  const listPath = batch.template === 'PRODUCTOS_V1' ? 'productos' : batch.template === 'PARCELAS_V1' ? 'parcelas' : batch.template === 'ENTREGAS_V1' ? 'entregas?status=DRAFT' : batch.template === 'LOTES_V1' ? 'lotes' : 'productores?status=DRAFT';
   const [error, setError] = useState<ApiError | null>(null);
   return (
     <section className="card" aria-labelledby="paso-resultado">

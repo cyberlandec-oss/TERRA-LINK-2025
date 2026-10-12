@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-12T05:07:28.170Z",
+  "fecha": "2026-10-12T15:41:21.613Z",
   "base": "http://localhost:3000",
   "entorno": "DESARROLLO local (contenedores), datos DEMO y archivos sintéticos",
   "ok": true,
@@ -11,7 +11,7 @@
       "captura": "docs/qa/capturas/importacion/en01-admin-plantilla-entregas.png"
     },
     {
-      "caso": "admin: registrada con otro peso, productor de baja, unidad LB y periodo sin precisión son errores de fila; no confirmable",
+      "caso": "admin: registrada con otro peso, productor de baja, unidad LB, periodo sin precisión y fila sin referencia son errores; no confirmable",
       "ok": true,
       "detalle": "",
       "captura": "docs/qa/capturas/importacion/en02-admin-errores-entregas.png"
@@ -31,11 +31,11 @@
     {
       "caso": "base: borradores creados y ningún efecto físico ni evento de entrega",
       "ok": true,
-      "detalle": "ENT-2026-00004:DRAFT,ENT-2026-00005:DRAFT · recepciones/pesajes/muestras/inventario/eventos/compuertas 2/2/1/7/2/7 → 2/2/1/7/2/7",
+      "detalle": "ENT-2026-00006:DRAFT,ENT-2026-00007:DRAFT · recepciones/pesajes/muestras/inventario/eventos/compuertas 2/2/1/8/2/7 → 2/2/1/8/2/7",
       "captura": null
     },
     {
-      "caso": "390 px: reimportación = 2 sin cambios («ya se importó»), nada que confirmar",
+      "caso": "390 px: reimportación por referencia = 2 sin cambios, nada que confirmar",
       "ok": true,
       "detalle": "",
       "captura": "docs/qa/capturas/importacion/en05-390-reimportacion-entregas.png"
