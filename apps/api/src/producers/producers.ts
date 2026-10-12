@@ -29,7 +29,7 @@ const EDITABLE_FIELDS = [
   'first_name', 'last_name', 'legal_name', 'document_type', 'document_number', 'phone', 'address',
   'community', 'province', 'canton', 'parish',
 ] as const;
-type EditableField = (typeof EDITABLE_FIELDS)[number];
+export type EditableField = (typeof EDITABLE_FIELDS)[number];
 type ProducerRow = Selectable<ProducersTable>;
 type IdentityField = (typeof IDENTITY_FIELDS)[number];
 /** Productor con identidad descifrada en memoria (nunca se persiste ni se registra así). */
@@ -263,37 +263,52 @@ export class ProducersService {
     const fields = this.normalize(dto);
     this.assertNames(fields);
     return this.db.transaction().execute(async (trx) => {
-      if (assignee) await this.assertAssignee(trx, orgId, assignee);
-      const id = randomUUID(); // se genera antes para ligar el cifrado (AAD) al registro
-      let p: ProducerPlain;
-      try {
-        const row = await trx
-          .insertInto('producers')
-          .values({
-            ...this.splitFields(fields), ...this.encryptIdentity(orgId, id, fields), id, organization_id: orgId,
-            producer_code: dto.producer_code.trim(), status: dto.status ?? 'ACTIVE',
-            assigned_membership_id: assignee, created_by: user.id, updated_by: user.id,
-          } as never)
-          .returningAll()
-          .executeTakeFirstOrThrow();
-        p = this.plain(row, true);
-      } catch (e) {
-        throw this.mapConstraint(e);
-      }
-      await this.recordVersion(trx, p, 'CREATE', Object.keys(fields).filter((k) => fields[k as EditableField] != null), user.id);
-      await this.events.append(trx, {
-        organizationId: orgId, eventType: 'ProducerRegistered', schemaVersion: 1, aggregateType: 'PRODUCER',
-        aggregateId: p.id, aggregateVersion: Number(p.row_version), actorId: user.id, correlationId: requestId,
-        payload: { producer_code: p.producer_code, status: p.status, assigned_membership_id: p.assigned_membership_id },
-      });
-      await this.audit.record(trx, {
-        organizationId: orgId, actorUserId: user.id, action: 'producer.create', entityType: 'producer', entityId: p.id,
-        requestId, result: 'SUCCESS', after: { producer_code: p.producer_code, status: p.status, assigned_membership_id: p.assigned_membership_id },
-      });
-      // P0-005: abre casos de revisión si hay coincidencia de identidad; nunca bloquea ni fusiona.
-      const pendingReviews = await this.matching.detect(trx, orgId, p.id, user.id, requestId);
-      return { ...this.view(p, ctx), duplicate_reviews_pending: pendingReviews };
+      const { producer, pendingReviews } = await this.createInTx(trx, ctx, user, dto.producer_code, fields, { status: dto.status ?? 'ACTIVE', assignee, requestId });
+      return { ...this.view(producer, ctx), duplicate_reviews_pending: pendingReviews };
     });
+  }
+
+  /**
+   * Alta dentro de una transacción del llamador (también la usa P0-026 Importación). Mismos efectos que create():
+   * responsable válido, identidad cifrada, versión, evento, auditoría y detección de posibles duplicados (P0-005).
+   * El llamador ya autorizó producer:create y validó/normalizó los campos.
+   */
+  async createInTx(
+    trx: Transaction<Database>, ctx: TenantContext, user: AuthUser, code: string, fields: Partial<Record<EditableField, string | null>>,
+    opts: { status: 'DRAFT' | 'ACTIVE'; assignee: string | null; requestId?: string; changeType?: string; reason?: string | null; source?: Record<string, unknown> },
+  ) {
+    const orgId = ctx.organizationId;
+    if (opts.assignee) await this.assertAssignee(trx, orgId, opts.assignee);
+    const id = randomUUID(); // se genera antes para ligar el cifrado (AAD) al registro
+    let p: ProducerPlain;
+    try {
+      const row = await trx
+        .insertInto('producers')
+        .values({
+          ...this.splitFields(fields), ...this.encryptIdentity(orgId, id, fields), id, organization_id: orgId,
+          producer_code: code.trim(), status: opts.status,
+          assigned_membership_id: opts.assignee, created_by: user.id, updated_by: user.id,
+        } as never)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      p = this.plain(row, true);
+    } catch (e) {
+      throw this.mapConstraint(e);
+    }
+    await this.recordVersion(trx, p, opts.changeType ?? 'CREATE', Object.keys(fields).filter((k) => fields[k as EditableField] != null), user.id, opts.reason);
+    const source = opts.source ? { source: opts.source } : {};
+    await this.events.append(trx, {
+      organizationId: orgId, eventType: 'ProducerRegistered', schemaVersion: 1, aggregateType: 'PRODUCER',
+      aggregateId: p.id, aggregateVersion: Number(p.row_version), actorId: user.id, correlationId: opts.requestId,
+      payload: { producer_code: p.producer_code, status: p.status, assigned_membership_id: p.assigned_membership_id, ...source },
+    });
+    await this.audit.record(trx, {
+      organizationId: orgId, actorUserId: user.id, action: 'producer.create', entityType: 'producer', entityId: p.id,
+      requestId: opts.requestId, result: 'SUCCESS', after: { producer_code: p.producer_code, status: p.status, assigned_membership_id: p.assigned_membership_id, ...source },
+    });
+    // P0-005: abre casos de revisión si hay coincidencia de identidad; nunca bloquea ni fusiona.
+    const pendingReviews = await this.matching.detect(trx, orgId, p.id, user.id, opts.requestId);
+    return { producer: p, pendingReviews };
   }
 
   private normalize(dto: ProducerFieldsDto): Partial<Record<EditableField, string | null>> {
@@ -481,51 +496,99 @@ export class ProducersService {
     const patch = this.normalize(rest);
     if (Object.keys(patch).length === 0) throw conflict('NO_CHANGE', 'No hay cambios que guardar.');
     return this.db.transaction().execute(async (trx) => {
-      const before = await this.load(trx, ctx, id, 'update', true);
-      if (before.status === 'INACTIVE') throw conflict('PRODUCER_INACTIVE', 'El productor está dado de baja; reactívalo para editarlo.');
-      if (Number(before.row_version) !== expected_version) {
-        throw conflict('VERSION_CONFLICT', 'Otra persona modificó este productor. Recarga para ver la versión actual.');
-      }
-      // Sin permiso de identidad no se pueden escribir campos de identidad (no se ven, no se editan).
-      if (!ctx.permissions.includes('producer:read_identity') && IDENTITY_FIELDS.some((f) => patch[f] !== undefined)) {
-        throw forbidden('PERMISSION_DENIED', 'No tienes permiso para modificar datos de identidad.');
-      }
-      const changed = (Object.keys(patch) as EditableField[]).filter((k) => patch[k] !== before[k]);
-      if (changed.length === 0) throw conflict('NO_CHANGE', 'No hay cambios que guardar.');
-      this.assertNames({ ...before, ...patch });
-      const changedPatch = Object.fromEntries(changed.map((k) => [k, patch[k]])) as Partial<Record<EditableField, string | null>>;
-      let after: ProducerPlain;
-      try {
-        const row = await trx
-          .updateTable('producers')
-          .set({
-            ...this.splitFields(changedPatch), ...this.encryptIdentity(orgId, id, changedPatch),
-            updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1`,
-          } as never)
-          .where('id', '=', id)
-          .where('organization_id', '=', orgId)
-          .returningAll()
-          .executeTakeFirstOrThrow();
-        after = this.plain(row, true);
-      } catch (e) {
-        throw this.mapConstraint(e);
-      }
-      await this.recordVersion(trx, after, 'UPDATE', changed, user.id);
-      // Eventos y auditoría: nombres de campos cambiados, nunca sus valores personales.
-      await this.events.append(trx, {
-        organizationId: orgId, eventType: 'ProducerUpdated', schemaVersion: 1, aggregateType: 'PRODUCER',
-        aggregateId: id, aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId,
-        payload: { changed_fields: changed },
-      });
-      await this.audit.record(trx, {
-        organizationId: orgId, actorUserId: user.id, action: 'producer.update', entityType: 'producer', entityId: id,
-        requestId, result: 'SUCCESS', after: { changed_fields: changed, version: Number(after.row_version) },
-      });
-      const pendingReviews = changed.some((f) => f === 'document_type' || f === 'document_number')
-        ? await this.matching.detect(trx, orgId, id, user.id, requestId)
-        : undefined;
+      const { after, pendingReviews } = await this.updateInTx(trx, ctx, user, id, expected_version, patch, { requestId });
       return { ...this.view(after, ctx), ...(pendingReviews !== undefined ? { duplicate_reviews_pending: pendingReviews } : {}) };
     });
+  }
+
+  /**
+   * Edición dentro de una transacción del llamador (también la usa P0-026 Importación). Mismos controles que update():
+   * alcance actual (bloqueo de fila), estado, versión esperada, permiso de identidad, nombre/documento coherentes,
+   * versión, evento, auditoría y detección de duplicados si cambia el documento. `patch` solo trae los campos a escribir:
+   * un campo ausente no cambia.
+   */
+  async updateInTx(
+    trx: Transaction<Database>, ctx: TenantContext, user: AuthUser, id: string, expectedVersion: number, patch: Partial<Record<EditableField, string | null>>,
+    opts: { requestId?: string; changeType?: string; reason?: string | null; source?: Record<string, unknown> },
+  ) {
+    const orgId = ctx.organizationId;
+    const before = await this.load(trx, ctx, id, 'update', true);
+    if (before.status === 'INACTIVE') throw conflict('PRODUCER_INACTIVE', 'El productor está dado de baja; reactívalo para editarlo.');
+    if (Number(before.row_version) !== expectedVersion) {
+      throw conflict('VERSION_CONFLICT', 'Otra persona modificó este productor. Recarga para ver la versión actual.');
+    }
+    // Sin permiso de identidad no se pueden escribir campos de identidad (no se ven, no se editan).
+    if (!ctx.permissions.includes('producer:read_identity') && IDENTITY_FIELDS.some((f) => patch[f] !== undefined)) {
+      throw forbidden('PERMISSION_DENIED', 'No tienes permiso para modificar datos de identidad.');
+    }
+    const changed = (Object.keys(patch) as EditableField[]).filter((k) => patch[k] !== before[k]);
+    if (changed.length === 0) throw conflict('NO_CHANGE', 'No hay cambios que guardar.');
+    this.assertNames({ ...before, ...patch });
+    const changedPatch = Object.fromEntries(changed.map((k) => [k, patch[k]])) as Partial<Record<EditableField, string | null>>;
+    let after: ProducerPlain;
+    try {
+      const row = await trx
+        .updateTable('producers')
+        .set({
+          ...this.splitFields(changedPatch), ...this.encryptIdentity(orgId, id, changedPatch),
+          updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1`,
+        } as never)
+        .where('id', '=', id)
+        .where('organization_id', '=', orgId)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      after = this.plain(row, true);
+    } catch (e) {
+      throw this.mapConstraint(e);
+    }
+    await this.recordVersion(trx, after, opts.changeType ?? 'UPDATE', changed, user.id, opts.reason);
+    // Eventos y auditoría: nombres de campos cambiados, nunca sus valores personales.
+    const source = opts.source ? { source: opts.source } : {};
+    await this.events.append(trx, {
+      organizationId: orgId, eventType: 'ProducerUpdated', schemaVersion: 1, aggregateType: 'PRODUCER',
+      aggregateId: id, aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: opts.requestId,
+      payload: { changed_fields: changed, ...source },
+    });
+    await this.audit.record(trx, {
+      organizationId: orgId, actorUserId: user.id, action: 'producer.update', entityType: 'producer', entityId: id,
+      requestId: opts.requestId, result: 'SUCCESS', after: { changed_fields: changed, version: Number(after.row_version), ...source },
+    });
+    const pendingReviews = changed.some((f) => f === 'document_type' || f === 'document_number')
+      ? await this.matching.detect(trx, orgId, id, user.id, opts.requestId)
+      : undefined;
+    return { after, changed, pendingReviews };
+  }
+
+  /** P0-026: productores de la organización por código (para la vista previa y la confirmación de una importación). */
+  async byCodes(db: Kysely<Database> | Transaction<Database>, orgId: string, codes: string[], lock = false) {
+    if (codes.length === 0) return new Map<string, ProducerRow>();
+    let q = db.selectFrom('producers').selectAll().where('organization_id', '=', orgId).where('producer_code', 'in', codes);
+    if (lock) q = q.orderBy('id').forUpdate();
+    return new Map((await q.execute()).map((r) => [r.producer_code, r]));
+  }
+
+  /** Alcance (lectura/edición) de un productor para un contexto: lo mismo que aplica load(). */
+  scopeOf(ctx: TenantContext, p: Pick<ProducerRow, 'assigned_membership_id'>) {
+    return { read: this.inScope(ctx, p, 'read'), update: this.inScope(ctx, p, 'update') };
+  }
+
+  /** Identidad descifrada en memoria para comparar (solo si el llamador tiene producer:read_identity). */
+  decrypted(row: ProducerRow, identity: boolean): Record<EditableField, string | null> {
+    const p = this.plain(row, identity);
+    return Object.fromEntries(EDITABLE_FIELDS.map((f) => [f, p[f]])) as Record<EditableField, string | null>;
+  }
+
+  /** Comprueba nombre/razón social y par de documento sobre el resultado final (mismas reglas que alta/edición). */
+  validateNames(f: Partial<Record<EditableField, string | null>>): string[] {
+    const out: string[] = [];
+    if (!(f.first_name && f.last_name) && !f.legal_name) out.push('NAME_OR_LEGAL_NAME_REQUIRED');
+    if ((f.document_type == null) !== (f.document_number == null)) out.push('DOCUMENT_PAIR_REQUIRED');
+    return out;
+  }
+
+  /** Responsable por defecto de un alta: quien solo trabaja con asignados queda como responsable (como en create()). */
+  defaultAssignee(ctx: TenantContext): string | null {
+    return ctx.permissions.includes('producer:read') ? null : ctx.membershipId;
   }
 
   async assign(user: AuthUser, orgId: string, id: string, dto: AssignDto, requestId?: string) {

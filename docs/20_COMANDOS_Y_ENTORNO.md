@@ -158,3 +158,11 @@ y `adb logcat -s ReactNativeJS:V` (línea `TL_SELFTEST`). Evidencia: `docs/qa/EV
   la guardia (no `cmd /c`, que Git Bash reescribe).
 - Relleno de almacenamiento en emulador: solo con el paso `almacenamientoLleno` (exige ≥ 12 GB libres en C:, tramos de
   ≤ 1 GB, aborta bajo 10 GB).
+
+### Importación Excel (P0-026) y comprobación del seed (2026-10-11)
+
+- `npx jest --runInBand test/imports.int-spec.ts src/imports` (desde `apps/api`): integración con PostgreSQL real y lector XLSX.
+- `npm run build -w apps/api && node e2e/review/importaciones.mjs`: revisión en navegador (admin, MANAGER, técnico denegado, teclado, 390 px) contra la app de desarrollo; crea productores DEMO-IMP-* en BORRADOR. Evidencia en `docs/qa/importacion/`.
+- `node e2e/seed/comprobar-seed-demo.mjs`: seed DEMO en base desechable `terra_link_seedcheck` (idempotencia, membresías, contraseñas, rotación). No toca `terra_link` ni `CREDENCIALES.csv`.
+- Entorno Android en variables de usuario (2026-10-11): `ANDROID_HOME`/`ANDROID_SDK_ROOT` = `C:\Users\mario\AppData\Local\Android\Sdk`, `JAVA_HOME` = JDK 17.0.20.1, `Path` con `platform-tools`, `emulator` y `%JAVA_HOME%\bin`. Abrir una terminal nueva para que apliquen.
+- El repositorio vigente está en `D:\PROYECTOS CYBER LAND\TERRA LINK EUDR 2026\TERRA LINK 2025` (la ruta `C:\Users\mario\TERRA LINK 2025` ya no existe).

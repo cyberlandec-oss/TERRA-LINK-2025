@@ -167,7 +167,7 @@ button.inline, .button.inline { margin-top: 0; }
 .badge.process { background: var(--tl-process-bg); color: var(--tl-process); }
 
 /* ---------- Tablas y listas ---------- */
-.table-wrap { overflow-x: auto; border: 1px solid var(--tl-border-subtle); border-radius: var(--tl-radius-md); background: var(--tl-surface); }
+.table-wrap { position: relative; overflow-x: auto; border: 1px solid var(--tl-border-subtle); border-radius: var(--tl-radius-md); background: var(--tl-surface); }
 table { width: 100%; border-collapse: collapse; font-size: 15px; }
 th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--tl-border-subtle); vertical-align: top; }
 th { background: var(--tl-surface-subtle); font-size: 14px; font-weight: 600; color: var(--tl-text); }

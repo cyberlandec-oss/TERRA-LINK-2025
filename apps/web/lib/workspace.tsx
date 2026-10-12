@@ -87,6 +87,7 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     if (ws.can('membership:read') || onboardingOnly) {
       admin.push({ href: `${base}/miembros`, label: onboardingOnly ? 'Incorporar administrador' : 'Miembros e invitaciones', match: (p) => p.startsWith(`${base}/miembros`) });
     }
+    if (ws.can('import:manage')) admin.push({ href: `${base}/importaciones`, label: 'Importar datos (Excel)', match: (p) => p.startsWith(`${base}/importaciones`) });
     if (ws.can('location:manage')) admin.push({ href: `${base}/centros`, label: 'Centros de acopio', match: (p) => p.startsWith(`${base}/centros`) });
     if (ws.can('audit:read')) admin.push({ href: `${base}/auditoria`, label: 'Auditoría', match: (p) => p.startsWith(`${base}/auditoria`) });
     if (ws.can('events:reprocess')) admin.push({ href: `${base}/entregas-eventos`, label: 'Entregas de eventos', match: (p) => p.startsWith(`${base}/entregas-eventos`) });

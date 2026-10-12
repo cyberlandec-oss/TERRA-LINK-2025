@@ -575,6 +575,41 @@ export interface DdExportsTable { id: string; organization_id: string; snapshot_
 export interface MitigationDecisionsTable { id: string; organization_id: string; action_id: string; submission_number: number; decision: 'VERIFIED' | 'REJECTED'; reason: string; decided_by: string; decided_at: Generated<Timestamp>; operation_id: string; criterion_met: boolean | null }
 export interface MitigationCorrectionsTable { id: string; organization_id: string; action_id: string; decision_id: string; submission_number: number; support_accepted: boolean; criterion_met: boolean; reason: string; corrected_by: string; corrected_at: Generated<Timestamp>; operation_id: string }
 
+export interface ImportBatchesTable {
+  id: string;
+  organization_id: string;
+  template: 'PRODUCTORES_V1';
+  status: 'UPLOADED' | 'MAPPED' | 'COMMITTED' | 'DISCARDED';
+  sha256: string;
+  byte_size: number;
+  original_filename: string | null;
+  sheet_name: string;
+  headers: unknown;
+  row_count: number;
+  mapping: unknown | null;
+  plan_hash: string | null;
+  summary: unknown | null;
+  operation_id: string;
+  commit_operation_id: string | null;
+  created_by: string;
+  created_at: Generated<Timestamp>;
+  mapped_by: string | null;
+  mapped_at: Timestamp | null;
+  closed_by: string | null;
+  closed_at: Timestamp | null;
+  row_version: Generated<string>;
+}
+
+export interface ImportRowsTable {
+  organization_id: string;
+  batch_id: string;
+  row_number: number;
+  cells_enc: string | null;
+  result_action: 'CREATED' | 'UPDATED' | 'UNCHANGED' | null;
+  producer_id: string | null;
+  changed_fields: string[] | null;
+}
+
 export interface Database {
   evidence_claim_types: EvidenceClaimTypesTable;
   evidence: EvidenceTable;
@@ -596,6 +631,8 @@ export interface Database {
   gis_evaluations: GisEvaluationsTable;
   gis_evaluation_comparisons: GisEvaluationComparisonsTable;
   geometry_imports: GeometryImportsTable;
+  import_batches: ImportBatchesTable;
+  import_rows: ImportRowsTable;
   polygon_drafts: PolygonDraftsTable;
   draft_vertices: DraftVerticesTable;
   draft_vertex_exclusions: DraftVertexExclusionsTable;

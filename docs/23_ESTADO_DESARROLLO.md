@@ -22,6 +22,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-026 Importación Excel | **ABIERTA**: plantilla de productores implementada y verificada localmente (integración, lector XLSX y navegador); faltan plantillas de parcelas, entregas, productos y lotes | Ver `docs/decisiones/P0-026-IMPORTACION-EXCEL.md` |
 | P0-024 Sync | **ABIERTA**: servidor y motor móvil para ubicación y foto; probado en integración y con cliente Node contra la API; sin dispositivo ni inventario | Ver criterios abajo |
 | P0-023 Captura offline | **ABIERTA**: sesión sin ventana extra, cifrado obligatorio en build nativo y fotos en la base probados en Node; sin ensayo Android real ni SQLCipher en dispositivo | Ver criterios abajo |
 | P0-022 Diligencia y paquete | **ABIERTA**: capacidades independientes DONE_LOCAL; aprobación READY y `DD_PACKAGE` con datos reales no demostrables (requisitos dependientes de decisiones y capacidades inexistentes, sin rebajar) | Ver criterios abajo |
