@@ -21,7 +21,8 @@ interface TemplateInfo {
   limits: { max_file_bytes: number; max_rows: number; formats: string[] };
   not_implemented: string[];
 }
-interface TemplateOption { template: string; slug: 'producers' | 'products'; entity: string; usable: boolean; required_permission: string | null }
+type Slug = 'producers' | 'products' | 'plots';
+interface TemplateOption { template: string; slug: Slug; entity: string; usable: boolean; required_permission: string | null }
 interface Column { column: string; header: string | null; mapped_field: string | null; suggested_field: string | null; samples: string[] | null }
 interface Batch {
   id: string; template: string; status: 'UPLOADED' | 'MAPPED' | 'COMMITTED' | 'DISCARDED'; row_version: number; row_count: number; created_at: string;
@@ -43,7 +44,7 @@ interface Preview {
 interface BatchListItem { id: string; template: string; status: Batch['status']; original_filename: string | null; row_count: number; created_at: string }
 
 const NEW_STATUS: Record<string, string> = { DRAFT: 'borrador', ACTIVE: 'activo' };
-const ENTITY_LABEL: Record<string, string> = { PRODUCTORES_V1: 'Productores', PRODUCTOS_V1: 'Productos' };
+const ENTITY_LABEL: Record<string, string> = { PRODUCTORES_V1: 'Productores', PRODUCTOS_V1: 'Productos', PARCELAS_V1: 'Parcelas' };
 const ACTION: Record<PreviewRow['action'], { label: string; tone: Tone }> = {
   CREATE: { label: 'Se creará', tone: 'process' },
   UPDATE: { label: 'Se actualizará', tone: 'review' },
@@ -61,7 +62,7 @@ export default function ImportsPage() {
   const allowed = ws.can('import:manage');
   const base = `/api/v1/organizations/${orgId}/imports`;
   const [options, setOptions] = useState<TemplateOption[] | null>(null);
-  const [slug, setSlug] = useState<'producers' | 'products'>('producers');
+  const [slug, setSlug] = useState<Slug>('producers');
   const [info, setInfo] = useState<TemplateInfo | null>(null);
   const [list, setList] = useState<BatchListItem[] | null>(null);
   const [batch, setBatch] = useState<Batch | null>(null);
@@ -172,6 +173,11 @@ function TemplateStep({ orgId, slug, info, onError }: { orgId: string; slug: str
     <section className="card" aria-labelledby="paso-plantilla">
       <h2 id="paso-plantilla">1. Plantilla</h2>
       <p>Plantilla <strong>{info.template}</strong> ({info.entity}). Los nuevos quedan en estado <strong>{NEW_STATUS[info.new_status] ?? info.new_status}</strong>. Todavía no se pueden importar: {info.not_implemented.join(', ')}.</p>
+      {info.template === 'PARCELAS_V1' && (
+        <Alert tone="info" title="Esta plantilla NO importa coordenadas ni geometría">
+          Solo datos descriptivos y superficie declarada (ha). La geometría existente no cambia; regístrala desde la parcela o con GeoJSON. Importar no valida la parcela.
+        </Alert>
+      )}
       <button type="button" onClick={() => apiDownload(`/api/v1/organizations/${orgId}/imports/templates/${slug}.xlsx`, `plantilla-${slug}.xlsx`).catch(onError)}>Descargar plantilla (.xlsx)</button>
       <details>
         <summary>Campos y reglas</summary>
@@ -364,6 +370,7 @@ function PreviewStep({ base, batch, preview, info, onPage, onCommitted, onStale,
           <li>Los {info.entity} nuevos quedan en estado <strong>{NEW_STATUS[info.new_status] ?? info.new_status}</strong>. Importar no valida datos ni confirma entregas, calidad, inventario o debida diligencia.</li>
           {info.template === 'PRODUCTORES_V1' && <li>Una coincidencia de documento abre una revisión de posible duplicado; nunca se fusiona.</li>}
           {info.template === 'PRODUCTOS_V1' && <li>Código, estado/presentación y unidad no cambian después del alta; un producto inactivo no se reactiva.</li>}
+          {info.template === 'PARCELAS_V1' && <li>No se importan coordenadas ni geometría: la geometría existente no cambia. La superficie declarada crea una versión nueva sin validar; no se reasigna productor ni se reactivan parcelas.</li>}
         </ul>
         {preview.can_commit ? (
           <>
@@ -386,7 +393,7 @@ function PreviewStep({ base, batch, preview, info, onPage, onCommitted, onStale,
 }
 
 function ResultStep({ base, batch, summary, orgId, info }: { base: string; batch: Batch; summary: Summary; orgId: string; info: TemplateInfo }) {
-  const products = batch.template === 'PRODUCTOS_V1';
+  const listPath = batch.template === 'PRODUCTOS_V1' ? 'productos' : batch.template === 'PARCELAS_V1' ? 'parcelas' : 'productores?status=DRAFT';
   const [error, setError] = useState<ApiError | null>(null);
   return (
     <section className="card" aria-labelledby="paso-resultado">
@@ -395,7 +402,7 @@ function ResultStep({ base, batch, summary, orgId, info }: { base: string; batch
       {summary.duplicate_reviews_pending > 0 && <Alert tone="review">Se abrieron {summary.duplicate_reviews_pending} revisión(es) de posible duplicado. <a href={`/organizaciones/${orgId}/productores/coincidencias`}>Revisarlas</a></Alert>}
       <div className="actions">
         <button type="button" className="secondary" onClick={() => apiDownload(`${base}/${batch.id}/report`, 'informe-importacion.xlsx').catch((e) => setError(e as ApiError))}>Descargar informe (.xlsx)</button>
-        <a href={products ? `/organizaciones/${orgId}/productos` : `/organizaciones/${orgId}/productores?status=DRAFT`}>Ver {info.entity}</a>
+        <a href={`/organizaciones/${orgId}/${listPath}`}>Ver {info.entity}</a>
       </div>
       {error && <ErrorPanel error={error} />}
     </section>

@@ -25,9 +25,13 @@ import { geometryTypeCode, structuralIssues, type SupportedGeometry } from './ge
 // Eventos y auditoría sin coordenadas: solo identificadores, tipo, hash y método.
 
 type PlotRow = Selectable<PlotsTable>;
-const EDITABLE = ['name', 'crop', 'variety', 'land_use', 'province', 'canton', 'parish'] as const;
-type Editable = (typeof EDITABLE)[number];
-const CODE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$/;
+export const PLOT_EDITABLE = ['name', 'crop', 'variety', 'land_use', 'province', 'canton', 'parish'] as const;
+const EDITABLE = PLOT_EDITABLE;
+export type PlotEditable = (typeof EDITABLE)[number];
+type Editable = PlotEditable;
+/** Procedencia de un cambio hecho por otro caso de uso (P0-026 Importación): motivo del historial y `source` en evento y auditoría. */
+export interface PlotChangeSource { reason: string; source: Record<string, unknown> }
+export const PLOT_CODE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$/;
 export const STRUCTURAL_RULE = 'STRUCTURAL_ONLY_V1';
 const AVAILABLE_METHODS = ['DECLARED', 'MANUAL_COORDINATES'] as const;
 const PENDING_METHODS: Record<string, string> = { GPS_POINT: 'P0-007', GPS_POLYGON: 'P0-008', FILE_IMPORT: 'P0-009' };
@@ -43,7 +47,7 @@ class PlotFieldsDto {
 
 class CreatePlotDto extends PlotFieldsDto {
   @ApiProperty() @IsUUID() producer_id!: string;
-  @ApiProperty({ example: 'PAR-0001' }) @Matches(CODE, { message: 'plot_code: 1–40 caracteres alfanuméricos, . _ -' }) plot_code!: string;
+  @ApiProperty({ example: 'PAR-0001' }) @Matches(PLOT_CODE, { message: 'plot_code: 1–40 caracteres alfanuméricos, . _ -' }) plot_code!: string;
   @ApiProperty({ description: 'Cultivo (obligatorio, doc 06)' }) @IsString() @Length(1, 60) crop!: string;
 }
 
@@ -250,36 +254,48 @@ export class PlotsService {
     if (ctx.organizationStatus !== 'ACTIVE') throw forbidden('ORGANIZATION_SUSPENDED', 'La organización está suspendida; no admite nuevas operaciones.');
     const fields = this.normalize(dto);
     return this.db.transaction().execute(async (trx) => {
-      const producer = await trx.selectFrom('producers')
-        .select(['id', 'status', 'assigned_membership_id', 'producer_code', 'first_name', 'last_name', 'legal_name'])
-        .where('organization_id', '=', orgId).where('id', '=', dto.producer_id).forShare().executeTakeFirst();
-      // Productor de otra organización o fuera del alcance del usuario: misma respuesta (no revela existencia).
-      if (!producer || !this.inScope(ctx, producer.assigned_membership_id, 'create')) {
-        throw new AppError(422, 'PRODUCER_NOT_AVAILABLE', 'El productor indicado no está disponible para ti en esta organización.', [{ field: 'producer_id', reason: 'NOT_AVAILABLE' }]);
-      }
-      if (producer.status === 'INACTIVE') throw conflict('PRODUCER_INACTIVE', 'El productor está dado de baja; reactívalo antes de registrar parcelas.');
-      const id = randomUUID();
-      let p: PlotRow;
-      try {
-        p = await trx.insertInto('plots').values({
-          ...fields, crop: fields.crop ?? dto.crop.trim(), id, organization_id: orgId, producer_id: producer.id, plot_code: dto.plot_code.trim(),
-          status: 'ACTIVE', created_by: user.id, updated_by: user.id,
-        } as never).returningAll().executeTakeFirstOrThrow();
-      } catch (e) {
-        throw this.mapConstraint(e);
-      }
-      await this.recordHistory(trx, p, 'CREATE', Object.keys(fields), user.id);
-      await this.events.append(trx, {
-        organizationId: orgId, eventType: 'PlotRegistered', schemaVersion: 1, aggregateType: 'PLOT', aggregateId: id,
-        aggregateVersion: Number(p.row_version), actorId: user.id, correlationId: requestId,
-        payload: { plot_code: p.plot_code, producer_id: p.producer_id },
-      });
-      await this.audit.record(trx, {
-        organizationId: orgId, actorUserId: user.id, action: 'plot.create', entityType: 'plot', entityId: id, requestId,
-        result: 'SUCCESS', after: { plot_code: p.plot_code, producer_id: p.producer_id, crop: p.crop },
-      });
-      return this.view({ ...p, producer_code: producer.producer_code, first_name: producer.first_name, last_name: producer.last_name, legal_name: producer.legal_name }, null);
+      const { plot, producer } = await this.createInTx(trx, ctx, user, dto.producer_id, dto.plot_code, { ...fields, crop: fields.crop ?? dto.crop.trim() }, requestId);
+      return this.view({ ...plot, producer_code: producer.producer_code, first_name: producer.first_name, last_name: producer.last_name, legal_name: producer.legal_name }, null);
     });
+  }
+
+  /**
+   * Alta dentro de una transacción del llamador (también P0-026 Importación). El llamador ya comprobó plot:create o
+   * plot:create_assigned y la organización activa. Mismos efectos que create(): productor de la organización, en el
+   * alcance de alta y no dado de baja (fuera de alcance o inexistente: misma respuesta), historial, evento y auditoría.
+   */
+  async createInTx(trx: Transaction<Database>, ctx: TenantContext, user: AuthUser, producerId: string, plotCode: string, fields: Partial<Record<Editable, string | null>> & { crop: string }, requestId?: string, from?: PlotChangeSource) {
+    const orgId = ctx.organizationId;
+    const producer = await trx.selectFrom('producers')
+      .select(['id', 'status', 'assigned_membership_id', 'producer_code', 'first_name', 'last_name', 'legal_name'])
+      .where('organization_id', '=', orgId).where('id', '=', producerId).forShare().executeTakeFirst();
+    // Productor de otra organización o fuera del alcance del usuario: misma respuesta (no revela existencia).
+    if (!producer || !this.inScope(ctx, producer.assigned_membership_id, 'create')) {
+      throw new AppError(422, 'PRODUCER_NOT_AVAILABLE', 'El productor indicado no está disponible para ti en esta organización.', [{ field: 'producer_id', reason: 'NOT_AVAILABLE' }]);
+    }
+    if (producer.status === 'INACTIVE') throw conflict('PRODUCER_INACTIVE', 'El productor está dado de baja; reactívalo antes de registrar parcelas.');
+    const id = randomUUID();
+    let p: PlotRow;
+    try {
+      p = await trx.insertInto('plots').values({
+        ...fields, id, organization_id: orgId, producer_id: producer.id, plot_code: plotCode.trim(),
+        status: 'ACTIVE', created_by: user.id, updated_by: user.id,
+      } as never).returningAll().executeTakeFirstOrThrow();
+    } catch (e) {
+      throw this.mapConstraint(e);
+    }
+    const src = from ? { source: from.source } : {};
+    await this.recordHistory(trx, p, 'CREATE', Object.keys(fields), user.id, from?.reason);
+    await this.events.append(trx, {
+      organizationId: orgId, eventType: 'PlotRegistered', schemaVersion: 1, aggregateType: 'PLOT', aggregateId: id,
+      aggregateVersion: Number(p.row_version), actorId: user.id, correlationId: requestId,
+      payload: { plot_code: p.plot_code, producer_id: p.producer_id, ...src },
+    });
+    await this.audit.record(trx, {
+      organizationId: orgId, actorUserId: user.id, action: 'plot.create', entityType: 'plot', entityId: id, requestId,
+      result: 'SUCCESS', after: { plot_code: p.plot_code, producer_id: p.producer_id, crop: p.crop, ...src },
+    });
+    return { plot: p, producer };
   }
 
   async list(user: AuthUser, orgId: string, q: ListQuery) {
@@ -341,26 +357,98 @@ export class PlotsService {
     const patch = this.normalize(rest);
     if (Object.keys(patch).length === 0) throw conflict('NO_CHANGE', 'No hay cambios que guardar.');
     return this.db.transaction().execute(async (trx) => {
-      const before = await this.load(trx, ctx, id, 'update', true);
-      if (before.status === 'INACTIVE') throw conflict('PLOT_INACTIVE', 'La parcela está dada de baja; reactívala para editarla.');
-      if (Number(before.row_version) !== expected_version) throw conflict('VERSION_CONFLICT', 'Otra persona modificó esta parcela. Recarga para ver la versión actual.');
-      const changed = (Object.keys(patch) as Editable[]).filter((k) => patch[k] !== before[k]);
-      if (changed.length === 0) throw conflict('NO_CHANGE', 'No hay cambios que guardar.');
-      const after = await trx.updateTable('plots')
-        .set({ ...Object.fromEntries(changed.map((k) => [k, patch[k]])), updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1` } as never)
-        .where('id', '=', id).where('organization_id', '=', orgId).returningAll().executeTakeFirstOrThrow();
-      await this.recordHistory(trx, after, 'UPDATE', changed, user.id);
-      await this.events.append(trx, {
-        organizationId: orgId, eventType: 'PlotUpdated', schemaVersion: 1, aggregateType: 'PLOT', aggregateId: id,
-        aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId, payload: { changed_fields: changed },
-      });
-      await this.audit.record(trx, {
-        organizationId: orgId, actorUserId: user.id, action: 'plot.update', entityType: 'plot', entityId: id, requestId,
-        result: 'SUCCESS', after: { changed_fields: changed, version: Number(after.row_version) },
-      });
+      const { before, after } = await this.updateInTx(trx, ctx, user, id, expected_version, patch, requestId);
       return this.view({ ...after, producer_code: before.producer_code, first_name: before.first_name, last_name: before.last_name, legal_name: before.legal_name },
         await this.versionView(trx, orgId, after.current_version_id, this.geometryAllowed(ctx)));
     });
+  }
+
+  /**
+   * Edición dentro de una transacción del llamador (también P0-026 Importación). El llamador ya comprobó plot:update o
+   * plot:update_assigned y la organización activa. Mismos controles que update(): alcance actual (bloqueo), parcela activa,
+   * versión esperada, solo campos que cambian; historial, evento y auditoría. No toca productor, estado ni geometría.
+   */
+  async updateInTx(trx: Transaction<Database>, ctx: TenantContext, user: AuthUser, id: string, expectedVersion: number, patch: Partial<Record<Editable, string | null>>, requestId?: string, from?: PlotChangeSource) {
+    const orgId = ctx.organizationId;
+    const before = await this.load(trx, ctx, id, 'update', true);
+    if (before.status === 'INACTIVE') throw conflict('PLOT_INACTIVE', 'La parcela está dada de baja; reactívala para editarla.');
+    if (Number(before.row_version) !== expectedVersion) throw conflict('VERSION_CONFLICT', 'Otra persona modificó esta parcela. Recarga para ver la versión actual.');
+    if (patch.crop === null) throw new AppError(400, 'VALIDATION_FAILED', 'El cultivo es obligatorio.', [{ field: 'crop', reason: 'REQUIRED' }]);
+    const changed = (Object.keys(patch) as Editable[]).filter((k) => patch[k] !== before[k]);
+    if (changed.length === 0) throw conflict('NO_CHANGE', 'No hay cambios que guardar.');
+    const after = await trx.updateTable('plots')
+      .set({ ...Object.fromEntries(changed.map((k) => [k, patch[k]])), updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1` } as never)
+      .where('id', '=', id).where('organization_id', '=', orgId).returningAll().executeTakeFirstOrThrow();
+    const src = from ? { source: from.source } : {};
+    await this.recordHistory(trx, after, 'UPDATE', changed, user.id, from?.reason);
+    await this.events.append(trx, {
+      organizationId: orgId, eventType: 'PlotUpdated', schemaVersion: 1, aggregateType: 'PLOT', aggregateId: id,
+      aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId, payload: { changed_fields: changed, ...src },
+    });
+    await this.audit.record(trx, {
+      organizationId: orgId, actorUserId: user.id, action: 'plot.update', entityType: 'plot', entityId: id, requestId,
+      result: 'SUCCESS', after: { changed_fields: changed, version: Number(after.row_version), ...src },
+    });
+    return { before, after, changed };
+  }
+
+  /**
+   * P0-026: versión DECLARED (solo superficie declarada) dentro de una transacción del llamador. Mismo efecto que
+   * createVersion() con método DECLARED: versión nueva e inmutable que pasa a ser la actual (la anterior no cambia),
+   * NOT_VALIDATED, sin geometría y sin superficie calculada. Para no sustituir una geometría por omisión, se niega si la
+   * versión vigente tiene geometría (GEOMETRY_PRESENT): eso requiere el flujo de geometría de la parcela.
+   */
+  async declaredVersionInTx(trx: Transaction<Database>, ctx: TenantContext, user: AuthUser, id: string, expectedVersion: number, areaHa: string, requestId?: string, from?: PlotChangeSource) {
+    const orgId = ctx.organizationId;
+    const plot = await this.load(trx, ctx, id, 'update', true);
+    if (plot.status === 'INACTIVE') throw conflict('PLOT_INACTIVE', 'La parcela está dada de baja.');
+    if (Number(plot.row_version) !== expectedVersion) throw conflict('VERSION_CONFLICT', 'Otra persona modificó esta parcela. Recarga para ver la versión actual.');
+    if (plot.current_version_id) {
+      const cur = await trx.selectFrom('plot_versions').select('geometry_type').where('organization_id', '=', orgId).where('id', '=', plot.current_version_id).executeTakeFirstOrThrow();
+      if (cur.geometry_type) throw conflict('GEOMETRY_PRESENT', 'La parcela tiene geometría registrada: una versión solo con superficie declarada la sustituiría.');
+    }
+    const last = await trx.selectFrom('plot_versions').select(sql<number>`coalesce(max(version_number), 0)::int`.as('n'))
+      .where('organization_id', '=', orgId).where('plot_id', '=', id).executeTakeFirstOrThrow();
+    const versionId = randomUUID();
+    await sql`
+      INSERT INTO plot_versions (id, organization_id, plot_id, version_number, geometry, geometry_type, geometry_hash,
+        area_declared_ha, area_calculated_ha, survey_method, surveyed_at, accuracy_m, validation_status, validation_rule_version,
+        previous_version_id, notes, created_by)
+      VALUES (${versionId}, ${orgId}, ${id}, ${last.n + 1}, NULL, NULL, NULL, ${areaHa}::numeric, NULL, 'DECLARED', NULL, NULL,
+        'NOT_VALIDATED', ${STRUCTURAL_RULE}, ${plot.current_version_id}, ${from?.reason ?? null}, ${user.id})`.execute(trx);
+    const after = await trx.updateTable('plots')
+      .set({ current_version_id: versionId, updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1` })
+      .where('id', '=', id).where('organization_id', '=', orgId).returningAll().executeTakeFirstOrThrow();
+    const src = from ? { source: from.source } : {};
+    await this.recordHistory(trx, after, 'GEOMETRY_VERSION', ['current_version_id'], user.id, from?.reason);
+    await this.events.append(trx, {
+      organizationId: orgId, eventType: 'PlotGeometryVersionCreated', schemaVersion: 1, aggregateType: 'PLOT', aggregateId: id,
+      aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId,
+      payload: { plot_version_id: versionId, version_number: last.n + 1, previous_version_id: plot.current_version_id, geometry_type: null, geometry_hash: null, survey_method: 'DECLARED', ...src },
+    });
+    await this.audit.record(trx, {
+      organizationId: orgId, actorUserId: user.id, action: 'plot.geometry_version', entityType: 'plot', entityId: id, requestId,
+      result: 'SUCCESS', after: { plot_version_id: versionId, version_number: last.n + 1, geometry_type: null, survey_method: 'DECLARED', ...src },
+    });
+    return { after, versionId };
+  }
+
+  /** P0-026: parcelas de la organización por código, con el responsable de su productor y la versión vigente (sin coordenadas). */
+  async byCodes(db: Kysely<Database> | Transaction<Database>, orgId: string, codes: string[], lock = false) {
+    if (codes.length === 0) return new Map<string, PlotRow & { producer_assignee: string | null; producer_code: string; current_geometry_type: string | null; current_area_declared_ha: string | null }>();
+    let q = db.selectFrom('plots as pl')
+      .innerJoin('producers as pr', (j) => j.onRef('pr.id', '=', 'pl.producer_id').onRef('pr.organization_id', '=', 'pl.organization_id'))
+      .leftJoin('plot_versions as v', (j) => j.onRef('v.id', '=', 'pl.current_version_id').onRef('v.organization_id', '=', 'pl.organization_id'))
+      .selectAll('pl')
+      .select(['pr.assigned_membership_id as producer_assignee', 'pr.producer_code', 'v.geometry_type as current_geometry_type', sql<string | null>`v.area_declared_ha::text`.as('current_area_declared_ha')])
+      .where('pl.organization_id', '=', orgId).where('pl.plot_code', 'in', codes);
+    if (lock) q = q.orderBy('pl.id').forUpdate('pl');
+    return new Map((await q.execute()).map((r) => [r.plot_code, r]));
+  }
+
+  /** P0-026: alcance de un contexto sobre una parcela/productor (misma regla que load() y create()). */
+  scope(ctx: TenantContext, producerAssignee: string | null) {
+    return { read: this.inScope(ctx, producerAssignee, 'read'), update: this.inScope(ctx, producerAssignee, 'update'), create: this.inScope(ctx, producerAssignee, 'create') };
   }
 
   /** Crea una versión geométrica nueva (inmutable) y la marca como actual. La anterior no cambia. */

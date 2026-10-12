@@ -174,3 +174,9 @@ y `adb logcat -s ReactNativeJS:V` (línea `TL_SELFTEST`). Evidencia: `docs/qa/EV
 - Imagen de la API: la construye el servicio `migrate` (`docker compose --profile app build migrate`); `build api` no la reconstruye. Después: `docker compose --profile app up -d --wait`.
 - El proyecto Compose sigue siendo `terra-link` (mismos volúmenes); `docker compose ls` lista ambos archivos de configuración (C: y D:) porque los contenedores se crearon desde C: y se recrearon desde D:.
 - Cachés nativas Android (`apps/mobile/android/app/.cxx`, `apps/mobile/android/app/build`, `apps/mobile/android/build`, no versionadas) conservan rutas de C:; la próxima compilación nativa desde D: probablemente necesitará regenerarlas (no se borraron sin autorización).
+
+### Importación de parcelas (P0-026, 2026-10-12)
+
+- `npx jest --runInBand test/imports-plots.int-spec.ts` (desde `apps/api`): integración con PostGIS real y fixtures de autorización.
+- `npm run build -w apps/api && node e2e/review/importaciones-parcelas.mjs`: revisión en navegador (archivos sintéticos; crea `DEMO-IMP-PAR-001/002` del productor `DEMO-RV-008`, sin geometría).
+- Cachés Android con rutas de C: identificadas y **no** borradas en esta tarea (no hubo que recompilar): `apps/mobile/android/app/.cxx`, `apps/mobile/android/app/build`, `apps/mobile/android/build`. Están ignoradas (`apps/mobile/.gitignore`: `/android`, salida del prebuild) y son regenerables. Autorizado regenerarlas cuando haya que recompilar; conservar `apps/mobile/dist-apk/`, claves de firma, SDK/JDK y cachés globales.

@@ -23,6 +23,8 @@ import {
   CLEAR_TOKEN, PRODUCER_FIELDS, PRODUCER_TEMPLATE_SHEET, PRODUCER_TEMPLATE_VERSION, TEMPLATE_RULES, type TemplateField,
 } from './producer-template';
 import { PRODUCT_FIELDS, PRODUCT_TEMPLATE_RULES, PRODUCT_TEMPLATE_SHEET, PRODUCT_TEMPLATE_VERSION } from './product-template';
+import { PLOT_FIELDS, PLOT_TEMPLATE_RULES, PLOT_TEMPLATE_SHEET, PLOT_TEMPLATE_VERSION } from './plot-template';
+import { PlotsService, type PlotEditable } from '../plots/plots';
 
 // P0-026 — Importación Excel (RF-26, QA-03; S1 §§61–63; docs/09 «Importación»; docs/UX_UI §20.3).
 // Flujo común a todas las plantillas: plantilla → carga (análisis del archivo, sin tocar entidades) → mapeo explícito →
@@ -72,17 +74,22 @@ interface ApplyFrom { reason: string; source: Record<string, unknown> }
 
 /** Plantilla: campos, reglas y la parte específica de su entidad (resolver contra lo registrado y aplicar). */
 interface ImportTemplate {
-  version: 'PRODUCTORES_V1' | 'PRODUCTOS_V1';
-  slug: 'producers' | 'products';
+  version: 'PRODUCTORES_V1' | 'PRODUCTOS_V1' | 'PARCELAS_V1';
+  slug: 'producers' | 'products' | 'plots';
   sheet: string;
   entity: string;
   keyField: string;
   fields: TemplateField[];
   rules: string[];
-  /** Permiso de la entidad sin el cual la plantilla no se puede usar (además de import:manage). */
-  usePermission?: Permission;
+  /** Permisos de la entidad (basta uno) sin los cuales la plantilla no se puede usar (además de import:manage). */
+  usePermissions?: Permission[];
+  /**
+   * Permisos necesarios (todos) para ver muestras de columnas NO mapeadas o mapeadas a campos de identidad: una columna
+   * suelta puede traer datos personales o coordenadas. Sin ellos solo se muestran columnas mapeadas a campos no sensibles.
+   */
+  samplePermissions: Permission[];
   newStatus: string;
-  entityColumn: 'producer_id' | 'product_id';
+  entityColumn: 'producer_id' | 'product_id' | 'plot_id';
   keyFormatMessage: string;
   resolve(db: Db, ctx: TenantContext, rows: PlannedRow[], colOf: Map<string, string>, lock: boolean): Promise<void>;
   apply(trx: Transaction<Database>, ctx: TenantContext, user: AuthUser, p: PlannedRow, from: ApplyFrom, requestId?: string): Promise<{ id: string; reviews: number }>;
@@ -122,13 +129,14 @@ export class ImportsService {
     private readonly audit: AuditService,
     private readonly producers: ProducersService,
     private readonly products: ProductsService,
+    private readonly plots: PlotsService,
   ) {
-    this.templates = { PRODUCTORES_V1: this.producerTemplate(), PRODUCTOS_V1: this.productTemplate() };
+    this.templates = { PRODUCTORES_V1: this.producerTemplate(), PRODUCTOS_V1: this.productTemplate(), PARCELAS_V1: this.plotTemplate() };
   }
 
   private tpl(version: string): ImportTemplate {
     const t = this.templates[version as ImportTemplate['version']];
-    if (!t) throw new AppError(422, 'TEMPLATE_NOT_AVAILABLE', 'Esa plantilla no está disponible. Plantillas: productores y productos.', [{ field: 'template', reason: 'NOT_IMPLEMENTED' }]);
+    if (!t) throw new AppError(422, 'TEMPLATE_NOT_AVAILABLE', 'Esa plantilla no está disponible. Plantillas: productores, productos y parcelas.', [{ field: 'template', reason: 'NOT_IMPLEMENTED' }]);
     return t;
   }
   private bySlug(slug: string): ImportTemplate {
@@ -140,12 +148,12 @@ export class ImportsService {
   /** import:manage + permiso propio de la plantilla (si lo tiene). `mutation` bloquea organizaciones suspendidas. */
   private async ctx(user: AuthUser, orgId: string, mutation: boolean, t?: ImportTemplate): Promise<TenantContext> {
     const ctx = await this.authz.require(user, orgId, 'import:manage', { mutation });
-    if (t?.usePermission && !ctx.permissions.includes(t.usePermission)) {
+    if (t && !this.usable(ctx, t)) {
       throw forbidden('PERMISSION_DENIED', `Tu rol no permite gestionar ${t.entity}: el permiso general de importación no basta.`);
     }
     return ctx;
   }
-  private usable(ctx: TenantContext, t: ImportTemplate) { return !t.usePermission || ctx.permissions.includes(t.usePermission); }
+  private usable(ctx: TenantContext, t: ImportTemplate) { return !t.usePermissions || t.usePermissions.some((p) => ctx.permissions.includes(p)); }
   private identity(ctx: TenantContext) { return ctx.permissions.includes('producer:read_identity'); }
 
   // ------------------------------------------------------------------ plantillas
@@ -154,7 +162,7 @@ export class ImportsService {
     const svc = this.producers;
     return {
       version: PRODUCER_TEMPLATE_VERSION, slug: 'producers', sheet: PRODUCER_TEMPLATE_SHEET, entity: 'productores', keyField: 'producer_code',
-      fields: PRODUCER_FIELDS, rules: TEMPLATE_RULES, newStatus: 'DRAFT', entityColumn: 'producer_id',
+      fields: PRODUCER_FIELDS, rules: TEMPLATE_RULES, newStatus: 'DRAFT', entityColumn: 'producer_id', samplePermissions: ['producer:read_identity'],
       keyFormatMessage: 'Código no válido: letras, números, punto, guion o guion bajo (1–40).',
       concurrency: { codes: ['PRODUCER_CODE_TAKEN', 'VERSION_CONFLICT'], constraints: ['producers_code_uq'] },
       codeOf: async (db, orgId, ids) => new Map((ids.length ? await db.selectFrom('producers').select(['id', 'producer_code']).where('organization_id', '=', orgId).where('id', 'in', ids).execute() : []).map((r) => [r.id, r.producer_code])),
@@ -210,7 +218,7 @@ export class ImportsService {
     const IMMUTABLE = PRODUCT_FIELDS.filter((f) => f.immutable).map((f) => f.field as string);
     return {
       version: PRODUCT_TEMPLATE_VERSION, slug: 'products', sheet: PRODUCT_TEMPLATE_SHEET, entity: 'productos', keyField: 'code',
-      fields: PRODUCT_FIELDS, rules: PRODUCT_TEMPLATE_RULES, usePermission: 'product:manage', newStatus: 'ACTIVE', entityColumn: 'product_id',
+      fields: PRODUCT_FIELDS, rules: PRODUCT_TEMPLATE_RULES, usePermissions: ['product:manage'], samplePermissions: [], newStatus: 'ACTIVE', entityColumn: 'product_id',
       keyFormatMessage: 'Código no válido: MAYÚSCULAS, números, guion o guion bajo (2–40).',
       concurrency: { codes: ['PRODUCT_CODE_TAKEN', 'VERSION_CONFLICT'], constraints: ['products_code_uq'] },
       codeOf: async (db, orgId, ids) => new Map((ids.length ? await db.selectFrom('products').select(['id', 'code']).where('organization_id', '=', orgId).where('id', 'in', ids).execute() : []).map((r) => [r.id, r.code])),
@@ -263,13 +271,100 @@ export class ImportsService {
     };
   }
 
+  private plotTemplate(): ImportTemplate {
+    const plots = this.plots;
+    const producers = this.producers;
+    const EDITABLE = ['name', 'crop', 'variety', 'land_use', 'province', 'canton', 'parish'];
+    const has = (ctx: TenantContext, p: string) => ctx.permissions.includes(p as Permission);
+    return {
+      version: PLOT_TEMPLATE_VERSION, slug: 'plots', sheet: PLOT_TEMPLATE_SHEET, entity: 'parcelas', keyField: 'plot_code',
+      fields: PLOT_FIELDS, rules: PLOT_TEMPLATE_RULES, newStatus: 'ACTIVE', entityColumn: 'plot_id',
+      usePermissions: ['plot:create', 'plot:create_assigned', 'plot:update', 'plot:update_assigned'],
+      samplePermissions: ['plot:read_geometry', 'producer:read_identity'],
+      keyFormatMessage: 'Código no válido: letras, números, punto, guion o guion bajo (1–40).',
+      concurrency: { codes: ['PLOT_CODE_TAKEN', 'VERSION_CONFLICT', 'GEOMETRY_PRESENT', 'PRODUCER_NOT_AVAILABLE', 'PRODUCER_INACTIVE', 'PLOT_INACTIVE'], constraints: ['plots_code_uq', 'plot_versions_number_uq'] },
+      codeOf: async (db, orgId, ids) => new Map((ids.length ? await db.selectFrom('plots').select(['id', 'plot_code']).where('organization_id', '=', orgId).where('id', 'in', ids).execute() : []).map((r) => [r.id, r.plot_code])),
+      resolve: async (db, ctx, planned, colOf, lock) => {
+        const keyCol = colOf.get('plot_code') ?? null;
+        const prodCol = colOf.get('producer_code') ?? null;
+        const canCreate = has(ctx, 'plot:create') || has(ctx, 'plot:create_assigned');
+        const existing = await plots.byCodes(db, ctx.organizationId, planned.filter((p) => p.key).map((p) => p.key!), lock);
+        const producerCodes = [...new Set(planned.map((p) => p.patch.producer_code).filter((c): c is string => typeof c === 'string'))];
+        const producerRows = await producers.byCodes(db, ctx.organizationId, producerCodes);
+        // Mismo mensaje para referencias inexistentes y fuera de alcance: no revelan existencia, id, datos ni estado.
+        const codeNotAvailable = (p: PlannedRow) => p.errors.push({ column: keyCol, field: 'plot_code', code: 'CODE_NOT_AVAILABLE', message: 'Ese código de parcela no está disponible para tu importación.' });
+        const producerNotAvailable = (p: PlannedRow) => p.errors.push({ column: prodCol, field: 'producer_code', code: 'PRODUCER_NOT_AVAILABLE', message: 'El productor indicado no está disponible para ti en esta organización.' });
+        for (const p of planned) {
+          const area = p.patch.area_declared_ha;
+          if (typeof area === 'string' && !p.errors.some((e) => e.field === 'area_declared_ha') && !(Number(area) > 0)) p.errors.push({ column: colOf.get('area_declared_ha') ?? null, field: 'area_declared_ha', code: 'INVALID_AREA', message: 'La superficie declarada debe ser mayor que 0 hectáreas.' });
+          if (!p.key || p.errors.length) continue;
+          const row = existing.get(p.key);
+          const { producer_code: producerCode, area_declared_ha: _a, ...rest } = p.patch;
+          void _a;
+          if (!row) {
+            if (!canCreate) { codeNotAvailable(p); continue; }
+            for (const f of PLOT_FIELDS.filter((x) => x.requiredOnCreate)) {
+              if (typeof p.patch[f.field] !== 'string') p.errors.push({ column: colOf.get(f.field) ?? null, field: f.field, code: 'REQUIRED_FOR_CREATE', message: `${f.label}: obligatorio para una parcela nueva.` });
+            }
+            if (p.errors.length) continue;
+            const producer = producerRows.get(producerCode!);
+            if (!producer || !plots.scope(ctx, producer.assigned_membership_id).create) { producerNotAvailable(p); continue; }
+            if (producer.status === 'INACTIVE') { p.errors.push({ column: prodCol, field: 'producer_code', code: 'PRODUCER_INACTIVE', message: 'El productor está dado de baja; no se le registran parcelas.' }); continue; }
+            const fields = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== null));
+            p.action = 'CREATE';
+            p.patch = { ...fields, ...(typeof area === 'string' ? { area_declared_ha: area } : {}), _producer_id: producer.id };
+            p.changed_fields = [...Object.keys(fields), ...(typeof area === 'string' ? ['area_declared_ha'] : [])];
+            continue;
+          }
+          const scope = plots.scope(ctx, row.producer_assignee);
+          if (!scope.read) { codeNotAvailable(p); continue; }
+          if (row.status === 'INACTIVE') { p.errors.push({ column: null, field: null, code: 'PLOT_INACTIVE', message: 'La parcela está dada de baja; no se reactiva ni se edita por importación.' }); continue; }
+          if (!scope.update) { p.errors.push({ column: null, field: null, code: 'PERMISSION_DENIED_UPDATE', message: 'Tu rol no permite modificar esta parcela.' }); continue; }
+          if (typeof producerCode === 'string' && producerCode !== row.producer_code) {
+            p.errors.push({ column: prodCol, field: 'producer_code', code: 'PLOT_PRODUCER_CHANGE_NOT_ALLOWED', message: 'El productor no coincide con el de la parcela: la importación no reasigna parcelas.' });
+            continue;
+          }
+          const changed = EDITABLE.filter((k) => k in rest && rest[k] !== row[k as PlotEditable]);
+          let areaChanged = false;
+          if (typeof area === 'string' && (row.current_area_declared_ha === null || Number(row.current_area_declared_ha) !== Number(area))) {
+            if (row.current_geometry_type) {
+              p.errors.push({ column: colOf.get('area_declared_ha') ?? null, field: 'area_declared_ha', code: 'DECLARED_AREA_WITH_GEOMETRY', message: 'La parcela tiene geometría registrada: una versión solo con superficie declarada la sustituiría. Registra la superficie desde el flujo de geometría de la parcela.' });
+              continue;
+            }
+            areaChanged = true;
+          }
+          p.entity_id = row.id;
+          p.expected_version = Number(row.row_version);
+          p.changed_fields = [...changed, ...(areaChanged ? ['area_declared_ha'] : [])];
+          p.patch = { ...Object.fromEntries(changed.map((k) => [k, rest[k]])), ...(areaChanged ? { area_declared_ha: area as string } : {}) };
+          p.action = p.changed_fields.length ? 'UPDATE' : 'UNCHANGED';
+        }
+      },
+      apply: async (trx, ctx, user, p, from, requestId) => {
+        const { area_declared_ha: area, _producer_id: producerId, ...fields } = p.patch;
+        let id = p.entity_id;
+        let version = p.expected_version;
+        if (p.action === 'CREATE') {
+          const r = await plots.createInTx(trx, ctx, user, producerId!, p.key!, fields as Partial<Record<PlotEditable, string | null>> & { crop: string }, requestId, from);
+          id = r.plot.id;
+          version = Number(r.plot.row_version);
+        } else if (Object.keys(fields).length) {
+          const r = await plots.updateInTx(trx, ctx, user, id!, version!, fields as Partial<Record<PlotEditable, string | null>>, requestId, from);
+          version = Number(r.after.row_version);
+        }
+        if (typeof area === 'string') await plots.declaredVersionInTx(trx, ctx, user, id!, version!, area, requestId, from);
+        return { id: id!, reviews: 0 };
+      },
+    };
+  }
+
   private templateInfoOf(t: ImportTemplate) {
     return {
       template: t.version, sheet: t.sheet, entity: t.entity, key_field: t.keyField, clear_token: CLEAR_TOKEN, new_status: t.newStatus,
       fields: t.fields.map((f) => ({ field: f.field, header: f.header, label: f.label, required: !!f.required, required_on_create: !!f.requiredOnCreate, immutable: !!f.immutable, clearable: !!f.clearable, catalog: f.catalog ?? null, identity: f.identity, max_length: f.maxLength, rule: f.rule })),
       rules: t.rules, atomicity: ATOMICITY,
       limits: { max_file_bytes: MAX_FILE_BYTES, max_rows: DEFAULT_XLSX_LIMITS.maxRows, max_columns: DEFAULT_XLSX_LIMITS.maxColumns, formats: ['.xlsx'] },
-      not_implemented: ['parcelas', 'entregas', 'lotes'],
+      not_implemented: ['entregas', 'lotes'],
     };
   }
 
@@ -282,7 +377,7 @@ export class ImportsService {
   /** Plantillas que este rol puede usar (la UI no ofrece las demás; el servidor las rechaza igual). */
   async availableTemplates(user: AuthUser, orgId: string) {
     const ctx = await this.ctx(user, orgId, false);
-    return Object.values(this.templates).map((t) => ({ template: t.version, slug: t.slug, entity: t.entity, usable: this.usable(ctx, t), required_permission: t.usePermission ?? null }));
+    return Object.values(this.templates).map((t) => ({ template: t.version, slug: t.slug, entity: t.entity, usable: this.usable(ctx, t), required_permission: t.usePermissions?.join(' | ') ?? null }));
   }
 
   async template(user: AuthUser, orgId: string, slug: string) {
@@ -392,8 +487,8 @@ export class ImportsService {
     const byKey = new Map(t.fields.map((f) => [f.field, f]));
     const headers = b.headers as Array<{ column: string; header: string | null }>;
     const mapping = (b.mapping as Mapping | null)?.columns ?? {};
-    const hasIdentityFields = t.fields.some((f) => f.identity);
-    const identity = !hasIdentityFields || this.identity(ctx);
+    const identity = this.identity(ctx);
+    const allSamples = t.samplePermissions.every((p) => ctx.permissions.includes(p));
     const sampleRows = b.status === 'DISCARDED' ? [] : (await this.rows(this.db, b)).slice(0, 3);
     const byHeader = new Map(t.fields.map((f) => [normHeader(f.header), f.field]));
     const previous = await this.db.selectFrom('import_batches').select(['id', 'status', 'created_at', 'closed_at'])
@@ -403,18 +498,20 @@ export class ImportsService {
       file: { filename: b.original_filename, byte_size: b.byte_size, sha256: b.sha256, sheet: b.sheet_name }, row_count: b.row_count,
       columns: headers.map((h) => {
         const mapped = mapping[h.column] ?? null;
-        const showSamples = identity || (mapped !== null && !byKey.get(mapped)?.identity);
+        const showSamples = allSamples || (mapped !== null && !byKey.get(mapped)?.identity);
         return {
           column: h.column, header: h.header, mapped_field: mapped,
           suggested_field: h.header ? byHeader.get(normHeader(h.header)) ?? null : null,
           samples: showSamples ? sampleRows.map((r) => r.cells?.[h.column]?.v ?? '').filter((v) => v !== '').map((v) => v.slice(0, 60)) : null,
         };
       }),
-      samples_hidden_reason: identity ? null : 'Tu rol no ve datos de identidad: las muestras solo se muestran para columnas asociadas a campos no personales.',
+      samples_hidden_reason: allSamples ? null : t.slug === 'plots'
+        ? 'Una columna sin asociar puede traer coordenadas o datos personales: solo se muestran ejemplos de columnas asociadas a campos de esta plantilla, porque tu rol no ve coordenadas exactas o datos de identidad.'
+        : 'Tu rol no ve datos de identidad: las muestras solo se muestran para columnas asociadas a campos no personales.',
       mapping: b.mapping ? mapping : null, summary: b.summary,
       same_file_previous_imports: previous,
       atomicity: ATOMICITY,
-      can_map_identity: identity,
+      can_map_identity: identity || !t.fields.some((f) => f.identity),
     };
   }
 
@@ -632,10 +729,11 @@ export class ImportsService {
     const head = ['fila', 'codigo', 'resultado', 'campos_cambiados', 'errores', 'advertencias', ...t.fields.map((f) => `estado_${f.header}`)];
     let body: string[][];
     if (b.status === 'COMMITTED') {
-      const rows = await this.db.selectFrom('import_rows').select(['row_number', 'result_action', 'changed_fields', 'producer_id', 'product_id'])
+      const rows = await this.db.selectFrom('import_rows').select(['row_number', 'result_action', 'changed_fields', 'producer_id', 'product_id', 'plot_id'])
         .where('organization_id', '=', orgId).where('batch_id', '=', id).orderBy('row_number').execute();
-      const codes = await t.codeOf(this.db, orgId, rows.map((r) => (r.producer_id ?? r.product_id) as string).filter(Boolean));
-      body = rows.map((r) => [String(r.row_number), codes.get((r.producer_id ?? r.product_id) as string) ?? '', r.result_action ?? '', (r.changed_fields ?? []).join(' '), '', '']);
+      const idOf = (r: { producer_id: string | null; product_id: string | null; plot_id: string | null }) => (r.producer_id ?? r.product_id ?? r.plot_id) as string;
+      const codes = await t.codeOf(this.db, orgId, rows.map(idOf).filter(Boolean));
+      body = rows.map((r) => [String(r.row_number), codes.get(idOf(r)) ?? '', r.result_action ?? '', (r.changed_fields ?? []).join(' '), '', '']);
     } else if (b.status === 'MAPPED') {
       const plan = await this.plan(this.db, ctx, b, t, false);
       body = plan.rows.map((p) => [String(p.row_number), p.key ?? '', p.action, p.changed_fields.join(' '),
@@ -688,6 +786,18 @@ export class ImportsController {
     return this.sendTemplate(user, orgId, 'products', res);
   }
 
+  @Get('templates/plots')
+  @ApiOperation({ summary: 'Reglas de la plantilla de parcelas (PARCELAS_V1); exige permiso de alta o edición de parcelas' })
+  plotsInfo(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string) {
+    return this.service.templateInfo(user, orgId, 'plots');
+  }
+
+  @Get('templates/plots.xlsx')
+  @ApiOperation({ summary: 'Descargar la plantilla de parcelas' })
+  plotsFile(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Res() res: Response) {
+    return this.sendTemplate(user, orgId, 'plots', res);
+  }
+
   private async sendTemplate(user: AuthUser, orgId: string, slug: string, res: Response) {
     const { bytes, version } = await this.service.template(user, orgId, slug);
     res.setHeader('Content-Type', MEDIA_XLSX);
@@ -698,7 +808,7 @@ export class ImportsController {
 
   @Post()
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ schema: { type: 'object', required: ['file', 'operation_id'], properties: { file: { type: 'string', format: 'binary' }, operation_id: { type: 'string', format: 'uuid' }, template: { type: 'string', enum: [PRODUCER_TEMPLATE_VERSION, PRODUCT_TEMPLATE_VERSION], default: PRODUCER_TEMPLATE_VERSION } } } })
+  @ApiBody({ schema: { type: 'object', required: ['file', 'operation_id'], properties: { file: { type: 'string', format: 'binary' }, operation_id: { type: 'string', format: 'uuid' }, template: { type: 'string', enum: [PRODUCER_TEMPLATE_VERSION, PRODUCT_TEMPLATE_VERSION, PLOT_TEMPLATE_VERSION], default: PRODUCER_TEMPLATE_VERSION } } } })
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_BYTES, files: 1 } }))
   async upload(
     @CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @UploadedFile() file: UploadedXlsx | undefined,

@@ -88,8 +88,39 @@ Mismo pipeline (carga, mapeo explícito, vista previa, errores por fila, confirm
   memoria en `AuthorizationService.tenantContext` para dos usuarios de prueba. No se cambió ningún rol de producción ni la
   base de datos de roles.
 
+## Plantilla de parcelas `PARCELAS_V1` (2026-10-12)
+
+- **Campos**: los de la entidad parcela (P0-006): `codigo_parcela` (clave), `codigo_productor`, `nombre`, `cultivo`,
+  `variedad`, `uso_suelo`, `provincia`, `canton`, `parroquia`, y la superficie **declarada** `superficie_declarada_ha`.
+- **Geometría: no se importa.** La plantilla no tiene columnas de coordenadas ni de geometría; la geometría se registra
+  con sus flujos existentes (coordenadas manuales, GPS, polígono, GeoJSON de P0-009), que ya validan tipo, ejes y CRS sin
+  reproyectar ni reparar. La geometría existente nunca se modifica ni se sustituye.
+- **Superficie declarada**: hectáreas, > 0, punto decimal, hasta 4 decimales; «2,5» es error de formato (no se interpreta).
+  Crea una versión nueva `DECLARED` (sin geometría, sin superficie calculada, `NOT_VALIDATED`) que pasa a ser la actual;
+  las versiones anteriores no cambian. Como una versión `DECLARED` reemplazaría como vigente a una versión con geometría,
+  la importación la **rechaza** si la parcela ya tiene geometría (`DECLARED_AREA_WITH_GEOMETRY`; también lo comprueba el
+  caso de uso, `GEOMETRY_PRESENT`). Superficie declarada y calculada siguen separadas. Importar no valida ni cumple D-05.
+  Una parcela nueva sin superficie queda sin versión (no se inventa).
+- **Productor**: por su código exacto en la organización (único por tenant, P0-005), nunca por parecido; no se crean
+  productores. Inexistente, fuera del alcance de alta o de otra organización → misma respuesta `PRODUCER_NOT_AVAILABLE`.
+  Productor dado de baja → `PRODUCER_INACTIVE` (solo dentro del alcance, como en el alta manual). En una parcela existente
+  el código debe coincidir: la importación no reasigna (`PLOT_PRODUCER_CHANGE_NOT_ALLOWED`).
+- **Parcela**: código existente fuera del alcance de lectura y código inexistente con un rol sin alta → misma respuesta
+  `CODE_NOT_AVAILABLE`. Parcela dada de baja: ni se reactiva ni se edita.
+- **#BORRAR**: nombre, variedad, uso del suelo, provincia, cantón y parroquia. No en cultivo, productor ni superficie.
+- **Autorización**: `import:manage` más permiso de parcela (`plot:create`/`plot:create_assigned`/`plot:update`/
+  `plot:update_assigned`), con su alcance por asignación del productor, revalidado al confirmar (bloqueo de filas). Las
+  muestras de columnas no mapeadas exigen `plot:read_geometry` y `producer:read_identity` (una columna suelta puede traer
+  coordenadas o datos personales). Ni la vista previa, ni el informe, ni eventos, ni auditoría llevan coordenadas.
+- **Casos de uso reutilizados**: `PlotsService.createInTx`, `updateInTx` (extraídos de `create`/`update` sin cambiar su
+  comportamiento) y `declaredVersionInTx` (misma inserción que `createVersion` con método `DECLARED`, más la negativa a
+  sustituir una geometría). Procedencia en el motivo del historial, `notes` de la versión, `source` del evento y auditoría.
+- **Migración 0032** (amplía 0030/0031): plantilla `PARCELAS_V1` e `import_rows.plot_id` (FK compuesta mismo tenant).
+
 ## Pendiente (motivo de que la historia siga abierta)
 
-1. Plantillas de parcelas, entregas y lotes (S1 §62). Entregas deben conservar estados y pendientes de P0-012 y no
-   confirmar recepción, calidad, inventario ni debida diligencia; parcelas no deben inventar geometría (P0-009/D-05).
-2. Evidencia de navegador con archivos sintéticos y datos DEMO en desarrollo local; no hay uso con un Excel real de una asociación.
+1. Plantillas de entregas y lotes (S1 §62). Deben conservar estados y pendientes de P0-012/P0-016 y no confirmar
+   recepción, calidad, inventario ni debida diligencia.
+2. Superficie declarada de parcelas con geometría: no hay caso de uso que cree una versión con la geometría vigente y otra
+   superficie declarada; hoy se rechaza en la importación (y el formulario de versión `DECLARED` de la parcela la sustituiría).
+3. Evidencia de navegador con archivos sintéticos y datos DEMO en desarrollo local; no hay uso con un Excel real de una asociación.

@@ -6686,6 +6686,64 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/imports/templates/plots": {
+      "get": {
+        "operationId": "ImportsController_plotsInfo",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reglas de la plantilla de parcelas (PARCELAS_V1); exige permiso de alta o edición de parcelas",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/imports/templates/plots.xlsx": {
+      "get": {
+        "operationId": "ImportsController_plotsFile",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Descargar la plantilla de parcelas",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/imports": {
       "post": {
         "operationId": "ImportsController_upload",
@@ -6722,7 +6780,8 @@
                     "type": "string",
                     "enum": [
                       "PRODUCTORES_V1",
-                      "PRODUCTOS_V1"
+                      "PRODUCTOS_V1",
+                      "PARCELAS_V1"
                     ],
                     "default": "PRODUCTORES_V1"
                   }

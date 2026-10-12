@@ -128,7 +128,7 @@ Aceptación: creación/corrección/aprobación/rechazo/descarga/export/permisos/
 ### P0-026 — Excel import
 Depende P0-004/005/006/011/012 según plantilla. Como asociación, necesito migrar registros.
 Aceptación: plantilla/mapeo/preview/errores por fila/commit controlado; IDs no cruzan tenant; reimport no duplica ni borra campos fuera de mapping; legacy/missing explícitos. RF-26; QA-03.
-Estado (2026-10-12): **ABIERTA**. Plantillas implementadas y verificadas localmente: productores (`PRODUCTORES_V1`) y productos (`PRODUCTOS_V1`): mapeo explícito, vista previa sin cambios, errores por fila, confirmación atómica que revalida permisos y versiones, aislamiento, reimportación sin duplicados ni versiones, campos fuera del mapeo conservados, estados LEGACY/MISSING/UNKNOWN; productos con inmutables, catálogos exactos y `product:manage` exigido. Pendiente: plantillas de parcelas, entregas y lotes (S1 §62). Ver `docs/decisiones/P0-026-IMPORTACION-EXCEL.md`.
+Estado (2026-10-12): **ABIERTA**. Plantillas implementadas y verificadas localmente: productores (`PRODUCTORES_V1`), productos (`PRODUCTOS_V1`) y parcelas (`PARCELAS_V1`, sin geometría: descriptivos y superficie declarada): mapeo explícito, vista previa sin cambios, errores por fila, confirmación atómica que revalida permisos, asignación y versiones, aislamiento, reimportación sin duplicados ni versiones, campos fuera del mapeo conservados, estados LEGACY/MISSING/UNKNOWN. Pendiente: plantillas de entregas y lotes (S1 §62); superficie declarada en parcelas con geometría. Ver `docs/decisiones/P0-026-IMPORTACION-EXCEL.md`.
 
 ## Cobertura operativa P0 adicional
 

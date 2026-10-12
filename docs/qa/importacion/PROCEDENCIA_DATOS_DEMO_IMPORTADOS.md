@@ -25,12 +25,23 @@ motivo, evento `ProducerRegistered` con `source.kind = EXCEL_IMPORT` y auditorí
 Confirmación hecha **con teclado** (captura `p04-admin-resultado-productos.png`). Versión `CREATED` con el lote y la fila en
 el motivo, evento `ProductCreated` con `source.kind = EXCEL_IMPORT` y auditoría. Quedan en el catálogo DEMO de la cooperativa.
 
+## Parcelas (revisión del 2026-10-12, `e2e/review/importaciones-parcelas.mjs`)
+
+| Código | Estado | Productor | Lote de importación | Fila | Versiones | Archivo (SHA-256) |
+| --- | --- | --- | --- | --- | --- | --- |
+| `DEMO-IMP-PAR-001` | ACTIVA | `DEMO-RV-008` | `54b85f91-b002-41cb-a3ca-4c7322766b37` | 2 | 1 · DECLARED, sin geometría, 1.7500 ha declaradas, NOT_VALIDATED | `demo-importacion-parcelas.xlsx` (`33a2f69e3f56bf4211c870fc66c165cba3fef2ca848b9ed1f3336ca0ac74614c`) |
+| `DEMO-IMP-PAR-002` | ACTIVA | `DEMO-RV-008` | idem | 3 | ninguna (sin superficie: no se inventa) | idem |
+
+Confirmación hecha **con teclado** (captura `pa04-admin-resultado-parcelas.png`). La columna sintética «coordenadas_campo»
+del archivo no se mapeó ni se importó. Historial con el lote y la fila en el motivo; eventos `PlotRegistered` y
+`PlotGeometryVersionCreated` con `source`.
+
 ## Cómo comprobarlo
 
 ```sql
 -- productores y productos importados, con su lote y fila de origen
-SELECT coalesce(p.producer_code, pr.code) AS codigo, r.batch_id, r.row_number, r.result_action, b.template, b.sha256
+SELECT coalesce(p.producer_code, pr.code, pl.plot_code) AS codigo, r.batch_id, r.row_number, r.result_action, b.template, b.sha256
 FROM import_rows r JOIN import_batches b ON b.id = r.batch_id
-LEFT JOIN producers p ON p.id = r.producer_id LEFT JOIN products pr ON pr.id = r.product_id
+LEFT JOIN producers p ON p.id = r.producer_id LEFT JOIN products pr ON pr.id = r.product_id LEFT JOIN plots pl ON pl.id = r.plot_id
 WHERE r.result_action = 'CREATED' ORDER BY b.created_at, r.row_number;
 ```

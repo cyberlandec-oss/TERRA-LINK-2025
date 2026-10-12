@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-10-12T03:49:36.124Z",
+  "fecha": "2026-10-12T04:14:44.361Z",
   "base": "http://localhost:3000",
   "entorno": "DESARROLLO local (contenedores), datos DEMO y archivos sintéticos",
   "ok": true,
@@ -19,14 +19,14 @@
     {
       "caso": "admin: vista previa del archivo válido (sin guardar)",
       "ok": true,
-      "detalle": "2 nuevas",
+      "detalle": "reimportación: 2 sin cambios",
       "captura": "docs/qa/capturas/importacion/p03-admin-vista-previa-productos.png"
     },
     {
-      "caso": "admin: confirmación con teclado → 2 productos creados (estado activo)",
+      "caso": "admin: confirmación con teclado (no aplicable: ya importado en una ejecución anterior)",
       "ok": true,
-      "detalle": "foco en «Confirmar importación»",
-      "captura": "docs/qa/capturas/importacion/p04-admin-resultado-productos.png"
+      "detalle": "ver reimportación",
+      "captura": null
     },
     {
       "caso": "390 px: reimportación de productos = 2 sin cambios, nada que confirmar",
