@@ -614,6 +614,19 @@ export interface ImportRowsTable {
   changed_fields: string[] | null;
 }
 
+export interface ImportReferencesTable {
+  id: Generated<string>;
+  organization_id: string;
+  template: 'ENTREGAS_V1';
+  reference: string;
+  origin: 'FILE_REFERENCE' | 'LEGACY_CONTENT_FINGERPRINT';
+  delivery_id: string;
+  batch_id: string;
+  row_number: number;
+  created_by: string;
+  created_at: Generated<Timestamp>;
+}
+
 export interface Database {
   evidence_claim_types: EvidenceClaimTypesTable;
   evidence: EvidenceTable;
@@ -637,6 +650,7 @@ export interface Database {
   geometry_imports: GeometryImportsTable;
   import_batches: ImportBatchesTable;
   import_rows: ImportRowsTable;
+  import_references: ImportReferencesTable;
   polygon_drafts: PolygonDraftsTable;
   draft_vertices: DraftVerticesTable;
   draft_vertex_exclusions: DraftVertexExclusionsTable;

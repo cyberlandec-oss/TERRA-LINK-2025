@@ -188,4 +188,45 @@ describeDb('P0-022 expediente: guards, instantánea consistente, revisión, expo
     expect(admView.content.plots[0].geometry).toMatchObject({ type: 'Point' });
     await http().get(`${base(orgA)}/dd-exports/${e1.export.id}/download`).set(as(AUD)).expect(403);
   });
+
+  it('vigencia: la superficie declarada deja desactualizados riesgo, expediente y GIS sin modificarlos; una edición descriptiva no', async () => {
+    const lot = await lotWithOrigin(orgA, '40');
+    const gis = (await http().post(`${base(orgA)}/plots/${plot}/gis-evaluations`).set(as(E1)).send({ operation_id: randomUUID() }).expect(201)).body.evaluation;
+    const risk = (await http().post(`${base(orgA)}/risk/lots/${lot}/evaluations`).set(as(E1)).send({ operation_id: randomUUID() }).expect(201)).body.evaluation;
+    const c = (await createCase(lot).expect(201)).body.case;
+    const s = (await capture(c.id).expect(201)).body.snapshot;
+    const riskRow = await h.db.selectFrom('risk_evaluations').selectAll().where('id', '=', risk.id).executeTakeFirstOrThrow();
+    const snapRow = await h.db.selectFrom('dd_snapshots').selectAll().where('id', '=', s.id).executeTakeFirstOrThrow();
+    const gisRow = await h.db.selectFrom('gis_evaluations').selectAll().where('id', '=', gis.id).executeTakeFirstOrThrow();
+    const getAll = async () => ({
+      snap: (await http().get(`${base(orgA)}/dd-snapshots/${s.id}`).set(as(E1)).expect(200)).body,
+      risk: (await http().get(`${base(orgA)}/risk/evaluations/${risk.id}`).set(as(E1)).expect(200)).body,
+      gis: (await http().get(`${base(orgA)}/gis-evaluations/${gis.id}`).set(as(E1)).expect(200)).body,
+    });
+    const before = await getAll();
+    expect(before.risk.freshness.status).toBe('CURRENT');
+    expect(before.gis.stale).toBe(false);
+    // 1) Edición descriptiva (nombre): no interviene en riesgo, expediente ni GIS → siguen vigentes.
+    const p0 = await h.db.selectFrom('plots').select('row_version').where('id', '=', plot).executeTakeFirstOrThrow();
+    await http().patch(`${base(orgA)}/plots/${plot}`).set(as(ADMIN)).send({ expected_version: Number(p0.row_version), name: 'Nombre nuevo' }).expect(200);
+    const mid = await getAll();
+    expect(mid.snap.readiness.effective).toBe(before.snap.readiness.effective);
+    expect(mid.risk.freshness.status).toBe('CURRENT');
+    expect(mid.gis.stale).toBe(false);
+    // 2) Superficie declarada: versión nueva (misma geometría) → todo lo que dependía de la versión queda desactualizado.
+    const p1 = await h.db.selectFrom('plots').select('row_version').where('id', '=', plot).executeTakeFirstOrThrow();
+    await http().post(`${base(orgA)}/plots/${plot}/declared-area`).set(as(ADMIN)).send({ expected_version: Number(p1.row_version), area_declared_ha: 2.75 }).expect(201);
+    const after = await getAll();
+    expect(after.snap.readiness.effective).toBe('STALE');
+    expect(after.snap.readiness.changed_sections).toContain('plots');
+    expect(after.risk.freshness.status).toBe('STALE');
+    expect(after.gis).toMatchObject({ stale: true, stale_reasons: ['PLOT_VERSION_CHANGED_SAME_GEOMETRY'] });
+    // Resultados históricos intactos; nada favorable se atribuye.
+    expect(await h.db.selectFrom('risk_evaluations').selectAll().where('id', '=', risk.id).executeTakeFirstOrThrow()).toEqual(riskRow);
+    expect(await h.db.selectFrom('dd_snapshots').selectAll().where('id', '=', s.id).executeTakeFirstOrThrow()).toEqual(snapRow);
+    expect(await h.db.selectFrom('gis_evaluations').selectAll().where('id', '=', gis.id).executeTakeFirstOrThrow()).toEqual(gisRow);
+    expect(after.risk.result ?? null).toEqual(before.risk.result ?? null);
+    const cur = await h.db.selectFrom('plots').select('current_version_id').where('id', '=', plot).executeTakeFirstOrThrow();
+    expect(await h.db.selectFrom('gis_evaluations').select('id').where('plot_version_id', '=', cur.current_version_id!).execute()).toHaveLength(0);
+  });
 });

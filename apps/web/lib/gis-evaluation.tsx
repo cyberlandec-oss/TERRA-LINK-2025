@@ -39,6 +39,7 @@ const CHECK_LABEL: Record<string, string> = {
 const RELATION: Record<string, string> = { EQUAL: 'Misma geometría', OVERLAP: 'Comparte superficie', TOUCH: 'Solo contacto por borde' };
 const STALE: Record<string, string> = {
   GEOMETRY_CHANGED: 'la parcela tiene una versión geométrica más reciente',
+  PLOT_VERSION_CHANGED_SAME_GEOMETRY: 'la parcela tiene una versión nueva con la misma geometría (cambió la superficie declarada); esta evaluación no se hereda: evalúa la versión vigente',
   COMPARED_PLOTS_CHANGED: 'cambiaron las parcelas con las que se comparó',
   RULES_CHANGED: 'cambió la versión de las reglas',
 };

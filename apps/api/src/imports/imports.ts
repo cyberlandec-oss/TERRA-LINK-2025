@@ -282,9 +282,9 @@ export class ImportsService {
     const deliveries = this.deliveries;
     const producers = this.producers;
     const products = this.products;
-    /** Identificador estable de una fila SIN código: huella del contenido mapeado (operation_id del alta). */
-    const fingerprint = (orgId: string, p: PlannedRow) => {
-      const h = createHash('sha256').update(JSON.stringify([orgId, DELIVERY_TEMPLATE_VERSION, Object.entries(p.patch).filter(([k]) => !k.startsWith('_')).sort()])).digest('hex');
+    /** operation_id estable del alta a partir de la REFERENCIA de importación (no del contenido). */
+    const opIdFor = (orgId: string, reference: string) => {
+      const h = createHash('sha256').update(JSON.stringify([orgId, DELIVERY_TEMPLATE_VERSION, 'REF', reference])).digest('hex');
       return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${(8 | (parseInt(h[16], 16) & 3)).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`;
     };
     const normDec = (v: string | null | undefined) => {
@@ -302,22 +302,23 @@ export class ImportsService {
       fields: DELIVERY_FIELDS, rules: DELIVERY_TEMPLATE_RULES, newStatus: 'DRAFT', entityColumn: 'delivery_id',
       usePermissions: ['delivery:create', 'delivery:create_assigned'], samplePermissions: ['producer:read_identity'],
       keyFormatMessage: 'Código de entrega no válido: usa el código asignado por Terra Link (p. ej. ENT-2026-00012).',
-      concurrency: { codes: ['VERSION_CONFLICT', 'DELIVERY_REGISTERED', 'PRODUCER_INACTIVE', 'PRODUCT_INACTIVE', 'LOCATION_INACTIVE', 'PLOT_INACTIVE', 'NOT_FOUND'], constraints: ['deliveries_operation_uq', 'deliveries_org_code_uq'] },
+      concurrency: { codes: ['VERSION_CONFLICT', 'DELIVERY_REGISTERED', 'PRODUCER_INACTIVE', 'PRODUCT_INACTIVE', 'LOCATION_INACTIVE', 'PLOT_INACTIVE', 'NOT_FOUND'], constraints: ['deliveries_operation_uq', 'deliveries_org_code_uq', 'import_references_ref_uq'] },
       codeOf: async (db, orgId, ids) => new Map((ids.length ? await db.selectFrom('deliveries').select(['id', 'delivery_code']).where('organization_id', '=', orgId).where('id', 'in', ids).execute() : []).map((r) => [r.id, r.delivery_code])),
       resolve: async (db, ctx, planned, colOf, lock) => {
         const org = ctx.organizationId;
         const col = (f: string) => colOf.get(f) ?? null;
         const err = (p: PlannedRow, field: string | null, code: string, message: string) => p.errors.push({ column: field ? col(field) : null, field, code, message });
+        // Referencias de importación del archivo → entregas ya importadas con esa referencia.
+        const refs = [...new Set(planned.map((p) => p.patch.import_reference).filter((r): r is string => typeof r === 'string'))];
+        const refRows = new Map((refs.length ? await db.selectFrom('import_references').select(['reference', 'delivery_id']).where('organization_id', '=', org).where('template', '=', DELIVERY_TEMPLATE_VERSION).where('reference', 'in', refs).execute() : []).map((r) => [r.reference, r.delivery_id]));
         const keyed = planned.filter((p) => p.key).map((p) => p.key!);
         let byCodeQ = db.selectFrom('deliveries as d').innerJoin('producers as pr', (j) => j.onRef('pr.id', '=', 'd.producer_id').onRef('pr.organization_id', '=', 'd.organization_id'))
           .selectAll('d').select(['pr.assigned_membership_id as producer_assignee', 'pr.producer_code']).where('d.organization_id', '=', org);
         if (lock) byCodeQ = byCodeQ.orderBy('d.id').forUpdate('d');
-        const fps = new Map<PlannedRow, string>();
-        for (const p of planned) if (!p.key) fps.set(p, fingerprint(org, p));
-        const existingByCode = new Map((keyed.length ? await byCodeQ.where('d.delivery_code', 'in', keyed).execute() : []).map((r) => [r.delivery_code, r]));
-        const opIds = [...fps.values()];
-        const existingByOp = new Map((opIds.length ? await db.selectFrom('deliveries as d').innerJoin('producers as pr', (j) => j.onRef('pr.id', '=', 'd.producer_id').onRef('pr.organization_id', '=', 'd.organization_id'))
-          .select(['d.id', 'd.operation_id', 'd.delivery_code', 'pr.assigned_membership_id as producer_assignee']).where('d.organization_id', '=', org).where('d.operation_id', 'in', opIds).execute() : []).map((r) => [r.operation_id, r]));
+        const refIds = [...refRows.values()];
+        const loaded = (keyed.length || refIds.length) ? await byCodeQ.where((eb) => eb.or([...(keyed.length ? [eb('d.delivery_code', 'in', keyed)] : []), ...(refIds.length ? [eb('d.id', 'in', refIds)] : [])])).execute() : [];
+        const existingByCode = new Map(loaded.map((r) => [r.delivery_code, r]));
+        const existingById = new Map(loaded.map((r) => [r.id, r]));
         const producerRows = await producers.byCodes(db, org, [...new Set(planned.map((p) => p.patch.producer_code).filter((c): c is string => typeof c === 'string'))]);
         const productRows = await products.byCodes(db, org, [...new Set(planned.map((p) => p.patch.product_code).filter((c): c is string => typeof c === 'string'))]);
         const locCodes = [...new Set(planned.map((p) => p.patch.location_code).filter((c): c is string => typeof c === 'string'))];
@@ -333,10 +334,15 @@ export class ImportsService {
         const originRows = existingIds.length ? await db.selectFrom('delivery_origins').select(['delivery_id', 'plot_id', sql<string | null>`origin_quantity::text`.as('q')]).where('organization_id', '=', org).where('delivery_id', 'in', existingIds).execute() : [];
         const originsOf = (id: string) => originRows.filter((o) => o.delivery_id === id).map((o) => `${o.plot_id}:${normDec(o.q) ?? ''}`).sort().join(';');
 
-        // Filas sin código idénticas dentro del archivo: ambiguas (¿una entrega o dos?) → error en todas.
-        const fpSeen = new Map<string, number[]>();
-        for (const [p, fp] of fps) fpSeen.set(fp, [...(fpSeen.get(fp) ?? []), p.row_number]);
-        for (const [p, fp] of fps) if (fpSeen.get(fp)!.length > 1) err(p, null, 'DUPLICATE_IN_FILE', `Filas sin código idénticas (${fpSeen.get(fp)!.join(', ')}): indica el código de entrega o diferencia las filas.`);
+        // Identidad de cada fila: código asignado o referencia de importación. Sin ninguna, la fila no se puede identificar
+        // entre importaciones: se pide resolverlo (no se deduplica por contenido). Referencias repetidas en el archivo: error.
+        const refSeen = new Map<string, number[]>();
+        for (const p of planned) { const r = p.patch.import_reference; if (typeof r === 'string') refSeen.set(r, [...(refSeen.get(r) ?? []), p.row_number]); }
+        for (const p of planned) {
+          const r = p.patch.import_reference;
+          if (typeof r === 'string' && refSeen.get(r)!.length > 1) err(p, 'import_reference', 'DUPLICATE_IN_FILE', `Referencia repetida en las filas ${refSeen.get(r)!.join(', ')}: cada entrega necesita su propia referencia.`);
+          else if (!p.key && typeof r !== 'string' && !p.errors.length) err(p, 'import_reference', 'REFERENCE_REQUIRED', 'Fila sin código de entrega ni referencia de importación: no se puede identificar entre importaciones. Añade una referencia única (p. ej. el número de tu planilla) o el código de entrega.');
+        }
 
         for (const p of planned) {
           if (p.errors.length) continue;
@@ -367,20 +373,18 @@ export class ImportsService {
             err(p, 'harvest_precision', 'PERIOD_PRECISION_REQUIRED', 'Indica la precisión del periodo (DAY, MONTH o UNKNOWN); no se deduce de las fechas.'); continue;
           }
 
-          // Entrega existente: por código o (sin código) por la huella de una importación anterior.
+          // Entrega existente: por código asignado o por la referencia de una importación anterior.
           let existing: (typeof existingByCode extends Map<string, infer R> ? R : never) | undefined;
+          const reference = typeof v.import_reference === 'string' ? v.import_reference : null;
+          const refDelivery = reference ? refRows.get(reference) : undefined;
           if (p.key) {
             existing = existingByCode.get(p.key);
             if (!existing || !deliveries.canReadFor(ctx, existing.producer_assignee)) { err(p, 'delivery_code', 'CODE_NOT_AVAILABLE', 'Ese código de entrega no está disponible para tu importación.'); continue; }
-          } else {
-            const prior = existingByOp.get(fps.get(p)!);
-            if (prior) {
-              if (!deliveries.canReadFor(ctx, prior.producer_assignee)) { err(p, null, 'CODE_NOT_AVAILABLE', 'Esta fila no está disponible para tu importación.'); continue; }
-              p.entity_id = prior.id;
-              p.action = 'UNCHANGED';
-              p.warnings.push({ column: null, field: null, code: 'ALREADY_IMPORTED', message: `Esta fila ya se importó como ${prior.delivery_code}; no se vuelve a crear.` });
-              continue;
-            }
+            if (refDelivery && refDelivery !== existing.id) { err(p, 'import_reference', 'REFERENCE_CODE_MISMATCH', 'La referencia de importación corresponde a otra entrega distinta del código indicado.'); continue; }
+          } else if (refDelivery) {
+            existing = existingById.get(refDelivery);
+            if (!existing || !deliveries.canReadFor(ctx, existing.producer_assignee)) { err(p, 'import_reference', 'REFERENCE_NOT_AVAILABLE', 'Esa referencia de importación ya está en uso y no está disponible para tu importación.'); continue; }
+            p.warnings.push({ column: col('import_reference'), field: 'import_reference', code: 'REFERENCE_KNOWN', message: `La referencia ya se importó como ${existing.delivery_code}: se compara con ella (no se crea otra).` });
           }
           const producerCode = v.producer_code;
           let producerId: string;
@@ -428,7 +432,7 @@ export class ImportsService {
           if (!existing) {
             p.action = 'CREATE';
             p.changed_fields = Object.keys(dto).filter((k) => (dto as Record<string, unknown>)[k] !== null);
-            p.patch = { _producer_id: producerId, _operation_id: fps.get(p)!, _dto: JSON.stringify(dto) };
+            p.patch = { _producer_id: producerId, _operation_id: opIdFor(org, reference!), _reference: reference!, _dto: JSON.stringify(dto) };
             continue;
           }
           // Comparación con lo registrado para no generar efectos si nada cambia.
@@ -460,6 +464,10 @@ export class ImportsService {
         const dto = JSON.parse(p.patch._dto ?? '{}') as Dto;
         if (p.action === 'CREATE') {
           const row = await deliveries.createDraftInTx(trx, ctx, user.id, { ...dto, producer_id: p.patch._producer_id! }, p.patch._operation_id!, requestId, from);
+          await trx.insertInto('import_references').values({
+            organization_id: ctx.organizationId, template: DELIVERY_TEMPLATE_VERSION, reference: p.patch._reference!, origin: 'FILE_REFERENCE', delivery_id: row.id,
+            batch_id: String(from.source.import_batch_id), row_number: p.row_number, created_by: user.id,
+          }).execute();
           return { id: row.id, reviews: 0 };
         }
         await deliveries.updateDraftInTx(trx, ctx, user.id, p.entity_id!, { ...dto, expected_version: p.expected_version! } as UpdateDeliveryDto, requestId, from);

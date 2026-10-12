@@ -8,13 +8,16 @@ import { CLEAR_TOKEN, type TemplateField } from './producer-template';
 export const DELIVERY_TEMPLATE_VERSION = 'ENTREGAS_V1';
 export const DELIVERY_TEMPLATE_SHEET = 'entregas';
 
-export type DeliveryImportField = 'delivery_code' | 'producer_code' | 'product_code' | 'location_code' | 'delivery_date' | 'quantity_declared' | 'unit'
+export type DeliveryImportField = 'delivery_code' | 'import_reference' | 'producer_code' | 'product_code' | 'location_code' | 'delivery_date' | 'quantity_declared' | 'unit'
   | 'harvest_precision' | 'harvest_start' | 'harvest_end' | 'origins' | 'notes';
 
 const CODE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$/;
 export const DELIVERY_FIELDS: Array<TemplateField<DeliveryImportField>> = [
   { field: 'delivery_code', header: 'codigo_entrega', label: 'Código de entrega', identity: false, maxLength: 40, pattern: /^[A-Z0-9][A-Z0-9_-]{1,39}$/,
     rule: 'Opcional. Código ASIGNADO por Terra Link (p. ej. ENT-2026-00012) de un borrador existente para actualizarlo. Vacío = entrega nueva (el sistema asigna el código). No se inventan códigos.' },
+  { field: 'import_reference', header: 'referencia_importacion', label: 'Referencia de importación', identity: false, maxLength: 80, pattern: /^[A-Za-z0-9][A-Za-z0-9_.\/-]{0,79}$/,
+    formatMessage: 'Referencia no válida: 1–80 caracteres (letras, números, punto, guion, barra o guion bajo).',
+    rule: 'Obligatoria en filas sin código de entrega. Identifica la fila entre importaciones (p. ej. el número de tu planilla); no es un dato de la entrega. La misma referencia vuelve a la misma entrega; referencias distintas son entregas distintas aunque tengan datos idénticos.' },
   { field: 'producer_code', header: 'codigo_productor', label: 'Código de productor', requiredOnCreate: true, identity: false, maxLength: 40, pattern: CODE,
     rule: 'Obligatorio para una entrega nueva: código EXACTO de un productor ACTIVO en tu alcance. En una entrega existente debe coincidir: no se cambia el productor.' },
   { field: 'product_code', header: 'codigo_producto', label: 'Producto', clearable: true, identity: false, maxLength: 40, pattern: /^[A-Z0-9][A-Z0-9_-]{1,39}$/, rule: `Opcional. Código exacto de un producto activo de tu organización. ${CLEAR_TOKEN} lo quita del borrador.` },
@@ -33,7 +36,7 @@ export const DELIVERY_FIELDS: Array<TemplateField<DeliveryImportField>> = [
 
 export const DELIVERY_TEMPLATE_RULES = [
   'Una fila por entrega. Importar solo crea o actualiza BORRADORES: no registra la entrega, no confirma recepción, pesaje, calidad, inventario, cierre ni debida diligencia. Registrar es una acción explícita desde la entrega, con sus compuertas.',
-  'Clave: el código de entrega asignado por Terra Link (para actualizar un borrador). Una fila sin código crea una entrega nueva; si esa misma fila ya se importó antes (mismo contenido), no se vuelve a crear.',
+  'Identidad: el código de entrega asignado por Terra Link o, en filas sin código, la referencia de importación (obligatoria). Reimportar la misma referencia no duplica; dos referencias distintas son dos entregas aunque sus datos coincidan. Nunca se fusionan filas por parecido o igualdad de contenido.',
   'Una entrega REGISTRADA no se modifica por importación: los cambios se rechazan y se hacen con la corrección de la entrega.',
   'El periodo de cosecha se guarda como se declara (día, mes, intervalo o desconocido). Nunca se deduce de la fecha de entrega.',
   'Peso declarado (no el recibido), en KG, sin conversiones. Las referencias (productor, producto, centro, parcelas) deben ser códigos exactos dentro de tu alcance; no se crean ni se buscan parecidos.',

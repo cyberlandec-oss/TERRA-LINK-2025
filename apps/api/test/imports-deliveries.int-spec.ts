@@ -9,6 +9,9 @@ import { PASSWORD, describeDb, setupHarness } from './helpers';
 // Integración P0-026 plantilla ENTREGAS_V1 (RF-26 / QA-03, P0-012) contra PostgreSQL real. Archivos sintéticos.
 // Incluye FIXTURES DE AUTORIZACIÓN (permisos sintéticos en memoria; ningún rol de producción cambia).
 const FIX_ASIG: Permission[] = ['organization:read', 'import:manage', 'delivery:read_assigned', 'delivery:create_assigned', 'producer:read_assigned', 'product:read', 'location:read'];
+// Lee todas las entregas pero solo puede crear/editar las de productores asignados.
+const FIX_LEE_TODO: Permission[] = ['organization:read', 'import:manage', 'delivery:read', 'delivery:create_assigned', 'producer:read', 'product:read', 'location:read'];
+const LEE = 'fixture-lee-todo@test.local';
 
 describeDb('P0-026 importación Excel de entregas (PostgreSQL real)', () => {
   let h: Awaited<ReturnType<typeof setupHarness>>;
@@ -22,12 +25,14 @@ describeDb('P0-026 importación Excel de entregas (PostgreSQL real)', () => {
   const ADMIN = 'admin-a@test.local';
   const MANAGER = 'supervisor@test.local';
   const ASIG = 'fixture-asig@test.local';
-  const HEAD = ['codigo_entrega', 'codigo_productor', 'codigo_producto', 'codigo_centro', 'fecha_entrega', 'cantidad_declarada', 'unidad', 'periodo_precision', 'periodo_inicio', 'periodo_fin', 'parcelas_origen', 'notas'];
-  const MAP = { A: 'delivery_code', B: 'producer_code', C: 'product_code', D: 'location_code', E: 'delivery_date', F: 'quantity_declared', G: 'unit', H: 'harvest_precision', I: 'harvest_start', J: 'harvest_end', K: 'origins', L: 'notes' };
+  const HEAD = ['codigo_entrega', 'codigo_productor', 'codigo_producto', 'codigo_centro', 'fecha_entrega', 'cantidad_declarada', 'unidad', 'periodo_precision', 'periodo_inicio', 'periodo_fin', 'parcelas_origen', 'notas', 'referencia_importacion'];
+  const MAP = { A: 'delivery_code', B: 'producer_code', C: 'product_code', D: 'location_code', E: 'delivery_date', F: 'quantity_declared', G: 'unit', H: 'harvest_precision', I: 'harvest_start', J: 'harvest_end', K: 'origins', L: 'notes', M: 'import_reference' };
   const book = (rows: string[][], head = HEAD) => writeXlsx([{ name: 'entregas', rows: [head, ...rows] }]);
-  // fila: código, productor, producto, centro, fecha, cantidad, unidad, precisión, inicio, fin, orígenes, notas
-  const row = (o: Partial<Record<'code' | 'prod' | 'product' | 'center' | 'date' | 'qty' | 'unit' | 'prec' | 'start' | 'end' | 'origins' | 'notes', string>>) =>
-    [o.code ?? '', o.prod ?? '', o.product ?? '', o.center ?? '', o.date ?? '', o.qty ?? '', o.unit ?? '', o.prec ?? '', o.start ?? '', o.end ?? '', o.origins ?? '', o.notes ?? ''];
+  // fila: código, productor, producto, centro, fecha, cantidad, unidad, precisión, inicio, fin, orígenes, notas, referencia.
+  // Sin código, la fila lleva por omisión una referencia única (ref: '' la omite a propósito).
+  let refN = 0;
+  const row = (o: Partial<Record<'code' | 'prod' | 'product' | 'center' | 'date' | 'qty' | 'unit' | 'prec' | 'start' | 'end' | 'origins' | 'notes' | 'ref', string>>) =>
+    [o.code ?? '', o.prod ?? '', o.product ?? '', o.center ?? '', o.date ?? '', o.qty ?? '', o.unit ?? '', o.prec ?? '', o.start ?? '', o.end ?? '', o.origins ?? '', o.notes ?? '', o.ref ?? (o.code ? '' : `REF-${++refN}`)];
 
   async function join(admin: string, org: string, email: string, role: string) {
     const inv = await http().post(`${api(org)}/invitations`).set(as(admin)).send({ email, role_code: role }).expect(201);
@@ -70,8 +75,10 @@ describeDb('P0-026 importación Excel de entregas (PostgreSQL real)', () => {
     await join(ADMIN, orgA, 'recepcion@test.local', 'RECEPTION_OPERATOR');
     await join(ADMIN, orgA, 'tecnico@test.local', 'FIELD_TECHNICIAN');
     await join(ADMIN, orgA, ASIG, 'FIELD_TECHNICIAN');
+    await join(ADMIN, orgA, LEE, 'FIELD_TECHNICIAN');
     const uid = (await h.db.selectFrom('users').select('id').where('email', '=', ASIG).executeTakeFirstOrThrow()).id;
     fixtures.set(uid, FIX_ASIG);
+    fixtures.set((await h.db.selectFrom('users').select('id').where('email', '=', LEE).executeTakeFirstOrThrow()).id, FIX_LEE_TODO);
     const original = AuthorizationService.prototype.tenantContext;
     jest.spyOn(AuthorizationService.prototype, 'tenantContext').mockImplementation(async function (this: AuthorizationService, user, organizationId) {
       const ctx = await original.call(this, user, organizationId);
@@ -149,9 +156,10 @@ describeDb('P0-026 importación Excel de entregas (PostgreSQL real)', () => {
       row({ prod: 'PRD-1', qty: '100', unit: 'LB', notes: 'r9' }),
       row({ prod: 'PRD-1', qty: '1,5', unit: 'KG', notes: 'r10' }),
       row({ prod: 'PRD-1', date: '45930', notes: 'r11' }),
-      row({ prod: 'PRD-1', notes: 'gemela' }),
-      row({ prod: 'PRD-1', notes: 'gemela' }),
+      row({ prod: 'PRD-1', notes: 'gemela', ref: 'REF-GEMELA' }),
+      row({ prod: 'PRD-1', notes: 'otra', ref: 'REF-GEMELA' }),
       row({ prod: 'PRD-1', qty: '0', unit: 'KG', notes: 'r14' }),
+      row({ prod: 'PRD-1', notes: 'sin referencia', ref: '' }),
     ]));
     expect(errs(s.preview, 2)).toEqual(['PRODUCER_NOT_AVAILABLE']);
     expect(errs(s.preview, 3)).toEqual(['PRODUCER_INACTIVE']);
@@ -166,6 +174,7 @@ describeDb('P0-026 importación Excel de entregas (PostgreSQL real)', () => {
     expect(errs(s.preview, 12)).toEqual(['DUPLICATE_IN_FILE']);
     expect(errs(s.preview, 13)).toEqual(['DUPLICATE_IN_FILE']);
     expect(errs(s.preview, 14)).toEqual(['MUST_BE_POSITIVE']);
+    expect(errs(s.preview, 15)).toEqual(['REFERENCE_REQUIRED']); // sin identidad: se pide resolver, no se deduplica por contenido
     expect(s.preview.can_commit).toBe(false);
     await commit(ADMIN, orgA, s.id, s.preview.plan_hash).expect(422);
   });
@@ -189,9 +198,49 @@ describeDb('P0-026 importación Excel de entregas (PostgreSQL real)', () => {
     expect(audit[0].reason).toContain(s.id);
     // Reimportar el mismo archivo: la fila ya importada no se vuelve a crear.
     const again = await staged(ADMIN, orgA, file);
-    expect(again.preview.rows[0]).toMatchObject({ action: 'UNCHANGED', warnings: [expect.objectContaining({ code: 'ALREADY_IMPORTED' })] });
+    expect(again.preview.rows[0]).toMatchObject({ action: 'UNCHANGED', warnings: [expect.objectContaining({ code: 'REFERENCE_KNOWN' })] });
     expect((await commit(ADMIN, orgA, again.id, again.preview.plan_hash).expect(409)).body.error.code).toBe('NOTHING_TO_IMPORT');
     expect(await h.db.selectFrom('deliveries').select('id').where('notes', '=', 'Lote importado A').execute()).toHaveLength(1);
+  });
+
+  it('identidad: referencias distintas con contenido idéntico son dos entregas; la misma referencia no duplica y procedencia guardada', async () => {
+    const twins = book([row({ prod: 'PRD-1', qty: '50', unit: 'KG', notes: 'gemelas', ref: 'PLANILLA-7' }), row({ prod: 'PRD-1', qty: '50', unit: 'KG', notes: 'gemelas', ref: 'PLANILLA-8' })]);
+    const s = await staged(ADMIN, orgA, twins);
+    expect(s.preview.summary).toMatchObject({ create: 2, error: 0 });
+    await commit(ADMIN, orgA, s.id, s.preview.plan_hash).expect(201);
+    expect(await h.db.selectFrom('deliveries').select('id').where('organization_id', '=', orgA).where('notes', '=', 'gemelas').execute()).toHaveLength(2);
+    const refs = await h.db.selectFrom('import_references').select(['reference', 'origin', 'batch_id', 'row_number']).where('reference', 'in', ['PLANILLA-7', 'PLANILLA-8']).orderBy('reference').execute();
+    expect(refs).toEqual([{ reference: 'PLANILLA-7', origin: 'FILE_REFERENCE', batch_id: s.id, row_number: 2 }, { reference: 'PLANILLA-8', origin: 'FILE_REFERENCE', batch_id: s.id, row_number: 3 }]);
+    const again = await staged(ADMIN, orgA, twins);
+    expect(again.preview.summary).toMatchObject({ unchanged: 2, create: 0 });
+    // La misma referencia con un dato distinto actualiza ESE borrador (no crea otro).
+    const upd = await staged(ADMIN, orgA, book([row({ prod: 'PRD-1', qty: '55', unit: 'KG', notes: 'gemelas', ref: 'PLANILLA-8' })]));
+    expect(upd.preview.rows[0]).toMatchObject({ action: 'UPDATE', changed_fields: ['quantity_declared'] });
+    await commit(ADMIN, orgA, upd.id, upd.preview.plan_hash).expect(201);
+    expect(await h.db.selectFrom('deliveries').select('id').where('organization_id', '=', orgA).where('notes', '=', 'gemelas').execute()).toHaveLength(2);
+    await expect(sql`UPDATE import_references SET reference = 'X' WHERE reference = 'PLANILLA-7'`.execute(h.db)).rejects.toThrow(/append-only/);
+  });
+
+  it('identidad concurrente: la misma referencia en dos lotes → una entrega; referencias distintas → dos', async () => {
+    const same = book([row({ prod: 'PRD-1', notes: 'conc-ref', ref: 'CONC-1' })]);
+    const a = await staged(ADMIN, orgA, same);
+    const b = await staged(MANAGER, orgA, same);
+    const [ra, rb] = await Promise.all([commit(ADMIN, orgA, a.id, a.preview.plan_hash), commit(MANAGER, orgA, b.id, b.preview.plan_hash)]);
+    expect([ra.status, rb.status].sort()).toEqual([201, 409]);
+    expect(await h.db.selectFrom('deliveries').select('id').where('notes', '=', 'conc-ref').execute()).toHaveLength(1);
+    const c = await staged(ADMIN, orgA, book([row({ prod: 'PRD-1', notes: 'conc-dist', ref: 'CONC-2' })]));
+    const d = await staged(MANAGER, orgA, book([row({ prod: 'PRD-1', notes: 'conc-dist', ref: 'CONC-3' })]));
+    const [rc, rd] = await Promise.all([commit(ADMIN, orgA, c.id, c.preview.plan_hash), commit(MANAGER, orgA, d.id, d.preview.plan_hash)]);
+    expect([rc.status, rd.status]).toEqual([201, 201]);
+    expect(await h.db.selectFrom('deliveries').select('id').where('notes', '=', 'conc-dist').execute()).toHaveLength(2);
+  });
+
+  it('fixture de autorización: leer todas las entregas no concede editarlas; actualizar exige el alcance de escritura', async () => {
+    const base1 = (await http().post(`${api(orgA)}/deliveries`).set(as(ADMIN)).send({ operation_id: randomUUID(), producer_id: (await h.db.selectFrom('producers').select('id').where('producer_code', '=', 'PRD-1').executeTakeFirstOrThrow()).id, notes: 'de otro' }).expect(201)).body.delivery;
+    const s = await staged(LEE, orgA, book([[base1.delivery_code, 'cambio']], ['codigo_entrega', 'notas']), { A: 'delivery_code', B: 'notes' });
+    expect(errs(s.preview, 2)).toEqual(['PERMISSION_DENIED_UPDATE']);
+    const s2 = await staged(LEE, orgA, book([row({ prod: 'PRD-1', notes: 'alta de otro' })]));
+    expect(errs(s2.preview, 2)).toEqual(['PRODUCER_NOT_AVAILABLE']); // alta: productor no asignado
   });
 
   it('actualización de borrador por código: mapeo parcial, vacío no borra, #BORRAR quita, orígenes reemplazados; sin cambios no hay efectos', async () => {
