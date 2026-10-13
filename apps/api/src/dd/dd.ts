@@ -289,6 +289,26 @@ export class DdService {
     return { filename: `${s.case_number}-instantanea-${s.snapshot_number}-${e.kind === 'DD_PACKAGE' ? 'paquete' : 'borrador-interno'}.json`, body: built.body };
   }
 
+  /**
+   * P0-029: estado del paquete de diligencia de un lote para el preflight de embarque. Exige expediente, instantánea
+   * aprobada con readiness READY, vigente (sin cambios posteriores) y un DD_PACKAGE exportado de ella. Solo devuelve
+   * códigos y números: el contenido del expediente sigue exigiendo dd:read.
+   */
+  async packageForDispatch(db: Db, ctx: TenantContext, lotId: string): Promise<{ status: 'OK' | 'NO_CASE' | 'NOT_APPROVED' | 'NOT_READY' | 'STALE' | 'NO_PACKAGE'; case_number: string | null; snapshot_number: number | null; export_id: string | null }> {
+    const c = (await sql<{ id: string; case_number: string }>`SELECT id, case_number FROM dd_cases WHERE organization_id = ${ctx.organizationId} AND subject_id = ${lotId}`.execute(db)).rows[0];
+    if (!c) return { status: 'NO_CASE', case_number: null, snapshot_number: null, export_id: null };
+    const s = (await sql<{ id: string; snapshot_number: number; readiness: string }>`
+      SELECT s.id, s.snapshot_number, s.readiness FROM dd_snapshots s JOIN dd_reviews r ON r.snapshot_id = s.id AND r.action = 'APPROVE'
+      WHERE s.organization_id = ${ctx.organizationId} AND s.case_id = ${c.id} ORDER BY s.snapshot_number DESC LIMIT 1`.execute(db)).rows[0];
+    const base = { case_number: c.case_number, snapshot_number: s?.snapshot_number ?? null, export_id: null };
+    if (!s) return { status: 'NOT_APPROVED', ...base };
+    if (s.readiness !== 'READY') return { status: 'NOT_READY', ...base };
+    if (await this.isStale(db, ctx, s.id)) return { status: 'STALE', ...base };
+    const e = (await sql<{ id: string }>`SELECT id FROM dd_exports WHERE organization_id = ${ctx.organizationId} AND snapshot_id = ${s.id} AND kind = 'DD_PACKAGE' ORDER BY exported_at DESC LIMIT 1`.execute(db)).rows[0];
+    if (!e) return { status: 'NO_PACKAGE', ...base };
+    return { status: 'OK', ...base, export_id: e.id };
+  }
+
   private async isStale(db: Db, ctx: TenantContext, snapshotId: string) {
     return (await this.freshness(db, ctx, snapshotId)).status === 'STALE';
   }

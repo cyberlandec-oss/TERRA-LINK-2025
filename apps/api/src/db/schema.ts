@@ -527,7 +527,7 @@ export interface QualityResultsTable {
   recorded_by_membership_id: string; recorded_by: string; recorded_at: Generated<Timestamp>; operation_id: string;
 }
 export interface QualityMeasurementsTable { id: string; organization_id: string; result_id: string; parameter: 'MOISTURE' | 'FERMENTATION' | 'IMPURITIES'; value: string; unit: string }
-export interface GateEvaluationsTable { id: string; organization_id: string; entity_type: 'delivery' | 'reception' | 'quality_result' | 'process_run' | 'stock_movement'; entity_id: string; transition: string; release_version: string; allowed: boolean; result: unknown; evaluated_by: string; evaluated_at: Generated<Timestamp> }
+export interface GateEvaluationsTable { id: string; organization_id: string; entity_type: 'delivery' | 'reception' | 'quality_result' | 'process_run' | 'stock_movement' | 'shipment'; entity_id: string; transition: string; release_version: string; allowed: boolean; result: unknown; evaluated_by: string; evaluated_at: Generated<Timestamp> }
 
 // P0-016 Lotes y procesos
 export interface ProcessRunsTable {
@@ -548,6 +548,19 @@ export interface ProcessOutputsTable { id: string; organization_id: string; run_
 // P0-017 ledger
 export interface StockMovementsTable { id: string; organization_id: string; movement_type: string; source_type: string | null; source_id: string | null; operation_id: string | null; actor_id: string | null; reason: string | null; process_loss: string | null; reference: unknown; recorded_at: Generated<Timestamp> }
 export interface StockEntriesTable { id: string; organization_id: string; movement_id: string; reception_id: string | null; lot_id: string | null; location_id: string | null; bucket: 'PHYSICAL' | 'RESERVED'; signed_quantity: string; unit: string }
+
+// P0-029 embarques
+export interface BuyersTable { id: string; organization_id: string; code: string; name: string; country: string; status: Generated<'ACTIVE' | 'INACTIVE'>; created_by: string; operation_id: string; row_version: Generated<string>; created_at: Generated<Timestamp> }
+export interface ShipmentsTable {
+  id: string; organization_id: string; shipment_code: string; status: 'DRAFT' | 'DISPATCHED' | 'CANCELLED'; buyer_id: string; destination_country: string; destination_place: string | null; origin_location_id: string;
+  notes: string | null; dd_package_export_id: string | null; dispatch_at: Timestamp | null; dispatched_by: string | null; dispatch_operation_id: string | null; cancel_reason: string | null;
+  created_by: string; operation_id: string; row_version: Generated<string>; created_at: Generated<Timestamp>;
+}
+export interface ShipmentItemsTable { id: string; organization_id: string; shipment_id: string; lot_id: string; quantity: string; unit: string; created_by: string; created_at: Generated<Timestamp> }
+export interface ShipmentReservationsTable {
+  id: string; organization_id: string; shipment_id: string; item_id: string; lot_id: string; location_id: string; quantity: string; unit: string; status: 'ACTIVE' | 'RELEASED' | 'CONSUMED';
+  reserve_movement_id: string; end_movement_id: string | null; release_reason: string | null; created_by: string; created_at: Generated<Timestamp>; ended_at: Timestamp | null; operation_id: string;
+}
 
 // P0-020 riesgo
 export interface RiskEvaluationsTable {
@@ -691,6 +704,10 @@ export interface Database {
   gate_evaluations: GateEvaluationsTable;
   process_runs: ProcessRunsTable;
   lots: LotsTable;
+  buyers: BuyersTable;
+  shipments: ShipmentsTable;
+  shipment_items: ShipmentItemsTable;
+  shipment_reservations: ShipmentReservationsTable;
   lot_inputs: LotInputsTable;
   lot_input_releases: LotInputReleasesTable;
   process_inputs: ProcessInputsTable;

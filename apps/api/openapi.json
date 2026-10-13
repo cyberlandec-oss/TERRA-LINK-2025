@@ -7260,6 +7260,526 @@
           "work"
         ]
       }
+    },
+    "/api/v1/organizations/{orgId}/buyers": {
+      "get": {
+        "operationId": "ShipmentsController_buyers",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "shipments"
+        ]
+      },
+      "post": {
+        "operationId": "ShipmentsController_createBuyer",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBuyerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "shipments"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/shipments/options": {
+      "get": {
+        "operationId": "ShipmentsController_options",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "shipments"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/shipments": {
+      "get": {
+        "operationId": "ShipmentsController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "shipments"
+        ]
+      },
+      "post": {
+        "operationId": "ShipmentsController_create",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateShipmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "shipments"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/shipments/{id}": {
+      "get": {
+        "operationId": "ShipmentsController_detail",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "shipments"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/shipments/{id}/items": {
+      "post": {
+        "operationId": "ShipmentsController_addItem",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShipmentAddItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "shipments"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/shipments/{id}/items/{itemId}/remove": {
+      "post": {
+        "operationId": "ShipmentsController_removeItem",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShipmentVersionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "shipments"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/shipments/{id}/reserve": {
+      "post": {
+        "operationId": "ShipmentsController_reserve",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShipmentReserveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "shipments"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/shipments/{id}/reservations/{reservationId}/release": {
+      "post": {
+        "operationId": "ShipmentsController_release",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "reservationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShipmentReleaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "shipments"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/shipments/{id}/preflight": {
+      "get": {
+        "operationId": "ShipmentsController_preflight",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "shipments"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/shipments/{id}/dispatch": {
+      "post": {
+        "operationId": "ShipmentsController_dispatch",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShipmentDispatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "shipments"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/shipments/{id}/cancel": {
+      "post": {
+        "operationId": "ShipmentsController_cancel",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShipmentCancelDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "shipments"
+        ]
+      }
     }
   },
   "info": {
@@ -9100,6 +9620,160 @@
         "required": [
           "operation_id",
           "plan_hash"
+        ]
+      },
+      "CreateBuyerDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "example": "IMP-EU-01"
+          },
+          "name": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string",
+            "description": "País ISO 3166-1 alfa-2 declarado"
+          }
+        },
+        "required": [
+          "operation_id",
+          "code",
+          "name",
+          "country"
+        ]
+      },
+      "CreateShipmentDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "buyer_id": {
+            "type": "string"
+          },
+          "destination_country": {
+            "type": "string",
+            "description": "País de destino ISO 3166-1 alfa-2 (declarado)"
+          },
+          "destination_place": {
+            "type": "string",
+            "description": "Puerto o lugar de destino declarado"
+          },
+          "origin_location_id": {
+            "type": "string",
+            "description": "Centro de salida: las reservas se hacen sobre el disponible de este centro"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "buyer_id",
+          "destination_country",
+          "origin_location_id"
+        ]
+      },
+      "ShipmentAddItemDto": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "number"
+          },
+          "lot_id": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "KG, texto decimal"
+          }
+        },
+        "required": [
+          "expected_version",
+          "lot_id",
+          "quantity"
+        ]
+      },
+      "ShipmentVersionDto": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "expected_version"
+        ]
+      },
+      "ShipmentReserveDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "description": "Idempotencia: repetir con el mismo identificador no reserva dos veces"
+          },
+          "item_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "item_id"
+        ]
+      },
+      "ShipmentReleaseDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "reason"
+        ]
+      },
+      "ShipmentDispatchDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "description": "Idempotencia: repetir con el mismo identificador no despacha dos veces"
+          },
+          "expected_version": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "operation_id",
+          "expected_version"
+        ]
+      },
+      "ShipmentCancelDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "expected_version": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "expected_version",
+          "reason"
         ]
       }
     }

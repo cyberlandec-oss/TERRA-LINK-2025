@@ -8,6 +8,7 @@ import { useWorkspace } from '../../../../../lib/workspace';
 import { Alert, Breadcrumb, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../../lib/ui';
 import { ErrorDetails } from '../../../../../lib/deliveries';
 import { EFFECT, RUN_TYPE, kg, type Lot } from '../../../../../lib/lots';
+import { SHIPMENT_EFFECT } from '../../../../../lib/shipments';
 import { EvidenceSection, RiskDdSection } from '../../../../../lib/lot-hub';
 
 // Lot Hub (UX_UI §15.1; P0-027): resumen, operación, origen y trazabilidad, evidencias, riesgo y debida diligencia e historia.
@@ -47,7 +48,7 @@ export default function LotDetailPage() {
           <dt>Existencia física</dt><dd>{kg(l.quantities.physical)}</dd>
           <dt>Reservado</dt><dd>{kg(l.quantities.reserved)}</dd>
           <dt>Disponible</dt><dd><strong>{kg(l.quantities.available)}</strong><div className="field-help">{l.quantities.note}</div></dd>
-          <dt>Formado o producido</dt><dd>{kg(l.quantities.base)} <span className="muted">· consumido por procesos {kg(l.quantities.consumed)}</span></dd>
+          <dt>Formado o producido</dt><dd>{kg(l.quantities.base)} <span className="muted">· consumido por procesos {kg(l.quantities.consumed)}{l.quantities.dispatched && l.quantities.dispatched !== '0' ? ` · despachado ${kg(l.quantities.dispatched)}` : ''}</span></dd>
           <dt>Por centro</dt><dd>{l.quantities.by_location.length === 0 ? <span className="muted">sin existencia</span> : <ul className="plain" aria-label="Existencia por centro">{l.quantities.by_location.map((b) => <li key={b.location_id ?? 'pend'}>{b.pending_location ? <StatusBadge tone="review">Pendiente de asignación</StatusBadge> : b.location}: {kg(b.physical)} (reservado {kg(b.reserved)})</li>)}</ul>}</dd>
         </dl>
       </section>
@@ -85,12 +86,16 @@ export default function LotDetailPage() {
         <p className="field-help">{l.upstream.note}</p>
         <h3>Hacia adelante</h3>
         {l.downstream.length === 0 ? <p className="muted">Sin salidas.</p> : <ul className="plain" aria-label="Destino hacia adelante">{l.downstream.map((d) => <li key={d.lot_id}>{'↳ '.repeat(d.depth)}<Link href={`/organizaciones/${orgId}/lotes/${d.lot_id}`}>{d.lot_code}</Link> · vía {d.via_run}</li>)}</ul>}
+        <h3>Embarques</h3>
+        {l.shipments == null ? <p className="muted">Tu rol no permite consultar embarques.</p>
+          : l.shipments.length === 0 ? <p className="muted">El lote no está en ningún embarque.</p>
+            : <ul className="plain" aria-label="Embarques del lote">{l.shipments.map((s) => <li key={s.shipment_id}><Link href={`/organizaciones/${orgId}/embarques/${s.shipment_id}`}>{s.shipment_code}</Link> · {s.buyer_code} → {s.destination_country} · {kg(s.quantity.value)} · {SHIPMENT_EFFECT[s.effect]}</li>)}</ul>}
       </section>
       <EvidenceSection orgId={orgId} can={ws.can}
         plots={[...new Map(l.upstream.receptions.flatMap((r) => r.plot_links ?? []).map((p) => [p.id, p])).values()]}
         producers={[...new Map(l.upstream.receptions.filter((r) => r.producer_id).map((r) => [r.producer_id!, { id: r.producer_id!, code: r.producer_code }])).values()]} />
       <RiskDdSection orgId={orgId} lotId={l.id} can={ws.can} />
-      <Alert tone="info">Existencia, calidad y origen son dimensiones separadas: tener existencia no significa calidad liberada ni origen completo. Movimientos en <Link href={`/organizaciones/${orgId}/inventario`}>Inventario</Link>; reserva y despacho para embarques llegan con P0-029.</Alert>
+      <Alert tone="info">Existencia, calidad y origen son dimensiones separadas: tener existencia no significa calidad liberada ni origen completo. Movimientos en <Link href={`/organizaciones/${orgId}/inventario`}>Inventario</Link>.</Alert>
       <section className="card" aria-labelledby="lt-hist">
         <h2 id="lt-hist">Historia</h2>
         <ol className="plain" aria-label="Historia del lote">{l.history.map((h) => <li key={h.version}><strong>{h.event_type}</strong> <span className="muted">· {h.actor} · {new Date(h.occurred_at).toLocaleString('es-EC')}</span></li>)}</ol>

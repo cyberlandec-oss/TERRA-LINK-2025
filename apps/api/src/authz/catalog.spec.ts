@@ -25,7 +25,7 @@ describe('catálogo RBAC', () => {
   });
 
   it('une permisos de varios roles sin duplicados y desconoce roles no catalogados', () => {
-    expect(permissionsForRoles(['TRACEABILITY_MANAGER', 'AUDITOR', 'INVENTED'])).toEqual(['audit:export', 'audit:read', 'dd:read', 'delivery:read', 'document:read', 'evidence:read', 'location:read', 'lot:create', 'lot:read', 'lot:release_input', 'mitigation:contribute', 'mitigation:read', 'organization:read', 'plot:evaluate_gis', 'plot:read', 'plot:read_geometry', 'process:close', 'process:manage', 'producer:read', 'product:read', 'risk:read', 'stock:move', 'stock:read', 'traceability:read_catalog']);
+    expect(permissionsForRoles(['TRACEABILITY_MANAGER', 'AUDITOR', 'INVENTED'])).toEqual(['audit:export', 'audit:read', 'dd:read', 'delivery:read', 'document:read', 'evidence:read', 'location:read', 'lot:create', 'lot:read', 'lot:release_input', 'mitigation:contribute', 'mitigation:read', 'organization:read', 'plot:evaluate_gis', 'plot:read', 'plot:read_geometry', 'process:close', 'process:manage', 'producer:read', 'product:read', 'risk:read', 'shipment:read', 'stock:move', 'stock:read', 'traceability:read_catalog']);
   });
 
   it('anti-escalamiento: solo se conceden roles cuyos permisos posee el actor', () => {

@@ -186,6 +186,11 @@ export class KdeService {
         rows = entity === 'lot'
           ? (await sql<{ id: string; active: boolean }>`SELECT id, TRUE AS active FROM lots WHERE organization_id = ${org} AND id = ANY(${ids})`.execute(dbh)).rows
           : (await sql<{ id: string; active: boolean }>`SELECT id, status <> 'CANCELLED' AS active FROM process_runs WHERE organization_id = ${org} AND id = ANY(${ids})`.execute(dbh)).rows;
+      } else if (entity === 'buyer' || entity === 'shipment') {
+        if (!has('shipment:read')) return { found, inactive, verifiable: true };
+        rows = entity === 'buyer'
+          ? (await sql<{ id: string; active: boolean }>`SELECT id, status = 'ACTIVE' AS active FROM buyers WHERE organization_id = ${org} AND id = ANY(${ids})`.execute(dbh)).rows
+          : (await sql<{ id: string; active: boolean }>`SELECT id, status <> 'CANCELLED' AS active FROM shipments WHERE organization_id = ${org} AND id = ANY(${ids})`.execute(dbh)).rows;
       } else if (entity === 'location') {
         if (!has('location:read')) return { found, inactive, verifiable: true };
         rows = (await sql<{ id: string; active: boolean }>`SELECT id, status = 'ACTIVE' AS active FROM locations WHERE organization_id = ${org} AND id = ANY(${ids})`.execute(dbh)).rows;

@@ -38,6 +38,7 @@ import * as m0033 from './migrations/0033_declared_area_keeps_geometry';
 import * as m0034 from './migrations/0034_import_deliveries';
 import * as m0035 from './migrations/0035_import_references';
 import * as m0036 from './migrations/0036_import_lots';
+import * as m0037 from './migrations/0037_shipments';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -77,6 +78,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0034_import_deliveries': m0034,
   '0035_import_references': m0035,
   '0036_import_lots': m0036,
+  '0037_shipments': m0037,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

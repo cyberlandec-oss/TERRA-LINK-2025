@@ -96,7 +96,7 @@ describeDb('P0-017 ledger de inventario: única fuente, conservación y concurre
     const mv = await sql<{ process_loss: string; n: number }>`SELECT m.process_loss::text, (SELECT count(*)::int FROM stock_entries e WHERE e.movement_id = m.id) AS n FROM stock_movements m WHERE m.movement_type = 'PROCESS_CLOSE' AND m.source_id = ${run.id}`.execute(h.db);
     expect(mv.rows).toEqual([{ process_loss: '50.000000', n: 3 }]); // −800 reservado, −800 físico, +750 salida
     expect(b.lots.find((x: { lot_id: string }) => x.lot_id === out).quality.status).toBe('PENDING_EVALUATION'); // existencia ≠ calidad liberada
-    expect(b.reservations_for_shipments.status).toBe('NOT_IMPLEMENTED');
+    expect(b.reservations_for_shipments.status).toBe('IMPLEMENTED');
     // conciliación con procesamiento: consistente
     expect((await http().get(`${base(orgA)}/inventory/reconciliation`).set(as(ADMIN)).expect(200)).body).toMatchObject({ consistent: true, differences: [] });
   });

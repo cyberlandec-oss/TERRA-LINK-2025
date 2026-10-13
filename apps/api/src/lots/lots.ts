@@ -137,10 +137,11 @@ export class LotsService {
     const adj = (await sql<{ added: string; removed: string }>`
       SELECT coalesce(sum(e.signed_quantity) FILTER (WHERE e.signed_quantity > 0), 0)::text AS added, coalesce(-sum(e.signed_quantity) FILTER (WHERE e.signed_quantity < 0), 0)::text AS removed
       FROM stock_entries e JOIN stock_movements m ON m.id = e.movement_id WHERE e.lot_id = ${lotId} AND m.movement_type = 'ADJUSTMENT'`.execute(db)).rows[0];
+    const shipped = (await sql<{ n: string }>`SELECT coalesce(sum(quantity), 0)::text AS n FROM shipment_reservations WHERE lot_id = ${lotId} AND status = 'CONSUMED'`.execute(db)).rows[0].n;
     return {
       adjustments: { added: dec(adj.added)!, removed: dec(adj.removed)!, added_traceability: scaled(adj.added) > 0n ? 'PENDING' : null,
         note: scaled(adj.added) > 0n ? 'Cantidad añadida por ajuste: sin origen, evidencia ni calidad atribuidos (trazabilidad pendiente).' : null },
-      base: dec(q.base ?? '0')!, consumed: dec(q.consumed)!, physical: unscaled(sum('physical')), reserved: unscaled(sum('reserved')), available: unscaled(sum('available')),
+      base: dec(q.base ?? '0')!, consumed: dec(q.consumed)!, dispatched: dec(shipped)!, physical: unscaled(sum('physical')), reserved: unscaled(sum('reserved')), available: unscaled(sum('available')),
       by_location: rows.filter((b) => scaled(b.physical) !== 0n || scaled(b.reserved) !== 0n).map((b) => ({ location_id: b.location_id, location: b.location_id ? `${b.location_name} (${b.location_code})` : null,
         pending_location: b.location_id === null, physical: dec(b.physical)!, reserved: dec(b.reserved)!, available: dec(b.available)! })),
     };
@@ -574,7 +575,7 @@ export class LotsService {
         released: i.released_at ? { reason: i.released_reason, at: i.released_at } : null })),
       produced_by: run ? { run_id: run.id, run_code: run.run_code, process_type: run.process_type, quantity: { value: dec(l.output_quantity), unit: 'KG' } } : null,
       used_by: uses.rows.map((u) => ({ run_id: u.run_id, run_code: u.run_code, process_type: u.process_type, status: u.status, effect: u.status === 'RUNNING' ? 'RESERVED' : u.status === 'CLOSED' ? 'CONSUMED' : 'RELEASED', quantity: { value: dec(u.quantity), unit: 'KG' } })),
-      upstream: await this.upstream(db, ctx, id), downstream: await this.downstream(db, ctx, id),
+      upstream: await this.upstream(db, ctx, id), downstream: await this.downstream(db, ctx, id), shipments: await this.shipments(db, ctx, id),
       history: history.map((h) => ({ event_type: h.event_type, version: Number(h.aggregate_version), occurred_at: h.occurred_at, actor: `${h.first_name ?? ''} ${h.last_name ?? ''}`.trim() || 'Miembro' })),
       actions: { stock_move: this.has(ctx, 'stock:move'), stock_adjust: this.has(ctx, 'stock:adjust'), assign: l.status === 'OPEN' && l.source === 'RECEPTIONS' && this.has(ctx, 'lot:create'), release_input: this.has(ctx, 'lot:release_input'), close_for_input: l.status === 'OPEN' && this.has(ctx, 'lot:create') },
     };
@@ -610,6 +611,18 @@ export class LotsService {
         origin_known: r.plot_visible ? r.declared : null, quantity: { value: dec(r.quantity), unit: 'KG' } })),
       note: 'Cantidades registradas por enlace (aportado al proceso o asignado al lote). Cualquier reparto proporcional tras una mezcla es un cálculo, no identificación física.',
     };
+  }
+
+  /** Destino del lote (P0-029): embarques que lo incluyen, solo con shipment:read (si no, null: sin conteos). */
+  private async shipments(db: Db, ctx: TenantContext, lotId: string) {
+    if (!this.has(ctx, 'shipment:read')) return null;
+    const rows = (await sql<{ id: string; shipment_code: string; status: string; destination_country: string; buyer_code: string; quantity: string; reservation: string | null }>`
+      SELECT s.id, s.shipment_code, s.status, s.destination_country, b.code AS buyer_code, i.quantity::text,
+             (SELECT r.status FROM shipment_reservations r WHERE r.item_id = i.id AND r.status IN ('ACTIVE','CONSUMED') LIMIT 1) AS reservation
+      FROM shipment_items i JOIN shipments s ON s.id = i.shipment_id JOIN buyers b ON b.id = s.buyer_id
+      WHERE i.organization_id = ${ctx.organizationId} AND i.lot_id = ${lotId} ORDER BY s.created_at`.execute(db)).rows;
+    return rows.map((r) => ({ shipment_id: r.id, shipment_code: r.shipment_code, status: r.status, destination_country: r.destination_country, buyer_code: r.buyer_code,
+      quantity: { value: dec(r.quantity), unit: 'KG' }, effect: r.reservation === 'CONSUMED' ? 'DISPATCHED' : r.reservation === 'ACTIVE' ? 'RESERVED' : 'NONE' }));
   }
 
   private async downstream(db: Db, ctx: TenantContext, lotId: string) {

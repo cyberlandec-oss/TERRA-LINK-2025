@@ -57,6 +57,7 @@ const TYPE_LABEL: Record<string, string> = {
   RECEPTION_IN: 'Entrada por recepción', RECEPTION_CORRECTION: 'Corrección de peso de recepción', LOT_ASSIGN: 'Asignación a lote', LOT_RELEASE: 'Liberación de asignación',
   PROCESS_RESERVE: 'Reserva por proceso', PROCESS_RESERVE_RELEASE: 'Liberación de reserva (proceso cancelado)', PROCESS_CLOSE: 'Cierre de proceso (consumo y salida)',
   STOCK_LOSS: 'Merma', TRANSFER: 'Traslado', LOCATION_ASSIGN: 'Asignación de ubicación pendiente', ADJUSTMENT: 'Ajuste con motivo',
+  SHIPMENT_RESERVE: 'Reserva para embarque', SHIPMENT_RESERVE_RELEASE: 'Liberación de reserva de embarque', SHIPMENT_DISPATCH: 'Despacho de embarque (salida)',
 };
 
 @Injectable()
@@ -116,7 +117,7 @@ export class InventoryService {
       lots, receptions_without_lot: receptions,
       totals: { physical: total('physical'), reserved: total('reserved'), available: total('available'), unit: 'KG', scope: 'Lotes y recepciones visibles para tu rol' },
       pending_location: lots.filter((x) => x.pending_location).map((x) => x.lot_code),
-      reservations_for_shipments: { status: 'NOT_IMPLEMENTED', note: 'Reserva y despacho para embarques requieren embarques (docs/06 shipment_id); llegan con P0-029. Las reservas mostradas son de procesos.' },
+      reservations_for_shipments: { status: 'IMPLEMENTED', note: 'Lo reservado incluye procesos en curso y embarques (P0-029). El despacho está bloqueado mientras D-34 no defina sus condiciones.' },
       note: 'Existencia física, reservado y disponible salen del ledger. Reservar no reduce la existencia. Tener existencia no significa calidad liberada ni origen completo.',
     };
   }

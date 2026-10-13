@@ -200,3 +200,8 @@ y `adb logcat -s ReactNativeJS:V` (línea `TL_SELFTEST`). Evidencia: `docs/qa/EV
 - `node e2e/review/web-por-rol.mjs`: matriz de todas las combinaciones cuenta–organización–rol de `CREDENCIALES.csv` (menú, contexto, Mi trabajo, Lot Hub, denegaciones), filtros, teclado, 390 px, zoom 200 % y una acción real de Mi trabajo. Evidencia en `docs/qa/web-por-rol/`.
 - `node e2e/review/estados-web.mjs`: carga, error con reintento, vacío y sin permiso (intercepta la red solo en el navegador de prueba).
 - `node e2e/review/revision-por-rol.mjs` (heredada): sus comprobaciones de parcelas y productos ya no exigen conteos fijos del seed (la DEMO incluye registros importados y capturas del emulador).
+
+### Embarques (P0-029, 2026-10-12)
+
+- `npx jest --runInBand test/shipments.int-spec.ts` (desde `apps/api`): autorización, reservas concurrentes e idempotentes, preflight real bloqueado y mecánica de despacho con preflight sintético.
+- `node e2e/review/embarques-web.mjs`: flujo en navegador con datos DEMO (comprador, embarque, reserva, preflight bloqueado, cancelación), roles sin permiso, auditor y 390 px. Cancela al empezar los embarques de revisión que quedaran en preparación. Evidencia en `docs/qa/embarques/`.

@@ -2,7 +2,7 @@
 import type { GateItem } from './deliveries';
 
 export interface Qty { value: string; unit: string }
-export interface LotQuantities { base: string; reserved: string; consumed: string; available: string; physical: string; unit?: string; note?: string; by_location: Array<{ location_id: string | null; location: string | null; pending_location: boolean; physical: string; reserved: string; available: string }> }
+export interface LotQuantities { base: string; reserved: string; consumed: string; dispatched?: string; available: string; physical: string; unit?: string; note?: string; by_location: Array<{ location_id: string | null; location: string | null; pending_location: boolean; physical: string; reserved: string; available: string }> }
 export interface LotQuality { status: string; label: string; note: string }
 export interface LotRow { id: string; lot_code: string; source: string; status: string; origin_status: string; product_name: string; product_code: string; quantities: LotQuantities; quality: LotQuality }
 export interface Lot {
@@ -13,6 +13,7 @@ export interface Lot {
   used_by: Array<{ run_id: string; run_code: string; process_type: string; status: string; effect: 'RESERVED' | 'CONSUMED' | 'RELEASED'; quantity: Qty }>;
   upstream: { lots: Array<{ lot_id: string; lot_code: string; depth: number; contributed: Qty | null }>; receptions: Array<{ lot_id: string; delivery_id?: string; delivery_code: string; producer_code: string; producer_id?: string | null; producer_name: string | null; plots: string[]; plot_links?: Array<{ id: string; code: string }>; plots_restricted?: boolean; origin_known: boolean | null; quantity: Qty }>; note: string };
   downstream: Array<{ lot_id: string; lot_code: string; depth: number; via_run: string; contributed: Qty }>;
+  shipments?: Array<{ shipment_id: string; shipment_code: string; status: string; destination_country: string; buyer_code: string; quantity: Qty; effect: 'RESERVED' | 'DISPATCHED' | 'NONE' }> | null;
   history: Array<{ event_type: string; version: number; occurred_at: string; actor: string }>;
   actions: { assign: boolean; release_input: boolean; close_for_input: boolean };
 }

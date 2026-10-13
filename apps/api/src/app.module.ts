@@ -28,6 +28,7 @@ import { InventoryController, InventoryService } from './inventory/inventory';
 import { RiskController, RiskService } from './risk/risk';
 import { MitigationsController, MitigationsService } from './mitigations/mitigations';
 import { DdController, DdService } from './dd/dd';
+import { ShipmentsController, ShipmentsService } from './shipments/shipments';
 import { SyncController, SyncService } from './sync/sync';
 import { ImportsController, ImportsService } from './imports/imports';
 import { MyWorkController, MyWorkService } from './work/my-work';
@@ -194,7 +195,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
-        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController, KdeController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController,
+        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController, KdeController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, ShipmentsController,
       ],
       providers: [
         { provide: APP_CONFIG, useValue: config },
@@ -238,6 +239,7 @@ export class AppModule implements NestModule {
         RiskService,
         MitigationsService,
         DdService,
+        ShipmentsService,
         SyncService,
         ImportsService,
         MyWorkService,

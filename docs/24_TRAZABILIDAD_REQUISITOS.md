@@ -16,7 +16,7 @@ Referencias S1–S4 y secciones corresponden a los originales conservados en `so
 | S1 §§61–63; S3 §§15–16 | RF-26 | P0-026 | 06/09/14 | QA-03 · `test/imports.int-spec.ts` (11), `imports-products` (11), `imports-plots` (13), `imports-deliveries` (14), `imports-lots` (10), `imports-authz-fixtures` (3), `src/imports/xlsx.spec.ts` (7), `e2e/review/importaciones*.mjs`; DONE_LOCAL |
 | S1 §§64–69; S4 §§1–24 | RF-27, RNF-09 | P0-027; P1-003 | 14 | QA-14 · `test/my-work.int-spec.ts` (6), `e2e/review/web-por-rol.mjs` (22 combinaciones), `e2e/review/estados-web.mjs`; P0-027 DONE_LOCAL |
 | S1 §§39–41, 54, 95; S2 §§4–9 | RF-28 | P0-028 | 10/13/15 | QA-15 |
-| S1 §§27–29, 44; S4 §16 | RF-29 | P0-029 | 05/06/13/14 | QA-06/12 |
+| S1 §§27–29, 44; S4 §16 | RF-29 | P0-029 | 05/06/13/14 | QA-06/12 · `test/shipments.int-spec.ts` (6), `e2e/review/embarques-web.mjs`; P0-029 ABIERTA (despacho bloqueado por D-34) |
 | S1 §§60, 97 | RF-30 | P0-030 | 09/17 | QA-13/14 |
 | S1 §§75–81, 98–99 | RF-31, RNF-05/06/10/12 | P0-031; TECH-001 | 16/17/19/20 | QA-16/17 |
 | S2 §§18–20, 24; S3 §§22, 38; S4 §17 | RF-32–33 | P1-001–002 | 07/14/15 | QA-02/14 |

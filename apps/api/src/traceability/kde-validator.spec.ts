@@ -15,7 +15,7 @@ const DEFS: KdeDef[] = [
   D('F_REASON', { value_type: 'TEXT', requirement: 'CONDITIONAL', condition: { kind: 'quantities_differ', a: 'F_WEIGHT', b: 'F_DECLARED' }, validation: { max_length: 50 } }),
   D('F_UNDEFINED', { value_type: 'DATE', requirement: 'CONDITIONAL', condition: { kind: 'undefined_in_contract', note: 'fixture' } }),
   D('F_PRODUCT', { value_type: 'ENTITY_REF', validation: { entity: 'product' } }),
-  D('F_LOT', { value_type: 'ENTITY_REF', requirement: 'OPTIONAL', validation: { entity: 'shipment' } }), // entidad aún no disponible (P0-029); «lot» ya es verificable (P0-016)
+  D('F_LOT', { value_type: 'ENTITY_REF', requirement: 'OPTIONAL', validation: { entity: 'counterparty' } }), // entidad aún no disponible (D-33); «lot» ya es verificable (P0-016)
 ];
 const ALL = new Map(DEFS.map((d) => [d.code, d]));
 const OK_ID = '11111111-1111-4111-8111-111111111111';

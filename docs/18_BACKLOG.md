@@ -144,6 +144,7 @@ Aceptación: adapter/job, contrato real y coste, credenciales protegidas, datase
 ### P0-029 — Movimientos y embarque
 Depende P0-017/022. Como exportación, necesito despacho consistente.
 Aceptación: ubicaciones/contraparte/ítems, reserva y saldo concurrentes, preflight/calidad/evidencia/DD, despacho idempotente y grafo destino; sin saltar bloqueos. RF-29; QA-06/12.
+Estado (2026-10-12): **ABIERTA**. Implementado y probado localmente: comprador y destino declarados, ítems por lote, reserva en el ledger (idempotente, concurrente, sin saldo negativo), liberar/cancelar, preflight completo y destino en el Lot Hub. **Despacho NO demostrado**: bloqueado por D-34 (condición de `dd_package_id`/`dispatch_at`), por la falta de una instantánea DD READY y por calidad pendiente; su mecánica (consumo único, idempotencia) se probó solo con un preflight sintético. Ver `docs/decisiones/P0-029-EMBARQUES.md`.
 
 ### P0-030 — Reportes e indicadores
 Depende dominios reportados y P0-025. Como gerente, necesito cifras demostrables.
