@@ -82,6 +82,9 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     if (ws.can('risk:read')) trazabilidad.push({ href: `${base}/riesgo`, label: 'Riesgo', match: (p) => p.startsWith(`${base}/riesgo`) });
     if (ws.can('mitigation:read')) trazabilidad.push({ href: `${base}/mitigaciones`, label: 'Mitigaciones', match: (p) => p.startsWith(`${base}/mitigaciones`) });
     if (ws.can('dd:read')) trazabilidad.push({ href: `${base}/diligencia`, label: 'Debida diligencia', match: (p) => p.startsWith(`${base}/diligencia`) });
+    // P0-030: `report:read` abre la pantalla de indicadores; cada indicador exige además el permiso de su dominio,
+    // que aplica la API. Estar en el menú no concede lectura de riesgo, parcelas ni identidad.
+    if (ws.can('report:read')) trazabilidad.push({ href: `${base}/reportes`, label: 'Reportes', match: (p) => p.startsWith(`${base}/reportes`) });
     if (trazabilidad.length) groups.push({ title: 'Trazabilidad', items: trazabilidad });
     const admin: NavItem[] = [];
     const onboardingOnly = ws.isPlatformAdmin && !ws.activePerms;

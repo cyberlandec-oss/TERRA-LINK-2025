@@ -149,6 +149,7 @@ Estado (2026-10-14): **ABIERTA**, con `npm run validate` **APROBADA** sobre `ad0
 ### P0-030 — Reportes e indicadores
 Depende dominios reportados y P0-025. Como gerente, necesito cifras demostrables.
 Aceptación: filtro tenant/periodo, denominador/definición, datos reales, export autorizado con snapshot y audit; reporte no filtra PII ni confunde readiness con conformidad. RF-30; QA-13/14.
+Estado (2026-10-14): **DONE_LOCAL para S1 §60** (los 11 KPI desde consultas reales, con definición, unidad, fecha usada, numerador y denominador; período solo sobre actividad; `NOT_CALCULABLE` con motivo donde la capacidad no existe; permiso por dominio; exportación CSV con hash y auditoría). **Fuera de alcance declarado**: los reportes por entidad y la exportación GeoJSON de S1 §97, que el propio sprint sitúa aparte y que dependen de `plot:read_geometry` y D-05. Ver `docs/decisiones/P0-030-REPORTES.md`.
 
 ### P0-031 — Piloto y operación reproducible
 Depende P0-001–030 aplicables. Como cliente piloto, necesito operar la cadena sin intervención de desarrollador.

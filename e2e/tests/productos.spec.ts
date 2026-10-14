@@ -556,3 +556,69 @@ test('P0-022 expediente: requisitos bloqueados explicados, borrador interno desc
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });
+
+test('P0-030 reportes: indicadores con definición y denominador; no calculable no es cero; filtros en la URL; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  await page.goto(`${orgUrl}/reportes`);
+  const table = page.getByRole('table', { name: 'Indicadores' });
+  await expect(table).toBeVisible();
+  // Los 11 KPI de S1 §60, ni uno más ni uno menos.
+  await expect(table.locator('tbody tr')).toHaveCount(11);
+  // Lo que se puede calcular, se calcula: esta organización tiene productores y parcelas de las pruebas anteriores.
+  const productores = table.locator('tbody tr', { hasText: 'producers_total' });
+  await expect(productores).toContainText('Estado actual');
+  await expect(productores).toContainText(/no se filtra por .created_at./i);
+  // Lo que no es evaluable NO sale como cero: sale «No calculable» y explica por qué.
+  const gis = table.locator('tbody tr', { hasText: 'plots_valid' });
+  await expect(gis).toContainText('No calculable');
+  await expect(gis).toContainText('D-05');
+  await expect(gis).not.toContainText(/^0$/);
+  const riesgo = table.locator('tbody tr', { hasText: 'risk_high' });
+  await expect(riesgo).toContainText('No calculable');
+  await expect(riesgo).toContainText('NOT_ASSESSED');
+  // La entrega usa la fecha declarada, y se dice en pantalla.
+  await expect(table.locator('tbody tr', { hasText: 'deliveries_total' })).toContainText('delivery_date');
+  // Interpretación y laguna histórica declaradas, no implícitas.
+  await expect(page.getByText(/Readiness no es conformidad/)).toBeVisible();
+  await expect(page.getByText(/Reserva no es despacho/)).toBeVisible();
+  await expect(page.getByText(/Laguna histórica desde 2026-10-13/)).toBeVisible();
+  await expect(page.getByText(/no contiene datos personales ni coordenadas/)).toBeVisible();
+  // Período solo con teclado; el filtro queda en la URL y se conserva al volver de otra pantalla.
+  await page.getByLabel('Desde').fill('2026-09-01');
+  await page.getByLabel('Hasta').fill('2026-09-30');
+  await page.getByRole('button', { name: 'Aplicar período' }).press('Enter');
+  await expect(page).toHaveURL(/desde=2026-09-01/);
+  await expect(page).toHaveURL(/hasta=2026-09-30/);
+  const conPeriodo = page.url();
+  await page.goto(`${orgUrl}/lotes`);
+  await page.goto(conPeriodo); // volver con el período en la URL lo restituye en el formulario
+  await expect(page.getByLabel('Desde')).toHaveValue('2026-09-01');
+  await expect(page.getByLabel('Hasta')).toHaveValue('2026-09-30');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  // Zoom 200 % con la convención del proyecto (1280 px a 640 px CSS; e2e/review/web-por-rol.mjs).
+  await page.setViewportSize({ width: 640, height: 430 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await ctx.close();
+});
+
+test('P0-030 reportes: sin permiso no hay menú ni acceso; la exportación exige su propio permiso', async ({ browser }) => {
+  // El comprador no tiene report:read: ni enlace ni acceso directo.
+  const bctx = await browser.newContext();
+  const bp = await bctx.newPage();
+  await bp.goto('/');
+  await bp.getByLabel('Correo').fill(BUYER.email);
+  await bp.getByLabel('Contraseña', { exact: true }).fill(BUYER.password);
+  await bp.getByRole('button', { name: 'Iniciar sesión' }).click();
+  await expect(bp.getByRole('heading', { level: 1, name: /organizaciones/i })).toBeVisible();
+  await bp.goto(`${orgUrl}/reportes`);
+  await expect(bp.getByText(/Tu rol no permite consultar los indicadores/)).toBeVisible();
+  await expect(bp.getByRole('link', { name: 'Reportes' })).toHaveCount(0);
+  await bctx.close();
+  // El administrador sí exporta, y la pantalla declara que la descarga se revalida y queda auditada.
+  const { ctx, page } = await open(browser);
+  await page.goto(`${orgUrl}/reportes`);
+  await expect(page.getByText(/vuelve a comprobar tu permiso y queda registrada en la auditoría/)).toBeVisible();
+  await expect(page.getByText(/No genera enlaces públicos/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Exportar CSV' })).toBeEnabled();
+  await ctx.close();
+});

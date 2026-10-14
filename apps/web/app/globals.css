@@ -172,6 +172,8 @@ table { width: 100%; border-collapse: collapse; font-size: 15px; }
 th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--tl-border-subtle); vertical-align: top; }
 th { background: var(--tl-surface-subtle); font-size: 14px; font-weight: 600; color: var(--tl-text); }
 tr:last-child td { border-bottom: 0; }
+/* Identificadores y rutas largas (códigos CTE, rutas de documento) no deben forzar desplazamiento horizontal. */
+code { overflow-wrap: anywhere; }
 ul.plain { list-style: none; padding: 0; margin: 0; }
 ul.plain > li { padding: var(--tl-space-3) 0; border-bottom: 1px solid var(--tl-border-subtle); }
 ul.plain > li:last-child { border-bottom: 0; }

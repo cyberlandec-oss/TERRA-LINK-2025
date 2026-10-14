@@ -1,6 +1,6 @@
 // Catálogo RBAC versionado (docs/07_RBAC_Y_GOBERNANZA.md). Se amplía por historia; no inferir
 // privilegios comparando nombres de rol fuera de este módulo.
-export const RBAC_CATALOG_VERSION = '2026-10-12.21';
+export const RBAC_CATALOG_VERSION = '2026-10-14.22';
 
 export type Permission =
   | 'organization:read'
@@ -75,6 +75,11 @@ export type Permission =
   | 'process:close'
   // P0-017 (docs/07 «stock: read, adjust, …»; propuesta en docs/decisiones/P0-017-EFECTOS-LEDGER.md): saldos y movimientos;
   // merma, traslado y asignación de ubicación; ajuste con motivo; incorporación/conciliación. Reserva y despacho: P0-029.
+  // P0-030 (S1 §60; docs/decisiones/P0-030-REPORTES.md): `report:read` abre la pantalla de indicadores, NO los datos.
+  // Cada indicador exige además el permiso de su dominio (producer/plot/delivery/lot/evidence/risk/dd:read); sin él sale
+  // RESTRICTED, sin valor ni conteo. `report:export` es un permiso aparte, revalidado al descargar.
+  | 'report:read'
+  | 'report:export'
   | 'stock:read'
   | 'stock:move'
   | 'stock:adjust'
@@ -135,17 +140,17 @@ const PLOT_ALL: Permission[] = [
 // Permisos de productor: propuesta provisional derivada de S1 §9 (FIELD_TECHNICIAN producer:create/read)
 // y doc 07/14 («solo asignaciones» para el técnico). Pendiente de ratificación con el resto de la matriz.
 export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  ORG_ADMIN: ['audit:read', 'audit:export', 'organization:read', 'organization:update', 'membership:read', 'membership:assign', ...PRODUCER_ALL, ...PLOT_ALL, 'product:read', 'traceability:read_catalog', 'product:manage', 'events:reprocess', 'document:read', 'document:upload', 'document:review', 'evidence:read', 'evidence:link', 'evidence:verify', 'delivery:read', 'delivery:read_assigned', 'delivery:create', 'delivery:create_assigned', 'delivery:correct', 'reception:confirm', 'reception:correct', 'location:read', 'location:manage', 'quality:record', 'quality:decide', 'lot:read', 'lot:create', 'lot:release_input', 'process:manage', 'process:close', 'stock:read', 'stock:move', 'stock:adjust', 'stock:incorporate', 'risk:read', 'risk:evaluate', 'risk:review', 'mitigation:read', 'mitigation:manage', 'mitigation:contribute', 'mitigation:verify', 'dd:read', 'dd:manage', 'dd:approve_package', 'dd:export_package', 'sync:use', 'device:manage', 'import:manage', 'shipment:read', 'shipment:manage', 'stock:reserve', 'shipment:dispatch'],
-  MANAGER: [...ALL_MEMBER_READ, 'membership:read', 'producer:read', 'producer:read_identity', 'producer:create', 'producer:update', 'producer:assign', 'producer:archive', 'producer:review_duplicates', 'plot:read', 'plot:create', 'plot:update', 'plot:archive', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'evidence:read', 'evidence:link', 'delivery:read', 'delivery:create', 'delivery:correct', 'reception:confirm', 'location:read', 'lot:read', 'lot:create', 'stock:read', 'sync:use', 'import:manage'],
+  ORG_ADMIN: ['audit:read', 'audit:export', 'organization:read', 'organization:update', 'membership:read', 'membership:assign', ...PRODUCER_ALL, ...PLOT_ALL, 'product:read', 'traceability:read_catalog', 'product:manage', 'events:reprocess', 'document:read', 'document:upload', 'document:review', 'evidence:read', 'evidence:link', 'evidence:verify', 'delivery:read', 'delivery:read_assigned', 'delivery:create', 'delivery:create_assigned', 'delivery:correct', 'reception:confirm', 'reception:correct', 'location:read', 'location:manage', 'quality:record', 'quality:decide', 'lot:read', 'lot:create', 'lot:release_input', 'process:manage', 'process:close', 'stock:read', 'stock:move', 'stock:adjust', 'stock:incorporate', 'risk:read', 'risk:evaluate', 'risk:review', 'mitigation:read', 'mitigation:manage', 'mitigation:contribute', 'mitigation:verify', 'dd:read', 'dd:manage', 'dd:approve_package', 'dd:export_package', 'sync:use', 'device:manage', 'import:manage', 'shipment:read', 'shipment:manage', 'stock:reserve', 'shipment:dispatch', 'report:read', 'report:export'],
+  MANAGER: [...ALL_MEMBER_READ, 'membership:read', 'producer:read', 'producer:read_identity', 'producer:create', 'producer:update', 'producer:assign', 'producer:archive', 'producer:review_duplicates', 'plot:read', 'plot:create', 'plot:update', 'plot:archive', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'evidence:read', 'evidence:link', 'delivery:read', 'delivery:create', 'delivery:correct', 'reception:confirm', 'location:read', 'lot:read', 'lot:create', 'stock:read', 'sync:use', 'import:manage', 'report:read'],
   FIELD_TECHNICIAN: [...ALL_MEMBER_READ, 'producer:read_assigned', 'producer:read_identity', 'producer:create', 'producer:update_assigned',
     'plot:read_assigned', 'plot:create_assigned', 'plot:update_assigned', 'plot:read_geometry', 'plot:evaluate_gis_assigned', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'evidence:read', 'evidence:link', 'delivery:read_assigned', 'delivery:create_assigned', 'location:read', 'sync:use'],
   RECEPTION_OPERATOR: [...ALL_MEMBER_READ, 'product:read', 'traceability:read_catalog', 'delivery:read', 'delivery:create', 'reception:confirm', 'reception:correct', 'location:read', 'quality:record', 'lot:read', 'lot:create', 'stock:read'],
   QUALITY_OPERATOR: [...ALL_MEMBER_READ, 'product:read', 'traceability:read_catalog', 'delivery:read', 'location:read', 'quality:record', 'quality:decide', 'lot:read', 'stock:read'],
-  TRACEABILITY_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'evidence:read', 'delivery:read', 'location:read', 'lot:read', 'lot:create', 'lot:release_input', 'process:manage', 'process:close', 'stock:read', 'stock:move', 'risk:read', 'mitigation:read', 'mitigation:contribute', 'shipment:read'],
-  EUDR_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'producer:read_identity', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'document:review', 'evidence:read', 'evidence:link', 'evidence:verify', 'delivery:read', 'location:read', 'lot:read', 'stock:read', 'risk:read', 'risk:evaluate', 'risk:review', 'mitigation:read', 'mitigation:manage', 'mitigation:contribute', 'mitigation:verify', 'dd:read', 'dd:manage', 'dd:approve_package', 'dd:export_package', 'shipment:read'],
-  EXPORT_MANAGER: [...ALL_MEMBER_READ, 'product:read', 'traceability:read_catalog', 'location:read', 'lot:read', 'stock:read', 'shipment:read', 'shipment:manage', 'stock:reserve', 'shipment:dispatch'],
+  TRACEABILITY_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'evidence:read', 'delivery:read', 'location:read', 'lot:read', 'lot:create', 'lot:release_input', 'process:manage', 'process:close', 'stock:read', 'stock:move', 'risk:read', 'mitigation:read', 'mitigation:contribute', 'shipment:read', 'report:read'],
+  EUDR_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'producer:read_identity', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'document:review', 'evidence:read', 'evidence:link', 'evidence:verify', 'delivery:read', 'location:read', 'lot:read', 'stock:read', 'risk:read', 'risk:evaluate', 'risk:review', 'mitigation:read', 'mitigation:manage', 'mitigation:contribute', 'mitigation:verify', 'dd:read', 'dd:manage', 'dd:approve_package', 'dd:export_package', 'shipment:read', 'report:read', 'report:export'],
+  EXPORT_MANAGER: [...ALL_MEMBER_READ, 'product:read', 'traceability:read_catalog', 'location:read', 'lot:read', 'stock:read', 'shipment:read', 'shipment:manage', 'stock:reserve', 'shipment:dispatch', 'report:read'],
   BUYER: [],
-  AUDITOR: [...ALL_MEMBER_READ, 'audit:read', 'audit:export', 'producer:read', 'plot:read', 'product:read', 'traceability:read_catalog', 'document:read', 'evidence:read', 'delivery:read', 'location:read', 'lot:read', 'stock:read', 'risk:read', 'mitigation:read', 'dd:read', 'shipment:read'],
+  AUDITOR: [...ALL_MEMBER_READ, 'audit:read', 'audit:export', 'producer:read', 'plot:read', 'product:read', 'traceability:read_catalog', 'document:read', 'evidence:read', 'delivery:read', 'location:read', 'lot:read', 'stock:read', 'risk:read', 'mitigation:read', 'dd:read', 'shipment:read', 'report:read', 'report:export'],
   PRODUCER: [],
 };
 
