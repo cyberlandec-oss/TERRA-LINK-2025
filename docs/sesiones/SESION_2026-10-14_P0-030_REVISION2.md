@@ -90,7 +90,7 @@ archivo (`terra_link.regulatory_profile`), no se da por resuelto.
 | Integración | `reports.int-spec.ts` (13) y `reports-entities.int-spec.ts` (11) — valores conocidos, períodos, desconocidos, aislamiento, permisos, consistencia pantalla/CSV y GeoJSON |
 | Navegador | `e2e/tests/productos.spec.ts` — tres pruebas de P0-030: indicadores, reportes por entidad y permisos; teclado, 390 px y zoom 200 % (640 px CSS) |
 | OpenAPI | regenerado y validado |
-| Validación completa | **APROBADA** sobre `75bb3a4` — `validation-results/2026-10-14T14-34-48-933Z`: 51 suites, 405 unitarias + integración y 58 E2E |
+| Validación completa | **APROBADA** sobre `dd2e8da` — `validation-results/2026-10-14T14-51-46-796Z`: 51 suites, 405 unitarias + integración y 58 E2E (la de `75bb3a4` también aprobó, antes del arreglo visual del selector) |
 | Corrida fallida conservada | `2026-10-14T14-17-05-917Z` sobre `dfeda36`: un fallo en E2E, de la prueba y no del producto — la aserción exigía «D-05» donde el estado correcto era `NO_DENOMINATOR` |
 
 ## Lo que sigue abierto
