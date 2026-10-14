@@ -11,6 +11,7 @@ import { PolygonCapture } from '../../../../../lib/polygon-capture';
 import { GeometryImport } from '../../../../../lib/geometry-import';
 import { VersionDownloads } from '../../../../../lib/geometry-downloads';
 import { GisEvaluation } from '../../../../../lib/gis-evaluation';
+import { SatelliteAnalysis } from '../../../../../lib/satellite';
 import { EventHistory } from '../../../../../lib/event-history';
 import { GEOMETRY_STATUS, GEOMETRY_TYPE_LABEL, GeometrySketch, METHOD_LABEL, ha, positions, type Plot, type PlotVersion } from '../../../../../lib/plots';
 
@@ -132,6 +133,8 @@ export default function PlotDetailPage() {
           </section>
 
           <GisEvaluation orgId={orgId} plotId={plot.id} canEvaluate={!!plot.can_evaluate_gis} hasVersion={!!plot.current_version} />
+
+          <SatelliteAnalysis orgId={orgId} plotId={plot.id} />
 
           <section className="card" aria-labelledby="versions-title">
             <h2 id="versions-title">Versiones geométricas</h2>

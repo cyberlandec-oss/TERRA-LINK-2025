@@ -121,12 +121,27 @@ export class DdService {
         technical_result: v.technical_result.status, severity: v.risk_result.severity, conclusion: v.risk_result.conclusion, is_current: v.freshness.status === 'CURRENT', review_process: v.review.process_status,
         factors: v.factors.map((f) => ({ code: f.code, result: f.result, effect: f.effect })) };
     }
+    // P0-028: la procedencia del requisito DEFORESTATION_ANALYSIS sale del REGISTRO de proveedores, no de una
+    // constante. Es MET solo si hay proveedor seleccionado (D-09) y cada versión de parcela de origen tiene un
+    // resultado aplicable, con cobertura y NO sintético. Hoy no hay proveedor: queda null → NOT_EVALUABLE.
+    const satelliteProfile = await (async (): Promise<string | null> => {
+      const selected = await db.selectFrom('satellite_providers').select(['code']).where('selection_status', '=', 'SELECTED').executeTakeFirst();
+      if (!selected) return null;
+      const versionIds = plots.map((p) => p.version_id).filter((v): v is string => !!v);
+      if (!versionIds.length || versionIds.length !== plots.length) return null;
+      const covered = (await sql<{ plot_version_id: string }>`
+        SELECT DISTINCT j.plot_version_id FROM satellite_jobs j JOIN satellite_results r ON r.job_id = j.id
+         WHERE j.organization_id = ${orgId} AND j.plot_version_id = ANY(${versionIds}::uuid[])
+           AND j.outcome = 'RESULT_AVAILABLE' AND r.is_synthetic = false AND r.coverage_status = 'COVERED'`.execute(db)).rows.map((r) => r.plot_version_id);
+      if (!versionIds.every((v) => covered.includes(v))) return null;
+      return `Proveedor ${selected.code}: resultado con cobertura para todas las versiones de parcela de origen. Insumo con sus límites; no es conclusión regulatoria.`;
+    })();
     return {
       subject: { type: 'LOT', id: lot.id, code: lot.lot_code, product: lot.product, unit: lot.unit, origin_status: lot.origin_status },
       quantities: { ...q, unit: lot.unit, source: 'ledger (stock_entries)' },
       origin: { lots: origin.lots.map((l) => ({ id: l.id, lot_code: l.lot_code, origin_status: l.origin_status })), ledger_differences: origin.ledger_differences },
       deliveries, plots, quality, documents, evidence, risk, mitigations,
-      profiles: { legal_profile: null, geolocation_profile: null, satellite_provider: null, shipment_link: null },
+      profiles: { legal_profile: null, geolocation_profile: null, satellite_provider: satelliteProfile, shipment_link: null },
     };
   }
 

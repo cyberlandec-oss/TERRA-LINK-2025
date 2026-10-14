@@ -585,6 +585,37 @@ export interface SyncAttachmentUploadsTable { operation_id: string; organization
 export interface DdCasesTable { id: string; organization_id: string; case_number: string; subject_type: 'LOT'; subject_id: string; scope_note: string; created_by: string; created_at: Generated<Timestamp>; operation_id: string }
 export interface DdSnapshotsTable { id: string; organization_id: string; case_id: string; snapshot_number: number; content: unknown; content_hash: string; section_hashes: unknown; manifest: unknown; requirements: unknown; readiness: 'BLOCKED' | 'IN_PROGRESS' | 'READY'; captured_by: string; captured_at: Generated<Timestamp>; operation_id: string }
 export interface DdReviewsTable { id: string; organization_id: string; snapshot_id: string; action: 'START_REVIEW' | 'RETURN' | 'APPROVE'; reason: string; reviewer_id: string; reviewed_at: Generated<Timestamp>; operation_id: string }
+// P0-028 análisis satelital
+export type SatelliteProviderKind = 'EXTERNAL_HTTP' | 'SYNTHETIC_FIXTURE';
+export type SatelliteOperation = 'FOREST_COVER' | 'DEFORESTATION_ALERTS' | 'HISTORICAL_ANALYSIS';
+export type SatelliteJobStatus = 'REQUESTED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type SatelliteOutcome =
+  | 'RESULT_AVAILABLE' | 'NO_PROVIDER_SELECTED' | 'NO_COVERAGE' | 'TIMEOUT' | 'RATE_LIMITED'
+  | 'PROVIDER_ERROR' | 'EGRESS_BLOCKED' | 'GEOMETRY_UNSUPPORTED' | 'SUPERSEDED_GEOMETRY' | 'CANCELLED';
+export interface SatelliteProvidersTable {
+  code: string; name: string; kind: SatelliteProviderKind; selection_status: 'PROPOSED' | 'SELECTED' | 'TEST_ONLY' | 'RETIRED';
+  allowed_hosts: string[]; supported_operations: string[]; docs_url: string; license: string; cost_note: string; coverage_note: string; limits_note: string;
+  data_sent_note: string; source: string; selected_by: string | null; decision_reference: string | null; registered_at: Generated<Timestamp>;
+}
+export interface SatelliteJobsTable {
+  id: string; organization_id: string; plot_id: string; plot_version_id: string; geometry_hash: string;
+  geometry_type: 'POINT' | 'POLYGON' | 'MULTIPOLYGON'; provider_code: string; provider_kind: SatelliteProviderKind;
+  adapter_contract_version: string; operation: SatelliteOperation; period_start: string | null; period_end: string | null; request_fingerprint: string;
+  status: SatelliteJobStatus; outcome: SatelliteOutcome | null; attempts: Generated<number>; locked_by: string | null;
+  locked_until: Timestamp | null; lease_token: string | null; next_attempt_at: ColumnType<Date, Date | string | undefined, Date | string>; last_error_code: string | null;
+  requested_by: string; requested_at: Generated<Timestamp>; finished_at: Timestamp | null; operation_id: string;
+}
+export interface SatelliteResultsTable {
+  id: string; organization_id: string; job_id: string; provider_code: string; is_synthetic: boolean;
+  dataset: string | null; dataset_version: string | null; analysis_date: Timestamp | null; resolution_m: string | null;
+  method: string | null; coverage_status: 'COVERED' | 'PARTIAL' | 'NOT_COVERED' | 'UNKNOWN'; coverage_note: string;
+  confidence: string | null; limitations: string; indicators: unknown; raw_object_key: string | null; raw_sha256: string | null;
+  conclusion: Generated<'NOT_EVALUATED'>; recorded_at: Generated<Timestamp>;
+}
+export interface SatelliteCredentialsTable {
+  organization_id: string; provider_code: string; secret_ciphertext: string; created_by: string;
+  created_at: Generated<Timestamp>; rotated_at: Timestamp | null;
+}
 export interface DdExportsTable { id: string; organization_id: string; snapshot_id: string; kind: 'INTERNAL_REVIEW' | 'DD_PACKAGE'; redaction_profile: unknown; package_hash: string; size_bytes: number; exported_by: string; exported_at: Generated<Timestamp>; operation_id: string }
 export interface MitigationDecisionsTable { id: string; organization_id: string; action_id: string; submission_number: number; decision: 'VERIFIED' | 'REJECTED'; reason: string; decided_by: string; decided_at: Generated<Timestamp>; operation_id: string; criterion_met: boolean | null }
 export interface MitigationCorrectionsTable { id: string; organization_id: string; action_id: string; decision_id: string; submission_number: number; support_accepted: boolean; criterion_met: boolean; reason: string; corrected_by: string; corrected_at: Generated<Timestamp>; operation_id: string }
@@ -730,4 +761,8 @@ export interface Database {
   dd_snapshots: DdSnapshotsTable;
   dd_reviews: DdReviewsTable;
   dd_exports: DdExportsTable;
+  satellite_providers: SatelliteProvidersTable;
+  satellite_jobs: SatelliteJobsTable;
+  satellite_results: SatelliteResultsTable;
+  satellite_credentials: SatelliteCredentialsTable;
 }
