@@ -7781,6 +7781,198 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/satellite/providers": {
+      "get": {
+        "operationId": "SatelliteController_providers",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "satellite"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/plots/{plotId}/satellite": {
+      "get": {
+        "operationId": "SatelliteController_forPlot",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "satellite"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/plots/{plotId}/satellite/analyses": {
+      "post": {
+        "operationId": "SatelliteController_request",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestAnalysisDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "satellite"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/satellite/analyses/{jobId}": {
+      "get": {
+        "operationId": "SatelliteController_job",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "jobId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "satellite"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/satellite/analyses/{jobId}/cancel": {
+      "post": {
+        "operationId": "SatelliteController_cancel",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "jobId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelAnalysisDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "satellite"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/reports/indicators": {
       "get": {
         "operationId": "ReportsController_indicators",
@@ -10097,6 +10289,70 @@
         "required": [
           "operation_id",
           "expected_version",
+          "reason"
+        ]
+      },
+      "RequestAnalysisDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "description": "Identificador de la operación (idempotencia)."
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "FOREST_COVER",
+              "DEFORESTATION_ALERTS",
+              "HISTORICAL_ANALYSIS"
+            ],
+            "description": "Operación de S1 §40."
+          },
+          "period_start": {
+            "type": "string",
+            "description": "Inicio del periodo de análisis (AAAA-MM-DD)."
+          },
+          "period_end": {
+            "type": "string",
+            "description": "Fin del periodo de análisis (AAAA-MM-DD)."
+          },
+          "plot_version_id": {
+            "type": "string",
+            "description": "Versión de parcela; por omisión, la vigente."
+          },
+          "fixture_scenario": {
+            "type": "string",
+            "enum": [
+              "RESULT_COVERED",
+              "RESULT_PARTIAL",
+              "NO_COVERAGE",
+              "TIMEOUT",
+              "RATE_LIMITED",
+              "PROVIDER_ERROR",
+              "EGRESS_BLOCKED"
+            ],
+            "description": "SOLO fixture sintética de desarrollo/prueba. Ignorado por cualquier proveedor real."
+          }
+        },
+        "required": [
+          "operation_id",
+          "operation"
+        ]
+      },
+      "CancelAnalysisDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "operation_id",
           "reason"
         ]
       }

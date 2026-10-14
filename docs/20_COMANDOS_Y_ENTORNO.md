@@ -91,6 +91,14 @@ Móvil/Android, backup/restauración (QA-16) y despliegue. Ningún comando de pr
 
 `infra:down -v` borra datos locales: no usarlo para «arreglar» un arranque. Las migraciones solo corren contra la base de dev o de test locales.
 
+### Interruptor de la fixture satelital (P0-028, 2026-10-14)
+
+`SATELLITE_FIXTURE_ENABLED=true` habilita el proveedor **sintético** de desarrollo y prueba: sin él no hay ningún
+adapter registrado y encargar un análisis responde `409 SATELLITE_PROVIDER_NOT_SELECTED` (D-09). La fixture no sale a
+la red, no analiza nada y todos sus resultados quedan marcados `is_synthetic`, que ningún requisito acepta. **Nunca
+debe estar activo fuera de desarrollo o pruebas.** El corredor de trabajos vive en el proceso worker
+(`npm run worker -w apps/api`); si no hay adapters, no se levanta y lo dice en el arranque.
+
 ### Credenciales de cuentas DEMO nuevas (2026-10-10)
 
 `npm run seed:demo -w apps/api` crea una cuenta nueva solo si podrá guardar su contraseña: escribe el archivo completo en `CREDENCIALES.csv` o, si está abierto en otro programa, en `CREDENCIALES.pendiente.csv` (ambos ignorados por git). Volver a ejecutar el seed no regenera contraseñas existentes: las lee de esos archivos. Para recuperar la credencial de una cuenta nueva (p. ej. `eudr.cooperativa`, segunda persona del recorrido de mitigación), abrir localmente el archivo más reciente de los dos; nunca se imprime en consola, informes ni capturas. La revisión por rol usa el más reciente.

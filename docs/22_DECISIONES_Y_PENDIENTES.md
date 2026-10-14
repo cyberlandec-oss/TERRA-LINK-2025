@@ -22,7 +22,7 @@ Estas cuestiones no bloquean la lectura ni preparación del paquete. Bloquean ú
 | D-06 | Stock negativo y ajustes | Operaciones/traceability | ADR-0003 y QA-06; no bypass de consumo |
 | D-07 | Severidad/proceso/conclusión riesgo | Producto/regulatorio | Enums reales, mapping y regla aprobada |
 | D-08 | Estados expediente vs DDS existente | Backend/EUDR | Contrato y migración no destructiva; QA-12 |
-| D-09 | Proveedor satelital y cobertura/coste | GIS/comercial | Canal/contrato/fixture/resultados reales |
+| D-09 | Proveedor satelital y cobertura/coste. **Propuesta documentada, NO aprobada**: `docs/decisiones/P0-028-SATELITE.md` (Whisp como primer adapter, GFW como segundo, JRC como capa de referencia; con licencia, coste, límites y **qué datos saldrían del equipo**). Pendientes antes de enviar una sola coordenada: autorización para que las geometrías salgan hacia un tercero y su base de tratamiento (D-14), aceptación de los términos del proveedor, titularidad de la clave de API y significado operativo de cada indicador (D-07) | GIS/comercial | Canal/contrato/fixture/resultados reales |
 | D-10 | Requisitos legales Ecuador | Responsable legal | Fuentes completas vigentes y perfil de aplicabilidad |
 | D-11 | GUIA/Agrocalidad | Integraciones | API/acuerdo/export oficial comprobados |
 | D-12 | EUDR-IS/rol legal/representación | Regulatorio/integraciones | Documentación vigente, acceso ACCEPTANCE y autorización |

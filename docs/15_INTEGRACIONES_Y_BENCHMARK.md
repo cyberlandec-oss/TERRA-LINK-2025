@@ -28,7 +28,7 @@ Fallback: evidencia manual versionada y evaluación pendiente; simuladores solo 
 
 | Integración | Estado aquí | Condición de activación |
 | --- | --- | --- |
-| WHISP/GFW/otro satélite | POR_VERIFICAR | API, términos, cobertura, coste, seguridad y credenciales comprobadas |
+| WHISP/GFW/otro satélite | POR_VERIFICAR (P0-028 implementó el **adapter, el trabajo y la defensa de salida**; el registro documenta los tres candidatos y **ninguno está seleccionado**, D-09) | API, términos, cobertura, coste, seguridad y credenciales comprobadas |
 | GUIA/Agrocalidad | PROPUESTA | Acuerdo/canal oficial o formato autorizado; no asumir API disponible |
 | EUDR-IS/TRACES | PROPUESTA | Documentación vigente, rol/representación, credenciales y prueba ACCEPTANCE |
 | ERP | PROPUESTA | Contrato de evento, referencia, tenant y conciliación |
