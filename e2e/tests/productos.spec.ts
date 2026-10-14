@@ -627,9 +627,13 @@ test('P0-030 reportes por entidad: §97 en pantalla, desconocidos visibles, GeoJ
   for (const nombre of ['productores', 'parcelas', 'lotes', 'riesgo', 'trazabilidad', 'debida diligencia']) {
     await expect(selector.getByRole('button', { name: new RegExp(nombre, 'i') })).toBeVisible();
   }
+  // El reporte activo se distingue del resto, y no solo por color: `aria-current` lo anuncia.
+  await expect(selector.getByRole('button', { name: 'Indicadores (§60)' })).toHaveAttribute('aria-current', 'page');
   // Parcelas: la validación sin evaluar no se presenta como incumplimiento, y el total de válidas no es 0.
   await selector.getByRole('button', { name: /parcelas/i }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Reporte de parcelas', exact: true })).toBeVisible();
+  await expect(selector.getByRole('button', { name: 'parcelas', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(selector.getByRole('button', { name: 'Indicadores (§60)' })).not.toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('table', { name: 'Reporte de parcelas' })).toBeVisible();
   await expect(page.getByText(/Válidas \(VALID\)/)).toBeVisible();
   await expect(page.getByText(/DESCONOCIDO/).first()).toBeVisible();

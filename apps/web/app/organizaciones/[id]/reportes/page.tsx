@@ -136,11 +136,16 @@ export default function ReportsPage() {
         <nav className="card" aria-label="Reportes disponibles">
           <h2>Reporte</h2>
           <div className="actions">
-            <button type="button" aria-current={activo === 'indicadores' ? 'page' : undefined} onClick={() => void load({ desde: from, hasta: to, reporte: 'indicadores' })}>
+            {/* El reporte activo va relleno y el resto en secundario: el estado no depende solo del color, y
+                `aria-current` lo anuncia a los lectores de pantalla. */}
+            <button type="button" className={activo === 'indicadores' ? undefined : 'secondary'}
+              aria-current={activo === 'indicadores' ? 'page' : undefined}
+              onClick={() => void load({ desde: from, hasta: to, reporte: 'indicadores' })}>
               Indicadores (§60)
             </button>
             {catalog.reports.map((r) => (
-              <button key={r.kind} type="button" disabled={!r.available} aria-current={activo === r.kind ? 'page' : undefined}
+              <button key={r.kind} type="button" disabled={!r.available} className={activo === r.kind ? undefined : 'secondary'}
+                aria-current={activo === r.kind ? 'page' : undefined}
                 title={r.available ? r.source : `Te falta ${r.missing.join(' y ')}`}
                 onClick={() => void load({ desde: from, hasta: to, reporte: r.kind })}>
                 {r.title.replace('Reporte de ', '')}
