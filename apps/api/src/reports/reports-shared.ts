@@ -9,6 +9,9 @@ export const GEOJSON_EXPORT_FORMAT = 'TL_PLOTS_GEOJSON 0.1 (provisional, RFC 794
 
 export interface Period { from: string | null; to: string | null }
 
+/** Estado de un indicador. Solo OK lleva valor; el resto declara POR QUÉ no lo hay. */
+export type IndicatorStatus = 'OK' | 'NO_DENOMINATOR' | 'UNKNOWN' | 'CRITERION_UNDEFINED' | 'RESTRICTED';
+
 /**
  * Cobertura histórica. La pérdida del 2026-10-13 fue del ALMACENAMIENTO, no de las fechas operativas: un registro
  * conservado o creado después puede declarar una entrega de septiembre y debe contar en septiembre. Lo que falta son
@@ -45,6 +48,14 @@ export function timeBasis(asOf: string) {
       'por created_at, que es la fecha de carga en el sistema y no una fecha operativa.',
   };
 }
+
+/**
+ * Instantánea de lectura. No basta con reutilizar la misma función: si sus consultas sucesivas corriesen fuera de una
+ * transacción, filas y totales podrían venir de estados distintos de la base mientras alguien escribe.
+ */
+export const SNAPSHOT_NOTE =
+  'Filas, totales y páginas proceden de UNA sola instantánea de lectura (transacción REPEATABLE READ de solo lectura): ' +
+  'lo mostrado y lo exportado son coherentes entre sí aunque la base cambie durante el cálculo.';
 
 export const EXPORT_RECALC_NOTE =
   'Cada descarga RECALCULA desde la base con los mismos filtros; no es la instantánea que ya estaba en pantalla. Su marca «generado» es la ' +

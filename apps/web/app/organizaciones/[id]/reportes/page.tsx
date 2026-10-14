@@ -18,15 +18,26 @@ interface Indicator {
 }
 interface Coverage { status: string; event_date: string; note: string; not_reconstructed: string; reference: string }
 interface TimeBasis { as_of: string; as_of_note: string; period_bounds: string; civil_dates: string }
+interface Comparison {
+  period: { from: string | null; to: string | null };
+  days: { current: number | null; compared: number | null };
+  equivalent_periods: boolean; equivalence_note: string; scope_note: string; balance_note: string; coverage_note: string;
+  indicators: Array<{
+    code: string; name: string; unit: string; date_basis: string | null;
+    current: { status: Status; value: string | null }; compared: { status: Status; value: string | null };
+    delta: string | null; delta_note: string;
+  }>;
+}
 interface Indicators {
   catalog_version: string; source: string;
   period: { from: string | null; to: string | null; applies_to: string };
   time_basis: TimeBasis; scope_note: string; assigned_scope_note: string; privacy_note: string; interpretation_note: string;
   status_legend: Record<string, string>; coverage: Coverage; can_export: boolean; indicators: Indicator[];
+  comparison: Comparison | null; snapshot_note: string;
 }
-interface CatalogEntry { kind: string; title: string; source: string; requires: string[]; period_applies: boolean; period_note: string; available: boolean; missing: string[] }
+interface CatalogEntry { kind: string; title: string; source: string; requires: string[]; why: Record<string, string>; period_applies: boolean; period_note: string; available: boolean; missing: string[] }
 interface Catalog {
-  catalog_version: string; source: string; can_export: boolean; reports: CatalogEntry[];
+  catalog_version: string; source: string; can_export: boolean; cross_domain_note: string; reports: CatalogEntry[];
   geojson: { kind: string; title: string; source: string; requires: string[]; available: boolean; missing: string[]; notice: string; regulatory_profile: string };
 }
 interface EntityReport {
@@ -34,8 +45,9 @@ interface EntityReport {
   columns: Array<{ key: string; label: string; note?: string }>;
   rows: Array<Record<string, string | number | null>>;
   totals: Array<{ key: string; label: string; value: string }>;
-  notes: string[]; total_rows: number; returned_rows: number; truncated: boolean; limit_note: string;
-  can_export: boolean; coverage: Coverage; time_basis: TimeBasis;
+  notes: string[]; total_rows: number; returned_rows: number; has_more: boolean; limit_note: string;
+  page: { limit: number; cursor: string | null; next_cursor: string | null; key: string };
+  why: Record<string, string>; can_export: boolean; coverage: Coverage; time_basis: TimeBasis; snapshot_note: string;
 }
 
 const KIND: Record<Indicator['kind'], string> = { STATE: 'Estado actual', ACTIVITY: 'Actividad del período', BALANCE_AT: 'Saldo a una fecha' };
@@ -57,10 +69,12 @@ export default function ReportsPage() {
   const orgId = ws.activeOrg?.id ?? '';
   const can = ws.can('report:read');
   // Período y reporte activo viven en la URL (mismo patrón que parcelas y lotes): se conservan al volver de otra pantalla.
-  const [urlFilters, setUrlFilters, ready] = useUrlFilters({ desde: '', hasta: '', reporte: 'indicadores' });
+  const [urlFilters, setUrlFilters, ready] = useUrlFilters({ desde: '', hasta: '', reporte: 'indicadores', comp_desde: '', comp_hasta: '', cursor: '' });
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [applied, setApplied] = useState({ desde: '', hasta: '', reporte: 'indicadores' });
+  const [compFrom, setCompFrom] = useState('');
+  const [compTo, setCompTo] = useState('');
+  const [applied, setApplied] = useState({ desde: '', hasta: '', reporte: 'indicadores', comp_desde: '', comp_hasta: '', cursor: '' });
   const [data, setData] = useState<Indicators | null>(null);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [entity, setEntity] = useState<EntityReport | null>(null);
@@ -68,14 +82,20 @@ export default function ReportsPage() {
   const [exporting, setExporting] = useState(false);
   const [exported, setExported] = useState<{ filename: string; sha256: string | null; bytes: number } | null>(null);
 
-  const qs = (f: { desde: string; hasta: string }) => {
+  type Filtros = { desde: string; hasta: string; reporte: string; comp_desde: string; comp_hasta: string; cursor: string };
+  const qs = (f: Partial<Filtros>, extra: 'comparacion' | 'cursor' | null = null) => {
     const p = new URLSearchParams();
     if (f.desde) p.set('from', f.desde);
     if (f.hasta) p.set('to', f.hasta);
+    if (extra === 'comparacion') {
+      if (f.comp_desde) p.set('compare_from', f.comp_desde);
+      if (f.comp_hasta) p.set('compare_to', f.comp_hasta);
+    }
+    if (extra === 'cursor' && f.cursor) p.set('cursor', f.cursor);
     return p.toString() ? `?${p}` : '';
   };
 
-  const load = useCallback(async (f: { desde: string; hasta: string; reporte: string }) => {
+  const load = useCallback(async (f: Filtros) => {
     if (!orgId || !can) return;
     setError(null);
     setExported(null);
@@ -83,10 +103,10 @@ export default function ReportsPage() {
       if (!catalog) setCatalog(await api<Catalog>(`/api/v1/organizations/${orgId}/reports/entities`));
       if (f.reporte === 'indicadores') {
         setEntity(null);
-        setData(await api<Indicators>(`/api/v1/organizations/${orgId}/reports/indicators${qs(f)}`));
+        setData(await api<Indicators>(`/api/v1/organizations/${orgId}/reports/indicators${qs(f, 'comparacion')}`));
       } else {
         setData(null);
-        setEntity(await api<EntityReport>(`/api/v1/organizations/${orgId}/reports/entities/${f.reporte}${qs(f)}`));
+        setEntity(await api<EntityReport>(`/api/v1/organizations/${orgId}/reports/entities/${f.reporte}${qs(f, 'cursor')}`));
       }
       setApplied(f);
       setUrlFilters(f);
@@ -101,14 +121,18 @@ export default function ReportsPage() {
     if (!ready) return;
     setFrom(urlFilters.desde);
     setTo(urlFilters.hasta);
+    setCompFrom(urlFilters.comp_desde);
+    setCompTo(urlFilters.comp_hasta);
     void load(urlFilters);
     // Solo al entrar, con lo que venga en la URL; después se aplica con el formulario o el selector.
   }, [orgId, ready]);
 
   const applyFilters = (e: FormEvent) => {
     e.preventDefault();
-    void load({ desde: from, hasta: to, reporte: applied.reporte });
+    // Al cambiar el período se vuelve a la primera página: un cursor de otro filtro no significa nada.
+    void load({ ...applied, desde: from, hasta: to, comp_desde: compFrom, comp_hasta: compTo, cursor: '' });
   };
+  const elegir = (reporte: string) => void load({ ...applied, desde: from, hasta: to, comp_desde: compFrom, comp_hasta: compTo, reporte, cursor: '' });
 
   async function download(path: string, fallback: string) {
     setExporting(true);
@@ -140,21 +164,22 @@ export default function ReportsPage() {
                 `aria-current` lo anuncia a los lectores de pantalla. */}
             <button type="button" className={activo === 'indicadores' ? undefined : 'secondary'}
               aria-current={activo === 'indicadores' ? 'page' : undefined}
-              onClick={() => void load({ desde: from, hasta: to, reporte: 'indicadores' })}>
+              onClick={() => elegir('indicadores')}>
               Indicadores (§60)
             </button>
             {catalog.reports.map((r) => (
               <button key={r.kind} type="button" disabled={!r.available} className={activo === r.kind ? undefined : 'secondary'}
                 aria-current={activo === r.kind ? 'page' : undefined}
                 title={r.available ? r.source : `Te falta ${r.missing.join(' y ')}`}
-                onClick={() => void load({ desde: from, hasta: to, reporte: r.kind })}>
+                onClick={() => elegir(r.kind)}>
                 {r.title.replace('Reporte de ', '')}
               </button>
             ))}
           </div>
           <p className="field-help">Cada reporte exige el permiso de su dominio. Los que tu rol no permite quedan deshabilitados.</p>
+          <p className="field-help">{catalog.cross_domain_note}</p>
           {catalog.reports.filter((r) => !r.available).map((r) => (
-            <p key={r.kind} className="muted">{r.title}: te falta {r.missing.join(' y ')}.</p>
+            <p key={r.kind} className="muted">{r.title}: te falta {r.missing.map((m) => `${m} (${r.why[m] ?? 'dato de ese dominio'})`).join('; ')}.</p>
           ))}
         </nav>
       )}
@@ -167,6 +192,16 @@ export default function ReportsPage() {
         </div>
         <p className="field-help">{entity ? entity.period_note : data?.period.applies_to ?? 'El período solo se aplica a lo que mide actividad.'}</p>
         {(entity ?? data) && <p className="field-help">{(entity ?? data)!.time_basis.period_bounds}</p>}
+        {activo === 'indicadores' && (
+          <>
+            <h3>Comparar con otro período</h3>
+            <div className="grid-2">
+              <div><label htmlFor="rp-cdesde">Comparar desde</label><input id="rp-cdesde" type="date" value={compFrom} onChange={(e) => setCompFrom(e.target.value)} /></div>
+              <div><label htmlFor="rp-chasta">Comparar hasta</label><input id="rp-chasta" type="date" value={compTo} onChange={(e) => setCompTo(e.target.value)} /></div>
+            </div>
+            <p className="field-help">Compara solo los indicadores de ACTIVIDAD, por su fecha operativa declarada. Comparar actividad no reconstruye existencias: el saldo a una fecha es otra capacidad y no se aproxima aquí.</p>
+          </>
+        )}
         <button type="submit">Aplicar período</button>
       </form>
 
@@ -213,6 +248,39 @@ export default function ReportsPage() {
               </tbody>
             </table>
           </div>
+          {data.comparison && (
+            <section className="card" aria-labelledby="rp-comparacion">
+              <h2 id="rp-comparacion">Comparación de actividad</h2>
+              <p className="muted">
+                {data.period.from ?? 'sin límite'} → {data.period.to ?? 'sin límite'} ({data.comparison.days.current ?? '—'} día(s))
+                {' frente a '}
+                {data.comparison.period.from ?? 'sin límite'} → {data.comparison.period.to ?? 'sin límite'} ({data.comparison.days.compared ?? '—'} día(s))
+              </p>
+              <Alert tone={data.comparison.equivalent_periods ? 'valid' : 'review'} title={data.comparison.equivalent_periods ? 'Períodos equivalentes' : 'Períodos no equivalentes'}>
+                {data.comparison.equivalence_note}
+              </Alert>
+              <div className="table-wrap">
+                <table aria-label="Comparación de actividad">
+                  <thead><tr>
+                    <th scope="col">Indicador</th><th scope="col">Período actual</th><th scope="col">Período comparado</th><th scope="col">Diferencia</th>
+                  </tr></thead>
+                  <tbody>
+                    {data.comparison.indicators.map((c) => (
+                      <tr key={c.code}>
+                        <td><strong>{c.name}</strong><div className="muted"><code>{c.code}</code></div>{c.date_basis && <div className="muted">Fecha usada: {c.date_basis}</div>}</td>
+                        <td>{c.current.status === 'OK' ? <strong>{c.current.value}</strong> : <StatusBadge tone={BADGE[c.current.status].tone}>{BADGE[c.current.status].label}</StatusBadge>}</td>
+                        <td>{c.compared.status === 'OK' ? <strong>{c.compared.value}</strong> : <StatusBadge tone={BADGE[c.compared.status].tone}>{BADGE[c.compared.status].label}</StatusBadge>}</td>
+                        <td>{c.delta !== null ? <strong>{Number(c.delta) > 0 ? `+${c.delta}` : c.delta}</strong> : <span className="muted">—</span>}<div className="muted">{c.delta_note}</div></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="muted">{data.comparison.scope_note}</p>
+              <p className="muted">{data.comparison.balance_note}</p>
+              <p className="muted">{data.comparison.coverage_note}</p>
+            </section>
+          )}
           <section className="card" aria-labelledby="rp-estados">
             <h2 id="rp-estados">Qué significa cada estado</h2>
             <dl className="props">
@@ -239,7 +307,7 @@ export default function ReportsPage() {
             <h2 id="rp-entidad">{entity.title}</h2>
             <p className="muted">{entity.source} · {entity.returned_rows} de {entity.total_rows} fila(s)</p>
           </section>
-          {entity.truncated && <Alert tone="info" title="Tabla truncada">{entity.limit_note}</Alert>}
+          {entity.has_more && <Alert tone="info" title="Hay más filas">Esta es una página del reporte; los totales de abajo cubren el conjunto completo. Avanza con «Siguiente página» o exporta el CSV, que trae todas las filas.</Alert>}
           {entity.rows.length === 0
             ? <EmptyState title="No hay filas para este reporte">No es un error: la organización no tiene registros de este tipo, o ninguno entra en el período.</EmptyState>
             : (
@@ -256,9 +324,19 @@ export default function ReportsPage() {
                 </table>
               </div>
             )}
+          <nav className="card" aria-label="Páginas del reporte">
+            <p className="muted">Mostrando {entity.returned_rows} de {entity.total_rows} fila(s), de {entity.page.limit} por página, ordenadas por <code>{entity.page.key}</code>.</p>
+            <div className="actions">
+              <button type="button" className="secondary" disabled={!applied.cursor}
+                onClick={() => void load({ ...applied, cursor: '' })}>Primera página</button>
+              <button type="button" disabled={!entity.has_more}
+                onClick={() => void load({ ...applied, cursor: entity.page.next_cursor ?? '' })}>Siguiente página</button>
+            </div>
+            <p className="field-help">{entity.limit_note}</p>
+          </nav>
           <section className="card" aria-labelledby="rp-totales">
             <h2 id="rp-totales">Totales</h2>
-            <p className="field-help">{entity.limit_note}</p>
+            <p className="field-help">{entity.snapshot_note}</p>
             <dl className="props">
               {entity.totals.map((t) => (
                 <Fragment key={t.key}><dt>{t.label}</dt><dd><strong>{t.value}</strong></dd></Fragment>
@@ -276,7 +354,7 @@ export default function ReportsPage() {
             <h2 id="rp-export-entidad">Exportar este reporte</h2>
             {entity.can_export ? (
               <>
-                <p className="field-help">CSV con las mismas columnas, filas y totales de esta pantalla. Se RECALCULA al descargar: su marca de generación es la del momento de la descarga, no la de esta pantalla. Queda registrada en la auditoría con el hash del archivo.</p>
+                <p className="field-help">CSV con las mismas columnas y totales de esta pantalla, y con el CONJUNTO COMPLETO de filas, no solo la página mostrada. Se RECALCULA al descargar: su marca de generación es la del momento de la descarga, no la de esta pantalla. Queda registrada en la auditoría con el hash del archivo.</p>
                 <button type="button" onClick={() => void download(`/api/v1/organizations/${orgId}/reports/entities/${entity.kind}/export${qs(applied)}`, `reporte-${entity.kind}.csv`)} disabled={exporting}>{exporting ? 'Generando…' : 'Exportar CSV'}</button>
               </>
             ) : <p className="muted">Tu rol no permite exportar reportes.</p>}

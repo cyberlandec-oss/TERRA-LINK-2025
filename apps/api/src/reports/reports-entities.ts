@@ -1,7 +1,7 @@
 import { Controller, Get, Inject, Param, ParseUUIDPipe, Query, Req, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { Kysely, sql } from 'kysely';
+import { Kysely, Transaction, sql } from 'kysely';
 import { createHash } from 'crypto';
 import { DB } from '../db/database';
 import type { Database } from '../db/schema';
@@ -11,56 +11,51 @@ import { AuditService } from '../audit/audit.service';
 import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { AppError, forbidden, notFound } from '../common/errors';
 import { csvCell } from '../audit/audit-query';
-import { ReportPeriodDto } from './reports.dto';
+import { ReportPageDto } from './reports.dto';
+import {
+  ENTITY_REPORTS, GEOJSON_REQUIRES, GEOJSON_WHY, definitionOf, denialMessage, missingPermissions,
+  type Definition, type EntityKind,
+} from './reports-catalog';
 import {
   ASSIGNED_SCOPE_NOTE, COVERAGE, EXPORT_RECALC_NOTE, GEOJSON_EXPORT_FORMAT, INTERPRETATION_NOTE, REPORT_CATALOG_VERSION,
-  REPORT_EXPORT_FORMAT, SCOPE_NOTE, has, timeBasis, type Period,
+  REPORT_EXPORT_FORMAT, SCOPE_NOTE, SNAPSHOT_NOTE, has, timeBasis, type Period,
 } from './reports-shared';
 
 // P0-030 — Reportes por entidad (S1 §97 «Sprint 11 — Reporting»: productor, parcela, lote, riesgo, trazabilidad, DD
 // y exportación GeoJSON). Contrato: docs/decisiones/P0-030-REPORTES.md.
 //
 // Reglas propias de estos reportes, además de las de los indicadores:
-//  1. Organización y alcance se aplican ANTES de agregar: el filtro de tenant y el de asignación entran en la misma
-//     consulta que produce filas y totales. Los totales no se calculan sobre la página mostrada sino sobre el conjunto
-//     completo YA filtrado, de modo que truncar la tabla no altera ninguna cifra.
-//  2. Un sujeto sin evaluar NO se omite: aparece con su estado «sin evaluar». Omitirlo escondería el desconocido y
-//     haría parecer completo lo que no lo está.
-//  3. Pesos y cantidades llevan su unidad y NUNCA se suman entre unidades distintas: los totales van por unidad.
-//  4. Identidad: los nombres exigen `producer:read_identity`. Sin ese permiso el reporte usa solo el código.
-//     Coordenadas exactas: nunca en estos reportes tabulares; solo en la exportación GeoJSON, con `plot:read_geometry`.
-export const ENTITY_REPORT_LIMIT = 500;
+//  1. **Permiso por dominio de cada dato**, no solo de la entidad que encabeza las filas: el reporte de productores
+//     cuenta parcelas y entregas, así que exige también `plot:read` y `delivery:read`. Catálogo y regla, con el motivo
+//     de cada permiso, en `reports-catalog.ts` (módulo puro, probado en memoria con permisos arbitrarios).
+//  2. **Lectura consistente**: filas, totales y páginas salen de UNA transacción `REPEATABLE READ` de solo lectura.
+//     Reutilizar la misma función no basta: sin instantánea, sus consultas sucesivas verían estados distintos y los
+//     totales no cuadrarían con las filas.
+//  3. Organización y alcance se aplican ANTES de agregar, en la misma consulta que produce filas y totales. Los totales
+//     cubren el conjunto completo ya filtrado, no la página mostrada.
+//  4. Un sujeto sin evaluar NO se omite: aparece con su estado «sin evaluar». Omitirlo escondería el desconocido.
+//  5. Pesos y cantidades llevan su unidad y NUNCA se suman entre unidades distintas: los totales van por unidad.
+//  6. Identidad: los nombres exigen `producer:read_identity`. Coordenadas exactas: solo en la exportación GeoJSON.
+export { ENTITY_REPORTS };
 
-export type EntityKind = 'producers' | 'plots' | 'lots' | 'risk' | 'traceability' | 'dd';
+/** Página por omisión y máximo por petición (convención de listados del repositorio: cursor por clave natural). */
+export const PAGE_DEFAULT = 100;
+export const PAGE_MAX = 500;
+/** Tope duro de una exportación. Se declara en el archivo; nunca se trunca en silencio. */
+export const EXPORT_MAX_ROWS = 20000;
 
 interface Column { key: string; label: string; note?: string }
 type Cell = string | number | null;
-interface Built { columns: Column[]; rows: Record<string, Cell>[]; totals: Array<{ key: string; label: string; value: string }>; notes: string[]; total_rows: number }
-
-interface Definition {
-  kind: EntityKind;
-  title: string;
-  source: string;
-  /** Todos los permisos exigidos. El alcance por asignación no abre reportes de organización (ver nota). */
-  requires: Permission[];
-  period_applies: boolean;
-  period_note: string;
+interface Built {
+  columns: Column[];
+  rows: Record<string, Cell>[];
+  totals: Array<{ key: string; label: string; value: string }>;
+  notes: string[];
+  total_rows: number;
+  next_cursor: string | null;
 }
 
-export const ENTITY_REPORTS: Definition[] = [
-  { kind: 'producers', title: 'Reporte de productores', source: 'S1 §97 «Producer report»', requires: ['producer:read'], period_applies: true,
-    period_note: 'El período se aplica solo a la columna de entregas registradas, por `delivery_date`. El resto describe el estado actual.' },
-  { kind: 'plots', title: 'Reporte de parcelas', source: 'S1 §97 «Plot report»', requires: ['plot:read'], period_applies: false,
-    period_note: 'Reporte de estado actual: el período no se aplica. No se filtra por `created_at`.' },
-  { kind: 'lots', title: 'Reporte de lotes', source: 'S1 §97 «Lot report»', requires: ['lot:read'], period_applies: false,
-    period_note: 'Reporte de estado actual: el período no se aplica. Las cantidades son las vigentes, no un saldo a una fecha.' },
-  { kind: 'risk', title: 'Reporte de riesgo', source: 'S1 §97 «Risk report»', requires: ['risk:read', 'lot:read'], period_applies: false,
-    period_note: 'Reporte de estado actual: muestra la ÚLTIMA evaluación de cada lote. Los lotes sin evaluar aparecen como tales.' },
-  { kind: 'traceability', title: 'Reporte de trazabilidad', source: 'S1 §97 «Traceability report»', requires: ['lot:read'], period_applies: false,
-    period_note: 'Reporte de estado actual: completitud del origen declarado de cada lote, no conformidad.' },
-  { kind: 'dd', title: 'Reporte de debida diligencia', source: 'S1 §97 «DD report»', requires: ['dd:read'], period_applies: false,
-    period_note: 'Reporte de estado actual: la ÚLTIMA instantánea de cada expediente.' },
-];
+type Db = Kysely<Database> | Transaction<Database>;
 
 const GEOJSON_NOTICE =
   'Exportación TÉCNICA de las geometrías vigentes registradas en Terra Link (RFC 7946, WGS84 longitud/latitud). No es un paquete de debida ' +
@@ -88,17 +83,23 @@ export class EntityReportsController {
   }
 
   private def(kind: string): Definition {
-    const d = ENTITY_REPORTS.find((r) => r.kind === kind);
+    const d = definitionOf(kind);
     if (!d) throw new AppError(404, 'REPORT_NOT_FOUND', 'Ese reporte no existe.');
     return d;
   }
 
-  /** Permisos del reporte. Faltando uno solo, no se entrega nada parcial: el reporte entero queda restringido. */
+  /** Faltando un solo permiso de dominio, se deniega el reporte entero: nunca una versión recortada. */
   private requireAll(ctx: TenantContext, d: Definition) {
-    const faltan = d.requires.filter((p) => !has(ctx, p));
-    if (faltan.length) {
-      throw forbidden('PERMISSION_DENIED', `Este reporte exige ${d.requires.join(' y ')}; tu rol no tiene ${faltan.join(' ni ')}. No se entrega una versión parcial: un total sobre una parte se leería como total de la organización.`);
-    }
+    const faltan = missingPermissions(ctx.permissions, d.requires);
+    if (faltan.length) throw forbidden('PERMISSION_DENIED', denialMessage(d.requires, faltan, d.why));
+  }
+
+  /**
+   * Instantánea de lectura. Todo el reporte —filas, totales y páginas de la exportación— se calcula dentro de una
+   * transacción REPEATABLE READ de solo lectura, de modo que lo exportado no mezcle estados distintos de la base.
+   */
+  private snapshot<T>(fn: (trx: Transaction<Database>) => Promise<T>): Promise<T> {
+    return this.db.transaction().setIsolationLevel('repeatable read').setAccessMode('read only').execute(fn);
   }
 
   private meta(period: Period, asOf: string) {
@@ -108,27 +109,35 @@ export class EntityReportsController {
       scope_note: SCOPE_NOTE,
       assigned_scope_note: ASSIGNED_SCOPE_NOTE,
       interpretation_note: INTERPRETATION_NOTE,
+      snapshot_note: SNAPSHOT_NOTE,
       coverage: COVERAGE,
       period: { from: period.from, to: period.to },
-      limit_note: `La tabla devuelve como máximo ${ENTITY_REPORT_LIMIT} filas, ordenadas por código. Los TOTALES se calculan sobre el conjunto completo ya filtrado por organización y alcance, no sobre las filas mostradas: truncar la tabla no altera ninguna cifra.`,
+      limit_note:
+        `Las filas se paginan por cursor sobre la clave natural del reporte (página por omisión ${PAGE_DEFAULT}, máximo ${PAGE_MAX}). ` +
+        'Los TOTALES se calculan siempre sobre el conjunto completo ya filtrado por organización y alcance, no sobre la página mostrada: ' +
+        'avanzar o truncar la tabla no altera ninguna cifra.',
     };
   }
 
   // ---------------------------------------------------------------- reportes
 
-  private async build(ctx: TenantContext, kind: EntityKind, period: Period): Promise<Built> {
+  private async build(db: Db, ctx: TenantContext, kind: EntityKind, period: Period, page: { after: string | null; limit: number }): Promise<Built> {
     const org = ctx.organizationId;
-    const lim = ENTITY_REPORT_LIMIT;
+    const { after, limit } = page;
     // Alcance por asignación aplicado en la MISMA consulta (hoy estos reportes exigen el permiso completo, de modo que
     // el filtro no recorta nada; se mantiene para que un cambio de catálogo no abra un agregado por descuido).
-    const soloAsignados = !has(ctx, 'producer:read');
+    const todosProductores = has(ctx, 'producer:read');
+    const todasParcelas = has(ctx, 'plot:read');
     const memb = ctx.membershipId;
     const identidad = has(ctx, 'producer:read_identity');
     const nombre = (r: { legal_name: string | null; first_name: string | null; last_name: string | null }) =>
       identidad ? (r.legal_name ?? ([r.first_name, r.last_name].filter(Boolean).join(' ') || null)) : null;
+    /** Cursor: la clave natural de la última fila entregada. Única dentro del tenant, así la página es estable. */
+    const cursorOf = (rows: Record<string, Cell>[], key: string) =>
+      rows.length === limit ? String(rows[rows.length - 1][key]) : null;
 
     if (kind === 'producers') {
-      const where = sql`pr.organization_id = ${org} AND pr.deleted_at IS NULL AND (${!soloAsignados} OR pr.assigned_membership_id = ${memb})`;
+      const where = sql`pr.organization_id = ${org} AND pr.deleted_at IS NULL AND (${todosProductores} OR pr.assigned_membership_id = ${memb})`;
       const periodo = sql`(${period.from}::date IS NULL OR d.delivery_date >= ${period.from}::date) AND (${period.to}::date IS NULL OR d.delivery_date <= ${period.to}::date)`;
       const rows = (await sql<{ producer_code: string; status: string; legal_name: string | null; first_name: string | null; last_name: string | null; plots: string; plots_with_geometry: string; deliveries: string; asignado: boolean }>`
         SELECT pr.producer_code, pr.status, pr.legal_name, pr.first_name, pr.last_name,
@@ -138,7 +147,8 @@ export class EntityReportsController {
                (SELECT count(*) FROM deliveries d WHERE d.organization_id = pr.organization_id AND d.producer_id = pr.id
                  AND d.status = 'REGISTERED' AND d.delivery_date IS NOT NULL AND ${periodo})::text AS deliveries,
                (pr.assigned_membership_id IS NOT NULL) AS asignado
-        FROM producers pr WHERE ${where} ORDER BY pr.producer_code LIMIT ${lim}`.execute(this.db)).rows;
+        FROM producers pr WHERE ${where} AND (${after}::text IS NULL OR pr.producer_code > ${after}::text)
+        ORDER BY pr.producer_code LIMIT ${limit}`.execute(db)).rows;
       const t = (await sql<{ productores: string; con_parcela: string; parcelas: string; con_geometria: string; entregas: string }>`
         SELECT count(*)::text AS productores,
                count(*) FILTER (WHERE (SELECT count(*) FROM plots pl WHERE pl.organization_id = pr.organization_id AND pl.producer_id = pr.id AND pl.deleted_at IS NULL) > 0)::text AS con_parcela,
@@ -147,18 +157,19 @@ export class EntityReportsController {
                  WHERE pl.organization_id = pr.organization_id AND pl.producer_id = pr.id AND pl.deleted_at IS NULL AND v.geometry_type IS NOT NULL)), 0)::text AS con_geometria,
                coalesce(sum((SELECT count(*) FROM deliveries d WHERE d.organization_id = pr.organization_id AND d.producer_id = pr.id
                  AND d.status = 'REGISTERED' AND d.delivery_date IS NOT NULL AND ${periodo})), 0)::text AS entregas
-        FROM producers pr WHERE ${where}`.execute(this.db)).rows[0];
+        FROM producers pr WHERE ${where}`.execute(db)).rows[0];
+      const out = rows.map((r) => ({ producer_code: r.producer_code, nombre: nombre(r), status: r.status, plots: Number(r.plots), plots_with_geometry: Number(r.plots_with_geometry), deliveries: Number(r.deliveries), asignado: r.asignado ? 'Sí' : 'No' }));
       return {
         columns: [
           { key: 'producer_code', label: 'Código' },
           { key: 'nombre', label: 'Nombre', note: 'Solo con producer:read_identity; sin ese permiso queda vacío y el reporte se lee por código.' },
           { key: 'status', label: 'Estado' },
-          { key: 'plots', label: 'Parcelas' },
+          { key: 'plots', label: 'Parcelas', note: 'Exige plot:read: contar parcelas es leer el dominio de parcelas.' },
           { key: 'plots_with_geometry', label: 'Parcelas con geometría', note: 'Versión vigente con geometría registrada. No dice si es válida: eso exige el criterio de D-05.' },
-          { key: 'deliveries', label: 'Entregas registradas en el período', note: 'Por delivery_date (fecha civil declarada), nunca created_at.' },
+          { key: 'deliveries', label: 'Entregas registradas en el período', note: 'Exige delivery:read. Por delivery_date (fecha civil declarada), nunca created_at.' },
           { key: 'asignado', label: '¿Asignado?' },
         ],
-        rows: rows.map((r) => ({ producer_code: r.producer_code, nombre: nombre(r), status: r.status, plots: Number(r.plots), plots_with_geometry: Number(r.plots_with_geometry), deliveries: Number(r.deliveries), asignado: r.asignado ? 'Sí' : 'No' })),
+        rows: out,
         totals: [
           { key: 'productores', label: 'Productores vigentes', value: t.productores },
           { key: 'con_parcela', label: 'Con al menos una parcela', value: t.con_parcela },
@@ -172,18 +183,19 @@ export class EntityReportsController {
           'Nunca incluye documento, teléfono ni dirección, que están cifrados y fuera de todo reporte.',
         ],
         total_rows: Number(t.productores),
+        next_cursor: cursorOf(out, 'producer_code'),
       };
     }
 
     if (kind === 'plots') {
-      const soloAsignadasPlot = !has(ctx, 'plot:read');
-      const where = sql`pl.organization_id = ${org} AND pl.deleted_at IS NULL AND (${!soloAsignadasPlot} OR pr.assigned_membership_id = ${memb})`;
+      const where = sql`pl.organization_id = ${org} AND pl.deleted_at IS NULL AND (${todasParcelas} OR pr.assigned_membership_id = ${memb})`;
       const rows = (await sql<{ plot_code: string; producer_code: string; status: string; geometry_type: string | null; survey_method: string | null; validation_status: string | null; area_declared_ha: string | null; area_calculated_ha: string | null; current_version_id: string | null }>`
         SELECT pl.plot_code, pr.producer_code, pl.status, v.geometry_type, v.survey_method, v.validation_status,
                v.area_declared_ha::text, v.area_calculated_ha::text, pl.current_version_id
         FROM plots pl JOIN producers pr ON pr.id = pl.producer_id AND pr.organization_id = pl.organization_id
         LEFT JOIN plot_versions v ON v.id = pl.current_version_id AND v.organization_id = pl.organization_id
-        WHERE ${where} ORDER BY pl.plot_code LIMIT ${lim}`.execute(this.db)).rows;
+        WHERE ${where} AND (${after}::text IS NULL OR pl.plot_code > ${after}::text)
+        ORDER BY pl.plot_code LIMIT ${limit}`.execute(db)).rows;
       const t = (await sql<{ parcelas: string; con_geometria: string; solo_superficie: string; sin_version: string; evaluadas: string; validas: string; superficie_declarada: string }>`
         SELECT count(*)::text AS parcelas,
                count(*) FILTER (WHERE v.geometry_type IS NOT NULL)::text AS con_geometria,
@@ -194,12 +206,17 @@ export class EntityReportsController {
                coalesce(sum(v.area_declared_ha), 0)::text AS superficie_declarada
         FROM plots pl JOIN producers pr ON pr.id = pl.producer_id AND pr.organization_id = pl.organization_id
         LEFT JOIN plot_versions v ON v.id = pl.current_version_id AND v.organization_id = pl.organization_id
-        WHERE ${where}`.execute(this.db)).rows[0];
+        WHERE ${where}`.execute(db)).rows[0];
       const estado = (r: typeof rows[number]) => (!r.current_version_id ? 'SIN VERSIÓN' : r.geometry_type ? 'GEOMETRÍA REGISTRADA' : 'SOLO SUPERFICIE DECLARADA');
+      const out = rows.map((r) => ({
+        plot_code: r.plot_code, producer_code: r.producer_code, status: r.status, geometry_status: estado(r),
+        survey_method: r.survey_method, validation_status: r.validation_status === 'NOT_VALIDATED' ? 'SIN EVALUAR' : r.validation_status,
+        area_declared_ha: r.area_declared_ha, area_calculated_ha: r.area_calculated_ha,
+      }));
       return {
         columns: [
           { key: 'plot_code', label: 'Código' },
-          { key: 'producer_code', label: 'Productor' },
+          { key: 'producer_code', label: 'Productor', note: 'Exige producer:read: identifica un recurso del dominio de productores.' },
           { key: 'status', label: 'Estado' },
           { key: 'geometry_status', label: 'Ubicación', note: 'La superficie declarada NO es ubicación: se distingue de una geometría registrada.' },
           { key: 'survey_method', label: 'Método' },
@@ -207,11 +224,7 @@ export class EntityReportsController {
           { key: 'area_declared_ha', label: 'Superficie declarada (ha)' },
           { key: 'area_calculated_ha', label: 'Superficie calculada (ha)' },
         ],
-        rows: rows.map((r) => ({
-          plot_code: r.plot_code, producer_code: r.producer_code, status: r.status, geometry_status: estado(r),
-          survey_method: r.survey_method, validation_status: r.validation_status === 'NOT_VALIDATED' ? 'SIN EVALUAR' : r.validation_status,
-          area_declared_ha: r.area_declared_ha, area_calculated_ha: r.area_calculated_ha,
-        })),
+        rows: out,
         totals: [
           { key: 'parcelas', label: 'Parcelas vigentes', value: t.parcelas },
           { key: 'con_geometria', label: 'Con geometría registrada', value: t.con_geometria },
@@ -226,6 +239,7 @@ export class EntityReportsController {
           'Las superficies se suman solo entre sí, en hectáreas; no se mezclan con la superficie calculada, que procede de la geometría y no de la declaración.',
         ],
         total_rows: Number(t.parcelas),
+        next_cursor: cursorOf(out, 'plot_code'),
       };
     }
 
@@ -237,21 +251,23 @@ export class EntityReportsController {
                  WHERE li.organization_id = l.organization_id AND li.lot_id = l.id AND lr.input_id IS NULL)::text AS entradas,
                to_char(l.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at
         FROM lots l LEFT JOIN products p ON p.id = l.product_id AND p.organization_id = l.organization_id
-        WHERE ${where} ORDER BY l.lot_code LIMIT ${lim}`.execute(this.db)).rows;
+        WHERE ${where} AND (${after}::text IS NULL OR l.lot_code > ${after}::text)
+        ORDER BY l.lot_code LIMIT ${limit}`.execute(db)).rows;
       const t = (await sql<{ lotes: string; abiertos: string; cerrados: string; origen_completo: string; origen_incompleto: string }>`
         SELECT count(*)::text AS lotes, count(*) FILTER (WHERE l.status = 'OPEN')::text AS abiertos,
                count(*) FILTER (WHERE l.status = 'CLOSED_FOR_INPUT')::text AS cerrados,
                count(*) FILTER (WHERE l.origin_status = 'COMPLETE')::text AS origen_completo,
                count(*) FILTER (WHERE l.origin_status = 'INCOMPLETE')::text AS origen_incompleto
-        FROM lots l WHERE ${where}`.execute(this.db)).rows[0];
+        FROM lots l WHERE ${where}`.execute(db)).rows[0];
       // Cantidades: una línea por unidad. Nunca una suma única entre unidades distintas.
       const porUnidad = (await sql<{ unit: string; total: string; n: string }>`
         SELECT l.unit, coalesce(sum(l.output_quantity), 0)::text AS total, count(*) FILTER (WHERE l.output_quantity IS NOT NULL)::text AS n
-        FROM lots l WHERE ${where} GROUP BY l.unit ORDER BY l.unit`.execute(this.db)).rows;
+        FROM lots l WHERE ${where} GROUP BY l.unit ORDER BY l.unit`.execute(db)).rows;
+      const out = rows.map((r) => ({ lot_code: r.lot_code, product_code: r.product_code, status: r.status, origin_status: r.origin_status, entradas: Number(r.entradas), output_quantity: r.output_quantity, unit: r.unit, created_at: r.created_at }));
       return {
         columns: [
           { key: 'lot_code', label: 'Código' },
-          { key: 'product_code', label: 'Producto' },
+          { key: 'product_code', label: 'Producto', note: 'Exige product:read: identifica un recurso del catálogo de productos.' },
           { key: 'status', label: 'Estado' },
           { key: 'origin_status', label: 'Origen', note: 'COMPLETE significa origen declarado completo; no acredita verificación.' },
           { key: 'entradas', label: 'Entradas vigentes', note: 'Entradas no liberadas; una entrada liberada deja de contar.' },
@@ -259,7 +275,7 @@ export class EntityReportsController {
           { key: 'unit', label: 'Unidad' },
           { key: 'created_at', label: 'Creado (UTC)' },
         ],
-        rows: rows.map((r) => ({ lot_code: r.lot_code, product_code: r.product_code, status: r.status, origin_status: r.origin_status, entradas: Number(r.entradas), output_quantity: r.output_quantity, unit: r.unit, created_at: r.created_at })),
+        rows: out,
         totals: [
           { key: 'lotes', label: 'Lotes', value: t.lotes },
           { key: 'abiertos', label: 'Abiertos (OPEN)', value: t.abiertos },
@@ -274,6 +290,7 @@ export class EntityReportsController {
           'Una reserva de embarque no es un despacho (P0-029) y no aparece como salida en este reporte.',
         ],
         total_rows: Number(t.lotes),
+        next_cursor: cursorOf(out, 'lot_code'),
       };
     }
 
@@ -281,8 +298,8 @@ export class EntityReportsController {
       // Todos los lotes, con su ÚLTIMA evaluación si existe. Un lote sin evaluar aparece como «SIN EVALUAR»: omitirlo
       // escondería el desconocido y haría parecer que la organización está evaluada.
       const where = sql`l.organization_id = ${org}`;
-      const rows = (await sql<{ lot_code: string; severity: string | null; technical_result: string | null; conclusion: string | null; rule_set_version: string | null; evaluated_at: string | null; evaluaciones: string; revisiones: string }>`
-        SELECT l.lot_code, e.severity, e.technical_result, e.conclusion, e.rule_set_version,
+      const rows = (await sql<{ lot_code: string; severity: string | null; technical_result: string | null; conclusion: string | null; rule_set_version: string | null; approval_status: string | null; evaluated_at: string | null; evaluaciones: string; revisiones: string }>`
+        SELECT l.lot_code, e.severity, e.technical_result, e.conclusion, e.rule_set_version, rs.approval_status,
                to_char(e.evaluated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS evaluated_at,
                (SELECT count(*) FROM risk_evaluations x WHERE x.organization_id = l.organization_id AND x.subject_id = l.id)::text AS evaluaciones,
                (SELECT count(*) FROM risk_reviews rv WHERE rv.organization_id = l.organization_id AND rv.evaluation_id = e.id)::text AS revisiones
@@ -291,7 +308,9 @@ export class EntityReportsController {
           SELECT * FROM risk_evaluations re WHERE re.organization_id = l.organization_id AND re.subject_id = l.id
           ORDER BY re.evaluation_number DESC LIMIT 1
         ) e ON true
-        WHERE ${where} ORDER BY l.lot_code LIMIT ${lim}`.execute(this.db)).rows;
+        LEFT JOIN risk_rule_sets rs ON rs.version = e.rule_set_version
+        WHERE ${where} AND (${after}::text IS NULL OR l.lot_code > ${after}::text)
+        ORDER BY l.lot_code LIMIT ${limit}`.execute(db)).rows;
       const t = (await sql<{ lotes: string; evaluados: string; sin_evaluar: string; sin_severidad: string; alto: string; medio: string; bajo: string }>`
         SELECT count(*)::text AS lotes,
                count(*) FILTER (WHERE e.id IS NOT NULL)::text AS evaluados,
@@ -303,38 +322,51 @@ export class EntityReportsController {
         FROM lots l LEFT JOIN LATERAL (
           SELECT * FROM risk_evaluations re WHERE re.organization_id = l.organization_id AND re.subject_id = l.id
           ORDER BY re.evaluation_number DESC LIMIT 1
-        ) e ON true WHERE ${where}`.execute(this.db)).rows[0];
+        ) e ON true WHERE ${where}`.execute(db)).rows[0];
       const clasificados = Number(t.alto) + Number(t.medio) + Number(t.bajo);
+      const lotes = Number(t.lotes);
+      // Caso mixto: si hay clasificados y además sujetos sin clasificar, el conteo se publica SIEMPRE con su base,
+      // nunca como distribución de todos los lotes.
+      const base = (v: string) => (clasificados === 0
+        ? 'DESCONOCIDO (ningún lote clasificado)'
+        : `${v} de ${clasificados} lote(s) clasificado(s)${clasificados < lotes ? ` — NO es sobre los ${lotes} del tenant` : ''}`);
+      const catalogo = rows.find((r) => r.approval_status)?.approval_status ?? null;
       return {
         columns: [
           { key: 'lot_code', label: 'Lote' },
-          { key: 'severity', label: 'Severidad (última)', note: 'NOT_ASSESSED significa DESCONOCIDO: el motor no concluye mientras D-05, P0-028 y P0-021 sigan abiertos.' },
-          { key: 'technical_result', label: 'Resultado técnico' },
+          { key: 'severity', label: 'Severidad (última)', note: 'NOT_ASSESSED significa DESCONOCIDO: el catálogo de reglas vigente no está aprobado y no define pesos, umbrales ni severidades (D-07).' },
+          { key: 'technical_result', label: 'Resultado técnico', note: 'Hallazgos de reglas. Es una dimensión distinta de la severidad y no la implica.' },
           { key: 'conclusion', label: 'Conclusión' },
           { key: 'rule_set_version', label: 'Versión de reglas' },
+          { key: 'approval_status', label: 'Catálogo' },
           { key: 'evaluated_at', label: 'Evaluado (UTC)' },
           { key: 'evaluaciones', label: 'Evaluaciones' },
           { key: 'revisiones', label: 'Revisiones' },
         ],
         rows: rows.map((r) => ({
           lot_code: r.lot_code, severity: r.severity ?? 'SIN EVALUAR', technical_result: r.technical_result, conclusion: r.conclusion,
-          rule_set_version: r.rule_set_version, evaluated_at: r.evaluated_at, evaluaciones: Number(r.evaluaciones), revisiones: Number(r.revisiones ?? 0),
+          rule_set_version: r.rule_set_version, approval_status: r.approval_status, evaluated_at: r.evaluated_at,
+          evaluaciones: Number(r.evaluaciones), revisiones: Number(r.revisiones ?? 0),
         })),
         totals: [
           { key: 'lotes', label: 'Lotes', value: t.lotes },
           { key: 'evaluados', label: 'Con al menos una evaluación', value: t.evaluados },
           { key: 'sin_evaluar', label: 'Sin evaluación', value: t.sin_evaluar },
           { key: 'sin_severidad', label: 'Evaluados sin severidad asignada (desconocido)', value: t.sin_severidad },
-          { key: 'alto', label: 'Riesgo alto', value: clasificados === 0 ? 'DESCONOCIDO (ningún lote clasificado)' : t.alto },
-          { key: 'medio', label: 'Riesgo medio', value: clasificados === 0 ? 'DESCONOCIDO (ningún lote clasificado)' : t.medio },
-          { key: 'bajo', label: 'Riesgo bajo', value: clasificados === 0 ? 'DESCONOCIDO (ningún lote clasificado)' : t.bajo },
+          { key: 'clasificados', label: 'Lotes con severidad asignada (base de la distribución)', value: String(clasificados) },
+          { key: 'alto', label: 'Riesgo alto', value: base(t.alto) },
+          { key: 'medio', label: 'Riesgo medio', value: base(t.medio) },
+          { key: 'bajo', label: 'Riesgo bajo', value: base(t.bajo) },
         ],
         notes: [
           'Un lote sin evaluar aparece en la tabla como «SIN EVALUAR». No se omite: omitirlo escondería lo desconocido.',
-          'Mientras ningún lote tenga severidad asignada, los totales por severidad salen DESCONOCIDO en vez de cero: un cero se leería como resultado favorable.',
+          `La severidad la decide el catálogo de reglas de riesgo${catalogo ? ` (vigente: ${catalogo})` : ''}. Mientras el catálogo no esté APROBADO no define pesos, umbrales, puntuaciones ni severidades, y el motor escribe NOT_ASSESSED para TODA evaluación: es la decisión D-07, no un efecto de otras historias.`,
+          'Verificar una mitigación (P0-021, implementada) NO asigna severidad ni produce una conclusión favorable: entra en el resultado TÉCNICO del factor correspondiente, que es otra dimensión.',
+          'Cuando hay lotes clasificados y lotes sin clasificar a la vez, los conteos por severidad se publican sobre la base de los clasificados, nunca como distribución de todos los lotes del tenant.',
           'La severidad es un resultado técnico interno; no es una conclusión jurídica ni acredita conformidad EUDR.',
         ],
-        total_rows: Number(t.lotes),
+        total_rows: lotes,
+        next_cursor: cursorOf(rows.map((r) => ({ lot_code: r.lot_code })), 'lot_code'),
       };
     }
 
@@ -353,14 +385,16 @@ export class EntityReportsController {
           AND NOT EXISTS (SELECT 1 FROM lot_input_releases lr WHERE lr.input_id = li.id)
         LEFT JOIN receptions r ON r.id = li.reception_id AND r.organization_id = l.organization_id
         LEFT JOIN delivery_origins do2 ON do2.delivery_id = r.delivery_id AND do2.organization_id = l.organization_id
-        WHERE ${where} GROUP BY l.id, l.lot_code, l.origin_status ORDER BY l.lot_code LIMIT ${lim}`.execute(this.db)).rows;
+        WHERE ${where} AND (${after}::text IS NULL OR l.lot_code > ${after}::text)
+        GROUP BY l.id, l.lot_code, l.origin_status ORDER BY l.lot_code LIMIT ${limit}`.execute(db)).rows;
       const t = (await sql<{ lotes: string; completos: string; incompletos: string; sin_entradas: string }>`
         SELECT count(*)::text AS lotes, count(*) FILTER (WHERE l.origin_status = 'COMPLETE')::text AS completos,
                count(*) FILTER (WHERE l.origin_status = 'INCOMPLETE')::text AS incompletos,
                count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM lot_inputs li WHERE li.lot_id = l.id AND li.organization_id = l.organization_id
                  AND NOT EXISTS (SELECT 1 FROM lot_input_releases lr WHERE lr.input_id = li.id)))::text AS sin_entradas
-        FROM lots l WHERE ${where}`.execute(this.db)).rows[0];
+        FROM lots l WHERE ${where}`.execute(db)).rows[0];
       const lotes = Number(t.lotes);
+      const out = rows.map((r) => ({ lot_code: r.lot_code, origin_status: r.origin_status, entradas: Number(r.entradas), origen_conocido: Number(r.origen_conocido), origen_desconocido: Number(r.origen_desconocido), entregas: Number(r.entregas), parcelas: Number(r.parcelas) }));
       return {
         columns: [
           { key: 'lot_code', label: 'Lote' },
@@ -368,10 +402,10 @@ export class EntityReportsController {
           { key: 'entradas', label: 'Entradas vigentes' },
           { key: 'origen_conocido', label: 'Entradas con origen conocido' },
           { key: 'origen_desconocido', label: 'Entradas con origen desconocido', note: 'Origen desconocido sigue siendo desconocido: no se completa ni se estima.' },
-          { key: 'entregas', label: 'Entregas enlazadas' },
-          { key: 'parcelas', label: 'Parcelas declaradas como origen' },
+          { key: 'entregas', label: 'Entregas enlazadas', note: 'Exige delivery:read: contar entregas es leer el dominio de entregas.' },
+          { key: 'parcelas', label: 'Parcelas declaradas como origen', note: 'Exige plot:read: contar parcelas es leer el dominio de parcelas.' },
         ],
-        rows: rows.map((r) => ({ lot_code: r.lot_code, origin_status: r.origin_status, entradas: Number(r.entradas), origen_conocido: Number(r.origen_conocido), origen_desconocido: Number(r.origen_desconocido), entregas: Number(r.entregas), parcelas: Number(r.parcelas) })),
+        rows: out,
         totals: [
           { key: 'lotes', label: 'Lotes', value: t.lotes },
           { key: 'completos', label: 'Con origen declarado completo', value: t.completos },
@@ -385,11 +419,11 @@ export class EntityReportsController {
           'Las parcelas se cuentan por su vínculo declarado con la entrega; este reporte no incluye coordenadas.',
         ],
         total_rows: lotes,
+        next_cursor: cursorOf(out, 'lot_code'),
       };
     }
 
     // kind === 'dd'
-    const verLote = has(ctx, 'lot:read');
     const where = sql`c.organization_id = ${org}`;
     const rows = (await sql<{ case_number: string; subject_type: string; lot_code: string | null; readiness: string | null; snapshot_number: number | null; captured_at: string | null; instantaneas: string; revisiones: string; exportaciones: string }>`
       SELECT c.case_number, c.subject_type, l.lot_code, s.readiness, s.snapshot_number,
@@ -403,7 +437,8 @@ export class EntityReportsController {
         SELECT * FROM dd_snapshots ds WHERE ds.organization_id = c.organization_id AND ds.case_id = c.id
         ORDER BY ds.snapshot_number DESC LIMIT 1
       ) s ON true
-      WHERE ${where} ORDER BY c.case_number LIMIT ${lim}`.execute(this.db)).rows;
+      WHERE ${where} AND (${after}::text IS NULL OR c.case_number > ${after}::text)
+      ORDER BY c.case_number LIMIT ${limit}`.execute(db)).rows;
     const t = (await sql<{ expedientes: string; ready: string; in_progress: string; blocked: string; sin_instantanea: string; exportados: string }>`
       SELECT count(*)::text AS expedientes,
              count(*) FILTER (WHERE s.readiness = 'READY')::text AS ready,
@@ -415,11 +450,16 @@ export class EntityReportsController {
       FROM dd_cases c LEFT JOIN LATERAL (
         SELECT * FROM dd_snapshots ds WHERE ds.organization_id = c.organization_id AND ds.case_id = c.id
         ORDER BY ds.snapshot_number DESC LIMIT 1
-      ) s ON true WHERE ${where}`.execute(this.db)).rows[0];
+      ) s ON true WHERE ${where}`.execute(db)).rows[0];
+    const out = rows.map((r) => ({
+      case_number: r.case_number, subject: r.lot_code ?? r.subject_type,
+      readiness: r.readiness ?? 'SIN INSTANTÁNEA', snapshot_number: r.snapshot_number, captured_at: r.captured_at,
+      instantaneas: Number(r.instantaneas), revisiones: Number(r.revisiones), exportaciones: Number(r.exportaciones),
+    }));
     return {
       columns: [
         { key: 'case_number', label: 'Expediente' },
-        { key: 'subject', label: 'Sujeto', note: verLote ? 'Lote del expediente.' : 'Sin lot:read el reporte no revela el código del lote.' },
+        { key: 'subject', label: 'Sujeto', note: 'Exige lot:read: el sujeto del expediente es un lote y se identifica por su código.' },
         { key: 'readiness', label: 'Preparación (última instantánea)', note: 'READY es preparación INTERNA; no es conformidad ni presentación de DDS.' },
         { key: 'snapshot_number', label: 'Instantánea nº' },
         { key: 'captured_at', label: 'Capturada (UTC)' },
@@ -427,11 +467,7 @@ export class EntityReportsController {
         { key: 'revisiones', label: 'Revisiones' },
         { key: 'exportaciones', label: 'Exportaciones', note: 'EXPORTED es descarga del paquete, no presentación oficial.' },
       ],
-      rows: rows.map((r) => ({
-        case_number: r.case_number, subject: verLote ? (r.lot_code ?? r.subject_type) : r.subject_type,
-        readiness: r.readiness ?? 'SIN INSTANTÁNEA', snapshot_number: r.snapshot_number, captured_at: r.captured_at,
-        instantaneas: Number(r.instantaneas), revisiones: Number(r.revisiones), exportaciones: Number(r.exportaciones),
-      })),
+      rows: out,
       totals: [
         { key: 'expedientes', label: 'Expedientes', value: t.expedientes },
         { key: 'ready', label: 'READY (preparación interna)', value: t.ready },
@@ -443,10 +479,24 @@ export class EntityReportsController {
       notes: [
         'Contar expedientes BLOCKED es un conteo observado y se publica: lo que no se deduce de él es conformidad.',
         'READY indica preparación interna y EXPORTED indica descarga: ninguno significa presentación oficial de DDS.',
-        'Hoy READY es inalcanzable por dependencias abiertas (catálogo de riesgo, D-05, P1-005, P0-028); un 0 en READY no mide el desempeño del equipo.',
+        'Hoy READY es inalcanzable por dependencias abiertas (catálogo de riesgo sin aprobar D-07, D-05, perfil jurídico P1-005); un 0 en READY no mide el desempeño del equipo.',
       ],
       total_rows: Number(t.expedientes),
+      next_cursor: cursorOf(out, 'case_number'),
     };
+  }
+
+  /** Recorre todas las páginas DENTRO de la misma instantánea, hasta el tope declarado. */
+  private async buildAll(db: Db, ctx: TenantContext, d: Definition, period: Period) {
+    const first = await this.build(db, ctx, d.kind, period, { after: null, limit: PAGE_MAX });
+    const rows = [...first.rows];
+    let cursor = first.next_cursor;
+    while (cursor && rows.length < EXPORT_MAX_ROWS) {
+      const next = await this.build(db, ctx, d.kind, period, { after: cursor, limit: PAGE_MAX });
+      rows.push(...next.rows);
+      cursor = next.next_cursor;
+    }
+    return { ...first, rows, truncated: Boolean(cursor) };
   }
 
   // ---------------------------------------------------------------- endpoints
@@ -459,17 +509,21 @@ export class EntityReportsController {
       source: 'S1 §97 «Sprint 11 — Reporting». Contrato: docs/decisiones/P0-030-REPORTES.md',
       scope_note: SCOPE_NOTE,
       assigned_scope_note: ASSIGNED_SCOPE_NOTE,
+      cross_domain_note:
+        'Un reporte exige el permiso de CADA dominio del que muestra datos, conteos o totales, no solo el de la entidad que encabeza las filas: ' +
+        'leer productores no autoriza a conocer cuántas parcelas o entregas tienen.',
       can_export: has(ctx, 'report:export'),
       reports: ENTITY_REPORTS.map((d) => ({
-        kind: d.kind, title: d.title, source: d.source, requires: d.requires, period_applies: d.period_applies, period_note: d.period_note,
-        available: d.requires.every((p) => has(ctx, p)),
-        missing: d.requires.filter((p) => !has(ctx, p)),
+        kind: d.kind, title: d.title, source: d.source, requires: d.requires, why: d.why,
+        period_applies: d.period_applies, period_note: d.period_note,
+        available: missingPermissions(ctx.permissions, d.requires).length === 0,
+        missing: missingPermissions(ctx.permissions, d.requires),
       })),
       geojson: {
         kind: 'plots_geojson', title: 'Exportación GeoJSON de parcelas', source: 'S1 §97 «GeoJSON export»',
-        requires: ['plot:read', 'plot:read_geometry', 'report:export'],
-        available: ['plot:read', 'plot:read_geometry', 'report:export'].every((p) => has(ctx, p as Permission)),
-        missing: ['plot:read', 'plot:read_geometry', 'report:export'].filter((p) => !has(ctx, p as Permission)),
+        requires: GEOJSON_REQUIRES, why: GEOJSON_WHY,
+        available: missingPermissions(ctx.permissions, GEOJSON_REQUIRES).length === 0,
+        missing: missingPermissions(ctx.permissions, GEOJSON_REQUIRES),
         notice: GEOJSON_NOTICE, regulatory_profile: GEOJSON_REGULATORY,
       },
     };
@@ -479,27 +533,28 @@ export class EntityReportsController {
   async geojson(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Req() req: AuthedRequest, @Res() res: Response) {
     // Exportación de colección (S1 §97). Reutiliza la capacidad técnica de P0-009 —misma geometría guardada, mismas
     // propiedades, sin reproyectar ni recortar— y le añade el alcance y los permisos del reporte.
-    const ctx = await this.ctx(user, orgId, 'report:export');
-    for (const p of ['plot:read', 'plot:read_geometry'] as Permission[]) {
-      if (!has(ctx, p)) throw forbidden('PERMISSION_DENIED', `La exportación GeoJSON exige ${p}: entrega coordenadas exactas de las parcelas.`);
-    }
+    const ctx = await this.ctx(user, orgId, 'report:read');
+    const faltan = missingPermissions(ctx.permissions, GEOJSON_REQUIRES);
+    if (faltan.length) throw forbidden('PERMISSION_DENIED', denialMessage(GEOJSON_REQUIRES, faltan, GEOJSON_WHY));
     const org = ctx.organizationId;
-    const rows = (await sql<{ plot_code: string; producer_code: string; version_id: string; version_number: number; geometry: unknown; geometry_type: string; survey_method: string; validation_status: string; technically_valid: boolean | null; area_declared_ha: string | null; area_calculated_ha: string | null; geometry_hash: string | null; source_import_sha256: string | null }>`
-      SELECT pl.plot_code, pr.producer_code, v.id AS version_id, v.version_number, ST_AsGeoJSON(v.geometry, 17)::jsonb AS geometry,
-             v.geometry_type, v.survey_method, v.validation_status, (ST_IsValidDetail(v.geometry)).valid AS technically_valid,
-             v.area_declared_ha::text, v.area_calculated_ha::text, v.geometry_hash, gi.sha256 AS source_import_sha256
-      FROM plots pl
-      JOIN producers pr ON pr.id = pl.producer_id AND pr.organization_id = pl.organization_id
-      JOIN plot_versions v ON v.id = pl.current_version_id AND v.organization_id = pl.organization_id
-      LEFT JOIN geometry_imports gi ON gi.id = v.source_import_id AND gi.organization_id = v.organization_id
-      WHERE pl.organization_id = ${org} AND pl.deleted_at IS NULL AND v.geometry IS NOT NULL
-      ORDER BY pl.plot_code`.execute(this.db)).rows;
-    const t = (await sql<{ parcelas: string; solo_superficie: string; sin_version: string }>`
-      SELECT count(*)::text AS parcelas,
-             count(*) FILTER (WHERE v.id IS NOT NULL AND v.geometry IS NULL)::text AS solo_superficie,
-             count(*) FILTER (WHERE pl.current_version_id IS NULL)::text AS sin_version
-      FROM plots pl LEFT JOIN plot_versions v ON v.id = pl.current_version_id AND v.organization_id = pl.organization_id
-      WHERE pl.organization_id = ${org} AND pl.deleted_at IS NULL`.execute(this.db)).rows[0];
+    const { rows, t } = await this.snapshot(async (trx) => ({
+      rows: (await sql<{ plot_code: string; producer_code: string; version_id: string; version_number: number; geometry: unknown; geometry_type: string; survey_method: string; validation_status: string; technically_valid: boolean | null; area_declared_ha: string | null; area_calculated_ha: string | null; geometry_hash: string | null; source_import_sha256: string | null }>`
+        SELECT pl.plot_code, pr.producer_code, v.id AS version_id, v.version_number, ST_AsGeoJSON(v.geometry, 17)::jsonb AS geometry,
+               v.geometry_type, v.survey_method, v.validation_status, (ST_IsValidDetail(v.geometry)).valid AS technically_valid,
+               v.area_declared_ha::text, v.area_calculated_ha::text, v.geometry_hash, gi.sha256 AS source_import_sha256
+        FROM plots pl
+        JOIN producers pr ON pr.id = pl.producer_id AND pr.organization_id = pl.organization_id
+        JOIN plot_versions v ON v.id = pl.current_version_id AND v.organization_id = pl.organization_id
+        LEFT JOIN geometry_imports gi ON gi.id = v.source_import_id AND gi.organization_id = v.organization_id
+        WHERE pl.organization_id = ${org} AND pl.deleted_at IS NULL AND v.geometry IS NOT NULL
+        ORDER BY pl.plot_code LIMIT ${EXPORT_MAX_ROWS}`.execute(trx)).rows,
+      t: (await sql<{ parcelas: string; solo_superficie: string; sin_version: string }>`
+        SELECT count(*)::text AS parcelas,
+               count(*) FILTER (WHERE v.id IS NOT NULL AND v.geometry IS NULL)::text AS solo_superficie,
+               count(*) FILTER (WHERE pl.current_version_id IS NULL)::text AS sin_version
+        FROM plots pl LEFT JOIN plot_versions v ON v.id = pl.current_version_id AND v.organization_id = pl.organization_id
+        WHERE pl.organization_id = ${org} AND pl.deleted_at IS NULL`.execute(trx)).rows[0],
+    }));
     const generatedAt = new Date().toISOString();
     const collection = {
       type: 'FeatureCollection',
@@ -518,10 +573,12 @@ export class EntityReportsController {
       terra_link: {
         format: GEOJSON_EXPORT_FORMAT, catalog_version: REPORT_CATALOG_VERSION, organization_id: org, generated_at: generatedAt,
         counts: { parcelas_vigentes: Number(t.parcelas), exportadas: rows.length, solo_superficie_declarada: Number(t.solo_superficie), sin_version_vigente: Number(t.sin_version) },
+        limit: { max_features: EXPORT_MAX_ROWS, truncated: rows.length >= EXPORT_MAX_ROWS },
         omitted_note: 'Las parcelas sin geometría NO se exportan y NO se inventan: una superficie declarada no es una ubicación. Su número se declara arriba.',
         validation_note: 'validation_status = NOT_VALIDATED significa SIN EVALUAR, no inválida. technically_valid es el dictamen geométrico de PostGIS, no la validación GIS de negocio (P0-010, pendiente de D-05).',
         notice: GEOJSON_NOTICE,
         regulatory_profile: { status: 'PENDING', depends_on: 'D-05', note: GEOJSON_REGULATORY },
+        snapshot: SNAPSHOT_NOTE,
         recalculation: EXPORT_RECALC_NOTE,
         coverage: COVERAGE,
       },
@@ -540,44 +597,49 @@ export class EntityReportsController {
   }
 
   @Get(':kind')
-  async entity(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('kind') kind: string, @Query() q: ReportPeriodDto) {
+  async entity(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('kind') kind: string, @Query() q: ReportPageDto) {
     const ctx = await this.ctx(user, orgId, 'report:read');
     const d = this.def(kind);
     this.requireAll(ctx, d);
     const period: Period = { from: d.period_applies ? q.from ?? null : null, to: d.period_applies ? q.to ?? null : null };
-    const built = await this.build(ctx, d.kind, period);
+    const limit = Math.min(q.limit ?? PAGE_DEFAULT, PAGE_MAX);
+    const built = await this.snapshot((trx) => this.build(trx, ctx, d.kind, period, { after: q.cursor ?? null, limit }));
     return {
       ...this.meta(period, new Date().toISOString()),
-      kind: d.kind, title: d.title, source: d.source, requires: d.requires, period_applies: d.period_applies, period_note: d.period_note,
+      kind: d.kind, title: d.title, source: d.source, requires: d.requires, why: d.why,
+      period_applies: d.period_applies, period_note: d.period_note,
       can_export: has(ctx, 'report:export'),
       ...built,
+      page: { limit, cursor: q.cursor ?? null, next_cursor: built.next_cursor, key: d.key },
       returned_rows: built.rows.length,
-      truncated: built.rows.length < built.total_rows,
+      has_more: built.next_cursor !== null,
     };
   }
 
   @Get(':kind/export')
   async exportEntity(
     @CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('kind') kind: string,
-    @Req() req: AuthedRequest, @Query() q: ReportPeriodDto, @Res() res: Response,
+    @Req() req: AuthedRequest, @Query() q: ReportPageDto, @Res() res: Response,
   ) {
     const ctx = await this.ctx(user, orgId, 'report:export');
     const d = this.def(kind);
     this.requireAll(ctx, d);
     const period: Period = { from: d.period_applies ? q.from ?? null : null, to: d.period_applies ? q.to ?? null : null };
-    const built = await this.build(ctx, d.kind, period);
+    // La exportación recorre TODAS las páginas dentro de una sola instantánea: el archivo cubre el conjunto completo.
+    const built = await this.snapshot((trx) => this.buildAll(trx, ctx, d, period));
     const org = await this.db.selectFrom('organizations').select('name').where('id', '=', ctx.organizationId).executeTakeFirstOrThrow();
     const generatedAt = new Date().toISOString();
     const m = this.meta(period, generatedAt);
     const head: Array<[string, string]> = [
       ['formato', REPORT_EXPORT_FORMAT], ['catalogo', REPORT_CATALOG_VERSION], ['reporte', d.title], ['fuente', d.source],
       ['organizacion', org.name], ['organizacion_id', ctx.organizationId],
+      ['permisos_exigidos', d.requires.join(' ')],
       ['periodo_desde', period.from ?? 'no aplica'], ['periodo_hasta', period.to ?? 'no aplica'], ['periodo_nota', d.period_note],
-      ['generado', generatedAt], ['recalculo', EXPORT_RECALC_NOTE], ['fechas', `${m.time_basis.period_bounds} ${m.time_basis.civil_dates}`],
+      ['generado', generatedAt], ['recalculo', EXPORT_RECALC_NOTE], ['instantanea', m.snapshot_note],
+      ['fechas', `${m.time_basis.period_bounds} ${m.time_basis.civil_dates}`],
       ['alcance', m.scope_note], ['alcance_asignado', m.assigned_scope_note], ['interpretacion', m.interpretation_note],
       ['cobertura_historica', `${COVERAGE.note} ${COVERAGE.not_reconstructed} Detalle: ${COVERAGE.reference}`],
-      ['filas', `${built.rows.length} de ${built.total_rows}${built.rows.length < built.total_rows ? ' (truncado; los totales cubren el conjunto completo)' : ''}`],
-      ['limite', m.limit_note],
+      ['filas', `${built.rows.length} de ${built.total_rows}${built.truncated ? ` (TRUNCADO en el tope de ${EXPORT_MAX_ROWS}; los totales cubren el conjunto completo)` : ' (conjunto completo)'}`],
       ...built.notes.map((n, i) => [`nota_${i + 1}`, n] as [string, string]),
       ...built.totals.map((t) => [`total_${t.key}`, `${t.label}: ${t.value}`] as [string, string]),
       ['nota_formato', 'Formato local provisional. No acredita conformidad EUDR ni aprobación de ninguna autoridad.'],
@@ -591,7 +653,7 @@ export class EntityReportsController {
     const sha256 = createHash('sha256').update(body).digest('hex');
     await this.audit.record(this.db, {
       organizationId: ctx.organizationId, actorUserId: user.id, action: 'report.export', entityType: 'report', entityId: null, requestId: req.requestId, result: 'SUCCESS',
-      after: { format_version: REPORT_EXPORT_FORMAT, catalog_version: REPORT_CATALOG_VERSION, report: d.kind, sha256, period, rows: built.rows.length, total_rows: built.total_rows, generated_at: generatedAt },
+      after: { format_version: REPORT_EXPORT_FORMAT, catalog_version: REPORT_CATALOG_VERSION, report: d.kind, sha256, period, rows: built.rows.length, total_rows: built.total_rows, truncated: built.truncated, generated_at: generatedAt },
     });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="reporte-${d.kind}-${generatedAt.slice(0, 10)}.csv"`);

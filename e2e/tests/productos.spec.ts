@@ -597,20 +597,34 @@ test('P0-030 reportes: indicadores con definición y denominador; no calculable 
   await expect(page.getByText(/Reserva no es despacho/)).toBeVisible();
   // Cobertura histórica: incompleta por pérdida de almacenamiento, SIN afirmar que lo anterior esté vacío.
   await expect(page.getByText(/Cobertura histórica incompleta/)).toBeVisible();
-  await expect(page.getByText(/por su fecha operativa declarada/)).toBeVisible();
+  await expect(page.getByText(/Los registros disponibles se incluyen SIEMPRE por su fecha operativa declarada/)).toBeVisible();
   await expect(page.getByText(/toda serie anterior.*vacía/i)).toHaveCount(0);
   await expect(page.getByText(/no contiene datos personales ni coordenadas/)).toBeVisible();
+  // Comparación de actividad entre dos períodos: usa fechas operativas y declara si los tramos son equivalentes.
+  await page.getByLabel('Desde', { exact: true }).fill('2026-09-01');
+  await page.getByLabel('Hasta', { exact: true }).fill('2026-09-30');
+  await page.getByLabel('Comparar desde').fill('2026-10-01');
+  await page.getByLabel('Comparar hasta').fill('2026-10-31');
+  await page.getByRole('button', { name: 'Aplicar período' }).click();
+  await expect(page.getByRole('heading', { level: 2, name: 'Comparación de actividad' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Comparación de actividad' })).toBeVisible();
+  // 30 días frente a 31: se declara que NO son equivalentes en vez de corregirlo en silencio.
+  await expect(page.getByText('Períodos no equivalentes')).toBeVisible();
+  // Comparar actividad no es reconstruir existencias, y la pantalla lo dice.
+  await expect(page.getByText(/saldo a una fecha es una capacidad distinta/i)).toBeVisible();
+  await expect(page).toHaveURL(/comp_desde=2026-10-01/);
+
   // Período solo con teclado; el filtro queda en la URL y se conserva al volver de otra pantalla.
-  await page.getByLabel('Desde').fill('2026-09-01');
-  await page.getByLabel('Hasta').fill('2026-09-30');
+  await page.getByLabel('Desde', { exact: true }).fill('2026-09-01');
+  await page.getByLabel('Hasta', { exact: true }).fill('2026-09-30');
   await page.getByRole('button', { name: 'Aplicar período' }).press('Enter');
   await expect(page).toHaveURL(/desde=2026-09-01/);
   await expect(page).toHaveURL(/hasta=2026-09-30/);
   const conPeriodo = page.url();
   await page.goto(`${orgUrl}/lotes`);
   await page.goto(conPeriodo); // volver con el período en la URL lo restituye en el formulario
-  await expect(page.getByLabel('Desde')).toHaveValue('2026-09-01');
-  await expect(page.getByLabel('Hasta')).toHaveValue('2026-09-30');
+  await expect(page.getByLabel('Desde', { exact: true })).toHaveValue('2026-09-01');
+  await expect(page.getByLabel('Hasta', { exact: true })).toHaveValue('2026-09-30');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   // Zoom 200 % con la convención del proyecto (1280 px a 640 px CSS; e2e/review/web-por-rol.mjs).
   await page.setViewportSize({ width: 640, height: 430 });
@@ -642,12 +656,20 @@ test('P0-030 reportes por entidad: §97 en pantalla, desconocidos visibles, GeoJ
   await expect(page.getByRole('heading', { name: 'Exportación GeoJSON de parcelas' })).toBeVisible();
   await expect(page.getByText(/Perfil de destino regulatorio pendiente \(D-05\)/)).toBeVisible();
   await expect(page.getByText(/no es un paquete de debida diligencia/i)).toBeVisible();
+  // Las filas se paginan y los totales cubren el conjunto completo, no la página mostrada.
+  const paginas = page.getByRole('navigation', { name: 'Páginas del reporte' });
+  await expect(paginas).toBeVisible();
+  await expect(paginas).toContainText(/Mostrando \d+ de \d+ fila/);
+  await expect(paginas.getByRole('button', { name: 'Primera página' })).toBeDisabled(); // ya estamos en la primera
+  await expect(page.getByText(/Los TOTALES se calculan siempre sobre el conjunto completo/)).toBeVisible();
+
   // Riesgo: los lotes sin evaluar aparecen como tales, no se omiten.
   await selector.getByRole('button', { name: /riesgo/i }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Reporte de riesgo', exact: true })).toBeVisible();
   await expect(page.getByText(/no se omite/i)).toBeVisible();
   // La descarga declara que recalcula y que no es la instantánea de la pantalla.
   await expect(page.getByText(/Se RECALCULA al descargar/)).toBeVisible();
+  await expect(page.getByText(/CONJUNTO COMPLETO de filas, no solo la página mostrada/)).toBeVisible();
   // El reporte activo queda en la URL y se conserva al volver desde otra pantalla.
   const conReporte = page.url();
   await page.goto(`${orgUrl}/lotes`);

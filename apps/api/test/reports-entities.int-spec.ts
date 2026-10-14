@@ -10,6 +10,7 @@ describeDb('P0-030 reportes por entidad: alcance, desconocidos y exportación', 
   let h: Awaited<ReturnType<typeof setupHarness>>;
   let orgA: string;
   let orgB: string;
+  let orgC: string;
   let product: string;
   let center: string;
   let prod1: string;
@@ -26,7 +27,9 @@ describeDb('P0-030 reportes por entidad: alcance, desconocidos y exportación', 
     columns: Array<{ key: string; label: string; note?: string }>;
     rows: Array<Record<string, string | number | null>>;
     totals: Array<{ key: string; label: string; value: string }>;
-    notes: string[]; total_rows: number; returned_rows: number; truncated: boolean; can_export: boolean;
+    notes: string[]; total_rows: number; returned_rows: number; has_more: boolean; can_export: boolean;
+    page: { limit: number; cursor: string | null; next_cursor: string | null; key: string };
+    why: Record<string, string>; snapshot_note: string;
     coverage: { status: string; note: string }; limit_note: string; time_basis: { as_of: string };
   };
   const get = async (actor: string, kind: string, qs = '', o = orgA) =>
@@ -55,6 +58,7 @@ describeDb('P0-030 reportes por entidad: alcance, desconocidos y exportación', 
     const mk = async (name: string, admin: string) => (await http().post('/api/v1/organizations').set(as('super@test.local')).send({ name, organization_type: 'COOPERATIVE', country: 'EC', initial_admin_email: admin }).expect(201)).body.id;
     orgA = await mk('Coop Entidades A', ADMIN);
     orgB = await mk('Coop Entidades B', 'admin-b@test.local');
+    orgC = await mk('Coop Entidades C (volumen)', ADMIN);
     for (const [e, r] of [[AUD, 'AUDITOR'], [EUDR, 'EUDR_MANAGER'], ['exportacion@test.local', 'EXPORT_MANAGER'], ['tecnico@test.local', 'FIELD_TECHNICIAN'], ['trazabilidad@test.local', 'TRACEABILITY_MANAGER']]) await join(e, r);
     product = (await http().post(`${api(orgA)}/products`).set(as(ADMIN)).send({ code: 'CACAO_BABA', name: 'Cacao en baba', product_state: 'CACAO_BABA', unit: 'KG' }).expect(201)).body.id;
     center = (await http().post(`${api(orgA)}/locations`).set(as(ADMIN)).send({ code: 'CR', name: 'Centro', location_type: 'COLLECTION_CENTER' }).expect(201)).body.id;
@@ -99,11 +103,17 @@ describeDb('P0-030 reportes por entidad: alcance, desconocidos y exportación', 
     const c = (await http().get(`${api(orgA)}/reports/entities`).set(as(ADMIN)).expect(200)).body;
     expect(c.reports.map((r: { kind: string }) => r.kind)).toEqual(['producers', 'plots', 'lots', 'risk', 'traceability', 'dd']);
     expect(c.reports.every((r: { available: boolean }) => r.available)).toBe(true);
-    expect(c.geojson.requires).toEqual(['plot:read', 'plot:read_geometry', 'report:export']);
+    // Cada reporte publica el permiso de CADA dominio del que muestra datos, con su motivo.
+    const porTipoAdmin = Object.fromEntries(c.reports.map((r: { kind: string; requires: string[]; why: Record<string, string> }) => [r.kind, r]));
+    expect(porTipoAdmin.producers.requires).toEqual(['producer:read', 'plot:read', 'delivery:read']);
+    expect(porTipoAdmin.traceability.requires).toEqual(['lot:read', 'delivery:read', 'plot:read']);
+    expect(porTipoAdmin.producers.why['plot:read']).toMatch(/parcelas/);
+    expect(c.cross_domain_note).toMatch(/no autoriza a conocer/i);
+    expect(c.geojson.requires).toEqual(['report:export', 'plot:read', 'plot:read_geometry', 'producer:read']);
     // EXPORT_MANAGER entra a la pantalla pero casi ningún reporte le está disponible, y se le dice cuál le falta.
     const limitado = (await http().get(`${api(orgA)}/reports/entities`).set(as('exportacion@test.local')).expect(200)).body;
     const porTipo = Object.fromEntries(limitado.reports.map((r: { kind: string; available: boolean; missing: string[] }) => [r.kind, r]));
-    expect(porTipo.producers).toMatchObject({ available: false, missing: ['producer:read'] });
+    expect(porTipo.producers).toMatchObject({ available: false, missing: ['producer:read', 'plot:read', 'delivery:read'] });
     expect(porTipo.lots.available).toBe(true);
     expect(limitado.geojson).toMatchObject({ available: false });
     expect(limitado.geojson.missing).toContain('plot:read_geometry');
@@ -213,6 +223,10 @@ describeDb('P0-030 reportes por entidad: alcance, desconocidos y exportación', 
     // EXPORT_MANAGER no lee productores: el reporte entero se deniega, no se entrega recortado.
     const res = await http().get(`${api(orgA)}/reports/entities/producers`).set(as('exportacion@test.local')).expect(403);
     expect(res.body.error.message).toMatch(/no se entrega una versión parcial/i);
+    // Y el mensaje nombra CADA dominio que falta, no solo el de las filas: contar parcelas y entregas también se autoriza.
+    for (const permiso of ['producer:read', 'plot:read', 'delivery:read']) expect(res.body.error.message).toContain(permiso);
+    expect(res.body.error.message).toMatch(/cuenta sus parcelas/);
+    expect(res.body.error.message).not.toMatch(/\d+/); // ninguna cifra del dominio restringido
     // TRACEABILITY_MANAGER no tiene dd:read; sí tiene lot:read.
     await http().get(`${api(orgA)}/reports/entities/dd`).set(as('trazabilidad@test.local')).expect(403);
     await http().get(`${api(orgA)}/reports/entities/lots`).set(as('trazabilidad@test.local')).expect(200);
@@ -223,6 +237,57 @@ describeDb('P0-030 reportes por entidad: alcance, desconocidos y exportación', 
     expect(JSON.stringify(await get(ADMIN, 'producers'))).not.toContain('B-1');
     // Un reporte inexistente no filtra nada tampoco.
     await http().get(`${api(orgA)}/reports/entities/inventado`).set(as(ADMIN)).expect(404);
+  });
+
+  it('paginación sobre más de 500 filas: estable, sin duplicados ni omisiones, y totales del conjunto completo', async () => {
+    // 520 productores en una organización aparte, insertados en la base para no depender de 520 peticiones HTTP.
+    // Son datos SINTÉTICOS con la misma forma que crearía la API; el reporte no sabe de dónde salieron.
+    const plantilla = (await sql<{ created_by: string; status: string }>`SELECT created_by, status FROM producers WHERE organization_id = ${orgA} LIMIT 1`.execute(h.db)).rows[0];
+    await sql`
+      INSERT INTO producers (organization_id, producer_code, legal_name, status, created_at, created_by, updated_at, updated_by)
+      SELECT ${orgC}, 'V-' || lpad(g::text, 4, '0'), 'Finca volumen ' || g, ${plantilla.status}, now(), ${plantilla.created_by}, now(), ${plantilla.created_by}
+      FROM generate_series(1, 520) g`.execute(h.db);
+
+    const codigos: string[] = [];
+    let cursor: string | null = null;
+    let paginas = 0;
+    let total = 0;
+    do {
+      const qs: string = `?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+      const page: Report = await get(ADMIN, 'producers', qs, orgC);
+      expect(page.page.limit).toBe(200);
+      expect(page.page.key).toBe('producer_code');
+      codigos.push(...page.rows.map((r) => String(r.producer_code)));
+      total = page.total_rows;
+      // El total es SIEMPRE el del conjunto completo, no el de la página.
+      expect(Number(total)).toBe(520);
+      expect(page.totals.find((t) => t.key === 'productores')!.value).toBe('520');
+      cursor = page.page.next_cursor;
+      paginas++;
+      expect(paginas).toBeLessThan(10); // si el cursor no avanzara, esto cortaría el bucle
+    } while (cursor);
+
+    expect(paginas).toBe(3); // 200 + 200 + 120
+    expect(codigos).toHaveLength(520);                       // sin omisiones
+    expect(new Set(codigos).size).toBe(520);                 // sin duplicados
+    expect([...codigos].sort()).toEqual(codigos);            // orden estable por la clave natural
+    expect(codigos[0]).toBe('V-0001');
+    expect(codigos[519]).toBe('V-0520');
+
+    // Un límite por encima del máximo se recorta al máximo declarado, no lo desborda.
+    const grande: Report = await get(ADMIN, 'producers', '?limit=500', orgC);
+    expect(grande.rows).toHaveLength(500);
+    expect(grande.has_more).toBe(true);
+    await http().get(`${api(orgC)}/reports/entities/producers?limit=501`).set(as(ADMIN)).expect(400);
+
+    // La exportación cubre el CONJUNTO COMPLETO en una sola instantánea, recorriendo páginas por dentro.
+    const res = await http().get(`${api(orgC)}/reports/entities/producers/export`).set(as(ADMIN)).expect(200);
+    const csv = (res.text ?? String(res.body)).replace(/^﻿/, '');
+    const filas = csv.split(/\r\n/).filter((l) => l && !l.startsWith('#')).slice(1);
+    expect(filas).toHaveLength(520);
+    expect(new Set(filas.map((l) => l.split(',')[0])).size).toBe(520);
+    expect(csv).toMatch(/# filas,.*520 de 520 \(conjunto completo\)/);
+    expect(csv).toMatch(/# instantanea,.*REPEATABLE READ/);
   });
 
   it('exportación por entidad: CSV coherente con la pantalla, con totales, hash, auditoría y fórmulas neutralizadas', async () => {

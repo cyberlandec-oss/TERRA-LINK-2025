@@ -25,6 +25,13 @@ describeDb('P0-030 reportes: indicadores con denominador, período y permisos', 
     coverage: { status: string; event_date: string; note: string; not_reconstructed: string; reference: string };
     time_basis: { as_of: string; as_of_note: string; period_bounds: string; civil_dates: string };
     status_legend: Record<string, string>; privacy_note: string; interpretation_note: string; scope_note: string; assigned_scope_note: string;
+    snapshot_note: string;
+    comparison: null | {
+      period: { from: string | null; to: string | null };
+      days: { current: number | null; compared: number | null };
+      equivalent_periods: boolean; equivalence_note: string; scope_note: string; balance_note: string; coverage_note: string;
+      indicators: Array<{ code: string; unit: string; date_basis: string | null; current: { status: string; value: string | null }; compared: { status: string; value: string | null }; delta: string | null; delta_note: string }>;
+    };
   };
   const report = async (actor: string, qs = '', o = orgA) => (await http().get(`${api(o)}/reports/indicators${qs}`).set(as(actor)).expect(200)).body as Body;
   const ind = (b: Body, code: string) => b.indicators.find((i) => i.code === code)!;
@@ -199,6 +206,68 @@ describeDb('P0-030 reportes: indicadores con denominador, período y permisos', 
     }
     // Lo evaluable sí se cuenta: hay 1 sujeto evaluado de 2 lotes, y eso se publica como conteo observado.
     expect(ind(b, 'risk_high').observed).toMatchObject({ lotes_del_tenant: 2 });
+  });
+
+  it('la severidad depende del catálogo de reglas (D-07), no de cerrar otras historias', async () => {
+    const i = ind(await report(ADMIN), 'risk_high');
+    // El motivo cita el catálogo vigente y su estado real, leído de la base, no una lista de historias pendientes.
+    const catalogo = (await sql<{ version: string; approval_status: string }>`SELECT version, approval_status FROM risk_rule_sets ORDER BY published_at DESC, version DESC LIMIT 1`.execute(h.db)).rows[0];
+    expect(catalogo.approval_status).toBe('NOT_APPROVED');
+    expect(i.reason).toContain(catalogo.version);
+    expect(i.reason).toContain('NOT_APPROVED');
+    expect(i.reason).toMatch(/D-07/);
+    // P0-021 está implementada: verificar una mitigación NO asigna severidad ni concluye a favor.
+    expect(i.reason).toMatch(/P0-021, implementada/);
+    expect(i.reason).toMatch(/no asigna severidad/i);
+    // Y ya no se atribuye el bloqueo a cerrar el satélite ni las mitigaciones.
+    expect(i.reason).not.toMatch(/mientras.*P0-028.*no cierren/i);
+  });
+
+  it('la base IMPIDE que exista una severidad: el caso mixto no es alcanzable hoy, y el candado se comprueba', async () => {
+    // `risk_evaluations` lleva CHECK (conclusion = 'UNDETERMINED' AND severity = 'NOT_ASSESSED') desde la migración
+    // 0025: sin perfil jurídico aprobado no hay conclusión ni severidad. No es solo que el motor escriba NOT_ASSESSED;
+    // el esquema rechaza cualquier otra cosa, venga de donde venga.
+    const lotes = (await sql<{ id: string }>`SELECT id FROM lots WHERE organization_id = ${orgA} ORDER BY lot_code`.execute(h.db)).rows;
+    const segundo = lotes.find((l) => l.id !== primerLote)!;
+    const insertar = sql`
+      INSERT INTO risk_evaluations (id, organization_id, subject_type, subject_id, evaluation_number, rule_set_version,
+                                    parameters, snapshot, snapshot_hash, factors, categories, technical_result, severity,
+                                    conclusion, evaluated_by, operation_id)
+      SELECT gen_random_uuid(), organization_id, subject_type, ${segundo.id}, 1, rule_set_version, parameters, snapshot,
+             snapshot_hash, factors, categories, technical_result, 'HIGH', conclusion, evaluated_by, gen_random_uuid()
+      FROM risk_evaluations WHERE organization_id = ${orgA} ORDER BY evaluated_at LIMIT 1`.execute(h.db);
+    await expect(insertar).rejects.toThrow(/risk_evaluations_no_conclusion/);
+    // Y la fila existente sigue sin severidad: nada quedó a medias.
+    const sev = (await sql<{ severity: string; n: string }>`SELECT severity, count(*)::text AS n FROM risk_evaluations WHERE organization_id = ${orgA} GROUP BY severity`.execute(h.db)).rows;
+    expect(sev).toEqual([{ severity: 'NOT_ASSESSED', n: '1' }]);
+    // Por eso el reparto por severidad con sujetos clasificados se prueba en memoria: src/reports/reports-risk.spec.ts.
+  });
+
+  it('comparación de actividad entre dos períodos: fechas operativas, equivalencia declarada y sin tocar existencias', async () => {
+    // Septiembre (2 entregas) frente a octubre. Ambos períodos se calculan en la MISMA instantánea.
+    const b = await report(ADMIN, '?from=2026-09-01&to=2026-09-30&compare_from=2026-10-01&compare_to=2026-10-31');
+    const c = b.comparison!;
+    expect(c.period).toEqual({ from: '2026-10-01', to: '2026-10-31' });
+    const entregas = c.indicators.find((i) => i.code === 'deliveries_total')!;
+    expect(entregas.current.value).toBe('2');
+    expect(Number(entregas.compared.value)).toBeGreaterThanOrEqual(1);
+    expect(entregas.delta).toBe(String(2 - Number(entregas.compared.value)));
+    expect(entregas.date_basis).toMatch(/delivery_date/);
+    // 30 días frente a 31: NO son equivalentes, y se declara en vez de corregirse en silencio.
+    expect(c.days).toEqual({ current: 30, compared: 31 });
+    expect(c.equivalent_periods).toBe(false);
+    expect(c.equivalence_note).toMatch(/no abarcan el mismo número de días/i);
+    // Solo actividad: los indicadores de estado no entran en la comparación.
+    expect(c.indicators.every((i) => i.code === 'deliveries_total')).toBe(true);
+    // Comparar actividad no es reconstruir existencias, y así se dice.
+    expect(c.balance_note).toMatch(/saldo a una fecha es una capacidad distinta/i);
+    expect(c.coverage_note).toMatch(/cobertura histórica incompleta/i);
+    // Dos períodos de igual longitud sí se declaran equivalentes.
+    const igual = await report(ADMIN, '?from=2026-09-01&to=2026-09-30&compare_from=2026-10-01&compare_to=2026-10-30');
+    expect(igual.comparison!.equivalent_periods).toBe(true);
+    expect(igual.comparison!.equivalence_note).toMatch(/30 día\(s\)/);
+    // Sin período de comparación no se inventa ninguna: el campo queda nulo.
+    expect((await report(ADMIN)).comparison).toBeNull();
   });
 
   it('un expediente BLOCKED se CUENTA: cero observado en READY con el desglose por preparación', async () => {

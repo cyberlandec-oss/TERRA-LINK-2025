@@ -7812,6 +7812,26 @@
               "example": "2026-09-30",
               "type": "string"
             }
+          },
+          {
+            "name": "compare_from",
+            "required": false,
+            "in": "query",
+            "description": "Inicio del período de comparación (inclusive).",
+            "schema": {
+              "example": "2026-08-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "compare_to",
+            "required": false,
+            "in": "query",
+            "description": "Fin del período de comparación (inclusive).",
+            "schema": {
+              "example": "2026-08-31",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -7972,6 +7992,26 @@
               "example": "2026-09-30",
               "type": "string"
             }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Clave natural de la última fila recibida; devuelve las siguientes.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Filas por página (máximo 500).",
+            "schema": {
+              "minimum": 1,
+              "maximum": 500,
+              "type": "number"
+            }
           }
         ],
         "responses": {
@@ -8027,6 +8067,26 @@
             "schema": {
               "example": "2026-09-30",
               "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Clave natural de la última fila recibida; devuelve las siguientes.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Filas por página (máximo 500).",
+            "schema": {
+              "minimum": 1,
+              "maximum": 500,
+              "type": "number"
             }
           }
         ],

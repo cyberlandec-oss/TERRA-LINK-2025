@@ -1,7 +1,7 @@
 import { Controller, Get, Inject, Param, ParseUUIDPipe, Query, Req, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { Kysely, sql } from 'kysely';
+import { Kysely, Transaction, sql } from 'kysely';
 import { createHash } from 'crypto';
 import { DB } from '../db/database';
 import type { Database } from '../db/schema';
@@ -11,11 +11,12 @@ import { AuditService } from '../audit/audit.service';
 import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { forbidden, notFound } from '../common/errors';
 import { csvCell } from '../audit/audit-query';
-import { ReportPeriodDto } from './reports.dto';
+import { ReportCompareDto, ReportPeriodDto } from './reports.dto';
 import {
   ASSIGNED_SCOPE_NOTE, COVERAGE, EXPORT_RECALC_NOTE, INTERPRETATION_NOTE, REPORT_CATALOG_VERSION, REPORT_EXPORT_FORMAT,
-  SCOPE_NOTE, has, timeBasis, type Period,
+  SCOPE_NOTE, SNAPSHOT_NOTE, has, timeBasis, type IndicatorStatus, type Period,
 } from './reports-shared';
+import { severityBucket } from './reports-risk';
 
 // P0-030 Reportes e indicadores (S1 §60 «construir los indicadores desde queries reales»; RF-30; QA-13/14).
 // Contrato completo, con definición, unidad, fecha usada y denominador de cada KPI: docs/decisiones/P0-030-REPORTES.md.
@@ -33,8 +34,8 @@ import {
 //     Por eso `due_diligence_ready` publica su cero observado y el desglose de expedientes BLOCKED, que sí es calculable.
 export { REPORT_CATALOG_VERSION, REPORT_EXPORT_FORMAT };
 
-/** Estado de un indicador. Solo OK lleva valor. */
-export type Status = 'OK' | 'NO_DENOMINATOR' | 'UNKNOWN' | 'CRITERION_UNDEFINED' | 'RESTRICTED';
+/** Estado de un indicador. Solo OK lleva valor. Definido en `reports-shared` y reexportado por compatibilidad. */
+export type Status = IndicatorStatus;
 /** E: estado actual · A: actividad en un período · S: saldo a una fecha (ningún KPI de la fuente lo es hoy). */
 type Kind = 'STATE' | 'ACTIVITY' | 'BALANCE_AT';
 
@@ -74,14 +75,22 @@ export class ReportsController {
     return ctx;
   }
 
+  /**
+   * Instantánea de lectura: todos los indicadores salen de UNA transacción REPEATABLE READ de solo lectura. Reutilizar
+   * la misma función no bastaría: sus consultas sucesivas verían estados distintos si alguien escribe mientras tanto.
+   */
+  private snapshot<T>(fn: (trx: Transaction<Database>) => Promise<T>): Promise<T> {
+    return this.db.transaction().setIsolationLevel('repeatable read').setAccessMode('read only').execute(fn);
+  }
+
   /** Cálculo único: la pantalla y la exportación leen de aquí, así una misma lectura es coherente consigo misma. */
-  async compute(ctx: TenantContext, period: Period) {
+  async compute(db: Kysely<Database> | Transaction<Database>, ctx: TenantContext, period: Period) {
     const org = ctx.organizationId;
     const can = (p: Permission) => has(ctx, p);
-    const one = async (q: ReturnType<typeof sql<{ n: string }>>) => Number((await q.execute(this.db)).rows[0]?.n ?? 0);
+    const one = async (q: ReturnType<typeof sql<{ n: string }>>) => Number((await q.execute(db)).rows[0]?.n ?? 0);
     /** Desglose por una columna: lo que se puede contar, se cuenta, aunque el indicador principal sea desconocido. */
     const group = async (q: ReturnType<typeof sql<{ k: string | null; n: string }>>) => {
-      const rows = (await q.execute(this.db)).rows;
+      const rows = (await q.execute(db)).rows;
       return Object.fromEntries(rows.map((r) => [r.k ?? 'SIN_DATO', Number(r.n)])) as Record<string, number>;
     };
     const sum = (o: Record<string, number>) => Object.values(o).reduce((a, b) => a + b, 0);
@@ -181,6 +190,13 @@ export class ReportsController {
     }
 
     // ---- Riesgo por severidad (estado) ----
+    // La severidad NO depende de cerrar otras historias: el motor (P0-020) la escribe SIEMPRE como NOT_ASSESSED porque
+    // el catálogo de reglas vigente no está aprobado y no define pesos, umbrales, puntuaciones ni severidades. Esa es la
+    // decisión D-07. Verificar una mitigación (P0-021, implementada) entra en el resultado TÉCNICO de su factor, no
+    // asigna severidad ni produce una conclusión favorable.
+    const catalogo = can('risk:read')
+      ? (await sql<{ version: string; approval_status: string }>`SELECT version, approval_status FROM risk_rule_sets ORDER BY published_at DESC, version DESC LIMIT 1`.execute(db)).rows[0] ?? null
+      : null;
     // La ÚLTIMA evaluación de cada sujeto (no todas): DISTINCT ON por evaluation_number descendente.
     const ultimaPorSujeto = can('risk:read')
       ? await group(sql<{ k: string | null; n: string }>`
@@ -189,24 +205,12 @@ export class ReportsController {
             WHERE organization_id = ${org} ORDER BY subject_id, evaluation_number DESC
           ) ultima GROUP BY severity`)
       : {};
-    const evaluados = sum(ultimaPorSujeto);
-    const sinSeveridad = (ultimaPorSujeto.NOT_ASSESSED ?? 0) + (ultimaPorSujeto.UNDETERMINED ?? 0);
-    const conSeveridad = evaluados - sinSeveridad;
     for (const [code, sev, label] of [['risk_high', 'HIGH', 'alto'], ['risk_medium', 'MEDIUM', 'medio'], ['risk_low', 'LOW', 'bajo']] as const) {
-      const b: Base = { code, name: `Lotes de riesgo ${label}`, definition: `Lotes cuya ÚLTIMA evaluación tiene severity = ${sev}, sobre los lotes con evaluación.`, unit: 'count', kind: 'STATE', date_basis: null, requires: 'risk:read' };
+      const b: Base = { code, name: `Lotes de riesgo ${label}`, definition: `Lotes cuya ÚLTIMA evaluación tiene severity = ${sev}, sobre los lotes con severidad asignada.`, unit: 'count', kind: 'STATE', date_basis: null, requires: 'risk:read' };
       if (!can('risk:read')) { restricted(b); continue; }
-      const observed = { lotes_del_tenant: lotesTotal, lotes_evaluados: evaluados, sin_severidad_asignada: sinSeveridad, con_severidad_asignada: conSeveridad };
-      if (evaluados === 0) {
-        push(b, { status: 'NO_DENOMINATOR', value: null, numerator: null, denominator: 0, observed,
-          reason: `Ningún lote tiene evaluación de riesgo: el denominador es cero. Que no haya evaluaciones es un hecho observado (${lotesTotal} lote(s) en el tenant), pero no permite afirmar cuántos son de riesgo ${label}.` });
-      } else if (conSeveridad === 0) {
-        push(b, { status: 'UNKNOWN', value: null, numerator: null, denominator: evaluados, observed,
-          reason: `Desconocido: los ${evaluados} lote(s) evaluado(s) salieron SIN severidad asignada (NOT_ASSESSED/UNDETERMINED), porque el motor no concluye mientras D-05, el proveedor satelital (P0-028) y las mitigaciones (P0-021) no cierren. «0 lotes de riesgo ${label}» sería una cifra favorable inventada sobre sujetos sin clasificar.` });
-      } else {
-        const n = ultimaPorSujeto[sev] ?? 0;
-        push(b, { status: 'OK', value: String(n), numerator: n, denominator: evaluados, observed,
-          reason: `${n === 0 ? 'Cero observado: ninguno de los lotes clasificados quedó en esta severidad. ' : ''}Hay ${conSeveridad} lote(s) con severidad asignada y ${sinSeveridad} sin asignar; estos últimos siguen siendo desconocidos y no se cuentan como riesgo ${label}.` });
-      }
+      // Los tres casos (sin evaluar, evaluado sin clasificar y MIXTO) viven en un módulo puro, probado con conjuntos
+      // sintéticos: la base impide hoy construir el mixto (CHECK de la migración 0025), y aun así la rama está cubierta.
+      push(b, severityBucket({ sev, label, lotesTotal, porSeveridad: ultimaPorSujeto, catalogo }));
     }
 
     // ---- Completitud de evidencia (estado, %) ----
@@ -245,7 +249,7 @@ export class ReportsController {
       } else {
         push(b8, { status: 'OK', value: String(num), numerator: num, denominator: den,
           observed: { expedientes: den, READY: num, IN_PROGRESS: porReadiness.IN_PROGRESS ?? 0, BLOCKED: porReadiness.BLOCKED ?? 0, sin_instantanea: porReadiness.SIN_DATO ?? 0 },
-          reason: `${num === 0 ? 'Cero observado: ningún expediente alcanza READY. ' : ''}READY indica preparación interna, NO conformidad EUDR ni presentación de DDS. Hoy READY es inalcanzable (catálogo de riesgo sin aprobar, D-05, perfil jurídico P1-005 y satélite P0-028): este cero no mide el desempeño del equipo. El desglose por preparación —incluidos los ${porReadiness.BLOCKED ?? 0} BLOCKED— sí es un conteo observado y se publica.` });
+          reason: `${num === 0 ? 'Cero observado: ningún expediente alcanza READY. ' : ''}READY indica preparación interna, NO conformidad EUDR ni presentación de DDS. Hoy READY es inalcanzable (catálogo de riesgo sin aprobar D-07, D-05, perfil jurídico P1-005): este cero no mide el desempeño del equipo. El desglose por preparación —incluidos los ${porReadiness.BLOCKED ?? 0} BLOCKED— sí es un conteo observado y se publica.` });
       }
     }
 
@@ -260,6 +264,7 @@ export class ReportsController {
       time_basis: timeBasis(asOf),
       scope_note: SCOPE_NOTE,
       assigned_scope_note: ASSIGNED_SCOPE_NOTE,
+      snapshot_note: SNAPSHOT_NOTE,
       privacy_note: 'Este reporte de indicadores no contiene datos personales ni coordenadas: solo conteos y porcentajes.',
       interpretation_note: INTERPRETATION_NOTE,
       status_legend: {
@@ -273,12 +278,54 @@ export class ReportsController {
     };
   }
 
+  /**
+   * Comparación de ACTIVIDAD entre dos períodos (S1 §60 pide indicadores desde consultas reales; la comparación usa las
+   * mismas fechas operativas). NO reconstruye existencias ni saldos a una fecha: eso es otra capacidad, con su propio
+   * contrato, y no se aproxima aquí. Los indicadores de estado declaran que no se comparan en vez de inventar una serie.
+   */
+  private comparison(actual: Indicator[], base: Indicator[], period: Period, compare: Period) {
+    const dias = (p: Period) => (p.from && p.to ? Math.round((Date.parse(`${p.to}T00:00:00Z`) - Date.parse(`${p.from}T00:00:00Z`)) / 86400000) + 1 : null);
+    const d1 = dias(period);
+    const d2 = dias(compare);
+    const equivalentes = d1 !== null && d2 !== null && d1 === d2;
+    return {
+      period: compare,
+      days: { current: d1, compared: d2 },
+      equivalent_periods: equivalentes,
+      equivalence_note: equivalentes
+        ? `Ambos períodos abarcan ${d1} día(s): la comparación es entre tramos equivalentes.`
+        : 'Los períodos NO abarcan el mismo número de días (o alguno no tiene ambos extremos): la diferencia no es comparable sin más, y por eso se declara en vez de corregirse en silencio.',
+      scope_note: 'Solo se comparan los indicadores de ACTIVIDAD, por su fecha operativa declarada. Los de estado describen el momento actual y no tienen serie que comparar.',
+      balance_note: 'Comparar actividad NO es reconstruir existencias: el saldo a una fecha es una capacidad distinta, sin contrato aprobado, y no se aproxima aquí.',
+      coverage_note: `${COVERAGE.note} Por eso un período antiguo puede quedar por debajo de lo ocurrido y la comparación debe leerse con esa advertencia.`,
+      indicators: actual.filter((i) => i.kind === 'ACTIVITY').map((i) => {
+        const b = base.find((x) => x.code === i.code);
+        const comparable = i.status === 'OK' && b?.status === 'OK' && i.value !== null && b.value !== null;
+        return {
+          code: i.code, name: i.name, unit: i.unit, date_basis: i.date_basis,
+          current: { status: i.status, value: i.value },
+          compared: { status: b?.status ?? 'RESTRICTED', value: b?.value ?? null },
+          delta: comparable ? String(Number(i.value) - Number(b!.value)) : null,
+          delta_note: comparable
+            ? 'Diferencia entre los dos períodos sobre la fecha operativa declarada.'
+            : 'No se publica diferencia: alguno de los dos períodos no tiene un valor calculado.',
+        };
+      }),
+    };
+  }
+
   @Get('indicators')
-  async indicators(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Query() q: ReportPeriodDto) {
+  async indicators(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Query() q: ReportCompareDto) {
     const ctx = await this.ctx(user, orgId, 'report:read');
     const period: Period = { from: q.from ?? null, to: q.to ?? null };
-    const indicators = await this.compute(ctx, period);
-    return { ...this.meta(period, new Date().toISOString()), can_export: ctx.permissions.includes('report:export'), indicators };
+    const compare: Period = { from: q.compare_from ?? null, to: q.compare_to ?? null };
+    const pide = compare.from !== null || compare.to !== null;
+    // Ambos cálculos, dentro de la MISMA instantánea: si no, los dos períodos podrían venir de estados distintos.
+    const { indicators, comparison } = await this.snapshot(async (trx) => {
+      const indicators = await this.compute(trx, ctx, period);
+      return { indicators, comparison: pide ? this.comparison(indicators, await this.compute(trx, ctx, compare), period, compare) : null };
+    });
+    return { ...this.meta(period, new Date().toISOString()), can_export: ctx.permissions.includes('report:export'), indicators, comparison };
   }
 
   @Get('indicators/export')
@@ -286,14 +333,14 @@ export class ReportsController {
     // `report:export` se revalida aquí: tener la pantalla abierta no basta para descargar.
     const ctx = await this.ctx(user, orgId, 'report:export');
     const period: Period = { from: q.from ?? null, to: q.to ?? null };
-    const indicators = await this.compute(ctx, period);
+    const indicators = await this.snapshot((trx) => this.compute(trx, ctx, period));
     const org = await this.db.selectFrom('organizations').select('name').where('id', '=', ctx.organizationId).executeTakeFirstOrThrow();
     const generatedAt = new Date().toISOString();
     const m = this.meta(period, generatedAt);
     const head: Array<[string, string]> = [
       ['formato', REPORT_EXPORT_FORMAT], ['catalogo', REPORT_CATALOG_VERSION], ['organizacion', org.name], ['organizacion_id', ctx.organizationId],
       ['periodo_desde', period.from ?? 'sin límite'], ['periodo_hasta', period.to ?? 'sin límite'], ['generado', generatedAt],
-      ['recalculo', EXPORT_RECALC_NOTE], ['fechas', `${m.time_basis.period_bounds} ${m.time_basis.civil_dates}`], ['as_of', m.time_basis.as_of_note],
+      ['recalculo', EXPORT_RECALC_NOTE], ['instantanea', SNAPSHOT_NOTE], ['fechas', `${m.time_basis.period_bounds} ${m.time_basis.civil_dates}`], ['as_of', m.time_basis.as_of_note],
       ['alcance', m.scope_note], ['alcance_asignado', m.assigned_scope_note], ['privacidad', m.privacy_note], ['interpretacion', m.interpretation_note],
       ['cobertura_historica', `${COVERAGE.note} ${COVERAGE.not_reconstructed} Detalle: ${COVERAGE.reference}`],
       ['estados', Object.entries(m.status_legend).map(([k, v]) => `${k}: ${v}`).join(' | ')],
