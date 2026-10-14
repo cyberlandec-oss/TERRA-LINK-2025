@@ -23,6 +23,7 @@ import { ErrorFilter } from './common/errors';
 import { AuditService } from './audit/audit.service';
 import { AuditController, AuditQueryService } from './audit/audit-query';
 import { ReportsController } from './reports/reports';
+import { EntityReportsController } from './reports/reports-entities';
 import { DeliveriesController, DeliveriesService } from './deliveries/deliveries';
 import { LotsController, LotsService } from './lots/lots';
 import { InventoryController, InventoryService } from './inventory/inventory';
@@ -196,7 +197,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
-        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController, KdeController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, ShipmentsController, ReportsController,
+        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController, KdeController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, ShipmentsController, ReportsController, EntityReportsController,
       ],
       providers: [
         { provide: APP_CONFIG, useValue: config },

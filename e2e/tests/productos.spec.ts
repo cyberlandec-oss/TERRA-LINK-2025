@@ -568,20 +568,28 @@ test('P0-030 reportes: indicadores con definición y denominador; no calculable 
   const productores = table.locator('tbody tr', { hasText: 'producers_total' });
   await expect(productores).toContainText('Estado actual');
   await expect(productores).toContainText(/no se filtra por .created_at./i);
-  // Lo que no es evaluable NO sale como cero: sale «No calculable» y explica por qué.
+  // Cada situación tiene su propio estado, y ninguna se publica como cero.
+  // GIS: el criterio no tiene definición aprobada (D-05), que no es lo mismo que «ninguna parcela cumple».
   const gis = table.locator('tbody tr', { hasText: 'plots_valid' });
-  await expect(gis).toContainText('No calculable');
+  await expect(gis).toContainText(/Criterio sin definir|Sin denominador/);
   await expect(gis).toContainText('D-05');
   await expect(gis).not.toContainText(/^0$/);
+  // Riesgo: o no hay sujetos evaluados (sin denominador) o están evaluados sin severidad (desconocido). Nunca 0.
   const riesgo = table.locator('tbody tr', { hasText: 'risk_high' });
-  await expect(riesgo).toContainText('No calculable');
-  await expect(riesgo).toContainText('NOT_ASSESSED');
+  await expect(riesgo).toContainText(/Desconocido|Sin denominador/);
+  await expect(riesgo).toContainText(/NOT_ASSESSED|denominador es cero/);
+  // La leyenda explica los cinco estados, para que «desconocido» no se confunda con «cero».
+  await expect(page.getByRole('heading', { name: 'Qué significa cada estado' })).toBeVisible();
+  await expect(page.getByText(/Un 0 es un cero observado/)).toBeVisible();
   // La entrega usa la fecha declarada, y se dice en pantalla.
   await expect(table.locator('tbody tr', { hasText: 'deliveries_total' })).toContainText('delivery_date');
   // Interpretación y laguna histórica declaradas, no implícitas.
   await expect(page.getByText(/Readiness no es conformidad/)).toBeVisible();
   await expect(page.getByText(/Reserva no es despacho/)).toBeVisible();
-  await expect(page.getByText(/Laguna histórica desde 2026-10-13/)).toBeVisible();
+  // Cobertura histórica: incompleta por pérdida de almacenamiento, SIN afirmar que lo anterior esté vacío.
+  await expect(page.getByText(/Cobertura histórica incompleta/)).toBeVisible();
+  await expect(page.getByText(/por su fecha operativa declarada/)).toBeVisible();
+  await expect(page.getByText(/toda serie anterior.*vacía/i)).toHaveCount(0);
   await expect(page.getByText(/no contiene datos personales ni coordenadas/)).toBeVisible();
   // Período solo con teclado; el filtro queda en la URL y se conserva al volver de otra pantalla.
   await page.getByLabel('Desde').fill('2026-09-01');
@@ -601,6 +609,47 @@ test('P0-030 reportes: indicadores con definición y denominador; no calculable 
   await ctx.close();
 });
 
+test('P0-030 reportes por entidad: §97 en pantalla, desconocidos visibles, GeoJSON con su aviso; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  await page.goto(`${orgUrl}/reportes`);
+  const selector = page.getByRole('navigation', { name: 'Reportes disponibles' });
+  await expect(selector).toBeVisible();
+  // Los seis reportes por entidad de S1 §97, además de los indicadores de §60.
+  for (const nombre of ['productores', 'parcelas', 'lotes', 'riesgo', 'trazabilidad', 'debida diligencia']) {
+    await expect(selector.getByRole('button', { name: new RegExp(nombre, 'i') })).toBeVisible();
+  }
+  // Parcelas: la validación sin evaluar no se presenta como incumplimiento, y el total de válidas no es 0.
+  await selector.getByRole('button', { name: /parcelas/i }).click();
+  await expect(page.getByRole('heading', { level: 2, name: 'Reporte de parcelas' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Reporte de parcelas' })).toBeVisible();
+  await expect(page.getByText(/Válidas \(VALID\)/)).toBeVisible();
+  await expect(page.getByText(/DESCONOCIDO/).first()).toBeVisible();
+  await expect(page).toHaveURL(/reporte=plots/);
+  // La exportación GeoJSON vive aquí, con su aviso: exportación técnica, perfil regulatorio pendiente de D-05.
+  await expect(page.getByRole('heading', { name: 'Exportación GeoJSON de parcelas' })).toBeVisible();
+  await expect(page.getByText(/Perfil de destino regulatorio pendiente \(D-05\)/)).toBeVisible();
+  await expect(page.getByText(/no es un paquete de debida diligencia/i)).toBeVisible();
+  // Riesgo: los lotes sin evaluar aparecen como tales, no se omiten.
+  await selector.getByRole('button', { name: /riesgo/i }).click();
+  await expect(page.getByRole('heading', { level: 2, name: 'Reporte de riesgo' })).toBeVisible();
+  await expect(page.getByText(/no se omite/i)).toBeVisible();
+  // La descarga declara que recalcula y que no es la instantánea de la pantalla.
+  await expect(page.getByText(/Se RECALCULA al descargar/)).toBeVisible();
+  // El reporte activo queda en la URL y se conserva al volver desde otra pantalla.
+  const conReporte = page.url();
+  await page.goto(`${orgUrl}/lotes`);
+  await page.goto(conReporte);
+  await expect(page.getByRole('heading', { level: 2, name: 'Reporte de riesgo' })).toBeVisible();
+  // Teclado: se puede cambiar de reporte sin ratón.
+  await selector.getByRole('button', { name: /trazabilidad/i }).press('Enter');
+  await expect(page.getByRole('heading', { level: 2, name: 'Reporte de trazabilidad' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  // Zoom 200 % con la convención del proyecto (1280 px a 640 px CSS; e2e/review/web-por-rol.mjs).
+  await page.setViewportSize({ width: 640, height: 430 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await ctx.close();
+});
+
 test('P0-030 reportes: sin permiso no hay menú ni acceso; la exportación exige su propio permiso', async ({ browser }) => {
   // El comprador no tiene report:read: ni enlace ni acceso directo.
   const bctx = await browser.newContext();
@@ -611,7 +660,7 @@ test('P0-030 reportes: sin permiso no hay menú ni acceso; la exportación exige
   await bp.getByRole('button', { name: 'Iniciar sesión' }).click();
   await expect(bp.getByRole('heading', { level: 1, name: /organizaciones/i })).toBeVisible();
   await bp.goto(`${orgUrl}/reportes`);
-  await expect(bp.getByText(/Tu rol no permite consultar los indicadores/)).toBeVisible();
+  await expect(bp.getByText(/Tu rol no permite consultar los reportes/)).toBeVisible();
   await expect(bp.getByRole('link', { name: 'Reportes' })).toHaveCount(0);
   await bctx.close();
   // El administrador sí exporta, y la pantalla declara que la descarga se revalida y queda auditada.

@@ -12,25 +12,33 @@ import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { forbidden, notFound } from '../common/errors';
 import { csvCell } from '../audit/audit-query';
 import { ReportPeriodDto } from './reports.dto';
+import {
+  ASSIGNED_SCOPE_NOTE, COVERAGE, EXPORT_RECALC_NOTE, INTERPRETATION_NOTE, REPORT_CATALOG_VERSION, REPORT_EXPORT_FORMAT,
+  SCOPE_NOTE, has, timeBasis, type Period,
+} from './reports-shared';
 
 // P0-030 Reportes e indicadores (S1 §60 «construir los indicadores desde queries reales»; RF-30; QA-13/14).
 // Contrato completo, con definición, unidad, fecha usada y denominador de cada KPI: docs/decisiones/P0-030-REPORTES.md.
 //
-// Tres reglas gobiernan este módulo:
+// Reglas que gobiernan este módulo:
 //  1. `report:read` abre la pantalla, NO los datos: cada indicador exige el permiso de su dominio. Sin él sale
 //     RESTRICTED, sin valor ni conteo, y ningún indicador agrega sobre dominios ajenos: no se deduce lo oculto.
-//  2. Ausencia de capacidad no es cero. Si la condición no es evaluable (GIS sin D-05, riesgo NOT_ASSESSED), el
-//     indicador sale NOT_CALCULABLE con su motivo, nunca como 0 — que se leería como resultado favorable.
-//  3. Denominador cero produce NOT_CALCULABLE, nunca 0 % ni 100 %.
-export const REPORT_EXPORT_FORMAT = 'TL_REPORT_CSV 0.1 (provisional)';
-export const REPORT_CATALOG_VERSION = '2026-10-14.1';
+//  2. CINCO situaciones distintas, cada una con su estado propio (nunca todas bajo «no calculable»):
+//       OK                  -> valor calculado desde la base. Un 0 aquí es CERO OBSERVADO y se publica como tal.
+//       NO_DENOMINATOR      -> el denominador es cero: el cociente no existe. Ni 0 % ni 100 %.
+//       UNKNOWN             -> el universo se conoce, pero la condición no ha sido evaluada en ningún sujeto.
+//       CRITERION_UNDEFINED -> el criterio carece de definición aprobada (D-05): todavía no puede evaluarse.
+//       RESTRICTED          -> el lector no tiene el permiso de ese dominio.
+//  3. Un resultado desfavorable NO es motivo para declarar nada «no calculable»: si se puede contar, se cuenta.
+//     Por eso `due_diligence_ready` publica su cero observado y el desglose de expedientes BLOCKED, que sí es calculable.
+export { REPORT_CATALOG_VERSION, REPORT_EXPORT_FORMAT };
 
-/** Estado de un indicador. RESTRICTED y NOT_CALCULABLE nunca llevan valor. */
-type Status = 'OK' | 'NOT_CALCULABLE' | 'RESTRICTED';
+/** Estado de un indicador. Solo OK lleva valor. */
+export type Status = 'OK' | 'NO_DENOMINATOR' | 'UNKNOWN' | 'CRITERION_UNDEFINED' | 'RESTRICTED';
 /** E: estado actual · A: actividad en un período · S: saldo a una fecha (ningún KPI de la fuente lo es hoy). */
 type Kind = 'STATE' | 'ACTIVITY' | 'BALANCE_AT';
 
-interface Indicator {
+export interface Indicator {
   code: string;
   name: string;
   definition: string;
@@ -42,6 +50,8 @@ interface Indicator {
   value: string | null;
   numerator: number | null;
   denominator: number | null;
+  /** Conteos que SÍ son observables aunque el indicador principal no lo sea. Nunca se usan para rellenar `value`. */
+  observed: Record<string, number> | null;
   reason: string | null;
 }
 
@@ -64,57 +74,74 @@ export class ReportsController {
     return ctx;
   }
 
-  /** Cálculo único: la pantalla y la exportación leen de aquí, así lo exportado coincide con lo mostrado. */
-  async compute(ctx: TenantContext, period: { from: string | null; to: string | null }) {
+  /** Cálculo único: la pantalla y la exportación leen de aquí, así una misma lectura es coherente consigo misma. */
+  async compute(ctx: TenantContext, period: Period) {
     const org = ctx.organizationId;
-    const has = (p: Permission) => ctx.permissions.includes(p);
+    const can = (p: Permission) => has(ctx, p);
     const one = async (q: ReturnType<typeof sql<{ n: string }>>) => Number((await q.execute(this.db)).rows[0]?.n ?? 0);
+    /** Desglose por una columna: lo que se puede contar, se cuenta, aunque el indicador principal sea desconocido. */
+    const group = async (q: ReturnType<typeof sql<{ k: string | null; n: string }>>) => {
+      const rows = (await q.execute(this.db)).rows;
+      return Object.fromEntries(rows.map((r) => [r.k ?? 'SIN_DATO', Number(r.n)])) as Record<string, number>;
+    };
+    const sum = (o: Record<string, number>) => Object.values(o).reduce((a, b) => a + b, 0);
 
     const out: Indicator[] = [];
-    const push = (i: Indicator) => out.push(i);
-    /** Un indicador sin el permiso de su dominio: sin valor, sin numerador, sin denominador y sin conteo. */
-    const restricted = (base: Omit<Indicator, 'status' | 'value' | 'numerator' | 'denominator' | 'reason'>) =>
-      push({ ...base, status: 'RESTRICTED', value: null, numerator: null, denominator: null,
-        reason: `Tu rol no permite leer este dominio (${base.requires}). El indicador no se calcula ni se informa parcialmente.` });
-    const ratio = (num: number, den: number) => (den === 0 ? null : ((num * 100) / den).toFixed(1));
+    type Base = Omit<Indicator, 'status' | 'value' | 'numerator' | 'denominator' | 'observed' | 'reason'>;
+    type Rest = Pick<Indicator, 'status' | 'value' | 'numerator' | 'denominator' | 'observed' | 'reason'>;
+    const push = (b: Base, rest: Rest) => out.push({ ...b, ...rest });
+    /** Sin el permiso del dominio: sin valor, sin numerador, sin denominador, sin desglose y sin conteo. */
+    const restricted = (b: Base) => push(b, {
+      status: 'RESTRICTED', value: null, numerator: null, denominator: null, observed: null,
+      reason: `Tu rol no permite leer este dominio (${b.requires}). El indicador no se calcula ni se informa parcialmente, y ningún total lo incluye.`,
+    });
+    const pct = (num: number, den: number) => ((num * 100) / den).toFixed(1);
 
     // ---- Productores (estado) ----
-    const b1 = { code: 'producers_total', name: 'Productores', definition: 'Productores del tenant no dados de baja (deleted_at nulo).', unit: 'count' as const, kind: 'STATE' as const, date_basis: null, requires: 'producer:read' as Permission };
-    if (!has('producer:read')) restricted(b1);
+    const b1: Base = { code: 'producers_total', name: 'Productores', definition: 'Productores del tenant no dados de baja (deleted_at nulo).', unit: 'count', kind: 'STATE', date_basis: null, requires: 'producer:read' };
+    if (!can('producer:read')) restricted(b1);
     else {
       const n = await one(sql<{ n: string }>`SELECT count(*)::text AS n FROM producers WHERE organization_id = ${org} AND deleted_at IS NULL`);
-      push({ ...b1, status: 'OK', value: String(n), numerator: n, denominator: null, reason: PERIOD_NOTE });
+      const bajas = await one(sql<{ n: string }>`SELECT count(*)::text AS n FROM producers WHERE organization_id = ${org} AND deleted_at IS NOT NULL`);
+      push(b1, { status: 'OK', value: String(n), numerator: n, denominator: null, observed: { activos: n, dados_de_baja: bajas },
+        reason: `${PERIOD_NOTE} Un 0 aquí sería un cero observado: no hay productores vigentes en el tenant.` });
     }
 
     // ---- Parcelas (estado) ----
-    const b2 = { code: 'plots_total', name: 'Parcelas', definition: 'Parcelas del tenant no dadas de baja (deleted_at nulo).', unit: 'count' as const, kind: 'STATE' as const, date_basis: null, requires: 'plot:read' as Permission };
-    if (!has('plot:read')) restricted(b2);
+    const b2: Base = { code: 'plots_total', name: 'Parcelas', definition: 'Parcelas del tenant no dadas de baja (deleted_at nulo).', unit: 'count', kind: 'STATE', date_basis: null, requires: 'plot:read' };
+    if (!can('plot:read')) restricted(b2);
     else {
       const n = await one(sql<{ n: string }>`SELECT count(*)::text AS n FROM plots WHERE organization_id = ${org} AND deleted_at IS NULL`);
-      push({ ...b2, status: 'OK', value: String(n), numerator: n, denominator: null, reason: PERIOD_NOTE });
+      push(b2, { status: 'OK', value: String(n), numerator: n, denominator: null, observed: null, reason: PERIOD_NOTE });
     }
 
-    // ---- Parcelas válidas (estado) — bloqueado por D-05 ----
-    const b3 = { code: 'plots_valid', name: 'Parcelas válidas (GIS)', definition: 'Parcelas cuya versión vigente tiene validation_status = VALID, sobre las parcelas con versión vigente.', unit: 'count' as const, kind: 'STATE' as const, date_basis: null, requires: 'plot:read' as Permission };
-    if (!has('plot:read')) restricted(b3);
+    // ---- Parcelas válidas (estado) — criterio sin definición aprobada mientras D-05 no cierre ----
+    const b3: Base = { code: 'plots_valid', name: 'Parcelas válidas (GIS)', definition: 'Parcelas cuya versión vigente tiene validation_status = VALID, sobre las parcelas con versión vigente evaluada.', unit: 'count', kind: 'STATE', date_basis: null, requires: 'plot:read' };
+    if (!can('plot:read')) restricted(b3);
     else {
-      // Se consulta de verdad: si algún día hubiera versiones VALID, el motivo deja de aplicarse y el fallo se ve.
-      const evaluadas = await one(sql<{ n: string }>`
-        SELECT count(*)::text AS n FROM plots p JOIN plot_versions v ON v.id = p.current_version_id
-        WHERE p.organization_id = ${org} AND p.deleted_at IS NULL AND v.validation_status <> 'NOT_VALIDATED'`);
-      push({ ...b3, status: evaluadas === 0 ? 'NOT_CALCULABLE' : 'OK',
-        value: evaluadas === 0 ? null : String(await one(sql<{ n: string }>`
-          SELECT count(*)::text AS n FROM plots p JOIN plot_versions v ON v.id = p.current_version_id
-          WHERE p.organization_id = ${org} AND p.deleted_at IS NULL AND v.validation_status = 'VALID'`)),
-        numerator: null, denominator: evaluadas === 0 ? 0 : evaluadas,
-        reason: evaluadas === 0
-          ? 'Ninguna versión geométrica ha sido evaluada: la validación GIS exige el umbral y el perfil de destino de D-05, sin aprobar (P0-010). «0 válidas» insinuaría que ninguna parcela cumple, cuando lo cierto es que ninguna ha sido evaluada.'
-          : PERIOD_NOTE });
+      // Se consulta de verdad: si algún día hubiera versiones evaluadas, el motivo deja de aplicarse y el fallo se ve.
+      const porEstado = await group(sql<{ k: string | null; n: string }>`
+        SELECT v.validation_status AS k, count(*)::text AS n FROM plots p JOIN plot_versions v ON v.id = p.current_version_id
+        WHERE p.organization_id = ${org} AND p.deleted_at IS NULL GROUP BY v.validation_status`);
+      const conVersion = sum(porEstado);
+      const sinEvaluar = porEstado.NOT_VALIDATED ?? 0;
+      const evaluadas = conVersion - sinEvaluar;
+      if (conVersion === 0) {
+        push(b3, { status: 'NO_DENOMINATOR', value: null, numerator: null, denominator: 0, observed: { con_version_vigente: 0 },
+          reason: 'Ninguna parcela tiene versión vigente: no hay denominador. No es 0 ni 100 %.' });
+      } else if (evaluadas === 0) {
+        push(b3, { status: 'CRITERION_UNDEFINED', value: null, numerator: null, denominator: 0, observed: { con_version_vigente: conVersion, sin_evaluar: sinEvaluar },
+          reason: `El criterio de validez GIS no tiene definición aprobada: exige el umbral y el perfil de destino de D-05, pendientes (P0-010). Las ${conVersion} parcela(s) con versión vigente están SIN evaluar. «0 válidas» insinuaría que ninguna cumple, cuando lo cierto es que ninguna ha sido evaluada.` });
+      } else {
+        const validas = porEstado.VALID ?? 0;
+        push(b3, { status: 'OK', value: String(validas), numerator: validas, denominator: evaluadas, observed: { ...porEstado, con_version_vigente: conVersion, sin_evaluar: sinEvaluar },
+          reason: `${validas === 0 ? 'Cero observado: ninguna de las parcelas evaluadas resultó VALID. ' : ''}Sobre ${evaluadas} parcela(s) evaluada(s); las ${sinEvaluar} sin evaluar no entran en el denominador y siguen siendo desconocidas.` });
+      }
     }
 
     // ---- Entregas registradas (ACTIVIDAD, por delivery_date) ----
-    const b4 = { code: 'deliveries_total', name: 'Entregas registradas', definition: 'Entregas en estado REGISTERED cuya fecha declarada de entrega cae dentro del período.', unit: 'count' as const, kind: 'ACTIVITY' as const, date_basis: 'deliveries.delivery_date (fecha declarada; nunca created_at)', requires: 'delivery:read' as Permission };
-    if (!has('delivery:read')) restricted(b4);
+    const b4: Base = { code: 'deliveries_total', name: 'Entregas registradas', definition: 'Entregas en estado REGISTERED cuya fecha declarada de entrega cae dentro del período (límites inclusivos).', unit: 'count', kind: 'ACTIVITY', date_basis: 'deliveries.delivery_date (fecha civil declarada; nunca created_at)', requires: 'delivery:read' };
+    if (!can('delivery:read')) restricted(b4);
     else {
       const n = await one(sql<{ n: string }>`
         SELECT count(*)::text AS n FROM deliveries
@@ -122,124 +149,168 @@ export class ReportsController {
           AND (${period.from}::date IS NULL OR delivery_date >= ${period.from}::date)
           AND (${period.to}::date IS NULL OR delivery_date <= ${period.to}::date)`);
       const borradores = await one(sql<{ n: string }>`SELECT count(*)::text AS n FROM deliveries WHERE organization_id = ${org} AND status = 'DRAFT'`);
-      push({ ...b4, status: 'OK', value: String(n), numerator: n, denominator: null,
-        reason: `Los borradores quedan fuera: no tienen fecha ni cantidad declaradas (${borradores} en el tenant, sin período).` });
+      // Una entrega registrada sin fecha no se descarta en silencio: se informa aparte para que se vea y se corrija.
+      const sinFecha = await one(sql<{ n: string }>`SELECT count(*)::text AS n FROM deliveries WHERE organization_id = ${org} AND status = 'REGISTERED' AND delivery_date IS NULL`);
+      push(b4, { status: 'OK', value: String(n), numerator: n, denominator: null, observed: { en_periodo: n, borradores, registradas_sin_fecha: sinFecha },
+        reason: `Los borradores quedan fuera: no tienen fecha ni cantidad declaradas (${borradores} en el tenant, sin período). ${sinFecha} entrega(s) registrada(s) sin fecha declarada quedan fuera de todo período y se informan aquí. Un 0 en un período es un cero observado para esas fechas; la cobertura histórica incompleta se declara aparte.` });
     }
 
     // ---- Lotes activos (estado) ----
-    const b5 = { code: 'lots_active', name: 'Lotes activos', definition: 'Lotes en estado OPEN o CLOSED_FOR_INPUT.', unit: 'count' as const, kind: 'STATE' as const, date_basis: null, requires: 'lot:read' as Permission };
-    const lotesTotal = has('lot:read') ? await one(sql<{ n: string }>`SELECT count(*)::text AS n FROM lots WHERE organization_id = ${org}`) : 0;
-    if (!has('lot:read')) restricted(b5);
+    const b5: Base = { code: 'lots_active', name: 'Lotes activos', definition: 'Lotes en estado OPEN o CLOSED_FOR_INPUT.', unit: 'count', kind: 'STATE', date_basis: null, requires: 'lot:read' };
+    const porEstadoLote = can('lot:read') ? await group(sql<{ k: string | null; n: string }>`SELECT status AS k, count(*)::text AS n FROM lots WHERE organization_id = ${org} GROUP BY status`) : {};
+    const lotesTotal = sum(porEstadoLote);
+    if (!can('lot:read')) restricted(b5);
     else {
-      const n = await one(sql<{ n: string }>`SELECT count(*)::text AS n FROM lots WHERE organization_id = ${org} AND status IN ('OPEN','CLOSED_FOR_INPUT')`);
-      push({ ...b5, status: 'OK', value: String(n), numerator: n, denominator: null, reason: PERIOD_NOTE });
+      const n = (porEstadoLote.OPEN ?? 0) + (porEstadoLote.CLOSED_FOR_INPUT ?? 0);
+      push(b5, { status: 'OK', value: String(n), numerator: n, denominator: null, observed: { ...porEstadoLote, lotes_del_tenant: lotesTotal }, reason: PERIOD_NOTE });
     }
 
     // ---- Completitud de trazabilidad (estado, %) ----
-    const b6 = { code: 'traceability_completeness', name: 'Completitud de trazabilidad', definition: 'Lotes con origin_status = COMPLETE ÷ lotes del tenant. Mide origen declarado completo; no es verificación ni conformidad.', unit: 'percent' as const, kind: 'STATE' as const, date_basis: null, requires: 'lot:read' as Permission };
-    if (!has('lot:read')) restricted(b6);
+    const b6: Base = { code: 'traceability_completeness', name: 'Completitud de trazabilidad', definition: 'Lotes con origin_status = COMPLETE ÷ lotes del tenant. Mide origen declarado completo; no es verificación ni conformidad.', unit: 'percent', kind: 'STATE', date_basis: null, requires: 'lot:read' };
+    if (!can('lot:read')) restricted(b6);
     else {
-      const num = await one(sql<{ n: string }>`SELECT count(*)::text AS n FROM lots WHERE organization_id = ${org} AND origin_status = 'COMPLETE'`);
-      const v = ratio(num, lotesTotal);
-      push({ ...b6, status: v === null ? 'NOT_CALCULABLE' : 'OK', value: v, numerator: num, denominator: lotesTotal,
-        reason: v === null ? 'Sin lotes en el tenant: el denominador es cero y el porcentaje no es calculable. No es 0 % ni 100 %.' : 'Origen declarado completo. No acredita verificación de campo ni conformidad EUDR.' });
+      const porOrigen = await group(sql<{ k: string | null; n: string }>`SELECT origin_status AS k, count(*)::text AS n FROM lots WHERE organization_id = ${org} GROUP BY origin_status`);
+      const num = porOrigen.COMPLETE ?? 0;
+      if (lotesTotal === 0) {
+        push(b6, { status: 'NO_DENOMINATOR', value: null, numerator: null, denominator: 0, observed: { lotes_del_tenant: 0 },
+          reason: 'Sin lotes en el tenant: el denominador es cero y el porcentaje no existe. No es 0 % ni 100 %.' });
+      } else {
+        push(b6, { status: 'OK', value: pct(num, lotesTotal), numerator: num, denominator: lotesTotal, observed: { ...porOrigen, lotes_del_tenant: lotesTotal },
+          reason: `${num === 0 ? 'Cero observado: ningún lote tiene el origen declarado completo. ' : ''}Origen declarado completo. No acredita verificación de campo ni conformidad EUDR.` });
+      }
     }
 
-    // ---- Riesgo por severidad (estado) — bloqueado por diseño de P0-020 ----
-    const evaluados = has('risk:read')
-      ? await one(sql<{ n: string }>`SELECT count(DISTINCT subject_id)::text AS n FROM risk_evaluations WHERE organization_id = ${org}`) : 0;
-    const sinEvaluar = has('risk:read')
-      ? await one(sql<{ n: string }>`SELECT count(*)::text AS n FROM risk_evaluations WHERE organization_id = ${org} AND severity = 'NOT_ASSESSED'`) : 0;
+    // ---- Riesgo por severidad (estado) ----
+    // La ÚLTIMA evaluación de cada sujeto (no todas): DISTINCT ON por evaluation_number descendente.
+    const ultimaPorSujeto = can('risk:read')
+      ? await group(sql<{ k: string | null; n: string }>`
+          SELECT severity AS k, count(*)::text AS n FROM (
+            SELECT DISTINCT ON (subject_id) subject_id, severity FROM risk_evaluations
+            WHERE organization_id = ${org} ORDER BY subject_id, evaluation_number DESC
+          ) ultima GROUP BY severity`)
+      : {};
+    const evaluados = sum(ultimaPorSujeto);
+    const sinSeveridad = (ultimaPorSujeto.NOT_ASSESSED ?? 0) + (ultimaPorSujeto.UNDETERMINED ?? 0);
+    const conSeveridad = evaluados - sinSeveridad;
     for (const [code, sev, label] of [['risk_high', 'HIGH', 'alto'], ['risk_medium', 'MEDIUM', 'medio'], ['risk_low', 'LOW', 'bajo']] as const) {
-      const b = { code, name: `Lotes de riesgo ${label}`, definition: `Lotes cuya última evaluación tiene severity = ${sev}, sobre los lotes evaluados.`, unit: 'count' as const, kind: 'STATE' as const, date_basis: null, requires: 'risk:read' as Permission };
-      if (!has('risk:read')) { restricted(b); continue; }
-      const conSeveridad = await one(sql<{ n: string }>`SELECT count(*)::text AS n FROM risk_evaluations WHERE organization_id = ${org} AND severity <> 'NOT_ASSESSED'`);
-      push({ ...b, status: conSeveridad === 0 ? 'NOT_CALCULABLE' : 'OK',
-        value: conSeveridad === 0 ? null : String(await one(sql<{ n: string }>`SELECT count(DISTINCT subject_id)::text AS n FROM risk_evaluations WHERE organization_id = ${org} AND severity = ${sev}`)),
-        numerator: null, denominator: conSeveridad === 0 ? 0 : evaluados,
-        reason: conSeveridad === 0
-          ? `Ninguna evaluación tiene severidad asignada (${sinEvaluar} con NOT_ASSESSED de ${evaluados} sujeto(s) evaluado(s)): el motor devuelve NOT_ASSESSED por diseño mientras D-05, el proveedor satelital (P0-028) y las mitigaciones (P0-021) no cierren. «0 lotes de riesgo ${label}» sería una cifra favorable inventada.`
-          : PERIOD_NOTE });
+      const b: Base = { code, name: `Lotes de riesgo ${label}`, definition: `Lotes cuya ÚLTIMA evaluación tiene severity = ${sev}, sobre los lotes con evaluación.`, unit: 'count', kind: 'STATE', date_basis: null, requires: 'risk:read' };
+      if (!can('risk:read')) { restricted(b); continue; }
+      const observed = { lotes_del_tenant: lotesTotal, lotes_evaluados: evaluados, sin_severidad_asignada: sinSeveridad, con_severidad_asignada: conSeveridad };
+      if (evaluados === 0) {
+        push(b, { status: 'NO_DENOMINATOR', value: null, numerator: null, denominator: 0, observed,
+          reason: `Ningún lote tiene evaluación de riesgo: el denominador es cero. Que no haya evaluaciones es un hecho observado (${lotesTotal} lote(s) en el tenant), pero no permite afirmar cuántos son de riesgo ${label}.` });
+      } else if (conSeveridad === 0) {
+        push(b, { status: 'UNKNOWN', value: null, numerator: null, denominator: evaluados, observed,
+          reason: `Desconocido: los ${evaluados} lote(s) evaluado(s) salieron SIN severidad asignada (NOT_ASSESSED/UNDETERMINED), porque el motor no concluye mientras D-05, el proveedor satelital (P0-028) y las mitigaciones (P0-021) no cierren. «0 lotes de riesgo ${label}» sería una cifra favorable inventada sobre sujetos sin clasificar.` });
+      } else {
+        const n = ultimaPorSujeto[sev] ?? 0;
+        push(b, { status: 'OK', value: String(n), numerator: n, denominator: evaluados, observed,
+          reason: `${n === 0 ? 'Cero observado: ninguno de los lotes clasificados quedó en esta severidad. ' : ''}Hay ${conSeveridad} lote(s) con severidad asignada y ${sinSeveridad} sin asignar; estos últimos siguen siendo desconocidos y no se cuentan como riesgo ${label}.` });
+      }
     }
 
     // ---- Completitud de evidencia (estado, %) ----
-    const b7 = { code: 'evidence_completeness', name: 'Completitud de evidencia', definition: 'Afirmaciones de evidencia en estado VERIFIED ÷ afirmaciones del tenant. Mide verificación interna, no validez jurídica.', unit: 'percent' as const, kind: 'STATE' as const, date_basis: null, requires: 'evidence:read' as Permission };
-    if (!has('evidence:read')) restricted(b7);
+    const b7: Base = { code: 'evidence_completeness', name: 'Completitud de evidencia', definition: 'Afirmaciones de evidencia en estado VERIFIED ÷ afirmaciones del tenant. Mide verificación interna, no validez jurídica.', unit: 'percent', kind: 'STATE', date_basis: null, requires: 'evidence:read' };
+    if (!can('evidence:read')) restricted(b7);
     else {
-      const den = await one(sql<{ n: string }>`SELECT count(*)::text AS n FROM evidence WHERE organization_id = ${org}`);
-      const num = await one(sql<{ n: string }>`SELECT count(*)::text AS n FROM evidence WHERE organization_id = ${org} AND status = 'VERIFIED'`);
-      const v = ratio(num, den);
-      push({ ...b7, status: v === null ? 'NOT_CALCULABLE' : 'OK', value: v, numerator: num, denominator: den,
-        reason: v === null ? 'Sin afirmaciones de evidencia: el denominador es cero y el porcentaje no es calculable. No es 0 % ni 100 %.' : 'Verificación interna de afirmaciones. No acredita validez jurídica del soporte.' });
+      const porEstadoEv = await group(sql<{ k: string | null; n: string }>`SELECT status AS k, count(*)::text AS n FROM evidence WHERE organization_id = ${org} GROUP BY status`);
+      const den = sum(porEstadoEv);
+      const num = porEstadoEv.VERIFIED ?? 0;
+      if (den === 0) {
+        push(b7, { status: 'NO_DENOMINATOR', value: null, numerator: null, denominator: 0, observed: { afirmaciones: 0 },
+          reason: 'Sin afirmaciones de evidencia en el tenant: el denominador es cero y el porcentaje no existe. No es 0 % ni 100 %.' });
+      } else {
+        push(b7, { status: 'OK', value: pct(num, den), numerator: num, denominator: den, observed: { ...porEstadoEv, afirmaciones: den },
+          reason: `${num === 0 ? 'Cero observado: ninguna afirmación está verificada. ' : ''}Verificación interna de afirmaciones. No acredita validez jurídica del soporte. El desglose por estado es un conteo observado.` });
+      }
     }
 
     // ---- Expedientes DD listos (estado) ----
-    const b8 = { code: 'due_diligence_ready', name: 'Expedientes con preparación READY', definition: 'Expedientes cuya última instantánea tiene readiness = READY, sobre los expedientes del tenant.', unit: 'count' as const, kind: 'STATE' as const, date_basis: null, requires: 'dd:read' as Permission };
-    if (!has('dd:read')) restricted(b8);
+    // Calculable: contar expedientes por preparación (incluidos los BLOCKED) es un conteo observado. Lo que NO se
+    // deduce de aquí es conformidad: READY es preparación interna y hoy, además, inalcanzable por dependencias abiertas.
+    const b8: Base = { code: 'due_diligence_ready', name: 'Expedientes con preparación READY', definition: 'Expedientes cuya ÚLTIMA instantánea tiene readiness = READY, sobre los expedientes del tenant.', unit: 'count', kind: 'STATE', date_basis: null, requires: 'dd:read' };
+    if (!can('dd:read')) restricted(b8);
     else {
-      const den = await one(sql<{ n: string }>`SELECT count(*)::text AS n FROM dd_cases WHERE organization_id = ${org}`);
-      const num = await one(sql<{ n: string }>`
-        SELECT count(*)::text AS n FROM dd_cases c WHERE c.organization_id = ${org}
-          AND (SELECT s.readiness FROM dd_snapshots s WHERE s.case_id = c.id ORDER BY s.snapshot_number DESC LIMIT 1) = 'READY'`);
-      push({ ...b8, status: den === 0 ? 'NOT_CALCULABLE' : 'OK', value: den === 0 ? null : String(num), numerator: den === 0 ? null : num, denominator: den,
-        reason: den === 0
-          ? 'Sin expedientes de diligencia en el tenant: no hay denominador.'
-          : 'READY indica preparación interna, NO conformidad EUDR ni presentación de DDS. Hoy READY es inalcanzable (catálogo de riesgo sin aprobar, D-05, perfil jurídico P1-005 y satélite P0-028): un 0 aquí no mide el desempeño del equipo.' });
+      const porReadiness = await group(sql<{ k: string | null; n: string }>`
+        SELECT readiness AS k, count(*)::text AS n FROM (
+          SELECT DISTINCT ON (c.id) c.id, s.readiness FROM dd_cases c
+          LEFT JOIN dd_snapshots s ON s.case_id = c.id AND s.organization_id = c.organization_id
+          WHERE c.organization_id = ${org} ORDER BY c.id, s.snapshot_number DESC NULLS LAST
+        ) ultima GROUP BY readiness`);
+      const den = sum(porReadiness);
+      const num = porReadiness.READY ?? 0;
+      if (den === 0) {
+        push(b8, { status: 'NO_DENOMINATOR', value: null, numerator: null, denominator: 0, observed: { expedientes: 0 },
+          reason: 'Sin expedientes de diligencia en el tenant: no hay denominador.' });
+      } else {
+        push(b8, { status: 'OK', value: String(num), numerator: num, denominator: den,
+          observed: { expedientes: den, READY: num, IN_PROGRESS: porReadiness.IN_PROGRESS ?? 0, BLOCKED: porReadiness.BLOCKED ?? 0, sin_instantanea: porReadiness.SIN_DATO ?? 0 },
+          reason: `${num === 0 ? 'Cero observado: ningún expediente alcanza READY. ' : ''}READY indica preparación interna, NO conformidad EUDR ni presentación de DDS. Hoy READY es inalcanzable (catálogo de riesgo sin aprobar, D-05, perfil jurídico P1-005 y satélite P0-028): este cero no mide el desempeño del equipo. El desglose por preparación —incluidos los ${porReadiness.BLOCKED ?? 0} BLOCKED— sí es un conteo observado y se publica.` });
+      }
     }
 
     return out;
   }
 
-  private meta(ctx: TenantContext, period: { from: string | null; to: string | null }) {
+  meta(period: Period, asOf: string) {
     return {
       catalog_version: REPORT_CATALOG_VERSION,
       source: 'S1 §60 (lista de KPI). Contrato: docs/decisiones/P0-030-REPORTES.md',
-      period: { from: period.from, to: period.to, applies_to: 'Solo a los indicadores de tipo ACTIVITY. Los de estado describen el momento actual.' },
-      scope_note: 'Cada indicador exige el permiso de su dominio. Los que tu rol no permite salen RESTRICTED, sin valor ni conteo: ningún total agrega sobre dominios que no puedes leer.',
-      privacy_note: 'Este reporte no contiene datos personales ni coordenadas: solo conteos y porcentajes.',
-      interpretation_note: 'Readiness no es conformidad. Reserva no es despacho. INTEGRATED significa que la operación y su evento existen, no que estén acreditados. Calidad, origen, hallazgos GIS, riesgo y preparación DD son dimensiones distintas y no se combinan.',
-      history_gap: {
-        since: '2026-10-13',
-        note: 'El almacenamiento local se recreó el 2026-10-13 y se perdieron los registros de las revisiones anteriores. Toda serie anterior a esa fecha está vacía por pérdida de almacenamiento, NO por falta de actividad.',
-        reference: 'docs/qa/HALLAZGO_PERDIDA_DATOS_DEMO_2026-10-13.md',
+      period: { from: period.from, to: period.to, applies_to: 'Solo a los indicadores de tipo ACTIVITY. Los de estado describen el momento actual (as_of).' },
+      time_basis: timeBasis(asOf),
+      scope_note: SCOPE_NOTE,
+      assigned_scope_note: ASSIGNED_SCOPE_NOTE,
+      privacy_note: 'Este reporte de indicadores no contiene datos personales ni coordenadas: solo conteos y porcentajes.',
+      interpretation_note: INTERPRETATION_NOTE,
+      status_legend: {
+        OK: 'Calculado desde la base. Un 0 es un cero observado.',
+        NO_DENOMINATOR: 'El denominador es cero: el cociente no existe. Ni 0 % ni 100 %.',
+        UNKNOWN: 'El universo se conoce, pero la condición no ha sido evaluada en ningún sujeto.',
+        CRITERION_UNDEFINED: 'El criterio carece de definición aprobada (D-05) y todavía no puede evaluarse.',
+        RESTRICTED: 'Tu rol no tiene el permiso de ese dominio: no se calcula ni se informa parcialmente.',
       },
+      coverage: COVERAGE,
     };
   }
 
   @Get('indicators')
   async indicators(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Query() q: ReportPeriodDto) {
     const ctx = await this.ctx(user, orgId, 'report:read');
-    const period = { from: q.from ?? null, to: q.to ?? null };
+    const period: Period = { from: q.from ?? null, to: q.to ?? null };
     const indicators = await this.compute(ctx, period);
-    return { ...this.meta(ctx, period), can_export: ctx.permissions.includes('report:export'), indicators };
+    return { ...this.meta(period, new Date().toISOString()), can_export: ctx.permissions.includes('report:export'), indicators };
   }
 
   @Get('indicators/export')
   async export(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Req() req: AuthedRequest, @Query() q: ReportPeriodDto, @Res() res: Response) {
     // `report:export` se revalida aquí: tener la pantalla abierta no basta para descargar.
     const ctx = await this.ctx(user, orgId, 'report:export');
-    const period = { from: q.from ?? null, to: q.to ?? null };
+    const period: Period = { from: q.from ?? null, to: q.to ?? null };
     const indicators = await this.compute(ctx, period);
     const org = await this.db.selectFrom('organizations').select('name').where('id', '=', ctx.organizationId).executeTakeFirstOrThrow();
     const generatedAt = new Date().toISOString();
-    const m = this.meta(ctx, period);
+    const m = this.meta(period, generatedAt);
     const head: Array<[string, string]> = [
       ['formato', REPORT_EXPORT_FORMAT], ['catalogo', REPORT_CATALOG_VERSION], ['organizacion', org.name], ['organizacion_id', ctx.organizationId],
       ['periodo_desde', period.from ?? 'sin límite'], ['periodo_hasta', period.to ?? 'sin límite'], ['generado', generatedAt],
-      ['alcance', m.scope_note], ['privacidad', m.privacy_note], ['interpretacion', m.interpretation_note], ['laguna_historica', `${m.history_gap.note} Detalle: ${m.history_gap.reference}`],
+      ['recalculo', EXPORT_RECALC_NOTE], ['fechas', `${m.time_basis.period_bounds} ${m.time_basis.civil_dates}`], ['as_of', m.time_basis.as_of_note],
+      ['alcance', m.scope_note], ['alcance_asignado', m.assigned_scope_note], ['privacidad', m.privacy_note], ['interpretacion', m.interpretation_note],
+      ['cobertura_historica', `${COVERAGE.note} ${COVERAGE.not_reconstructed} Detalle: ${COVERAGE.reference}`],
+      ['estados', Object.entries(m.status_legend).map(([k, v]) => `${k}: ${v}`).join(' | ')],
       ['nota', 'Formato local provisional. No acredita conformidad EUDR ni aprobación de ninguna autoridad.'],
     ];
-    const header = ['code', 'name', 'kind', 'unit', 'status', 'value', 'numerator', 'denominator', 'date_basis', 'definition', 'reason'];
+    const header = ['code', 'name', 'kind', 'unit', 'status', 'value', 'numerator', 'denominator', 'observed', 'date_basis', 'definition', 'reason'];
     const lines = [
       ...head.map(([k, v]) => `# ${csvCell(k)},${csvCell(v)}`), header.join(','),
       ...indicators.map((i) => [i.code, i.name, i.kind, i.unit, i.status, i.value ?? '', i.numerator === null ? '' : String(i.numerator),
-        i.denominator === null ? '' : String(i.denominator), i.date_basis ?? '', i.definition, i.reason ?? ''].map(csvCell).join(',')),
+        i.denominator === null ? '' : String(i.denominator), i.observed ? Object.entries(i.observed).map(([k, v]) => `${k}=${v}`).join(' ') : '',
+        i.date_basis ?? '', i.definition, i.reason ?? ''].map(csvCell).join(',')),
     ];
     const body = Buffer.from(`﻿${lines.join('\r\n')}\r\n`, 'utf8');
     const sha256 = createHash('sha256').update(body).digest('hex');
     await this.audit.record(this.db, {
       organizationId: ctx.organizationId, actorUserId: user.id, action: 'report.export', entityType: 'report', entityId: null, requestId: req.requestId, result: 'SUCCESS',
-      after: { format_version: REPORT_EXPORT_FORMAT, catalog_version: REPORT_CATALOG_VERSION, sha256, period, indicators: indicators.length },
+      after: { format_version: REPORT_EXPORT_FORMAT, catalog_version: REPORT_CATALOG_VERSION, sha256, period, indicators: indicators.length, generated_at: generatedAt },
     });
     const fileName = `indicadores-${generatedAt.slice(0, 10)}.csv`;
     // Se escribe directamente en la respuesta: devolver el Buffer con `passthrough` haría que Nest lo serializara
