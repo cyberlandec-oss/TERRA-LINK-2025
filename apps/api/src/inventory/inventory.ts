@@ -19,8 +19,9 @@ import { holderBalances, incorporateOrganization, postMovement, reconcile, type 
 // P0-017 Inventario y balance de masa (RF-17, QA-06; UX_UI §15.3). Contrato: docs/decisiones/P0-017-EFECTOS-LEDGER.md.
 // Saldos y movimientos desde el ledger (única fuente). Movimientos propios: merma, traslado, asignación de ubicación
 // pendiente y ajuste con motivo; cada uno con compuerta STOCK_MOVEMENT (KDE STORAGE), evento StockMovementRecorded y
-// auditoría en la misma transacción. Reserva y despacho para embarques NO se implementan (docs/06 exige shipment_id;
-// P0-029). Existencia ≠ calidad liberada ≠ origen completo.
+// auditoría en la misma transacción. La reserva para embarques sí existe (P0-029, `shipment_reservations`): la registra
+// el módulo de embarques sobre este mismo ledger, no este módulo. El despacho sigue bloqueado hasta que D-34 defina sus
+// condiciones. Existencia ≠ calidad liberada ≠ origen completo.
 
 type Db = Kysely<Database> | Transaction<Database>;
 const DEC = /^\d{1,14}(\.\d{1,6})?$/;

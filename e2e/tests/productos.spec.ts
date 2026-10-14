@@ -125,18 +125,22 @@ test('usuario sin permiso: sin enlace en el menú y acceso directo denegado', as
   await bctx.close();
 });
 
-test('P0-013 hitos (CTE): consulta de solo lectura con versión, vigencia e integración (P0-012 y fermentación integradas; secado pendiente); sin acciones operativas', async ({ browser }) => {
+test('P0-013 hitos (CTE): consulta de solo lectura con versión, vigencia e integración (P0-012, fermentación y embarque integrados; secado pendiente); sin acciones operativas', async ({ browser }) => {
   const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
   await page.goto(`${orgUrl}/trazabilidad/hitos`);
   const table = page.getByRole('table', { name: 'Hitos de trazabilidad' });
   await expect(table.locator('tbody tr')).toHaveCount(11);
-  await expect(page.getByText(/Catálogo versión 1\.3\.0/)).toBeVisible();
+  await expect(page.getByText(/Catálogo versión 1\.4\.0/)).toBeVisible();
   await expect(table).toContainText('DELIVERY@2');
   await expect(table).toContainText('DeliveryRegistered');
-  await expect(page.getByText(/6 operación\(es\) integrada\(s\) y 5 pendiente\(s\)/)).toBeVisible();
+  // 1.4.0 (P0-029): SHIPMENT pasa a INTEGRATED con SHIPMENT_DISPATCH → ShipmentDispatched.
+  // Integradas: CLASSIFICATION, DELIVERY, FERMENTATION, RECEPTION, SHIPMENT, STORAGE, WEIGHING.
+  // Pendientes: DRYING (D-32), HARVEST, PACKAGING, SALE.
+  await expect(page.getByText(/7 operación\(es\) integrada\(s\) y 4 pendiente\(s\)/)).toBeVisible();
+  await expect(table).toContainText('SHIPMENT@2');
   await expect(page.getByRole('button', { name: /cosecha|entrega|recepción|procesar|registrar/i })).toHaveCount(0);
   await page.getByLabel('Mostrar definiciones retiradas o sustituidas').press('Space');
-  await expect(table.locator('tbody tr')).toHaveCount(17); // las 6 versiones sustituidas (1.1.0, 1.2.0 y 1.3.0) siguen consultables
+  await expect(table.locator('tbody tr')).toHaveCount(18); // las 7 versiones sustituidas (1.1.0, 1.2.0, 1.3.0 y 1.4.0) siguen consultables
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });
@@ -443,7 +447,9 @@ test('P0-017 inventario: existencia, reservado y disponible; traslado y merma co
   await page.getByRole('button', { name: 'Registrar movimiento' }).click();
   await expect(page.getByText('Movimiento registrado.')).toBeVisible();
   await expect(page.getByRole('list', { name: 'Movimientos del ledger' })).toContainText('Merma');
-  await expect(page.getByText(/Reserva y despacho para embarques requieren embarques/)).toBeVisible();
+  // P0-029: la reserva para embarques ya existe sobre este mismo ledger; el despacho sigue bloqueado por D-34.
+  await expect(page.getByText(/Lo reservado incluye procesos en curso y embarques/)).toBeVisible();
+  await expect(page.getByText(/El despacho está bloqueado mientras D-34 no defina sus condiciones/)).toBeVisible();
   await page.getByRole('button', { name: 'Comprobar conciliación' }).click();
   await expect(page.getByText(/Conciliado:/)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
