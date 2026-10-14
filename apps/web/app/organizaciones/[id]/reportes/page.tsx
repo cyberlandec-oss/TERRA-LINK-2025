@@ -47,7 +47,8 @@ interface EntityReport {
   totals: Array<{ key: string; label: string; value: string }>;
   notes: string[]; total_rows: number; returned_rows: number; has_more: boolean; limit_note: string;
   page: { limit: number; cursor: string | null; next_cursor: string | null; key: string };
-  why: Record<string, string>; can_export: boolean; coverage: Coverage; time_basis: TimeBasis; snapshot_note: string;
+  why: Record<string, string>; can_export: boolean; coverage: Coverage; time_basis: TimeBasis;
+  snapshot_note: string; export_note: string; export_limit: number;
 }
 
 const KIND: Record<Indicator['kind'], string> = { STATE: 'Estado actual', ACTIVITY: 'Actividad del período', BALANCE_AT: 'Saldo a una fecha' };
@@ -307,7 +308,7 @@ export default function ReportsPage() {
             <h2 id="rp-entidad">{entity.title}</h2>
             <p className="muted">{entity.source} · {entity.returned_rows} de {entity.total_rows} fila(s)</p>
           </section>
-          {entity.has_more && <Alert tone="info" title="Hay más filas">Esta es una página del reporte; los totales de abajo cubren el conjunto completo. Avanza con «Siguiente página» o exporta el CSV, que trae todas las filas.</Alert>}
+          {entity.has_more && <Alert tone="info" title="Hay más filas">Esta es una página del reporte; los totales de abajo cubren el conjunto completo. Avanza con «Siguiente página» o exporta el CSV, que trae el resto hasta su tope declarado.</Alert>}
           {entity.rows.length === 0
             ? <EmptyState title="No hay filas para este reporte">No es un error: la organización no tiene registros de este tipo, o ninguno entra en el período.</EmptyState>
             : (
@@ -333,6 +334,7 @@ export default function ReportsPage() {
                 onClick={() => void load({ ...applied, cursor: entity.page.next_cursor ?? '' })}>Siguiente página</button>
             </div>
             <p className="field-help">{entity.limit_note}</p>
+            <p className="field-help">{entity.snapshot_note}</p>
           </nav>
           <section className="card" aria-labelledby="rp-totales">
             <h2 id="rp-totales">Totales</h2>
@@ -354,7 +356,8 @@ export default function ReportsPage() {
             <h2 id="rp-export-entidad">Exportar este reporte</h2>
             {entity.can_export ? (
               <>
-                <p className="field-help">CSV con las mismas columnas y totales de esta pantalla, y con el CONJUNTO COMPLETO de filas, no solo la página mostrada. Se RECALCULA al descargar: su marca de generación es la del momento de la descarga, no la de esta pantalla. Queda registrada en la auditoría con el hash del archivo.</p>
+                <p className="field-help">CSV con las mismas columnas y totales de esta pantalla. {entity.export_note}</p>
+                <p className="field-help">Se RECALCULA al descargar: su marca de generación es la del momento de la descarga, no la de esta pantalla. Queda registrada en la auditoría con el hash del archivo.</p>
                 <button type="button" onClick={() => void download(`/api/v1/organizations/${orgId}/reports/entities/${entity.kind}/export${qs(applied)}`, `reporte-${entity.kind}.csv`)} disabled={exporting}>{exporting ? 'Generando…' : 'Exportar CSV'}</button>
               </>
             ) : <p className="muted">Tu rol no permite exportar reportes.</p>}

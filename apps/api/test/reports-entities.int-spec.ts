@@ -29,7 +29,7 @@ describeDb('P0-030 reportes por entidad: alcance, desconocidos y exportación', 
     totals: Array<{ key: string; label: string; value: string }>;
     notes: string[]; total_rows: number; returned_rows: number; has_more: boolean; can_export: boolean;
     page: { limit: number; cursor: string | null; next_cursor: string | null; key: string };
-    why: Record<string, string>; snapshot_note: string;
+    why: Record<string, string>; snapshot_note: string; export_note: string; export_limit: number;
     coverage: { status: string; note: string }; limit_note: string; time_basis: { as_of: string };
   };
   const get = async (actor: string, kind: string, qs = '', o = orgA) =>
@@ -288,6 +288,14 @@ describeDb('P0-030 reportes por entidad: alcance, desconocidos y exportación', 
     expect(new Set(filas.map((l) => l.split(',')[0])).size).toBe(520);
     expect(csv).toMatch(/# filas,.*520 de 520 \(conjunto completo\)/);
     expect(csv).toMatch(/# instantanea,.*REPEATABLE READ/);
+    expect(csv).toMatch(/# limite_exportacion,.*20\.000/);
+    // El contrato de consistencia no promete más de lo implementado: entre peticiones no hay instantánea compartida.
+    const pagina: Report = await get(ADMIN, 'producers', '?limit=200', orgC);
+    expect(pagina.snapshot_note).toMatch(/Dentro de UNA petición/);
+    expect(pagina.snapshot_note).toMatch(/navegar entre páginas son peticiones distintas/i);
+    expect(pagina.snapshot_note).not.toMatch(/filas, totales y páginas proceden de una sola/i);
+    expect(pagina.export_limit).toBe(20000);
+    expect(pagina.export_note).toMatch(/TRUNCADO/);
   });
 
   it('exportación por entidad: CSV coherente con la pantalla, con totales, hash, auditoría y fórmulas neutralizadas', async () => {

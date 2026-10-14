@@ -50,12 +50,21 @@ export function timeBasis(asOf: string) {
 }
 
 /**
- * Instantánea de lectura. No basta con reutilizar la misma función: si sus consultas sucesivas corriesen fuera de una
- * transacción, filas y totales podrían venir de estados distintos de la base mientras alguien escribe.
+ * Instantánea de lectura, con su alcance EXACTO. No basta con reutilizar la misma función: si sus consultas sucesivas
+ * corriesen fuera de una transacción, filas y totales podrían venir de estados distintos de la base.
+ * Lo que SÍ se garantiza: una petición (filas + totales) y una exportación completa (todas sus páginas).
+ * Lo que NO: dos peticiones distintas. Navegar entre páginas abre una instantánea nueva en cada una.
  */
 export const SNAPSHOT_NOTE =
-  'Filas, totales y páginas proceden de UNA sola instantánea de lectura (transacción REPEATABLE READ de solo lectura): ' +
-  'lo mostrado y lo exportado son coherentes entre sí aunque la base cambie durante el cálculo.';
+  'Dentro de UNA petición, las filas y los totales proceden de la misma instantánea de lectura (transacción REPEATABLE READ ' +
+  'de solo lectura), y una exportación recorre todas sus páginas dentro de esa misma instantánea. En cambio, navegar entre ' +
+  'páginas son peticiones distintas y cada una abre la suya: entre una página y la siguiente los datos pueden haber cambiado.';
+
+/** Tope de una exportación, declarado donde se ofrece la descarga y no solo dentro del archivo. */
+export const exportLimitNote = (max: number) =>
+  `La exportación trae todas las filas del reporte, no solo la página mostrada, hasta un tope de ${max.toLocaleString('es-EC')}. ` +
+  'Si el reporte lo superara, el archivo se rotula TRUNCADO en su cabecera `# filas` (con el número exportado y el total), ' +
+  'y los totales siguen cubriendo el conjunto completo.';
 
 export const EXPORT_RECALC_NOTE =
   'Cada descarga RECALCULA desde la base con los mismos filtros; no es la instantánea que ya estaba en pantalla. Su marca «generado» es la ' +

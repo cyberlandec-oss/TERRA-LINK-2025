@@ -18,7 +18,7 @@ import {
 } from './reports-catalog';
 import {
   ASSIGNED_SCOPE_NOTE, COVERAGE, EXPORT_RECALC_NOTE, GEOJSON_EXPORT_FORMAT, INTERPRETATION_NOTE, REPORT_CATALOG_VERSION,
-  REPORT_EXPORT_FORMAT, SCOPE_NOTE, SNAPSHOT_NOTE, has, timeBasis, type Period,
+  REPORT_EXPORT_FORMAT, SCOPE_NOTE, SNAPSHOT_NOTE, exportLimitNote, has, timeBasis, type Period,
 } from './reports-shared';
 
 // P0-030 — Reportes por entidad (S1 §97 «Sprint 11 — Reporting»: productor, parcela, lote, riesgo, trazabilidad, DD
@@ -28,9 +28,10 @@ import {
 //  1. **Permiso por dominio de cada dato**, no solo de la entidad que encabeza las filas: el reporte de productores
 //     cuenta parcelas y entregas, así que exige también `plot:read` y `delivery:read`. Catálogo y regla, con el motivo
 //     de cada permiso, en `reports-catalog.ts` (módulo puro, probado en memoria con permisos arbitrarios).
-//  2. **Lectura consistente**: filas, totales y páginas salen de UNA transacción `REPEATABLE READ` de solo lectura.
-//     Reutilizar la misma función no basta: sin instantánea, sus consultas sucesivas verían estados distintos y los
-//     totales no cuadrarían con las filas.
+//  2. **Lectura consistente, con su alcance exacto**: dentro de UNA petición, filas y totales salen de la misma
+//     transacción `REPEATABLE READ` de solo lectura, y una exportación recorre todas sus páginas dentro de esa misma
+//     transacción. Reutilizar la misma función no basta: sin instantánea, sus consultas sucesivas verían estados
+//     distintos. Lo que NO se garantiza: dos peticiones distintas; navegar entre páginas abre una instantánea nueva.
 //  3. Organización y alcance se aplican ANTES de agregar, en la misma consulta que produce filas y totales. Los totales
 //     cubren el conjunto completo ya filtrado, no la página mostrada.
 //  4. Un sujeto sin evaluar NO se omite: aparece con su estado «sin evaluar». Omitirlo escondería el desconocido.
@@ -95,8 +96,8 @@ export class EntityReportsController {
   }
 
   /**
-   * Instantánea de lectura. Todo el reporte —filas, totales y páginas de la exportación— se calcula dentro de una
-   * transacción REPEATABLE READ de solo lectura, de modo que lo exportado no mezcle estados distintos de la base.
+   * Instantánea de lectura de UNA petición: filas y totales, y en la exportación todas sus páginas, dentro de la misma
+   * transacción REPEATABLE READ de solo lectura. Entre peticiones distintas no hay instantánea compartida ni se simula.
    */
   private snapshot<T>(fn: (trx: Transaction<Database>) => Promise<T>): Promise<T> {
     return this.db.transaction().setIsolationLevel('repeatable read').setAccessMode('read only').execute(fn);
@@ -110,6 +111,8 @@ export class EntityReportsController {
       assigned_scope_note: ASSIGNED_SCOPE_NOTE,
       interpretation_note: INTERPRETATION_NOTE,
       snapshot_note: SNAPSHOT_NOTE,
+      export_note: exportLimitNote(EXPORT_MAX_ROWS),
+      export_limit: EXPORT_MAX_ROWS,
       coverage: COVERAGE,
       period: { from: period.from, to: period.to },
       limit_note:
@@ -635,7 +638,7 @@ export class EntityReportsController {
       ['organizacion', org.name], ['organizacion_id', ctx.organizationId],
       ['permisos_exigidos', d.requires.join(' ')],
       ['periodo_desde', period.from ?? 'no aplica'], ['periodo_hasta', period.to ?? 'no aplica'], ['periodo_nota', d.period_note],
-      ['generado', generatedAt], ['recalculo', EXPORT_RECALC_NOTE], ['instantanea', m.snapshot_note],
+      ['generado', generatedAt], ['recalculo', EXPORT_RECALC_NOTE], ['instantanea', m.snapshot_note], ['limite_exportacion', m.export_note],
       ['fechas', `${m.time_basis.period_bounds} ${m.time_basis.civil_dates}`],
       ['alcance', m.scope_note], ['alcance_asignado', m.assigned_scope_note], ['interpretacion', m.interpretation_note],
       ['cobertura_historica', `${COVERAGE.note} ${COVERAGE.not_reconstructed} Detalle: ${COVERAGE.reference}`],

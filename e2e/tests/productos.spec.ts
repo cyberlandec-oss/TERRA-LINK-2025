@@ -669,7 +669,12 @@ test('P0-030 reportes por entidad: §97 en pantalla, desconocidos visibles, GeoJ
   await expect(page.getByText(/no se omite/i)).toBeVisible();
   // La descarga declara que recalcula y que no es la instantánea de la pantalla.
   await expect(page.getByText(/Se RECALCULA al descargar/)).toBeVisible();
-  await expect(page.getByText(/CONJUNTO COMPLETO de filas, no solo la página mostrada/)).toBeVisible();
+  // La pantalla no promete «todas las filas» sin más: declara el tope y cómo se rotula un archivo truncado.
+  await expect(page.getByText(/hasta un tope de 20\.000/)).toBeVisible();
+  await expect(page.getByText(/se rotula TRUNCADO en su cabecera/)).toBeVisible();
+  // Y el alcance exacto de la instantánea: una petición y una exportación, no la navegación entre páginas.
+  // Aparece junto a la navegación y junto a los totales: basta con que se declare donde se usa.
+  await expect(page.getByText(/navegar entre páginas son peticiones distintas/).first()).toBeVisible();
   // El reporte activo queda en la URL y se conserva al volver desde otra pantalla.
   const conReporte = page.url();
   await page.goto(`${orgUrl}/lotes`);
