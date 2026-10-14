@@ -42,9 +42,9 @@ Dos consecuencias que se vigilan en las pruebas:
 | `deliveries_total` | A | Entregas **registradas** con `delivery_date` dentro del período (límites inclusivos) | entregas | `deliveries.delivery_date` (**no** `created_at`) | — | `OK`. Observa borradores y entregas registradas **sin fecha**, que quedan fuera de todo período y no se descartan en silencio |
 | `lots_active` | E | Lotes en `OPEN` o `CLOSED_FOR_INPUT` | lotes | — | — | `OK`; observa el desglose por estado |
 | `traceability_completeness` | E | Lotes con `origin_status = COMPLETE` ÷ lotes del tenant | % | — | lotes del tenant | `OK`, o `NO_DENOMINATOR` sin lotes. Mide **origen declarado completo**, no conformidad ni verificación |
-| `risk_high` | E | Lotes cuya **última** evaluación tiene `severity = HIGH` | lotes | — | lotes con evaluación | `NO_DENOMINATOR` sin evaluaciones; `UNKNOWN` si las hay y ninguna tiene severidad (P0-020 devuelve `NOT_ASSESSED` mientras D-05, P0-028 y P0-021 sigan abiertos); `OK` en cuanto haya un solo lote clasificado, y entonces un 0 es cero observado |
-| `risk_medium` | E | ídem con `MEDIUM` | lotes | — | lotes con evaluación | ídem |
-| `risk_low` | E | ídem con `LOW` | lotes | — | lotes con evaluación | ídem |
+| `risk_high` | E | Lotes cuya **última** evaluación tiene `severity = HIGH` | lotes | — | lotes **con severidad asignada** | `NO_DENOMINATOR` sin evaluaciones; `UNKNOWN` si las hay y ninguna tiene severidad; `OK` en cuanto haya un lote clasificado, **sobre la base de los clasificados** y nunca como distribución del tenant. La dependencia es **D-07** y el catálogo `risk_rule_sets` (hoy `NOT_APPROVED`), no otras historias: ver §6.bis |
+| `risk_medium` | E | ídem con `MEDIUM` | lotes | — | lotes con severidad asignada | ídem |
+| `risk_low` | E | ídem con `LOW` | lotes | — | lotes con severidad asignada | ídem |
 | `evidence_completeness` | E | Afirmaciones `VERIFIED` ÷ afirmaciones del tenant | % | — | afirmaciones del tenant | `OK`, o `NO_DENOMINATOR` sin afirmaciones. Mide **verificación interna**, no validez jurídica |
 | `due_diligence_ready` | E | Expedientes cuya **última** instantánea tiene `readiness = READY` | expedientes | — | expedientes del tenant | `OK`: hoy 0, que es un **cero observado**, con el desglose `READY/IN_PROGRESS/BLOCKED/sin instantánea`. READY es inalcanzable por dependencias abiertas, y el 0 **no** mide desempeño del equipo |
 
@@ -88,8 +88,24 @@ Los volúmenes de Docker se recrearon vacíos el 2026-10-13 y se perdieron los r
 - Sin el permiso del dominio, el indicador sale como **`RESTRICTED`: sin valor, sin numerador, sin denominador, sin
   desglose observado y sin conteo**. Cada indicador es independiente y ninguno agrega sobre dominios que el lector no
   puede ver, de modo que **no se revelan recursos ocultos por diferencia**.
-- En los **reportes por entidad**, faltar un permiso no produce una versión recortada: se deniega el reporte entero
-  (403 con el permiso que falta). Un total calculado sobre una parte se leería como total de la organización.
+- En los **reportes por entidad**, un reporte exige el permiso de **CADA dominio del que publica datos, conteos o
+  totales**, no solo el de la entidad que encabeza las filas: leer productores **no** autoriza a conocer cuántas parcelas
+  o entregas tienen. Faltando uno, se deniega el reporte entero (403 que nombra el permiso que falta **y su motivo**,
+  sin ninguna cifra del dominio restringido). Un total calculado sobre una parte se leería como total de la organización.
+
+| Reporte | Permisos | Por qué el permiso adicional |
+| --- | --- | --- |
+| `producers` | `producer:read` + `plot:read` + `delivery:read` | cuenta parcelas y entregas de cada productor |
+| `plots` | `plot:read` + `producer:read` | muestra el código del productor |
+| `lots` | `lot:read` + `product:read` | muestra el código del producto |
+| `risk` | `risk:read` + `lot:read` | el sujeto evaluado es un lote |
+| `traceability` | `lot:read` + `delivery:read` + `plot:read` | cuenta entregas y parcelas por lote |
+| `dd` | `dd:read` + `lot:read` | el expediente identifica su lote |
+| GeoJSON | `report:export` + `plot:read` + `plot:read_geometry` + `producer:read` | coordenadas exactas y código de productor |
+
+  La regla vive en `reports-catalog.ts`, un módulo **puro**, y se prueba en memoria con conjuntos de permisos
+  arbitrarios (`reports-catalog.spec.ts`): si mañana un rol recibe `producer:read` sin `plot:read`, el reporte se sigue
+  denegando sin depender de cómo esté hoy el catálogo de roles.
 - El alcance por asignación (`*_assigned`) **no** habilita agregados ni reportes de organización: un técnico ve su
   trabajo, no cifras del tenant. El filtro de alcance se aplica igualmente **dentro de la misma consulta** que produce
   filas y totales, para que un cambio futuro de catálogo no abra un agregado por descuido.
@@ -108,6 +124,16 @@ Los volúmenes de Docker se recrearon vacíos el 2026-10-13 y se perdieron los r
   combinan en una puntuación única.
 - **`NOT_VALIDATED` significa SIN EVALUAR**, no «inválida». El reporte de parcelas lo rotula así en la celda.
 
+## 6.bis Qué bloquea la severidad de riesgo
+
+**No** es cerrar P0-021 ni P0-028. P0-021 está **implementada**, y verificar una mitigación entra en el resultado
+**técnico** de su factor: no asigna severidad ni produce conclusión favorable. Lo que la determina es **D-07** (enums,
+mapping y regla aprobada) junto con el catálogo `risk_rule_sets`, hoy `NOT_APPROVED` y sin «pesos, umbrales, severidades
+ni lista jurídica». Y la base lo refuerza: `risk_evaluations` lleva
+`CHECK (conclusion = 'UNDETERMINED' AND severity = 'NOT_ASSESSED')` desde la migración `0025_risk.ts`, de modo que
+**ninguna fila puede llevar severidad** mientras eso no cambie. Por eso el reparto por severidad se prueba en memoria
+(`reports-risk.spec.ts`), incluido el caso mixto, y la integración comprueba el candado del esquema.
+
 ## 7. Reportes por entidad (S1 §97)
 
 `GET /reports/entities` publica el catálogo con el permiso que exige cada reporte y el que le falta al rol.
@@ -125,11 +151,27 @@ Los volúmenes de Docker se recrearon vacíos el 2026-10-13 y se perdieron los r
 Reglas propias:
 
 - **Organización y alcance se aplican antes de agregar**, en la misma consulta que produce filas y totales.
-- Los **totales se calculan sobre el conjunto completo ya filtrado**, no sobre las filas mostradas: la tabla devuelve
-  hasta **500 filas** y lo declara, de modo que truncar no altera ninguna cifra.
+- **Paginación por cursor** sobre la clave natural de cada reporte (`producer_code`, `plot_code`, `lot_code`,
+  `case_number`), única dentro del tenant: páginas estables, sin duplicados ni omisiones. Página por omisión 100, máximo
+  500. Probado con 520 filas.
+- Los **totales se calculan sobre el conjunto completo ya filtrado**, no sobre la página mostrada: avanzar o truncar la
+  tabla no altera ninguna cifra.
+- **Instantánea de lectura, con su alcance exacto** (ver §7.bis).
 - **Un sujeto sin evaluar no se omite**: omitirlo escondería el desconocido y haría parecer completo lo que no lo está.
 - **Las cantidades van por unidad.** No existe un total único entre unidades distintas.
 - Cuando ningún sujeto está clasificado, el total correspondiente sale **`DESCONOCIDO`**, no 0.
+
+## 7.bis Contrato de consistencia: qué se garantiza y qué no
+
+| Situación | ¿Instantánea compartida? | Detalle |
+| --- | --- | --- |
+| Filas y totales de **una misma petición** | **Sí** | Una transacción `REPEATABLE READ` de solo lectura por petición |
+| Todas las páginas de **una exportación** | **Sí** | La exportación recorre sus páginas dentro de esa misma transacción |
+| Dos **peticiones distintas** (p. ej. avanzar de página) | **No** | Cada petición abre su propia instantánea: entre una página y la siguiente los datos pueden haber cambiado |
+| Pantalla abierta y descarga posterior | **No** | La descarga recalcula; su marca `generado` es la del momento de descargar |
+
+Reutilizar la misma función **no** da por sí sola una instantánea: lo que la da es la transacción. Y no se declara más
+garantía de la implementada: no hay instantánea compartida entre peticiones, ni se simula con cursores de versión.
 
 ## 8. Exportación
 
@@ -143,8 +185,24 @@ así que coinciden. Pero **cada descarga recalcula desde la base**: su marca `ge
 no la de la pantalla que el usuario tenía abierta. Si los datos cambiaron entre una y otra, el archivo refleja los datos
 nuevos. Esto se dice en la pantalla y en la cabecera `# recalculo` del CSV.
 
-Límite técnico: el reporte de indicadores es un conjunto acotado y no se pagina; los reportes por entidad devuelven
-hasta 500 filas y lo declaran. El formato es provisional y **no está aprobado por ninguna autoridad**.
+**La exportación cubre el conjunto completo**, no la página mostrada: recorre todas las páginas dentro de la misma
+instantánea, **hasta un tope de 20 000 filas**. El tope se declara en tres sitios, no solo dentro del archivo: en la
+respuesta (`export_limit` y `export_note`), en la pantalla junto al botón de descarga, y en el propio CSV, cuya cabecera
+`# filas` dice «N de TOTAL (conjunto completo)» o «N de TOTAL (TRUNCADO en el tope de 20000…)». Los totales cubren el
+conjunto completo aunque las filas se trunquen. El reporte de indicadores es un conjunto acotado y no se pagina. El formato es provisional y **no está
+aprobado por ninguna autoridad**.
+
+## 8.bis Comparación de actividad entre períodos
+
+`GET /reports/indicators?from&to&compare_from&compare_to` devuelve, además, el mismo cálculo sobre un segundo período
+para los indicadores de **ACTIVIDAD**, con su diferencia. Ambos períodos se calculan **en la misma instantánea**.
+
+- Usa las **fechas operativas declaradas** (`delivery_date`), nunca `created_at`.
+- Declara si los tramos son **equivalentes** (mismo número de días) en vez de corregirlo en silencio.
+- Repite el aviso de **cobertura histórica incompleta**: un período antiguo puede quedar por debajo de lo ocurrido.
+- Los indicadores de **estado no se comparan**: describen el momento actual y no tienen serie.
+- **Comparar actividad NO es reconstruir existencias.** El saldo a una fecha es una capacidad distinta, sin contrato
+  aprobado, y no se aproxima aquí.
 
 ## 9. Exportación GeoJSON (S1 §97)
 
@@ -165,6 +223,10 @@ permiso de reporte y la declaración de lo que queda fuera.
 
 ## 10. Lo que esta historia todavía no cubre
 
-Paginación de volumen real, reportes programados y series temporales comparables entre períodos (exigirían una capacidad
-de saldo a una fecha que hoy no existe). Están en `docs/decisiones/P0-030-CRITERIOS.md` §3 como **PENDIENTE**, con su
-motivo. La historia **sigue ABIERTA**.
+**Reportes programados**: ninguna fuente los exige (comprobado en S1 §60, §97, RF-30, docs/09, docs/17 y UX_UI §20.2),
+así que no se implementan; si se adoptaran, exigirían autorización vigente al ejecutar **y** al descargar.
+**Saldo o existencias a una fecha pasada**: capacidad distinta, sin contrato, que no se aproxima.
+**Volumen de piloto medido**: corresponde a P0-031.
+El detalle, con la fuente exacta de cada uno y su clasificación —requisito, mejora o bloqueo externo—, está en
+`docs/decisiones/P0-030-CRITERIOS.md` §3.bis. La historia **sigue ABIERTA** por `plots_valid`, la distribución de riesgo
+y el perfil regulatorio del GeoJSON.

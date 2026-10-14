@@ -17,7 +17,7 @@ Referencias S1–S4 y secciones corresponden a los originales conservados en `so
 | S1 §§64–69; S4 §§1–24 | RF-27, RNF-09 | P0-027; P1-003 | 14 | QA-14 · `test/my-work.int-spec.ts` (6), `e2e/review/web-por-rol.mjs` (22 combinaciones), `e2e/review/estados-web.mjs`; P0-027 DONE_LOCAL |
 | S1 §§39–41, 54, 95; S2 §§4–9 | RF-28 | P0-028 | 10/13/15 | QA-15 |
 | S1 §§27–29, 44; S4 §16 | RF-29 | P0-029 | 05/06/13/14 | QA-06/12 · `test/shipments.int-spec.ts` (6), `e2e/review/embarques-web.mjs`; P0-029 ABIERTA (despacho bloqueado por D-34) |
-| S1 §§60, 97 | RF-30 | P0-030 | 09/17 | QA-13/14 · `test/reports.int-spec.ts` (13), `test/reports-entities.int-spec.ts` (11), `e2e/tests/productos.spec.ts` (P0-030 ×3); §60 y los seis reportes de §97 demostrados, GeoJSON técnico demostrado; historia **ABIERTA** por el perfil regulatorio (D-05), `plots_valid`, la distribución de riesgo y los pendientes de volumen — estado por criterio en `docs/decisiones/P0-030-CRITERIOS.md` |
+| S1 §§60, 97 | RF-30 | P0-030 | 09/17 | QA-13/14 · `test/reports.int-spec.ts` (16), `test/reports-entities.int-spec.ts` (12), `src/reports/reports-catalog.spec.ts` (8, permisos en memoria), `src/reports/reports-risk.spec.ts` (6, caso mixto), `e2e/tests/productos.spec.ts` (P0-030 ×3); §60 y los seis reportes de §97 demostrados, GeoJSON técnico demostrado; historia **ABIERTA** por el perfil regulatorio (D-05), `plots_valid` (D-05) y la distribución de riesgo (**D-07**) — estado por criterio en `docs/decisiones/P0-030-CRITERIOS.md` |
 | S1 §§75–81, 98–99 | RF-31, RNF-05/06/10/12 | P0-031; TECH-001 | 16/17/19/20 | QA-16/17 |
 | S2 §§18–20, 24; S3 §§22, 38; S4 §17 | RF-32–33 | P1-001–002 | 07/14/15 | QA-02/14 |
 | S3 §§16, 18, 28; S4 §3 | RF-35 | P1-004 | 02/14 | Wizard/madurez con evidencia |

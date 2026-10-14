@@ -1,4 +1,4 @@
-# Sesión 2026-10-14 — P0-030, revisión 2: §97 completo, cinco estados y cobertura histórica corregida
+# Sesión 2026-10-14 — P0-030, revisiones 2 y 3: §97 completo, cinco estados, permisos cruzados y consistencia
 
 Continuación de la sesión que entregó los 11 KPI de S1 §60. Esta revisión **no cierra** la historia: completa los
 reportes por entidad de S1 §97, corrige dos afirmaciones del contrato anterior y deja escrito, criterio a criterio, qué
@@ -93,11 +93,34 @@ archivo (`terra_link.regulatory_profile`), no se da por resuelto.
 | Validación completa | **APROBADA** sobre `dd2e8da` — `validation-results/2026-10-14T14-51-46-796Z`: 51 suites, 405 unitarias + integración y 58 E2E (la de `75bb3a4` también aprobó, antes del arreglo visual del selector) |
 | Corrida fallida conservada | `2026-10-14T14-17-05-917Z` sobre `dfeda36`: un fallo en E2E, de la prueba y no del producto — la aserción exigía «D-05» donde el estado correcto era `NO_DENOMINATOR` |
 
+## Revisión 3: tres hallazgos de la revisión, los tres reales
+
+1. **Fuga de conteos entre dominios.** El reporte de productores contaba parcelas y entregas exigiendo solo
+   `producer:read`. Cada reporte exige ahora el permiso de **cada dominio del que publica datos**, con el motivo visible,
+   y la regla se prueba **en memoria con permisos arbitrarios**, sin depender de cómo esté hoy el catálogo de roles.
+2. **La severidad no dependía de P0-021 ni de P0-028**, como yo había escrito. Depende de **D-07** y del catálogo
+   `risk_rule_sets` (`NOT_APPROVED`). Y el esquema lo refuerza: `risk_evaluations` lleva
+   `CHECK (conclusion = 'UNDETERMINED' AND severity = 'NOT_ASSESSED')`. Lo descubrí porque la prueba del caso mixto
+   intentó insertar una severidad y la base la rechazó: el caso mixto se prueba en memoria y la integración comprueba
+   el candado.
+3. **Comparar actividad no es reconstruir inventario.** Implementada la comparación entre períodos por fecha operativa;
+   el saldo a una fecha sigue siendo capacidad distinta, sin contrato, y no se aproxima.
+
+Además: paginación por cursor probada con 520 filas, exportación del conjunto completo hasta un tope declarado de
+20 000 filas, y el **contrato de consistencia precisado**: la instantánea cubre una petición y una exportación, **no** la
+navegación entre páginas. Se corrigieron los dos textos que prometían más de lo implementado.
+
+| | |
+| --- | --- |
+| Validación final | **APROBADA** sobre `ebb8368` — `validation-results/2026-10-14T15-59-49-778Z`: 53 suites, 423 pruebas y 58 E2E |
+| Validación previa | **APROBADA** sobre `feace4f` — `15-38-24-038Z`, antes de precisar los textos |
+
 ## Lo que sigue abierto
 
-- **P0-030**: `plots_valid` y la distribución de riesgo (D-05, P0-010, P0-020, P0-028, P0-021); el perfil regulatorio del
-  GeoJSON (D-05); y, sin bloqueo externo, la paginación con volumen de piloto, los reportes programados y las series
-  comparables entre períodos (exigirían saldo a una fecha, que hoy no existe).
+- **P0-030**: `plots_valid` (**D-05**, P0-010) y la distribución de riesgo (**D-07** y el catálogo `NOT_APPROVED`);
+  el perfil de destino regulatorio del GeoJSON (**D-05**). Sin bloqueo externo no queda ningún requisito de la historia:
+  los reportes programados y el saldo histórico **no los exige ninguna fuente** (comprobado por búsqueda literal) y el
+  volumen de piloto corresponde a P0-031.
 - **P0-029 y P0-017**: abiertas por el despacho.
 - **Validación intermitente**: sin causa confirmada. H1 (latencia del disco USB) sigue sin demostrar.
 - **Datos DEMO perdidos**: recuperación pendiente de decisión. No se recreó nada.
