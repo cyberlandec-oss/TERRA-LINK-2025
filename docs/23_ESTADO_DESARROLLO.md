@@ -8,7 +8,15 @@
 
 GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/github-actions-ci.yml`). La facturación de GitHub **no es un bloqueo**. **DONE_LOCAL** = criterios de la historia cumplidos con evidencia local (`npm run validate` aprobado + suites de la historia). DONE_LOCAL no acredita producción, Android real ni conformidad EUDR.
 
-Última validación: `npm run validate` **APROBADA**, 7 pasos (servicios, typecheck, lint, build, OpenAPI validado, API 90/90 + web 3/3, E2E 14/14). Registro en `validation-results/` (no versionado); commit y resultado en el registro de sesión.
+Última validación: `npm run validate` **APROBADA** el 2026-10-14 sobre el commit `ad03b80`
+(`validation-results/2026-10-14T02-21-43-641Z`, no versionado): 7 pasos — servicios, typecheck 17,6 s, lint 9,5 s,
+build 25,2 s, OpenAPI validado 21,3 s, **49 suites y 381 pruebas** de unitarias + integración (1112,9 s) y **55 pruebas**
+E2E de navegador (207,3 s).
+
+**Pendiente de entorno, abierto**: entre el 2026-10-12 y el 2026-10-14 cinco corridas seguidas fallaron, cada una con una
+suite distinta superando el timeout de 60 s. La causa no está confirmada; la hipótesis principal es la latencia del disco
+USB donde se trasladó el almacenamiento de Docker. Una corrida aprobada **no** la confirma ni la descarta. Diagnóstico y
+mediciones en `docs/qa/DIAGNOSTICO_VALIDACION_INESTABLE_2026-10-13.md`.
 
 ## Estado por historia
 
@@ -22,7 +30,7 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
-| P0-029 Movimientos y embarque | **ABIERTA** (2026-10-12): reserva/liberación/cancelación en el ledger, preflight y destino en el Lot Hub demostrados; **despacho no demostrado** (bloqueado por D-34, DD READY inalcanzable y calidad pendiente; mecánica probada solo con preflight sintético) | Ver `docs/decisiones/P0-029-EMBARQUES.md` |
+| P0-029 Movimientos y embarque | **ABIERTA**: reserva/liberación/cancelación en el ledger, preflight y destino en el Lot Hub demostrados; **despacho no demostrado** (bloqueado por D-34, DD READY inalcanzable y calidad pendiente; mecánica probada solo con preflight sintético). `npm run validate` **APROBADA** el 2026-10-14 sobre `ad03b80` (`2026-10-14T02-21-43-641Z`): es la primera completa que incluye esta historia, y no cierra el pendiente funcional. CTE `SHIPMENT` figura INTEGRATED en su sentido de contrato —la operación y su evento existen—, no como despacho acreditado | Ver `docs/decisiones/P0-029-EMBARQUES.md` y `docs/qa/EVIDENCIA_P0-029_2026-10-12.md` |
 | P0-027 Web por rol y Lot Hub | **DONE_LOCAL** (2026-10-12): reabierta por la condición de «Parcelas sin ubicación» y el aviso de parcelas restringidas; corregida y `npm run validate` aprobada (`2026-10-12T17-51-31-124Z`) | Ver `docs/decisiones/P0-027-WEB-POR-ROL-Y-LOT-HUB.md` |
 | P0-026 Importación Excel | **DONE_LOCAL** (2026-10-12): cinco plantillas (productores, productos, parcelas, entregas, lotes) con criterios originales contrastados; `npm run validate` aprobada sobre el commit. No acredita uso con un Excel real de una asociación | Ver `docs/decisiones/P0-026-IMPORTACION-EXCEL.md` |
 | Superficie declarada (P0-006) | **Adopción para desarrollo local** (2026-10-12): actualizarla conserva la geometría vigente; no hereda evaluaciones GIS | Ver `docs/decisiones/SUPERFICIE-DECLARADA-CONSERVA-GEOMETRIA.md` |

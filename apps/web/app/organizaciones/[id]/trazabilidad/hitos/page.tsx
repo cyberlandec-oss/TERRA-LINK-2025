@@ -50,6 +50,10 @@ export default function CtePage() {
           <section className="card">
             <p>{data.scope_note}</p>
             <p className="muted">Situación de integración: {data.summary.integrated_operations} operación(es) integrada(s) y {data.summary.pending_operations} pendiente(s). Un hito pendiente está definido, pero la operación que lo registra todavía no existe en la plataforma.</p>
+            {/* El contrato del catálogo (cte-release.ts) define INTEGRATED como «la operación y su evento existen». No
+                significa que la operación se haya ejercitado de extremo a extremo ni que sus compuertas permitan hoy
+                ejecutarla: eso se lee en la nota de cada vínculo. Hacerlo explícito evita leer «Integrada» como acreditada. */}
+            <p className="muted"><strong>Integrada</strong> significa que la operación y su evento existen en la plataforma. No significa que se haya ejercitado de extremo a extremo ni que sus compuertas la permitan hoy: cada vínculo indica en su nota qué la bloquea.</p>
             <p className="muted">{data.not_milestones}</p>
             <label><input type="checkbox" checked={retired} onChange={(e) => setRetired(e.target.checked)} /> Mostrar definiciones retiradas o sustituidas</label>
           </section>

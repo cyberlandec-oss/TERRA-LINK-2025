@@ -137,7 +137,16 @@ test('P0-013 hitos (CTE): consulta de solo lectura con versión, vigencia e inte
   // Integradas: CLASSIFICATION, DELIVERY, FERMENTATION, RECEPTION, SHIPMENT, STORAGE, WEIGHING.
   // Pendientes: DRYING (D-32), HARVEST, PACKAGING, SALE.
   await expect(page.getByText(/7 operación\(es\) integrada\(s\) y 4 pendiente\(s\)/)).toBeVisible();
-  await expect(table).toContainText('SHIPMENT@2');
+  // Contrato de INTEGRATED (cte-release.ts): la operación y su evento EXISTEN; no que esté acreditada de extremo a
+  // extremo. La pantalla debe decirlo, para que «Integrada» no se lea como «demostrada».
+  await expect(page.getByText(/Integrada.*significa que la operación y su evento existen en la plataforma/)).toBeVisible();
+  await expect(page.getByText(/No significa que se haya ejercitado de extremo a extremo/)).toBeVisible();
+  // SHIPMENT es el caso que obliga a esa distinción: está integrada y, aun así, hoy ningún embarque se despacha.
+  // Reservar no es despachar. Si alguien marcara el despacho como acreditado sin estarlo, esta comprobación falla.
+  const shipment = table.locator('tbody tr', { hasText: 'SHIPMENT@2' });
+  await expect(shipment).toContainText('Integrada');
+  await expect(shipment).toContainText('ShipmentDispatched');
+  await expect(shipment).toContainText(/la compuerta bloquea mientras D-34 no defina/);
   await expect(page.getByRole('button', { name: /cosecha|entrega|recepción|procesar|registrar/i })).toHaveCount(0);
   await page.getByLabel('Mostrar definiciones retiradas o sustituidas').press('Space');
   await expect(table.locator('tbody tr')).toHaveCount(18); // las 7 versiones sustituidas (1.1.0, 1.2.0, 1.3.0 y 1.4.0) siguen consultables
