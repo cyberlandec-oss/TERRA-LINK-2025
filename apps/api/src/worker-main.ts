@@ -1,6 +1,7 @@
 import { createDb } from './db/database';
 import { describeForLog } from './common/errors';
 import { PRODUCTION_CONSUMERS } from './events/consumers';
+import { EventStore } from './events/events';
 import { OutboxWorker } from './events/outbox-worker';
 import { S3ObjectStore } from './storage/object-store';
 import { DEFAULT_SWEEPER, StorageSweeper } from './storage/sweeper';
@@ -52,7 +53,7 @@ async function main(): Promise<void> {
   let satellite: SatelliteRunner | null = null;
   if (providers.length) {
     const piiCfg = parsePiiConfig(process.env);
-    satellite = new SatelliteRunner(db, providers, { store, cipher: piiCfg ? new PiiCipher(piiCfg) : null });
+    satellite = new SatelliteRunner(db, providers, { store, cipher: piiCfg ? new PiiCipher(piiCfg) : null, events: new EventStore(PRODUCTION_CONSUMERS) });
     console.log(`Corredor satelital ${satellite.runnerId} iniciado con adapters: ${providers.map((p) => p.code).join(', ')}`);
     void satellite.start(Number(process.env.SATELLITE_POLL_MS ?? 2000), (err) => console.error('Error del corredor satelital:', describeForLog(err)));
   } else {

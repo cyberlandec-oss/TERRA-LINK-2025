@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { sql, type Kysely } from 'kysely';
 import type { Database, SatelliteOutcome } from '../db/schema';
 import type { PiiCipher } from '../crypto/pii';
+import { EventStore } from '../events/events';
 import { sha256, type ObjectStore } from '../storage/object-store';
 import { FixtureSatelliteProvider, type AnalysisRequest, type ProviderOutcome, type SatelliteProviderPort } from './provider';
 
@@ -40,7 +41,9 @@ export class SatelliteRunner {
   constructor(
     private readonly db: Kysely<Database>,
     providers: SatelliteProviderPort[],
-    private readonly deps: { store?: ObjectStore | null; cipher?: PiiCipher | null } = {},
+    // `events`: el mismo registro de eventos de la API, para que el desenlace llegue a los consumidores del outbox
+    // igual que cualquier otro hecho de dominio. Sin él (pruebas) se registra el evento sin entregas.
+    private readonly deps: { store?: ObjectStore | null; cipher?: PiiCipher | null; events?: EventStore | null } = {},
     options: RunnerOptions = {},
   ) {
     this.runnerId = options.runnerId ?? `sat-${randomUUID().slice(0, 8)}`;
@@ -73,9 +76,9 @@ export class SatelliteRunner {
   }
 
   /** Escenario de fixture: viaja en el evento del encargo, nunca en el trabajo (solo la fixture lo usa). */
-  private async fixtureScenario(jobId: string): Promise<AnalysisRequest['fixtureScenario']> {
+  private async fixtureScenario(orgId: string, jobId: string): Promise<AnalysisRequest['fixtureScenario']> {
     const r = await sql<{ payload: { fixture_scenario?: string | null } }>`
-      SELECT payload FROM domain_events WHERE aggregate_type = 'SATELLITE_JOB' AND aggregate_id = ${jobId} AND event_type = 'SatelliteAnalysisRequested' LIMIT 1`.execute(this.db);
+      SELECT payload FROM domain_events WHERE organization_id = ${orgId} AND aggregate_type = 'SATELLITE_JOB' AND aggregate_id = ${jobId} AND event_type = 'SatelliteAnalysisRequested' LIMIT 1`.execute(this.db);
     return (r.rows[0]?.payload?.fixture_scenario ?? null) as AnalysisRequest['fixtureScenario'];
   }
 
@@ -116,7 +119,7 @@ export class SatelliteRunner {
           operation: j.operation as AnalysisRequest['operation'],
           geometry: JSON.parse(raw), geometryType: j.geometry_type as AnalysisRequest['geometryType'], geometryHash: j.geometry_hash,
           periodStart: j.period_start, periodEnd: j.period_end, credential,
-          allowedHosts: prov?.allowed_hosts ?? [], fixtureScenario: await this.fixtureScenario(j.id),
+          allowedHosts: prov?.allowed_hosts ?? [], fixtureScenario: await this.fixtureScenario(j.organization_id, j.id),
         });
       } catch {
         // Un adapter que lanza es un fallo del proveedor; el mensaje crudo nunca se conserva.
@@ -170,13 +173,13 @@ export class SatelliteRunner {
           raw_object_key: result.rawKey, raw_sha256: result.rawSha256,
         }).execute();
       }
-      await trx.insertInto('domain_events').values({
-        event_id: randomUUID(), organization_id: j.organization_id,
-        event_type: outcome === 'RESULT_AVAILABLE' ? 'SatelliteAnalysisCompleted' : 'SatelliteAnalysisFailed',
-        schema_version: 1, aggregate_type: 'SATELLITE_JOB', aggregate_id: j.id, aggregate_version: '2', actor_id: null,
-        occurred_at: new Date(),
-        payload: JSON.stringify({ job_id: j.id, plot_id: j.plot_id, plot_version_id: j.plot_version_id, provider_code: j.provider_code, outcome, error_code: errorCode, is_synthetic: result?.isSynthetic ?? null }),
-      }).execute();
+      const events = this.deps.events ?? new EventStore([]);
+      await events.append(trx, {
+        organizationId: j.organization_id,
+        eventType: outcome === 'RESULT_AVAILABLE' ? 'SatelliteAnalysisCompleted' : 'SatelliteAnalysisFailed',
+        schemaVersion: 1, aggregateType: 'SATELLITE_JOB', aggregateId: j.id, aggregateVersion: 2, actorId: null,
+        payload: { job_id: j.id, plot_id: j.plot_id, plot_version_id: j.plot_version_id, provider_code: j.provider_code, outcome, error_code: errorCode, is_synthetic: result?.isSynthetic ?? null },
+      });
       return true;
     });
   }
