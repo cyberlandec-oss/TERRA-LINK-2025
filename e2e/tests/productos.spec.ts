@@ -568,11 +568,20 @@ test('P0-030 reportes: indicadores con definición y denominador; no calculable 
   const productores = table.locator('tbody tr', { hasText: 'producers_total' });
   await expect(productores).toContainText('Estado actual');
   await expect(productores).toContainText(/no se filtra por .created_at./i);
-  // Cada situación tiene su propio estado, y ninguna se publica como cero.
-  // GIS: el criterio no tiene definición aprobada (D-05), que no es lo mismo que «ninguna parcela cumple».
+  // Cada situación tiene su propio estado, y ninguna se publica como cero. Lo que se comprueba aquí es que la pantalla
+  // muestre el estado que corresponde a los datos y lo explique; las cinco situaciones se fijan una a una en
+  // apps/api/test/reports.int-spec.ts, con fixtures construidas para cada caso.
   const gis = table.locator('tbody tr', { hasText: 'plots_valid' });
   await expect(gis).toContainText(/Criterio sin definir|Sin denominador/);
-  await expect(gis).toContainText('D-05');
+  if (/Criterio sin definir/.test(await gis.innerText())) {
+    // Hay parcelas con versión vigente, pero el criterio de validez no está aprobado.
+    await expect(gis).toContainText('D-05');
+    await expect(gis).toContainText(/sin evaluar/i);
+  } else {
+    // Ninguna parcela tiene versión vigente: no hay denominador, que no es lo mismo que «ninguna cumple».
+    await expect(gis).toContainText(/no hay denominador/i);
+    await expect(gis).toContainText(/No es 0 ni 100 %/);
+  }
   await expect(gis).not.toContainText(/^0$/);
   // Riesgo: o no hay sujetos evaluados (sin denominador) o están evaluados sin severidad (desconocido). Nunca 0.
   const riesgo = table.locator('tbody tr', { hasText: 'risk_high' });
@@ -620,7 +629,7 @@ test('P0-030 reportes por entidad: §97 en pantalla, desconocidos visibles, GeoJ
   }
   // Parcelas: la validación sin evaluar no se presenta como incumplimiento, y el total de válidas no es 0.
   await selector.getByRole('button', { name: /parcelas/i }).click();
-  await expect(page.getByRole('heading', { level: 2, name: 'Reporte de parcelas' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Reporte de parcelas', exact: true })).toBeVisible();
   await expect(page.getByRole('table', { name: 'Reporte de parcelas' })).toBeVisible();
   await expect(page.getByText(/Válidas \(VALID\)/)).toBeVisible();
   await expect(page.getByText(/DESCONOCIDO/).first()).toBeVisible();
@@ -631,7 +640,7 @@ test('P0-030 reportes por entidad: §97 en pantalla, desconocidos visibles, GeoJ
   await expect(page.getByText(/no es un paquete de debida diligencia/i)).toBeVisible();
   // Riesgo: los lotes sin evaluar aparecen como tales, no se omiten.
   await selector.getByRole('button', { name: /riesgo/i }).click();
-  await expect(page.getByRole('heading', { level: 2, name: 'Reporte de riesgo' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Reporte de riesgo', exact: true })).toBeVisible();
   await expect(page.getByText(/no se omite/i)).toBeVisible();
   // La descarga declara que recalcula y que no es la instantánea de la pantalla.
   await expect(page.getByText(/Se RECALCULA al descargar/)).toBeVisible();
@@ -639,10 +648,10 @@ test('P0-030 reportes por entidad: §97 en pantalla, desconocidos visibles, GeoJ
   const conReporte = page.url();
   await page.goto(`${orgUrl}/lotes`);
   await page.goto(conReporte);
-  await expect(page.getByRole('heading', { level: 2, name: 'Reporte de riesgo' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Reporte de riesgo', exact: true })).toBeVisible();
   // Teclado: se puede cambiar de reporte sin ratón.
   await selector.getByRole('button', { name: /trazabilidad/i }).press('Enter');
-  await expect(page.getByRole('heading', { level: 2, name: 'Reporte de trazabilidad' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Reporte de trazabilidad', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   // Zoom 200 % con la convención del proyecto (1280 px a 640 px CSS; e2e/review/web-por-rol.mjs).
   await page.setViewportSize({ width: 640, height: 430 });
@@ -666,7 +675,9 @@ test('P0-030 reportes: sin permiso no hay menú ni acceso; la exportación exige
   // El administrador sí exporta, y la pantalla declara que la descarga se revalida y queda auditada.
   const { ctx, page } = await open(browser);
   await page.goto(`${orgUrl}/reportes`);
-  await expect(page.getByText(/vuelve a comprobar tu permiso y queda registrada en la auditoría/)).toBeVisible();
+  await expect(page.getByText(/vuelve a comprobar tu permiso/)).toBeVisible();
+  await expect(page.getByText(/queda registrada en la auditoría con el hash del archivo/)).toBeVisible();
+  await expect(page.getByText(/se recalcula en ese momento/)).toBeVisible(); // la descarga no es la instantánea mostrada
   await expect(page.getByText(/No genera enlaces públicos/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Exportar CSV' })).toBeEnabled();
   await ctx.close();

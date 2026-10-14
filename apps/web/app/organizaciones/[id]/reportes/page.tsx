@@ -268,7 +268,7 @@ export default function ReportsPage() {
             </ul>
           </section>
           <section className="card" aria-labelledby="rp-export-entidad">
-            <h2 id="rp-export-entidad">Exportar {entity.title.toLowerCase()}</h2>
+            <h2 id="rp-export-entidad">Exportar este reporte</h2>
             {entity.can_export ? (
               <>
                 <p className="field-help">CSV con las mismas columnas, filas y totales de esta pantalla. Se RECALCULA al descargar: su marca de generación es la del momento de la descarga, no la de esta pantalla. Queda registrada en la auditoría con el hash del archivo.</p>
