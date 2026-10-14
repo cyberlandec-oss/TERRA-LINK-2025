@@ -3,10 +3,12 @@
 Motivo y mediciones: `docs/qa/DIAGNOSTICO_VALIDACION_INESTABLE_2026-10-13.md`.
 Hallazgo relacionado: `docs/qa/HALLAZGO_PERDIDA_DATOS_DEMO_2026-10-13.md`.
 
-**El traslado requiere la interfaz de Docker Desktop y no puede completarse desde la línea de órdenes.** Docker Desktop
-4.95.0 no atiende `-Shutdown` cuando ya hay una instancia en marcha (responde `backend already running, signaling
-show-dashboard`), y forzar el cierre de sus procesos con el disco virtual montado es exactamente el riesgo que este
-procedimiento trata de evitar. Los respaldos ya están hechos y **verificados**; faltan solo los pasos manuales.
+**Toda la preparación está hecha.** Queda únicamente el cambio en la interfaz: *Settings → Resources → Advanced → Disk
+image location*. Docker Desktop no expone esa opción por línea de órdenes.
+
+Nota sobre el apagado: `"Docker Desktop.exe" -Shutdown` **no** funciona con una instancia en marcha (responde `backend
+already running, signaling show-dashboard`), pero **`docker desktop stop` sí**, sin `--force`, y es la vía oficial. Ya se
+usó: Docker quedó detenido, la distro `docker-desktop` en `Stopped` y el VHDX liberado.
 
 ## Estado de partida (comprobado el 2026-10-13)
 
@@ -45,30 +47,30 @@ El repositorio **permanece en D:**. Solo se traslada el almacenamiento de Docker
 6. Objetos por hash: referencias de la base restaurada vs contenido del `tar`, **2 y 2, coincidencia exacta en clave,
    tamaño y sha256**; 0 rotas, 0 huérfanas.
 
-## Pasos manuales (los ejecuta la persona; Claude no puede)
+## Preparación completada (2026-10-13)
 
-1. **Cerrar Docker Desktop del todo**: icono de la bandeja → *Quit Docker Desktop*. Esperar a que desaparezcan los
-   procesos `Docker Desktop` y `com.docker.backend`.
+1. ✅ **Escrituras pausadas** (`api`, `web`, `worker` detenidos) y conteos cotejados contra `estado-previo.txt`:
+   idénticos. Respaldo de base y objetos **refrescado** en ese estado y verificado con `sha256sum -c`.
+2. ✅ **Docker detenido con la vía oficial**: `docker desktop stop` (sin `--force`) → `✓ Stopping Docker Desktop`,
+   código 0. Comprobado: 0 procesos `Docker Desktop`/`com.docker.backend`/`dockerd`, distro `docker-desktop` en
+   `Stopped`, y el VHDX **abierto en exclusiva sin error** (liberado).
+3. ✅ **Copia privada del VHDX** hecha por Claude: 7,35 GB en 65 s.
+   **SHA-256 de origen y copia calculados por separado y coincidentes**:
+   `9A8B6382A9BB0812BF6EEE3373D4B62AEDFB42882209AB4B30997ECDF3F41F53`, guardado en `docker_data.vhdx.sha256`.
+4. ✅ **Destino preparado**: `C:\DockerDesktopWSL` creado. C: con 71,4 GB libres para un disco de 7,35 GB.
+5. ✅ **Configuración actual registrada**: distro `docker-desktop`, `BasePath = \\?\D:\DOCKER DESCKTOP\DockerDesktopWSL\main`.
 
-2. **Copia privada del VHDX** (red de seguridad adicional; con Docker ya detenido). En PowerShell:
+No se editó ninguna configuración interna de Docker ni se movió el archivo a mano.
 
-   ```powershell
-   $src = 'D:\DOCKER DESCKTOP\DockerDesktopWSL\disk\docker_data.vhdx'
-   $dst = 'D:\PROYECTOS CYBER LAND\TERRA LINK EUDR 2026\_respaldos\2026-10-13-pretraslado\docker_data.vhdx'
-   Copy-Item $src $dst
-   (Get-FileHash $dst -Algorithm SHA256).Hash | Tee-Object -FilePath "$dst.sha256"
-   ```
+## Único paso manual pendiente
 
-   Anotar el hash. Si la copia falla por espacio o por bloqueo, **detenerse aquí** y no trasladar.
+Abrir Docker Desktop → **Settings → Resources → Advanced** → *Disk image location* → **Browse** →
+**`C:\DockerDesktopWSL`** → **Apply & restart**. Docker mueve el disco y conserva imágenes y volúmenes.
 
-3. **Trasladar con el procedimiento oficial**: abrir Docker Desktop → **Settings → Resources → Advanced** →
-   *Disk image location* → **Browse** → elegir una carpeta en **C:** (por ejemplo `C:\DockerDesktopWSL`) →
-   **Apply & restart**. Docker mueve el disco y conserva imágenes y volúmenes.
+**No usar** *Reset to factory defaults*, *Clean / Purge data* ni reinstalar: cualquiera de esas opciones crea un
+almacenamiento nuevo y vacío — que es exactamente lo que pasó el 2026-10-12.
 
-   **No usar** *Reset to factory defaults*, *Clean / Purge data* ni reinstalar: cualquiera de esas opciones crea un
-   almacenamiento nuevo y vacío — que es exactamente lo que pasó el 2026-10-12.
-
-4. **Avisar a Claude** cuando Docker vuelva a estar en marcha, sin levantar la aplicación todavía.
+Después, avisar a Claude con Docker en marcha pero **sin levantar la aplicación**.
 
 ## Verificación posterior (la hace Claude, antes de levantar la aplicación)
 
