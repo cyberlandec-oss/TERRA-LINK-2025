@@ -49,6 +49,15 @@ describe('P0-028 · comprobación del destino', () => {
     expect(checkUrl('https://WHISP.OpenForis.ORG./api', HOSTS)).toMatchObject({ ok: true });
   });
 
+  it('el puerto forma parte de la entrada de la lista: sin puerto solo autoriza el 443', () => {
+    // Un proveedor puede publicar otro puerto; entonces se declara en la entrada, no se admite «cualquiera».
+    expect(checkUrl('https://api.ejemplo.com:8443/x', ['api.ejemplo.com'])).toMatchObject({ ok: false, reason: 'PORT_NOT_ALLOWED' });
+    expect(checkUrl('https://api.ejemplo.com:8443/x', ['api.ejemplo.com:8443'])).toMatchObject({ ok: true });
+    expect(checkUrl('https://api.ejemplo.com/x', ['api.ejemplo.com:8443'])).toMatchObject({ ok: false, reason: 'PORT_NOT_ALLOWED' });
+    // Declarar un puerto para un host no autoriza otro host.
+    expect(checkUrl('https://otra.ejemplo.com:8443/x', ['api.ejemplo.com:8443'])).toMatchObject({ ok: false, reason: 'HOST_NOT_ALLOWED' });
+  });
+
   it('una URL malformada no se interpreta', () => {
     expect(checkUrl('no es una url', HOSTS)).toMatchObject({ ok: false, reason: 'MALFORMED_URL' });
   });

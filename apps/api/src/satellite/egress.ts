@@ -65,10 +65,19 @@ export function classifyAddress(ip: string): AddressClass {
 
 export type UrlCheck = { ok: true; url: URL } | { ok: false; reason: EgressBlockReason; detail: string };
 
+/** Entrada de la lista blanca: «host» (implica el puerto 443) u «host:puerto» cuando el proveedor usa otro. */
+function parseEntry(entry: string): { host: string; port: string } {
+  const e = entry.toLowerCase().trim().replace(/\.$/, '');
+  const i = e.lastIndexOf(':');
+  if (i > 0 && /^\d{1,5}$/.test(e.slice(i + 1))) return { host: e.slice(0, i), port: e.slice(i + 1) };
+  return { host: e, port: '443' };
+}
+
 /**
- * Comprobación del destino ANTES de resolver DNS: protocolo, credenciales en la URL, literal IP, host en la lista
- * blanca del proveedor registrado y puerto. La lista blanca es exacta (sin comodines ni sufijos): «api.ejemplo.com»
- * no autoriza «api.ejemplo.com.atacante.net».
+ * Comprobación del destino ANTES de resolver DNS: protocolo, credenciales en la URL, literal IP, y host + puerto en
+ * la lista blanca del proveedor registrado. La lista blanca es exacta (sin comodines ni sufijos): «api.ejemplo.com»
+ * no autoriza «api.ejemplo.com.atacante.net». El puerto forma parte de la entrada, no es una regla aparte: una
+ * entrada sin puerto autoriza solo el 443.
  */
 export function checkUrl(raw: string, allowedHosts: readonly string[]): UrlCheck {
   let url: URL;
@@ -82,10 +91,11 @@ export function checkUrl(raw: string, allowedHosts: readonly string[]): UrlCheck
   const host = url.hostname.replace(/^\[|\]$/g, '');
   if (isIP(host)) return { ok: false, reason: 'IP_LITERAL', detail: 'Destino por literal IP: no se admite.' };
   const normalized = url.hostname.toLowerCase().replace(/\.$/, '');
-  if (!allowedHosts.some((h) => h.toLowerCase() === normalized)) {
-    return { ok: false, reason: 'HOST_NOT_ALLOWED', detail: `Host fuera de la lista blanca del proveedor: ${normalized}` };
-  }
-  if (url.port && url.port !== '443') return { ok: false, reason: 'PORT_NOT_ALLOWED', detail: `Puerto no admitido: ${url.port}` };
+  const port = url.port || '443';
+  const entries = allowedHosts.map(parseEntry);
+  const sameHost = entries.filter((e) => e.host === normalized);
+  if (!sameHost.length) return { ok: false, reason: 'HOST_NOT_ALLOWED', detail: `Host fuera de la lista blanca del proveedor: ${normalized}` };
+  if (!sameHost.some((e) => e.port === port)) return { ok: false, reason: 'PORT_NOT_ALLOWED', detail: `Puerto no admitido para ese host: ${port}` };
   return { ok: true, url };
 }
 
@@ -130,6 +140,12 @@ export interface ExternalRequest {
   maxBytes: number;
   /** Solo para pruebas: resolución inyectada. En producción es `dns.lookup`. */
   lookup?: LookupFn;
+  /**
+   * Autoridad certificadora a exigir en el TLS de este destino. Si se indica, SUSTITUYE al almacén del sistema para
+   * esta llamada (anclaje a una CA concreta); si se omite, se usa el almacén del sistema. **Nunca** desactiva la
+   * verificación: no existe ninguna vía para poner `rejectUnauthorized` en falso.
+   */
+  ca?: string | Buffer;
 }
 
 export interface ExternalResponse {
@@ -149,7 +165,7 @@ export async function requestExternal(req: ExternalRequest): Promise<ExternalRes
   return await new Promise<ExternalResponse>((resolve, reject) => {
     const r = httpsRequest(
       url,
-      { method: req.method ?? 'GET', headers: req.headers, timeout: req.timeoutMs, lookup: req.lookup ?? guardedLookup() },
+      { method: req.method ?? 'GET', headers: req.headers, timeout: req.timeoutMs, lookup: req.lookup ?? guardedLookup(), ...(req.ca ? { ca: req.ca } : {}) },
       (res) => {
         const status = res.statusCode ?? 0;
         if (status >= 300 && status < 400) {

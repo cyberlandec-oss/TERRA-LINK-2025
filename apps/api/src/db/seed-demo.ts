@@ -208,7 +208,8 @@ async function main(): Promise<void> {
     const rotateArg = process.argv.find((a) => a.startsWith('--rotar='));
     if (rotateArg) {
       const local = rotateArg.slice('--rotar='.length);
-      const spec = USERS.find((x) => x.local === local && !x.platform);
+      // Incluye la cuenta de plataforma: si su credencial se expone, es la que más urge rotar.
+      const spec = USERS.find((x) => x.local === local);
       if (!spec) throw new Error('Cuenta DEMO desconocida para rotar.');
       const mail = email(spec);
       const user = await db.selectFrom('users').select(['id']).where('email', '=', mail).executeTakeFirst();

@@ -20,6 +20,7 @@ import { reviewInventory } from './inventario.mjs';
 import { reviewRisk } from './riesgo.mjs';
 import { reviewMitigations } from './mitigaciones.mjs';
 import { reviewDueDiligence } from './diligencia.mjs';
+import { reviewSatellite } from './satelite.mjs';
 import { existsSync, mkdirSync, statSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -243,6 +244,7 @@ try {
   results.push(await reviewRisk({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewMitigations({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewDueDiligence({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewSatellite({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
 
   // Adaptación móvil (390 px): menú en panel y contenido legible.
   for (const a of accounts.filter((x) => ['tecnico1.cooperativa', 'admin.cooperativa'].includes(x.email.split('@')[0]))) {
