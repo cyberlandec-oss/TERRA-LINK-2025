@@ -91,6 +91,16 @@ Móvil/Android, backup/restauración (QA-16) y despliegue. Ningún comando de pr
 
 `infra:down -v` borra datos locales: no usarlo para «arreglar» un arranque. Las migraciones solo corren contra la base de dev o de test locales.
 
+### Interruptor de llamadas satelitales reales (P0-028, 2026-10-15)
+
+`SATELLITE_LIVE_CALLS=enabled` es lo **único** que habilita llamar a un proveedor satelital real. Seleccionar un
+proveedor, tener su adaptador implementado o encontrar una credencial guardada **no** lo activan. Sin él, el adaptador
+de Whisp termina el trabajo con `LIVE_CALLS_DISABLED` **sin abrir ninguna conexión**, y la API rechaza el encargo con
+`409 SATELLITE_REQUESTS_NOT_AUTHORIZED`.
+
+Hoy está **apagado** y debe seguir así hasta que se apruebe **D-09 parte B**. Encenderlo sin esa aprobación enviaría
+geometrías de productores a un tercero.
+
 ### Interruptor de la fixture satelital (P0-028, 2026-10-14)
 
 `SATELLITE_FIXTURE_ENABLED=true` habilita el proveedor **sintético** de desarrollo y prueba: sin él no hay ningún

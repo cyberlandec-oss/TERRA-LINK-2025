@@ -28,7 +28,8 @@ Fallback: evidencia manual versionada y evaluación pendiente; simuladores solo 
 
 | Integración | Estado aquí | Condición de activación |
 | --- | --- | --- |
-| WHISP/GFW/otro satélite | POR_VERIFICAR (P0-028 implementó el **adapter, el trabajo y la defensa de salida**; el registro documenta los tres candidatos y **ninguno está seleccionado**, D-09) | API, términos, cobertura, coste, seguridad y credenciales comprobadas |
+| WHISP | **ADAPTADOR DE DESARROLLO** (D-09 parte A, 2026-10-15): implementado contra el contrato oficial fechado (`docs/decisiones/P0-028-WHISP-CONTRATO.md`, OpenAPI 2.3.0) y probado **solo contra servidores controlados**. Llamadas reales **deshabilitadas** por configuración | Parte B: términos aceptados, autorización de datos (D-14), custodia de la clave e interruptor `SATELLITE_LIVE_CALLS` |
+| GFW / EU Forest Observatory / otro satélite | POR_VERIFICAR; documentados como candidatos, sin adaptador | API, términos, cobertura, coste, seguridad y credenciales comprobadas |
 | GUIA/Agrocalidad | PROPUESTA | Acuerdo/canal oficial o formato autorizado; no asumir API disponible |
 | EUDR-IS/TRACES | PROPUESTA | Documentación vigente, rol/representación, credenciales y prueba ACCEPTANCE |
 | ERP | PROPUESTA | Contrato de evento, referencia, tenant y conciliación |

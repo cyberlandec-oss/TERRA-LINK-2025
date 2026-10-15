@@ -198,7 +198,32 @@ Mientras tanto, **no se contrata, no se registra clave y no se envía ninguna co
 
 ---
 
-## D-09 lista para decidir: dos aprobaciones distintas, ninguna supuesta
+## D-09: parte A ADOPTADA (2026-10-15), parte B pendiente
+
+| Aprobación | Estado | Qué habilita hoy |
+| --- | --- | --- |
+| **A. Adaptador para desarrollo** | **ADOPTADA el 2026-10-15** (Whisp) | El adaptador está implementado contra el contrato oficial fechado y probado **solo contra servidores controlados**. `satellite_providers.WHISP = SELECTED_FOR_DEVELOPMENT` |
+| **B. Envío de geometrías reales** | **PENDIENTE** | Nada. Encargar un análisis responde `409`, el adaptador no abre ninguna conexión y no hay ninguna clave registrada |
+
+El sistema no deja que A se deslice hacia B: son estados distintos en la base, con restricciones distintas, y
+**además** hace falta el interruptor `SATELLITE_LIVE_CALLS`. Tener el adaptador, estar seleccionado para desarrollo o
+tener una credencial guardada **no** habilitan nada: lo comprueban pruebas específicas.
+
+## Lo que falta para una primera prueba real (parte B)
+
+| # | Requisito | Quién | Comprobable cómo |
+| --- | --- | --- | --- |
+| 1 | **Autorización para que geometrías de productores salgan hacia un tercero** y su base de tratamiento (**D-14**). Una parcela georreferenciada es dato del productor | Responsable de datos / legal | Decisión registrada; sin ella no se marca `SELECTED` |
+| 2 | **Aceptación de los términos vigentes** del servicio alojado, leídos en su versión actual (no en el resumen de este documento) | Responsable que corresponda | Referencia de la decisión en `decision_reference` |
+| 3 | **Clave de API**: obtenerla por registro, decidir **titularidad** (por organización o de plataforma) y custodia, y qué ocurre al revocarla | Producto / seguridad | La clave se guarda cifrada por organización; nunca se devuelve por la API |
+| 4 | Marcar `WHISP` como **`SELECTED`** con responsable (`selected_by`) y referencia de la decisión | Tech lead / producto | La restricción de esquema rechaza `SELECTED` sin responsable |
+| 5 | Encender **`SATELLITE_LIVE_CALLS=enabled`** en el entorno donde se hará la prueba | Operación | Sin él, `LIVE_CALLS_DISABLED` |
+| 6 | Elegir **con qué parcela** se hace la primera prueba y con qué consentimiento | Producto / operación | — |
+
+Y dos cosas que **no** se desbloquean con la parte B: que una regla de riesgo use el resultado (**D-07**) y que el
+resultado se vincule como evidencia (**D-42**).
+
+## D-09: el marco de decisión (dos aprobaciones distintas, ninguna supuesta)
 
 La licencia del **código** de Whisp (MIT) **no es** aceptación de los **términos del servicio alojado** ni autorización
 para enviarle geometrías. Son tres cosas separadas y aquí se separan también las aprobaciones:
