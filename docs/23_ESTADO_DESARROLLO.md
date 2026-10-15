@@ -580,10 +580,19 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 
 ## Próxima acción (2026-10-15)
 
-**D-05** — perfil de destino geoespacial. Revisión 2 de la propuesta escrita y **no aprobada** en
-`docs/decisiones/D-05-PROPUESTA.md`: con la especificación técnica del sistema de destino **verificada directamente**
-y la **fuente legal pendiente de lectura literal**. Después, **D-07** (severidad de riesgo), que sigue siendo
-independiente. Lista completa y ordenada en `docs/decisiones/DECISIONES-MINIMAS-PARA-CERRAR.md`.
+**D-05**, ahora partida en dos (`docs/decisiones/D-05-PROPUESTA.md`, **revisión 3**, NO aprobada):
+
+- **D-05.A · perfil técnico de intercambio**: **decidible por el equipo**, con 20 reglas concretas y cada una
+  marcada según la exija el receptor o la proponga Terra Link. Falta ratificarlas, fijar la banda
+  `NEAR_THRESHOLD`, decidir `ProducerName` y preguntar cuatro incertidumbres al contacto técnico del destino.
+- **D-05.B · aplicabilidad jurídica**: **no decidible por el equipo**. Necesita un responsable regulatorio.
+
+La **norma ya no está pendiente de lectura**: el consolidado `02023R1115 — EN — 26.12.2025 — 002.001` y el
+Reglamento (UE) 2025/2650 están guardados con su sha256 en `docs/sources/eudr-norma-2026-10-15/`, con los
+artículos citados verbatim. Lo que **nadie ha hecho** es probar contra el servicio real de TRACES.
+
+Después, **D-07** (severidad de riesgo), que sigue siendo independiente. Lista completa y ordenada en
+`docs/decisiones/DECISIONES-MINIMAS-PARA-CERRAR.md`.
 
 Histórico: la acción anterior era «decisiones D-33/D-34/D-35 para P0-012». D-33 quedó **adoptada como regla
 provisional del MVP local** el 2026-10-15 (no validada en campo ni para producción); D-34 y D-35 siguen abiertas.

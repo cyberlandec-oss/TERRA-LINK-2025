@@ -105,6 +105,12 @@ no por haberlo rebajado. El del secado nunca fue un bloqueo de esta lista, sino 
 Lo que **no** cambia con los cierres de P0-012 y P0-016: el expediente sigue sin poder llegar a `READY` y el despacho
 sigue detenido. Cerrar una entrega o un secado **no acerca ninguno de los dos**.
 
+**Nota sobre D-05 (2026-10-15).** La propuesta se revisó y se partió en **D-05.A** (perfil técnico, decidible por el
+equipo) y **D-05.B** (aplicabilidad jurídica, que necesita un responsable regulatorio);
+`docs/decisiones/D-05-PROPUESTA.md`. **Nada de eso cambia esta tabla**: el bloqueo sigue siendo el mismo y
+`DESTINATION_PROFILE_NOT_EVALUATED` sigue siendo lo que devuelve el recorrido. Una propuesta mejor documentada no
+es una decisión aprobada.
+
 Un detalle que sale de ejecutarlo y no de leerlo: en el preflight del embarque, **calidad pasa** (`OK`) porque el
 recorrido la liberó de verdad. Lo que detiene el despacho no es la calidad, sino el paquete DD, la evidencia y la
 compuerta. Antes de este recorrido, la evidencia disponible dejaba las cuatro juntas en `BLOCKED`.

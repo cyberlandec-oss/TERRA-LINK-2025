@@ -21,7 +21,8 @@ producción.
 | Decisión | Qué hay que decidir, en concreto | Desbloquea | Recomendación (no aprobada) |
 | --- | --- | --- | --- |
 | **D-34** · condición de `dd_package_id` y `dispatch_at` | Qué exige exactamente despachar: paquete DD aprobado y vigente, y qué fecha es `dispatch_at` | **P0-029** y **P0-017** (despacho) · transición 17 | No despachar sin paquete DD aprobado, vigente y exportado; `dispatch_at` = salida física registrada |
-| **D-05** · perfil GIS y umbral (**propuesta en revisión 2**: `docs/decisiones/D-05-PROPUESTA.md`) | Umbral de superficie (incluido el caso exacto de 4 ha), superficie de referencia, precisión y **formato del sistema de destino** | **P0-010**, **P0-009** (perfil destino), 2 indicadores de **P0-030**, requisito `GEOLOCATION_PROFILE` de **P0-022** · transiciones 4, 14, 22 | La **especificación técnica del destino ya está verificada** y resuelve el umbral exacto (4,000000 ha con punto **se acepta**), tipos, CRS, truncamiento a 6 decimales y propiedades. **Falta el texto literal de la norma** y aclarar la vía de dirección postal de 2025/2650: hasta entonces **no se aprueba** |
+| **D-05.A** · perfil técnico de intercambio (**revisión 3**: `docs/decisiones/D-05-PROPUESTA.md`) | Cómo prepara Terra Link un GeoJSON contra una versión documentada del destino, y qué parcelas no puede preparar | «Perfil destino» de **P0-009** · «umbral debajo/igual/encima» de **P0-010** · `plots_valid` de **P0-030** · transición 4 | **Decidible por el equipo ya.** 20 reglas escritas, cada una marcada según la exija el receptor o la proponga Terra Link. Falta ratificarlas, fijar la banda `NEAR_THRESHOLD`, decidir `ProducerName` y consultar 4 incertidumbres al contacto técnico del destino |
+| **D-05.B** · aplicabilidad jurídica | A qué actores y operaciones de Terra Link alcanzan las obligaciones: quién es «operator» (Art. 2(15)), clasificación de riesgo de Ecuador (Art. 29), condiciones del Art. 2(15a), Anexo III | Qué **significa** el resultado del perfil · requisito `GEOLOCATION_PROFILE` de **P0-022** · transiciones 14, 22 | **No decidible por el equipo**: responsable regulatorio. La norma ya está leída y guardada con su hash (`docs/sources/eudr-norma-2026-10-15/`); lo que falta es el criterio, no el texto |
 | **D-07** · severidad, proceso y conclusión de riesgo | Enums reales, mapeo de factores a severidad y **quién aprueba** el catálogo de reglas | **P0-020** (severidad), distribución de riesgo de **P0-030**, `RISK_CATALOG_APPROVED` de **P0-022** · transición 12 | Aprobar primero el catálogo `0.1.0` tal cual (sin pesos) y decidir severidad por regla, no por promedio |
 
 ## Las que bloquean el satélite y la evidencia
@@ -55,9 +56,10 @@ producción.
 
 ~~1. **D-32 y D-33**~~ — **adoptadas el 2026-10-15** (ver la sección de arriba).
 
-1. **D-05** — propuesta en **revisión 2**. Lo técnico del destino ya está verificado; lo que falta es **lectura
-   literal de la norma** y el alcance de la vía de dirección postal de 2025/2650. Es trabajo de un responsable
-   regulatorio, no de desarrollo.
+1. **D-05.A** — perfil técnico, **revisión 3**. Es lo único de esta lista que el equipo puede cerrar sin nadie
+   externo. **D-05.B** — aplicabilidad jurídica — es trabajo de un responsable regulatorio: la norma ya está
+   leída y guardada, lo que falta es el criterio sobre qué actor es cada usuario y si Ecuador figura como riesgo
+   bajo.
 2. **D-07** — propuesta escrita; **independiente de D-05**. Desbloquea severidad de riesgo, un indicador de reportes
    y dos requisitos del expediente.
 3. **D-34** — depende de que exista un paquete DD aprobado, que a su vez depende de las anteriores.

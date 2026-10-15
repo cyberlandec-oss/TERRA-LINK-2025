@@ -1,4 +1,4 @@
-# Sesión 2026-10-15 — Consolidación de P0-012/P0-016 y revisión 2 de D-05
+# Sesión 2026-10-15 — Consolidación de P0-012/P0-016 y revisiones 2 y 3 de D-05
 
 Continuación de `SESION_2026-10-15_D32_D33.md`. **No se adoptó ninguna decisión nueva** y **no se modificó ninguna
 compuerta regulatoria.** D-07, D-09, D-34, D-37, D-38 y D-42 siguen exactamente donde estaban.
@@ -93,33 +93,111 @@ correspondencia fuerte, no igualdad demostrada.
 Se deja anotada la mejora que la volvería comprobable: que `scripts/validate-local.mjs` registre un **hash del árbol
 probado**. **No se hizo aquí**, para no mezclarla con esta entrega.
 
-## 5. D-05, revisión 2 — propuesta, NO aprobada
+## 5. D-05 — revisión 2 y, en el mismo día, revisión 3
 
-`docs/decisiones/D-05-PROPUESTA.md`. Separa tres capas que antes se mezclaban: **norma**, **especificación técnica
-del destino** y **regla interna de Terra Link**.
+### 5.1 Revisión 2 (primer bloque de la sesión)
 
-**Verificado directamente** (documentación oficial del *EUDR Information System*, página de 17-08-2026, API v1.2):
+Separó tres capas que antes se mezclaban —**norma**, **especificación técnica del destino** y **regla interna de
+Terra Link**— y fijó el umbral estricto a partir del comportamiento del receptor.
 
-- **El caso del umbral exacto queda resuelto**: un punto con `Area` de **4,000000 ha se acepta**; el error aparece
-  *higher than 4ha*. El operador es **estricto**. Mínimo: 0,0001 ha.
-- Un punto **sin** `Area` recibe **4 ha por defecto** en destino. De ahí la propuesta de **no exportar nunca** un
-  punto sin superficie: sería convertir un desconocido en dato.
-- Tipos aceptados, CRS, orden de ejes, tamaño (25 MB) y propiedades de exportación.
+**Dos cosas de esa revisión resultaron equivocadas y se corrigieron el mismo día** (§5.2). Se dejan escritas en vez
+de borrarlas, porque explican por qué la revisión 3 existe:
 
-**Dos supuestos de la revisión 1 quedan contradichos**: los **huecos no se procesan** (un polígono OGC-válido puede
-no cumplir el perfil) y los decimales **se truncan** a 6, no se redondean —lo que además abre una comprobación
-nueva: dos vértices distintos pueden **colapsar** al truncar e invalidar el polígono—.
+1. Citó la documentación del destino como «referencia de API **v1.2**». El número existe, pero es la versión del
+   **documento**, no del servicio.
+2. Dio la norma por **inaccesible** y por tanto no verificada.
 
-**No verificado, y así queda escrito**: el **texto literal** de la norma. EUR-Lex no respondió a las herramientas
-del entorno (HTML consolidado, página ELI y PDF del DOUE, los tres vacíos). **No se cita ningún artículo a partir de
-resúmenes de terceros.** Queda pendiente, además, si la vía de **dirección postal** que introdujo el Reglamento (UE)
-2025/2650 alcanza a los productores del proyecto: eso cambiaría el **alcance** del perfil, no solo sus parámetros.
+### 5.2 Revisión 3 (segundo bloque, tras la revisión del responsable)
 
-La propuesta incluye 13 casos de prueba, **ninguno escrito todavía**: son posteriores a la aprobación.
+**a) Fuente mal identificada, corregida.** Y corregida **dos veces**, porque el primer intento también estuvo mal:
+llegué a escribir que la cadena «v1.2» **no existía** en las páginas oficiales. Sí existe. La búsqueda que hice
+primero corría sobre el **texto extraído** de las páginas, no sobre el **HTML**, y por eso no la veía.
+
+Sobre el HTML guardado aparece en dos sitios, y los dos designan el **documento**, no el servicio: el enlace de
+descarga `./pdf/EUDR Operator API Reference v1.2.pdf` y el campo `"version": "1.2"` de la configuración del sitio.
+El PDF se descargó para confirmarlo (6 686 345 bytes, sha256 `317829e5…`).
+
+El error de la revisión 2, entonces, **no fue inventar un número**: fue llamar «versión de la API» a la versión
+del documento. Ahora se citan **cuatro** identificadores por separado:
+
+| # | Qué | Valor |
+| --- | --- | --- |
+| 1 | Versión del **servicio** | **V3** |
+| 2 | Versión del **documento** *Operator API Reference* | **1.2** |
+| 3 | Fecha de la página GeoJSON (las otras tres no publican fecha) | **17-08-2026** |
+| 4 | Revisión del **perfil interno** de Terra Link | `EUDR_GEO_V1` |
+
+**b) La norma SÍ se pudo leer.** El fallo anterior tenía una causa concreta: `eur-lex.europa.eu` responde **HTTP
+202 con un desafío JavaScript de AWS WAF** a cualquier petición automatizada. La vía que funciona es el servicio de
+la Oficina de Publicaciones (`publications.europa.eu/resource/celex/<CELEX>`). Con ella se recuperó el consolidado
+**`02023R1115 — EN — 26.12.2025 — 002.001`** y el Reglamento (UE) 2025/2650.
+
+Citados ahora **verbatim**: Art. 2(28) geolocalización, Art. 2(27) parcela, Art. 2(15) y 2(15a) actores,
+Art. 4a(5) dirección postal, Art. 9(1)(d) y Art. 38 fechas de aplicación.
+
+**c) Referencias guardadas con su huella.** Copias fechadas en `docs/sources/eudr-is-2026-10-15/` (4 páginas) y
+`docs/sources/eudr-norma-2026-10-15/` (2 textos), cada una con URL, fecha, tamaño y **sha256** en su manifiesto.
+Se distinguen tres grados de certeza: **documentado**, **comprobado contra el servicio** y **propuesto por
+Terra Link**. **Ninguna regla es del segundo grado**: nadie ha importado un archivo en TRACES desde Terra Link, y
+leer la documentación no demuestra una importación aceptada.
+
+**d) D-05 se parte en dos.** **D-05.A**, perfil técnico de intercambio, decidible por el equipo con 20 reglas
+concretas. **D-05.B**, aplicabilidad jurídica, que solo puede decidir un responsable regulatorio. El formato
+técnico **ya no depende** de resolver si Terra Link llegará a presentar un DDS: preparar un archivo no es
+presentarlo, y esa presentación tiene su propio alcance y autorización.
+
+**e) Cálculos corregidos.**
+
+| Antes (revisión 2) | Ahora (revisión 3) |
+| --- | --- |
+| «Comparar a 6 decimales, presentar a 4» | Comparar sobre el **valor almacenado**, sin reducción previa; el redondeo de presentación nunca alimenta la comparación |
+| Precisión del dato sin declarar | Declarada: declarada `numeric(12,4)` (**4** decimales, cuantizada en 0,0001 ha, la API **rechaza** más precisión) y calculada `numeric(14,6)` (**6**). Y precisión de representación **≠** exactitud de medición |
+| Truncamiento y superficie, juntos | **Separados**: el truncamiento actúa sobre coordenadas en el destino; la superficie se calcula sobre la geometría almacenada |
+| Ejemplos de truncamiento solo positivos | Incluidos los **negativos** de la propia fuente, que muestran truncamiento **hacia cero** — el caso normal en Ecuador |
+| Duplicados sin matizar | **Cierre obligatorio del anillo** distinguido de los **vértices que colapsan**: el primero se exige y se excluye de la comprobación; el segundo se detecta y rechaza |
+| Nada sobre la geometría truncada | Se **valida la geometría resultante** del truncamiento, sobre copia, **sin reparar ni modificar el original** |
+
+**f) El modelo no se amplía.** El destino admite `MultiPoint`; Terra Link no lo soporta —el `CHECK` del esquema
+solo admite `POINT`, `POLYGON`, `MULTIPOLYGON`— y queda declarado como **capacidad no implementada**. No se
+inventa ninguna regla para repartir `Area` entre varios puntos: la fuente no la da.
+
+### 5.3 Dos hallazgos nuevos que ninguna revisión anterior tenía
+
+1. **El mínimo legal y el máximo del receptor coinciden en 6 decimales.** El Art. 2(28) exige «at least six decimal
+   digits»; el destino **trunca** a seis. Exportar **menos** de seis incumpliría la norma. Hoy la exportación
+   técnica emite `ST_AsGeoJSON(geometry, 17)`: diecisiete.
+2. **El Art. 9(1)(d) exige también «the date or time range of production»**, junto a la geolocalización. Terra Link
+   registra período de cosecha por entrega, pero **no está vinculado al perfil de la parcela ni se exporta**. Es
+   trabajo nuevo, nombrado y no resuelto en la propuesta.
+
+### 5.4 La vía de la dirección postal no es «para cualquier pequeño productor»
+
+La revisión 2 la enunció demasiado laxa. El Art. 4a(5) la reserva a los **«micro or small primary operators»**, y
+esa figura exige **todas** estas condiciones a la vez: ser **«operator»** —quien coloca **por primera vez en el
+mercado de la Unión** o exporta desde ella—, ser persona física o micro/pequeña empresa según la Directiva
+2013/34/UE, estar establecido en un **país clasificado de riesgo bajo** conforme al Art. 29, y colocar productos
+que **ese mismo operador** haya producido en parcelas de ese país.
+
+La primera condición por sí sola puede excluir a la mayoría de usuarios de Terra Link: una cooperativa de Ecuador
+que vende a un importador europeo **normalmente no es el operador**. Y queda un dato sin verificar: el Art. 29
+parte de que **todos los países tienen riesgo estándar** hasta que la Comisión publique la lista por actos de
+ejecución. **Si Ecuador figura ahí, y en qué categoría, no se comprobó.** Sin eso, la vía postal **no se da por
+disponible ni por descartada**.
+
+### 5.5 Ocho incertidumbres nombradas, ninguna rellenada
+
+Entre ellas: cómo calcula el destino la superficie de un **polígono** y si lo hace antes o después de truncar; el
+alcance real de su regla sobre «overlapping sides»; dos **inconsistencias del propio documento oficial** (ejemplos
+de Tipo II que llevan `Area` en features `Polygon`, y un ejemplo de `Point` con un nivel de anidamiento de más); y
+el comportamiento **real** del servicio, que exigiría un ensayo contra el entorno de aceptación —con credenciales y
+autorización, emparentado con D-09 parte B y **no autorizado aquí**—.
 
 ## 6. Qué NO se hizo
 
-- **No** se aprobó D-05 ni ninguna otra decisión.
+- **No** se aprobó D-05 ni ninguna otra decisión. **D-05.A** queda completa y lista para revisarse; **D-05.B** no
+  avanza sin un responsable regulatorio.
+- **No** se probó nada contra el servicio real de TRACES, ni en producción ni en aceptación: haría falta
+  credenciales y autorización, y enviaría geometrías a un tercero.
 - **No** se tocó ninguna compuerta ni ningún `CHECK` del esquema para cerrar historias.
 - **No** se reejecutó `npm run validate` completa: los cambios son de prueba y documentación. Lo ejecutado fue el
   recorrido integral (10/10), `productos.spec.ts` completo dos veces (24/24 cada una), `typecheck` y `lint`.
@@ -127,5 +205,16 @@ La propuesta incluye 13 casos de prueba, **ninguno escrito todavía**: son poste
 
 ## 7. Siguiente paso
 
-**D-05 necesita una persona con acceso a EUR-Lex**, no más desarrollo: adjuntar el texto de los dos artículos y
-aclarar la vía de dirección postal. **D-07** sigue independiente y con propuesta escrita.
+**D-05.A** (perfil técnico) está lista para que producto/GIS ratifique sus 20 reglas, fije la banda
+`NEAR_THRESHOLD` y decida `ProducerName`. En paralelo, cuatro incertidumbres se resuelven **preguntando al
+contacto técnico** que publica la propia documentación del destino.
+
+**D-05.B** (aplicabilidad jurídica) necesita un responsable regulatorio: qué actor es cada usuario de Terra Link,
+la clasificación de riesgo de Ecuador bajo el Art. 29, las condiciones del Art. 2(15a) una por una, y el Anexo III
+con la modificación en curso del Reglamento de Ejecución (UE) 2024/3084. **Ya no necesita acceso a EUR-Lex**: el
+texto está guardado con su huella en el repositorio.
+
+Aparte, dos trabajos nuevos quedan identificados y **sin hacer**: exportar con **6 decimales** en vez de 17, y
+vincular la **fecha o rango de producción** del Art. 9(1)(d) al perfil de la parcela.
+
+**D-07** sigue independiente y con propuesta escrita.
