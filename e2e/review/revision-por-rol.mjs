@@ -10,7 +10,18 @@ import { reviewGeoJson } from './geojson.mjs';
 import { reviewGis } from './gis.mjs';
 import { reviewProducts } from './productos.mjs';
 import { reviewCte } from './cte.mjs';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { reviewEvents } from './eventos.mjs';
+import { reviewDocuments } from './documentos.mjs';
+import { reviewEvidence } from './evidencias.mjs';
+import { reviewAudit } from './auditoria.mjs';
+import { reviewDeliveries } from './entregas.mjs';
+import { reviewLots } from './lotes.mjs';
+import { reviewInventory } from './inventario.mjs';
+import { reviewRisk } from './riesgo.mjs';
+import { reviewMitigations } from './mitigaciones.mjs';
+import { reviewDueDiligence } from './diligencia.mjs';
+import { reviewSatellite } from './satelite.mjs';
+import { existsSync, mkdirSync, statSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -33,8 +44,9 @@ function parseCsv(text) {
   return rows.map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] ?? ''])));
 }
 
-// Si existe CREDENCIALES.pendiente.csv (el principal estaba abierto al ejecutar el seed), contiene todo.
-const credFile = existsSync(join(root, 'CREDENCIALES.pendiente.csv')) ? 'CREDENCIALES.pendiente.csv' : 'CREDENCIALES.csv';
+// El seed escribe el archivo completo en CREDENCIALES.csv o, si estaba abierto, en CREDENCIALES.pendiente.csv: se usa el más reciente.
+const credFile = ['CREDENCIALES.csv', 'CREDENCIALES.pendiente.csv'].filter((f) => existsSync(join(root, f)))
+  .sort((a, b) => statSync(join(root, b)).mtimeMs - statSync(join(root, a)).mtimeMs)[0];
 const accounts = parseCsv(readFileSync(join(root, credFile), 'utf8'));
 const DEMO_ORGS = [...new Set(accounts.map((a) => a.organizacion).filter((o) => o.startsWith('DEMO')))];
 const slug = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
@@ -74,9 +86,9 @@ async function realTask(page, a, orgUrl) {
   }
   if (r === 'AUDITOR') {
     await page.goto(`${orgUrl}/auditoria`);
-    await page.getByRole('heading', { name: 'Actividad reciente' }).waitFor();
-    await page.getByRole('list', { name: 'Actividad' }).or(page.getByText('Sin actividad registrada.')).first().waitFor({ timeout: 15000 });
-    const n = await page.getByRole('list', { name: 'Actividad' }).getByRole('listitem').count();
+    await page.getByRole('heading', { name: 'Registros' }).waitFor();
+    await page.getByRole('table', { name: 'Registros de auditoría' }).or(page.getByText('Aún no hay registros a tu alcance.')).first().waitFor({ timeout: 15000 });
+    const n = await page.getByRole('table', { name: 'Registros de auditoría' }).locator('tbody tr').count();
     return { tarea: 'Consultar la auditoría de su organización', resultado: `${n} registros visibles`, ok: n >= 1 };
   }
   if (r === 'TRACEABILITY_MANAGER' || r === 'EUDR_MANAGER') {
@@ -164,7 +176,10 @@ try {
       }
 
       // Denegación coherente: otra organización DEMO de la que no es miembro.
-      const myOrgs = accounts.filter((x) => x.email === a.email).map((x) => x.organizacion);
+      // Membresías reales desde la API (el CSV puede estar desactualizado si Excel lo tiene abierto).
+      const tok = await page.evaluate(() => sessionStorage.getItem('tl_token'));
+      const apiOrgs = r === 'SUPER_ADMIN' ? [] : await (await fetch(`${API}/api/v1/organizations`, { headers: { authorization: `Bearer ${tok}` } })).json().catch(() => []);
+      const myOrgs = [...new Set([...accounts.filter((x) => x.email === a.email).map((x) => x.organizacion), ...(Array.isArray(apiOrgs) ? apiOrgs.map((o) => o.name) : [])])];
       const foreign = DEMO_ORGS.find((o) => !myOrgs.includes(o));
       if (r !== 'SUPER_ADMIN' && foreign && orgIdByName[foreign]) {
         await page.goto(`${BASE}/organizaciones/${orgIdByName[foreign]}`);
@@ -219,6 +234,17 @@ try {
   results.push(await reviewGis({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewProducts({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
   results.push(await reviewCte({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewEvents({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewDocuments({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewEvidence({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewAudit({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewDeliveries({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewLots({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewInventory({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewRisk({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewMitigations({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewDueDiligence({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
+  results.push(await reviewSatellite({ browser, BASE, accounts, DEMO_ORGS, orgIdByName, shots }));
 
   // Adaptación móvil (390 px): menú en panel y contenido legible.
   for (const a of accounts.filter((x) => ['tecnico1.cooperativa', 'admin.cooperativa'].includes(x.email.split('@')[0]))) {
@@ -262,5 +288,15 @@ for (const c of results.find((r) => r.tipo === 'geojson')?.casos ?? []) console.
 for (const c of results.find((r) => r.tipo === 'gis')?.casos ?? []) console.log(` [gis] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'productos')?.casos ?? []) console.log(` [productos] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 for (const c of results.find((r) => r.tipo === 'cte')?.casos ?? []) console.log(` [cte] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'eventos')?.casos ?? []) console.log(` [eventos] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'documentos')?.casos ?? []) console.log(` [documentos] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'evidencias')?.casos ?? []) console.log(` [evidencias] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'mitigaciones')?.casos ?? []) console.log(` [mitigaciones] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'diligencia')?.casos ?? []) console.log(` [diligencia] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'riesgo')?.casos ?? []) console.log(` [riesgo] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'inventario')?.casos ?? []) console.log(` [inventario] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'lotes')?.casos ?? []) console.log(` [lotes] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'entregas')?.casos ?? []) console.log(` [entregas] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
+for (const c of results.find((r) => r.tipo === 'auditoria')?.casos ?? []) console.log(` [auditoria] ${c.ok ? 'OK   ' : 'FALLA'} ${c.cuenta}: ${c.resultado}`);
 console.log(`Revisión: ${results.length} entradas; con incidencias: ${issues.length}`);
 for (const i of issues) console.log(` - ${i.cuenta ?? i.tipo} @ ${i.organizacion ?? ''}: ${(i.incidencias ?? []).join(' | ') || JSON.stringify(i)}`);

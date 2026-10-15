@@ -45,19 +45,45 @@ Aceptación: vértices persistentes, cierre/validación, precisiones por muestra
 ### P0-009 — GeoJSON
 Depende P0-006/010. Como trazabilidad, necesito intercambio geográfico.
 Aceptación: import/export autorizado, `[lon,lat]`, perfil destino, límites y errores; file import no duplica registros al reintentar. RF-09; QA-04/02.
+**2026-10-15: DONE_LOCAL.** El criterio «perfil destino» queda demostrado con **D-05.A** adoptado como perfil
+técnico provisional para desarrollo local: exportación con perfil **por productor**, 6 decimales como números,
+sin datos personales y con lista de no exportables y motivos. **No acredita** conformidad jurídica (D-05.B) ni
+aceptación por el servicio real del destino, que no se ha probado.
 
 ### P0-010 — Validación GIS
 Depende P0-006. Como responsable de datos, necesito motivos de validez.
 Aceptación: geometría/CRS/área/duplicados/cobertura, estados y versión de regla; umbral debajo/igual/encima probado tras aprobar perfil; sin reparación destructiva silenciosa. RF-10; QA-04.
+**2026-10-15: DONE_LOCAL.** El criterio «umbral debajo/igual/encima probado tras aprobar perfil» queda demostrado
+tras adoptar **D-05.A**: operador estricto, caso exactamente igual admitido con aviso y sin banda, y comparación
+sobre el valor almacenado. El perfil es una regla **aparte** (`EUDR_GEO_V1`, tabla propia): `TL_GIS_TECH` y sus
+evaluaciones históricas **no se tocan**, y los dos dictámenes se muestran juntos porque pueden discrepar. Sin
+reparación: la simulación del truncamiento trabaja sobre una copia. **Pendiente y separado**: D-05.B y la
+aceptación por el servicio real.
 
 ### P0-011 — Productos
 Depende P0-003. Como operador, necesito producto/estado/unidad coherentes.
 Aceptación: catálogo de cacao y unidades, códigos por ámbito; transformación cambia estado con evento/rendimiento, no conversión implícita. RF-11; QA-05/06.
 Capacidades (2026-10-10): «catálogo y unidades» verificada y disponible para P0-012; «transformación con evento/rendimiento» pendiente y demostrable solo con P0-016 (procesamiento). P0-011 sigue abierta hasta demostrarla.
+**2026-10-10: transformación demostrada en P0-016** (fermentación CACAO_BABA → CACAO_FERMENTADO con `ProcessingRunClosed`, rendimiento en masa y sin conversión implícita): P0-011 **DONE_LOCAL**.
 
 ### P0-012 — Entrega y recepción
 Depende P0-004/006/013/014/015 y de la **capacidad** «catálogo de productos y unidades» de P0-011 (verificada el 2026-10-10; el criterio de transformación de P0-011 no bloquea Entregas). Como recepción, necesito cantidad y origen reales.
 Aceptación: entrega declarada, peso recibido, recepción parcial/completa, diferencias con causa, vínculos válidos y quality básica; confirmar repetido no crea doble stock. RF-12; QA-05/06.
+Estado (2026-10-10): capacidades demostradas verificadas localmente; **historia abierta** por «diferencias con causa» (requiere política de cierre y tolerancias, D-33). P0-016 puede usar las cantidades ya recibidas sin esperar ese cierre (propuesta sin aprobar en `docs/decisiones/P0-016-017-PROPUESTA-LOTES-INVENTARIO.md`).
+
+**Contraste de los criterios originales (2026-10-15), antes de cerrar la historia:**
+
+| Criterio de aceptación | Dónde se demuestra | Resultado |
+| --- | --- | --- |
+| Entrega declarada | `test/deliveries.int-spec.ts` (alta, registro y compuerta con sus KDE) | Cumplido |
+| Peso recibido | `test/deliveries.int-spec.ts` (pesaje con método, unidad y responsable) | Cumplido |
+| Recepción parcial/completa | `test/deliveries.int-spec.ts` + `test/recorrido-integral.int-spec.ts` (500 declarados, 480 recibidos) | Cumplido |
+| **Diferencias con causa** | `test/d32-d33.int-spec.ts`: cierre sin diferencia, por debajo y por encima; motivo obligatorio en ambos signos; permisos; aislamiento; doble envío y concurrencia; recepción posterior rechazada; justificación desactualizada con historial conservado | **Cumplido el 2026-10-15** con D-33 adoptada; era el único criterio abierto |
+| Vínculos válidos | Compuertas KDE por transición; `test/deliveries.int-spec.ts` | Cumplido |
+| Quality básica | Muestras y resultados de calidad, estado separado de la recepción física (D-33, 2026-10-10) | Cumplido |
+| Confirmar repetido no crea doble stock | `test/deliveries.int-spec.ts` (confirmación idempotente) y el ledger de P0-017 | Cumplido |
+
+**2026-10-15 — P0-012 DONE_LOCAL**: el criterio «diferencias con causa» queda demostrado con el cierre de entregas (D-33). DONE_LOCAL no acredita producción, uso en campo ni conformidad EUDR. **Lo que no cierra esta historia**: los límites de aceptación de calidad (D-33, pendientes) y la comprobación con operadores reales.
 
 ### P0-013 — CTE
 Depende TECH-001. Como trazabilidad, necesito hitos definidos.
@@ -75,10 +101,28 @@ Aceptación: envolvente/versión/tenant/actor/tiempos, append-only, correction_o
 ### P0-016 — Lotes y procesos
 Depende P0-012/015. Al cerrar un proceso se demuestra el criterio pendiente de P0-011 (transformación con evento y rendimiento) y se integra el vínculo CTE FERMENTATION/DRYING. Como trazabilidad, necesito reconstruir mezclas/transformaciones.
 Aceptación: lote con inputs/outputs/run; DAG sin ciclos; origen conservado en salida; cierre atómico y consulta upstream/downstream con cantidades y permisos. RF-16; QA-07.
+Contrato propuesto (2026-10-10, sin aprobar): `docs/decisiones/P0-016-017-PROPUESTA-LOTES-INVENTARIO.md` (asignación sin doble uso desde P0-016; ledger completo en P0-017). Decisiones bloqueantes: D-39 (adoptadas para desarrollo local el 2026-10-10).
+Estado (2026-10-10): criterios originales demostrados localmente (lote con entradas/salidas/proceso, DAG sin ciclos, origen conservado, cierre atómico, consultas con cantidades y permisos); FERMENTATION integrada. **Historia abierta** por la integración de DRYING (cierre bloqueado hasta definir la unidad de humedad, D-32), que el backlog asocia a P0-016.
+
+**Contraste de los criterios originales (2026-10-15), antes de cerrar la historia:**
+
+| Criterio de aceptación | Dónde se demuestra | Resultado |
+| --- | --- | --- |
+| Lote con inputs/outputs/run | `test/lots.int-spec.ts` | Cumplido (2026-10-10) |
+| DAG sin ciclos | `test/lots.int-spec.ts` (control de ciclos en todo enlace) | Cumplido (2026-10-10) |
+| Origen conservado en la salida | `test/lots.int-spec.ts`, `test/recorrido-integral.int-spec.ts` | Cumplido (2026-10-10) |
+| Cierre atómico | `test/lots.int-spec.ts` (idempotente, con balance exacto en KG) | Cumplido (2026-10-10) |
+| Consulta upstream/downstream con cantidades y permisos | `test/lots.int-spec.ts`, `test/recorrido-integral.int-spec.ts` | Cumplido (2026-10-10) |
+| **Vínculo CTE DRYING integrado** | `test/d32-d33.int-spec.ts` y `test/lots.int-spec.ts`: cierre real de un secado con humedad en `%BH`, método y responsable, balance 100 = 60 + 40, evento `ProcessingRunClosed` publicado y `integration_status = INTEGRATED` | **Cumplido el 2026-10-15** con D-32 adoptada; era el único criterio abierto |
+
+DRYING se marca INTEGRATED porque **la operación y su evento están demostrados**, no por publicar el catálogo: el mismo caso de prueba cierra el secado, comprueba el evento y lee el estado del vínculo.
+
+**2026-10-15 — P0-016 DONE_LOCAL**: DONE_LOCAL no acredita producción, Android real ni conformidad EUDR. **Lo que no cierra esta historia**: los límites de aceptación de calidad de la humedad (D-32, pendientes) y las unidades adicionales de peso con sus factores (D-32, pendientes).
 
 ### P0-017 — Inventario/balance de masa
 Depende P0-016. Como operación, necesito cantidades conservadas.
 Aceptación: ledger, merma, traslado, reserva/despacho y ajuste con motivo; 800→750+50 válido, exceso rechazado; prueba concurrente impide doble consumo/saldo negativo. RF-17; QA-06.
+Estado (2026-10-10): ledger como única fuente, merma, traslado, ajuste con motivo, 800→750+50 y concurrencia demostrados localmente; STORAGE integrada. **Historia abierta**: «reserva/despacho» requiere embarques (docs/06 `reservations.shipment_id` R) → P0-029. Efectos por operación: `docs/decisiones/P0-017-EFECTOS-LEDGER.md`.
 
 ### P0-018 — Documentos
 Depende P0-003/025. Como usuario, necesito soportes privados/versionados.
@@ -91,22 +135,30 @@ Aceptación: claim, fuentes/versiones y enlaces tipados; soporta contradicción,
 ### P0-020 — Risk engine
 Depende P0-010/016/019. Como EUDR_MANAGER, necesito causas reproducibles.
 Aceptación: categorías/factores/reglas/snapshot; separar severidad/proceso/conclusión; faltantes no son score cero; reevaluación crea versión y factor crítico no se diluye. RF-20; QA-10.
+Estado (2026-10-10): criterios demostrados localmente con reglas técnicas de docs/13 **no aprobadas** (sin pesos, umbrales ni severidades); conclusión regulatoria UNDETERMINED. Reglas dependientes de D-05, proveedor satelital (P0-028) y mitigaciones (P0-021) quedan no evaluables. Sin mitigaciones ni expediente (P0-021/P0-022).
 
 ### P0-021 — Mitigación
 Depende P0-020. Como responsable, necesito resolver causa con evidencia.
 Aceptación: acción/assignee/plazo/soporte; aportar→verificar/rechazar con motivos y permisos; resolver dispara reevaluación y actualiza pendientes reales. RF-21; QA-11.
+Estado (2026-10-10): criterios demostrados localmente. Separación de funciones de docs/13 aplicada (el ejecutor no verifica; sin política de excepción); D-37 (Evidencias) no se modifica. Reevaluación asíncrona por outbox; catálogo de riesgo sigue NO APROBADO y conclusión UNDETERMINED.
+Revisión (2026-10-10): la verificación ahora exige declarar el criterio de aceptación; se distinguen soporte aceptado, acción ejecutada y causa. La verificación DEMO anterior se corrigió (soporte aceptado, criterio no cumplido, causa persiste) con la decisión original conservada; la reevaluación separa quién la desencadenó, el worker que la ejecutó y la revisión humana.
+Recorrido visual completo (2026-10-10): ejecutor aporta y entrega → segunda persona DEMO (`eudr.cooperativa`, rol EUDR_MANAGER existente) verifica → outbox crea la evaluación 2 → DATA_MISSING_ORIGIN y MATERIAL_OF_UNKNOWN_ORIGIN siguen bloqueantes; conclusión Indeterminada.
 
 ### P0-022 — Diligencia y paquete
 Depende P0-017/019/020/021. Como EUDR_MANAGER, necesito preparación verificable.
 Aceptación: guards por requisito, revisión autorizada, snapshot/manifest, export auditado; cambio relevante invalida readiness actual; export no marca DDS aceptada. RF-22; QA-12.
+Estado (2026-10-10): **ABIERTA**. Capacidades independientes implementadas y probadas localmente (expediente, guards, instantánea/manifest, revisión, borrador interno exportado y auditado, desactualización por cambio relevante, redacción). No demostrable todavía: aprobar una preparación READY y exportar `DD_PACKAGE` con datos reales (bloqueados por catálogo de riesgo no aprobado, conclusión UNDETERMINED, perfil jurídico P1-005, D-05, satélite P0-028 y embarques P0-017/P0-029); el generador se probó solo con una fixture sintética.
 
 ### P0-023 — Captura offline
 Depende P0-004/006/007/008 y auth real. Como técnico, necesito trabajar sin red.
 Aceptación: entidad/cola en transacción local; borradores/fotos/GPS sobreviven cierre y reboot; dataset limitado y separación por cuenta; sesión offline definida. RF-23; QA-08.
+Estado (2026-10-10): **ABIERTA**. `apps/mobile` (Expo SDK 57): transacción local, recuperación, separación por cuenta/organización, fotos persistentes y fallos de almacenamiento probados en Node con SQLite real; dataset autorizado probado contra la API local. Pendiente obligatorio: ensayo en Android real (cierre, reinicio, fotos, ubicación) y cifrado SQLCipher en build de desarrollo; política de sesión D-40 sin aprobar.
+Revisión (2026-10-11): la captura termina al vencer la sesión del servidor (sin ventana de 72 h); build nativo sin cifrado no abre el almacén; Expo Go limitado a fixtures sintéticos (sin cámara ni ubicación reales); fotos dentro de la base y sin metadatos embebidos. Build nativo y ensayo Android bloqueados por espacio en disco (6,3 GB libres). Sigue ABIERTA.
 
 ### P0-024 — Sync
 Depende P0-023/015. Como técnico, necesito sincronizar sin pérdidas.
 Aceptación: operation_id estable, dedup por hash, dependencias/cursor/tombstones, conflictos visibles y adjuntos; servidor revalida tenant/permisos; timeout/retry no duplica inventario. RF-24; QA-08/02.
+Estado (2026-10-11): **ABIERTA**. Servidor y motor móvil implementados para `PLOT_LOCATION_SAMPLE_CREATE` y `PLOT_PHOTO_ATTACH`, probados en integración (API real) y con el cliente en Node contra la API local. No demostrado: inventario/entregas (sin operaciones móviles; la protección contra duplicar inventario no se acredita con ubicación y fotos), recorrido en dispositivo Android y resolución de conflictos en la interfaz del dispositivo.
 
 ### P0-025 — Audit trail
 Depende P0-003/015. Como auditor, necesito reconstruir quién cambió qué.
@@ -115,24 +167,29 @@ Aceptación: creación/corrección/aprobación/rechazo/descarga/export/permisos/
 ### P0-026 — Excel import
 Depende P0-004/005/006/011/012 según plantilla. Como asociación, necesito migrar registros.
 Aceptación: plantilla/mapeo/preview/errores por fila/commit controlado; IDs no cruzan tenant; reimport no duplica ni borra campos fuera de mapping; legacy/missing explícitos. RF-26; QA-03.
+Estado (2026-10-12): **DONE_LOCAL**. Las cinco plantillas de S1 §62 implementadas y verificadas localmente: productores, productos, parcelas (sin geometría), entregas (solo borradores, identidad por código o referencia de importación) y lotes (asignación de recepciones confirmadas vía ledger). Criterios contrastados en `docs/decisiones/P0-026-IMPORTACION-EXCEL.md`. Limitación registrada: solo archivos sintéticos y datos DEMO; sin Excel real de una asociación.
 
 ## Cobertura operativa P0 adicional
 
 ### P0-027 — Web por rol y Lot Hub
 Depende contratos aplicables P0-003/004/006/016/019/020/022. Como operador, necesito completar trabajo desde contexto.
 Aceptación: home/menu por permiso, hub y enlaces seguros, estados loading/vacío/403/error separados, formularios conservan datos y acciones tienen efecto de dominio; no métricas falsas. RF-27; QA-14.
+Estado (2026-10-12): **DONE_LOCAL** (reabierta y cerrada de nuevo el mismo día: «Parcelas sin ubicación» exige punto o polígono —la superficie declarada no la resuelve— y el aviso de parcelas restringidas depende solo del permiso; `validation-results/2026-10-12T17-51-31-124Z`). «Mi trabajo» con tareas reales por alcance, Lot Hub con evidencias y riesgo/mitigación/expediente por permiso, fuga de parcelas de origen corregida, organización ajena «no disponible», filtros en la URL; matriz de 22 combinaciones cuenta–organización–rol, estados, teclado, 390 px y zoom 200 %. Ver `docs/decisiones/P0-027-WEB-POR-ROL-Y-LOT-HUB.md`. Limitaciones: destino/embarques (P0-029), evidencias por origen (P0-019), BUYER/PRODUCER/SUPER_ADMIN sin acceso implícito.
 
 ### P0-028 — Primer proveedor satelital
 Depende P0-010/019/020. Como EUDR_MANAGER, necesito resultado con procedencia.
 Aceptación: adapter/job, contrato real y coste, credenciales protegidas, dataset/versión/fecha/método/cobertura; timeout/no coverage no generan verde; defensa egress/SSRF probada. RF-28; QA-15.
+Estado (2026-10-14): **ABIERTA**. Implementado y probado localmente **sin proveedor**: registro de proveedores sustituibles (S1 §40/§103) con los tres candidatos de la fuente documentados (licencia, coste, cobertura, límites y **qué datos saldrían del equipo**) y **ninguno seleccionado**; trabajo asíncrono por **versión de parcela** (`plot_version_id` + `geometry_hash`) que no bloquea la petición HTTP (S1 §54) y no se traslada a una geometría nueva (`SUPERSEDED_GEOMETRY`); **desenlaces explícitos, ninguno favorable** (`NO_PROVIDER_SELECTED`, `NO_COVERAGE`, `TIMEOUT`, `RATE_LIMITED`, `PROVIDER_ERROR`, `EGRESS_BLOCKED`, `GEOMETRY_UNSUPPORTED`, `SUPERSEDED_GEOMETRY`, `CANCELLED`); procedencia completa append-only (S1 §41) con bytes originales y `conclusion` restringida por esquema a `NOT_EVALUATED`; **defensa de salida** (lista blanca exacta, sin credenciales en URL ni literales IP, DNS comprobado al conectar, redirecciones no seguidas, plazo, tamaño, redacción); permisos `satellite:read`/`satellite:request` con `plot:read_geometry` exigido por sacar coordenadas del equipo; credencial cifrada por organización; ficha de parcela con estado, procedencia y límites. **Bloqueado**: elegir y contratar proveedor (**D-09**), evaluabilidad de la regla `SATELLITE_COVERAGE_UNKNOWN` (**D-07** + catálogo aprobado) y vínculo resultado→evidencia (**D-37**). Lo único que produce resultados hoy es una **fixture sintética** rotulada, que no satisface ningún requisito. QA-15 queda separada en cuatro niveles de evidencia (decisión pura, transporte con servidores controlados, desenlaces con fixture y **proveedor externo real: no ejecutado**), y la tarjeta de la ficha de parcela está **revisada en navegador** por rol, con estados sin proveedor/sin permiso/error, teclado y 390 px. **D-09 parte A adoptada (2026-10-15)**: Whisp implementado como **adaptador de desarrollo** contra el contrato oficial fechado (OpenAPI 2.3.0), con las llamadas reales cerradas por el interruptor `SATELLITE_LIVE_CALLS` y probado solo contra servidores controlados; conserva la incompletitud que declara el proveedor (`unavailable_datasets`) como cobertura **PARCIAL** y, sin incidencias, como **UNKNOWN** (nunca `COVERED`). La integración contra Whisp real sigue **NO EJECUTADA** (parte B). El vínculo resultado→evidencia se registra como **D-42**, separado de D-37. Ver `docs/decisiones/P0-028-SATELITE.md` y `docs/qa/EVIDENCIA_P0-028_2026-10-14.md`.
 
 ### P0-029 — Movimientos y embarque
 Depende P0-017/022. Como exportación, necesito despacho consistente.
 Aceptación: ubicaciones/contraparte/ítems, reserva y saldo concurrentes, preflight/calidad/evidencia/DD, despacho idempotente y grafo destino; sin saltar bloqueos. RF-29; QA-06/12.
+Estado (2026-10-14): **ABIERTA**, con `npm run validate` **APROBADA** sobre `ad03b80` (la aprobación acredita las pruebas ejecutadas; no cierra el pendiente funcional). Implementado y probado localmente: comprador y destino declarados, ítems por lote, reserva en el ledger (idempotente, concurrente, sin saldo negativo), liberar/cancelar, preflight completo y destino en el Lot Hub. **Despacho NO demostrado**: bloqueado por D-34 (condición de `dd_package_id`/`dispatch_at`), por la falta de una instantánea DD READY y por calidad pendiente; su mecánica (consumo único, idempotencia) se probó solo con un preflight sintético. Ver `docs/decisiones/P0-029-EMBARQUES.md`.
 
 ### P0-030 — Reportes e indicadores
 Depende dominios reportados y P0-025. Como gerente, necesito cifras demostrables.
 Aceptación: filtro tenant/periodo, denominador/definición, datos reales, export autorizado con snapshot y audit; reporte no filtra PII ni confunde readiness con conformidad. RF-30; QA-13/14.
+Estado (2026-10-14, revisión 3): **ABIERTA**. Demostrado: los 11 KPI de S1 §60 con cinco estados distintos (`OK` con cero observado, `NO_DENOMINATOR`, `UNKNOWN`, `CRITERION_UNDEFINED`, `RESTRICTED`) y conteos `observed`; los **seis reportes por entidad de S1 §97** con **permiso de cada dominio del que publican datos** (leer productores no autoriza a contar sus parcelas), alcance antes de agregar y totales sobre el conjunto completo; **paginación por cursor** probada con 520 filas y **exportación del conjunto completo** hasta un tope declarado de 20 000; **exportación GeoJSON técnica** reutilizando P0-009; **comparación de actividad** entre períodos por fecha operativa; cobertura histórica corregida; y el **contrato de consistencia** con su alcance exacto (instantánea por petición y por exportación, no entre peticiones). **Bloqueado**: `plots_valid` (D-05, P0-010) y la distribución de riesgo (**D-07** y catálogo `risk_rule_sets` NOT_APPROVED, con `CHECK` en el esquema), más el perfil de destino regulatorio del GeoJSON (D-05). **Sin pendientes de la historia sin bloqueo**: reportes programados y saldo histórico **no los exige ninguna fuente** (búsqueda literal registrada) y el volumen de piloto es P0-031. Ver `docs/decisiones/P0-030-REPORTES.md` y el estado por criterio en `docs/decisiones/P0-030-CRITERIOS.md`.
 
 ### P0-031 — Piloto y operación reproducible
 Depende P0-001–030 aplicables. Como cliente piloto, necesito operar la cadena sin intervención de desarrollador.

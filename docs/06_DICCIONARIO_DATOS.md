@@ -82,6 +82,7 @@ Cantidades `numeric(20,6)` y dinero `numeric(20,4)` son propuestas de precisión
 | outbox/jobs | event_id/org/type/payload/status/attempts/next_attempt_at | Reintento e idempotencia; DLQ tras política agotada |
 | sync_operations | org/device/operation_id/payload_hash/base_version/status/result | Clave única tenant/operation_id; resultado reutilizable |
 | import_batches/rows | org/file_hash/mapping/status/row_errors/imported_refs | Preview no crea entidades; commit reproducible |
+| import_batches / import_rows | 0030–0032, 0034, 0036 | P0-026. Lote: plantilla `PRODUCTORES_V1`, estado UPLOADED → MAPPED → COMMITTED / DISCARDED (terminales, trigger), SHA-256/tamaño/nombre del archivo (el original no se guarda), encabezados, mapeo, `plan_hash`, resumen, `operation_id` y `commit_operation_id` idempotentes. Filas: celdas cifradas (AAD organización/lote/fila; se eliminan al descartar), resultado CREATED/UPDATED/UNCHANGED, productor, producto (0031), parcela (0032), entrega (0034) o lote (0036, varias filas = varias entradas); FK compuestas mismo tenant, como mucho una y nombres de campos cambiados. Errores por fila: calculados en la vista previa, no persistidos |
 | share_grants | owner_org/recipient/scope/fields/expires_at/revoked_at | Revocación aplica a nuevas consultas y URLs temporales |
 | tasks/notifications | org/source/assignee/due_date/status/action_reference | Si derivable del dominio, proyectar en vez de duplicar estado |
 
@@ -115,6 +116,24 @@ Completitud, validez, consistencia, unicidad y vigencia son resultados separados
 | products | 0014 | P0-011: catálogo por ORGANIZACIÓN. `code` único por organización (mayúsculas, 2–40); `name`; `product_state` y `unit` (FK a catálogos de sistema); `scientific_name`/`variety` opcionales; ACTIVE/INACTIVE con motivo; `row_version`. Código, estado y unidad **inmutables** (trigger); sin borrado |
 | product_versions | 0014 | Historial append-only por versión (alta, edición, desactivación, activación) con instantánea y motivo |
 | gis_evaluations.comparison_scope / scope_membership_id | 0013 | Alcance efectivo de comparación de cada evaluación (ORGANIZATION o EVALUATOR_ASSIGNED) |
+| evidence_claim_types | 0019 | P0-019: catálogo de sistema con afirmaciones de docs/12 cuya entidad existe: PLOT_FIELD_CAPTURED (parcela), LAND_TENURE_DOCUMENTED (productor/parcela), con su limitación |
+| evidence | 0019 | Afirmación sobre una entidad existente del mismo tenant (trigger): tipo, entidad, estado DRAFT/SUBMITTED/VERIFIED/REJECTED/REVOKED (vencida = `valid_to` pasado), vigencia, `row_version`, `operation_id`. Afirmación y entidad inmutables; sin borrado |
+| evidence_sources | 0019 | Soporte = versión EXACTA de documento (FK compuesta) con relación SUPPORTS/CONTRADICTS/BASED_ON, nota, autor, fecha, `operation_id`. Append-only |
+| evidence_source_withdrawals | 0019 | Retirada de un soporte con motivo y responsable (historia conservada). Append-only |
+| evidence_decisions | 0019 | Envío, verificación, rechazo, revocación y reapertura con motivo, responsable, estado anterior/nuevo, reconocimiento de contradicciones e instantánea de soportes. Append-only |
+| document_types | 0018 | P0-018: catálogo de sistema con los tipos que nombran las fuentes: LAND_TENURE (tenencia; PERSONAL_DATA) y DELIVERY_SUPPORT (soporte de entrega; OPERATIONAL); titulares admitidos |
+| documents | 0018 | Documento de la organización: tipo, titular (producer/plot del mismo tenant, trigger; `delivery` reservado para P0-012), título, versión vigente, `row_version`. Tipo y titular inmutables; sin borrado |
+| document_versions | 0018 | Versión inmutable: objeto privado en S3, nombre, MIME real (PDF/JPEG/PNG), tamaño, SHA-256 del servidor, emisor, emisión, vencimiento, versión previa, `operation_id`. Append-only |
+| document_version_scans | 0018 | Resultados del análisis antimalware por versión (CLEAN/INFECTED/FAILED, motor, firma, código de error). Append-only |
+| document_version_reviews | 0018 | Revisión humana por versión (ACCEPTED/REJECTED, motivo, revisor). No se hereda. Append-only |
+| document_links | 0018 | Vinculación «adjunto a» con producer/plot del mismo tenant (trigger). Las relaciones probatorias son de P0-019. Append-only |
+| domain_events.correction_of_event_id / correction_reason | 0017 | P0-015: corrección de un evento EXISTENTE de la misma organización y agregado (FK compuesta + trigger), posterior al corregido, motivo obligatorio (3–500), sin autorreferencia; un evento se corrige una vez (índice único) → cadena lineal |
+| event_deliveries.lease_token / manual_requeues | 0017 | Fencing del arrendamiento: solo el reclamo con el token vigente confirma o registra el fallo; reprocesos manuales contados. `last_error` guarda solo códigos |
+| event_delivery_attempts | 0017 | Historial append-only de intentos por entrega: DONE, DUPLICATE, FAILED, DEAD, LEASE_LOST, MANUAL_REQUEUE (actor y motivo), código de error |
+| consumer_receipts | 0004, 0017 | Recibos de consumo idempotente; desde 0017 no admiten UPDATE ni DELETE |
+| kde_catalog_releases | 0016 | P0-014: versiones publicadas del catálogo de datos mínimos (auditoría de cada cambio). Append-only |
+| kde_definitions | 0016 | Dato mínimo `code@version` ligado a la versión EXACTA de un hito (`cte_definition_id`): entidad y campo del contrato, tipo, unidad/dimensión (en `validation`), obligatoriedad REQUIRED/CONDITIONAL/OPTIONAL, condición y validación en un **esquema cerrado** (sin código ejecutable), roles responsables, fuente y diferencia con el modelo. Inmutable |
+| kde_definition_retirements | 0016 | Retirada o sustitución de un KDE con motivo; sigue resoluble para consultar historia. Append-only |
 | cte_catalog_releases | 0015 | P0-013: versiones publicadas del catálogo de sistema de hitos (versión, fuente, notas, fecha). Registro de auditoría de cada cambio permitido. Append-only |
 | cte_definitions | 0015 | Hito crítico: `code` + `version` (referencia estable `CODE@n`), nombre, descripción, etapa (ORIGIN/INTERNAL/OUTBOUND), fuente, versión de catálogo, `supersedes_id`. Inmutable |
 | cte_definition_retirements | 0015 | Retirada o sustitución de una definición en una versión del catálogo, con motivo; la definición sigue resoluble. Append-only |
@@ -122,3 +141,35 @@ Completitud, validez, consistencia, unicidad y vigencia son resultados separados
 | draft_vertex_exclusions | 0010 | P0-008: «deshacer» excluye un vértice sin borrar ni alterar la muestra. Composición vigente = vértices no excluidos por `acquisition_seq`. Append-only |
 
 Clasificación de la identidad del productor: documento, teléfono y dirección se cifran y solo se devuelven con `producer:read_identity`. Nombre, razón social y ubicación administrativa quedan en claro porque la operación los necesita para buscar e identificar; su exposición se controla por permisos de lectura.
+
+| Tabla (P0-012) | Migración | Notas |
+| --- | --- | --- |
+| locations | 0021 | Centro/bodega/otro con código único por organización; sin coordenadas; desactivar conserva historia |
+| deliveries | 0021 | Borrador → registrada (inmutable; trigger). Periodo de cosecha: precisión declarada (`DAY`/`MONTH`/`UNKNOWN`) + límites derivados marcados como derivados (CHECK de forma). Cantidad `numeric(20,6)` KG. Código `ENT-AAAA-NNNNN` por organización |
+| delivery_origins | 0021 | Parcelas del mismo productor (trigger); cantidad por origen opcional (no se inventa); solo editable en borrador |
+| delivery_supports / delivery_support_withdrawals | 0021 | Versión exacta de documento del mismo tenant; varios; retirar = fila aparte; append-only |
+| delivery_corrections | 0021 | Instantánea de los campos corregibles con motivo y eventos enlazados; el original queda en `deliveries` |
+| receptions | 0021 | Recepción física (receptor = membresía de la sesión, centro, momento con zona, cantidad del pesaje). Append-only; parciales permitidas |
+| weighings | 0021 | Pesaje (método, valor KG, fecha, responsable); el corregido enlaza el anterior (`corrects_weighing_id`) |
+| reception_adjustments | 0021 | Corrección de peso con cantidad anterior/nueva, motivo y eventos; no reescribe la recepción |
+| quality_samples / quality_results / quality_measurements | 0021 | Muestra (durante la recepción o después del pesaje), resultado con decisión PENDING/RELEASED/REJECTED (liberar exige versión de límites; rechazar, motivo), mediciones con unidad explícita |
+| gate_evaluations | 0021 | Resultado de la compuerta de cada transición (códigos, sin valores); append-only |
+| kde_transition_gates | 0021 | Catálogo de sistema de compuertas por transición, versionado |
+
+| Tabla (P0-016) | Migración | Notas |
+| --- | --- | --- |
+| lots | 0023 | Código LOT-AAAA-NNNNN; producto; origen COMPLETE/INCOMPLETE; fuente RECEPTIONS o PROCESS_OUTPUT (cerrado a entradas); solo cambian estado y versión |
+| lot_inputs / lot_input_releases | 0023 | Asignación recepción → lote con pesaje vigente y versión usados; trigger: suma activa ≤ peso vigente y sin mezclar origen; liberar solo sin reservas ni consumo |
+| process_runs | 0023 | FERMENTATION/DRYING; DRAFT → RUNNING → CLOSED · CANCELLED (trigger de transiciones); pérdida explícita; humedad con unidad no definida |
+| process_inputs | 0023 | Reserva (RUNNING) → consumo (CLOSED) → liberada (CANCELLED); trigger: no supera la cantidad del lote |
+| process_outputs / lot_edges | 0023 | Salidas como lotes nuevos; aristas padre → hijo con control de ciclos en toda inserción; append-only |
+| reception_adjustments (trigger nuevo) | 0023 | Rechaza corregir una recepción con asignaciones activas (D-39.2) |
+
+| Tabla (P0-017) | Migración | Notas |
+| --- | --- | --- |
+| stock_movements | 0024 | Cabecera: tipo, fuente original (`source_type`/`source_id`, único por tipo → incorporación idempotente), `operation_id`, actor, motivo (obligatorio en merma y ajuste), pérdida de proceso; append-only |
+| stock_entries | 0024 | Líneas firmadas por tenedor (recepción **o** lote), ubicación (o pendiente = NULL) y cubeta PHYSICAL/RESERVED; trigger diferido: físico ≥ 0, reservado ≥ 0, reservado ≤ físico; append-only. Equivale a `stock_entries` de docs/06 extendido con la recepción como tenedor |
+| process_inputs.location_id | 0024 | Centro donde se reservó la entrada |
+| Triggers de cantidad de P0-016 | 0024 | Reemplazados por el ledger (una sola fuente de disponibilidad) |
+| plot_versions.geometry_origin_version_id | 0033 | Versión que COPIA la geometría (superficie declarada actualizada; adopción para desarrollo local 2026-10-12): apunta a la versión capturada de origen (misma parcela, mismo hash, comprobado por trigger). No es una captura nueva. NULL en capturas y en versiones solo declaradas |
+| import_references | 0035, 0036 | Referencia de importación de una fila sin código asignado (no es dato de negocio): única por organización y plantilla (`ENTREGAS_V1`, `LOTES_V1`), exactamente una entidad (entrega o lote), lote y fila de origen, `origin` FILE_REFERENCE o LEGACY_CONTENT_FINGERPRINT (borradores importados antes de 0035). Append-only |

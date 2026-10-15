@@ -11,10 +11,13 @@ import { PolygonCapture } from '../../../../../lib/polygon-capture';
 import { GeometryImport } from '../../../../../lib/geometry-import';
 import { VersionDownloads } from '../../../../../lib/geometry-downloads';
 import { GisEvaluation } from '../../../../../lib/gis-evaluation';
+import { GeoProfileEvaluation } from '../../../../../lib/geo-profile';
+import { SatelliteAnalysis } from '../../../../../lib/satellite';
+import { EventHistory } from '../../../../../lib/event-history';
 import { GEOMETRY_STATUS, GEOMETRY_TYPE_LABEL, GeometrySketch, METHOD_LABEL, ha, positions, type Plot, type PlotVersion } from '../../../../../lib/plots';
 
 interface HistoryRow { version: number; change_type: string; changed_fields: string[]; reason: string | null; changed_at: string; actor: string }
-const CHANGE_LABEL: Record<string, string> = { CREATE: 'Registro', UPDATE: 'Edición', GEOMETRY_VERSION: 'Nueva versión geométrica', ARCHIVE: 'Baja', ACTIVATE: 'Reactivación' };
+const CHANGE_LABEL: Record<string, string> = { CREATE: 'Registro', UPDATE: 'Edición', GEOMETRY_VERSION: 'Nueva versión geométrica', DECLARED_AREA: 'Superficie declarada actualizada (geometría conservada)', ARCHIVE: 'Baja', ACTIVATE: 'Reactivación' };
 const FIELD_LABEL: Record<string, string> = { name: 'nombre', crop: 'cultivo', variety: 'variedad', land_use: 'uso del suelo', province: 'provincia', canton: 'cantón', parish: 'parroquia', status: 'estado', current_version_id: 'versión geométrica actual' };
 const EDITABLE = ['name', 'crop', 'variety', 'land_use', 'province', 'canton', 'parish'] as const;
 
@@ -97,7 +100,7 @@ export default function PlotDetailPage() {
             ) : (
               <>
                 <dl className="props">
-                  <dt>Versión actual</dt><dd>v{current.version_number} · {METHOD_LABEL[current.survey_method] ?? current.survey_method}</dd>
+                  <dt>Versión actual</dt><dd>v{current.version_number} · {METHOD_LABEL[current.survey_method] ?? current.survey_method}{current.change_kind === 'DECLARED_AREA_UPDATE' && ` · superficie declarada actualizada; geometría capturada en v${current.geometry_origin_version_number}`}</dd>
                   <dt>Tipo de geometría</dt><dd>{current.geometry_type ? GEOMETRY_TYPE_LABEL[current.geometry_type] : 'Sin geometría (solo superficie declarada)'}</dd>
                   <dt>Superficie declarada</dt><dd>{ha(current.area_declared_ha) ?? 'Sin registrar'}</dd>
                   <dt>Superficie calculada</dt><dd>{ha(current.area_calculated_ha) ?? (current.geometry_type === 'POINT' ? 'No aplica: un punto no tiene superficie' : current.geometry_type ? 'No calculada (geometría no válida para cálculo; se revisará en la validación GIS)' : 'Sin geometría')}</dd>
@@ -131,6 +134,10 @@ export default function PlotDetailPage() {
           </section>
 
           <GisEvaluation orgId={orgId} plotId={plot.id} canEvaluate={!!plot.can_evaluate_gis} hasVersion={!!plot.current_version} />
+          {/* Dos dictámenes, a la vista y por separado: el técnico de arriba y el de perfil de destino. Pueden discrepar. */}
+          <GeoProfileEvaluation orgId={orgId} plotId={plot.id} canEvaluate={!!plot.can_evaluate_gis} hasVersion={!!plot.current_version} />
+
+          <SatelliteAnalysis orgId={orgId} plotId={plot.id} />
 
           <section className="card" aria-labelledby="versions-title">
             <h2 id="versions-title">Versiones geométricas</h2>
@@ -143,7 +150,7 @@ export default function PlotDetailPage() {
                     {versions.map((v) => (
                       <tr key={v.id}>
                         <td>v{v.version_number} {v.is_current && <StatusBadge tone="process">Actual</StatusBadge>}</td>
-                        <td>{METHOD_LABEL[v.survey_method] ?? v.survey_method}</td>
+                        <td>{v.change_kind === 'DECLARED_AREA_UPDATE' ? `Superficie declarada (geometría de v${v.geometry_origin_version_number})` : METHOD_LABEL[v.survey_method] ?? v.survey_method}</td>
                         <td>{v.geometry_type ? GEOMETRY_TYPE_LABEL[v.geometry_type] : '—'}</td>
                         <td>{ha(v.area_declared_ha) ?? '—'}</td>
                         <td>{ha(v.area_calculated_ha) ?? '—'}</td>
@@ -158,6 +165,8 @@ export default function PlotDetailPage() {
           </section>
 
           {plot.can_archive && <StatusPlot orgId={orgId} plot={plot} onSaved={load} />}
+
+          <EventHistory orgId={orgId} kind="plots" id={plot.id} />
 
           <section className="card">
             <h2>Historial</h2>
@@ -259,7 +268,7 @@ function EditPlot({ orgId, plot, onSaved }: { orgId: string; plot: Plot; onSaved
   );
 }
 
-/** Registrar superficie declarada: crea una versión nueva (método DECLARED, sin geometría). */
+/** Superficie declarada: versión nueva que CONSERVA la geometría vigente (mismo caso de uso que la importación). */
 function DeclaredAreaForm({ orgId, plot, onSaved }: { orgId: string; plot: Plot; onSaved: () => Promise<void> }) {
   const [area, setArea] = useState('');
   const [error, setError] = useState<ApiError | null>(null);
@@ -269,8 +278,8 @@ function DeclaredAreaForm({ orgId, plot, onSaved }: { orgId: string; plot: Plot;
     setBusy(true);
     setError(null);
     try {
-      await api(`/api/v1/organizations/${orgId}/plots/${plot.id}/geometry-versions`, {
-        method: 'POST', body: { expected_version: plot.row_version, survey_method: 'DECLARED', area_declared_ha: Number(area.replace(',', '.')) },
+      await api(`/api/v1/organizations/${orgId}/plots/${plot.id}/declared-area`, {
+        method: 'POST', body: { expected_version: plot.row_version, area_declared_ha: Number(area.replace(',', '.')) },
       });
       setArea('');
       await onSaved();
@@ -282,8 +291,8 @@ function DeclaredAreaForm({ orgId, plot, onSaved }: { orgId: string; plot: Plot;
   }
   return (
     <form onSubmit={submit} className="form" aria-labelledby="declarada-title">
-      <h3 id="declarada-title">Registrar superficie declarada</h3>
-      <p className="field-help">Crea una versión nueva sin geometría; no reemplaza la ubicación registrada en versiones anteriores.</p>
+      <h3 id="declarada-title">Actualizar superficie declarada</h3>
+      <p className="field-help">Crea una versión nueva con la superficie declarada. Si la parcela tiene ubicación o polígono, se conservan tal cual (no es una captura nueva). La superficie calculada no cambia y la versión queda sin validar: la evaluación GIS anterior no se hereda.</p>
       <label htmlFor="area">Superficie declarada (ha)</label>
       <input id="area" inputMode="decimal" required pattern="[0-9]+([.,][0-9]{1,4})?" value={area} onChange={(e) => setArea(e.target.value)} />
       {error && <ErrorPanel error={error} onReload={onSaved} />}

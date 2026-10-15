@@ -71,7 +71,7 @@ Los valores nuevos de espaciado, breakpoints, colores auxiliares y distribución
 
 Esta especificación cubre backoffice web y diseño móvil de campo. El portal comprador es una extensión P1 según F1. Sirve para implementar historias progresivamente, no para habilitar todo el menú antes de disponer de datos y operaciones reales.
 
-Se trabaja exclusivamente sobre `C:\Users\mario\TERRA LINK 2025` y `cyberlandec-oss/TERRA-LINK-2025`. La base técnica reportada es NestJS/Next.js/React y aplicación móvil Expo planificada; las versiones y rutas concretas se consultan en el repositorio. No importar decisiones, roles, resultados de pruebas o componentes del proyecto `cacao`.
+Se trabaja exclusivamente sobre `D:\PROYECTOS CYBER LAND\TERRA LINK EUDR 2026\TERRA LINK 2025` (antes en `C:\Users\mario\TERRA LINK 2025`) y `cyberlandec-oss/TERRA-LINK-2025`. La base técnica reportada es NestJS/Next.js/React y aplicación móvil Expo planificada; las versiones y rutas concretas se consultan en el repositorio. No importar decisiones, roles, resultados de pruebas o componentes del proyecto `cacao`.
 
 La plataforma se ejecuta y verifica localmente con los servicios del proyecto. GitHub puede conservar el código; GitHub Actions no es una dependencia UX ni una condición de esta especificación. Este documento no modifica por sí solo la definición global de DONE: la decisión de validar esta etapa en local debe reflejarse también en las instrucciones y el backlog del repositorio.
 
@@ -821,6 +821,20 @@ Eventos operativos y auditoría son conceptos distintos: los primeros describen 
 ### 20.2 Reportes
 
 Seleccionar alcance, filtros y formato soportado; previsualizar cuando sea posible; generar y descargar con estado real. Incluir organización, período, unidades, versión/fecha y autor autorizado. Respetar permisos de campos tanto en pantalla como en exportación.
+
+**Vocabulario de estados de un indicador (P0-030).** Un valor ausente no es un cero, y no todas las ausencias son iguales. La pantalla distingue cinco, con texto además de color:
+
+| Estado | En pantalla | Cuándo |
+|---|---|---|
+| `OK` | El valor | Calculado desde la base. **Un 0 es un cero observado** y se muestra como número, no como aviso. |
+| `NO_DENOMINATOR` | «Sin denominador» | El denominador es cero: el cociente no existe. Ni 0 % ni 100 %. |
+| `UNKNOWN` | «Desconocido» | El universo se conoce, pero la condición no ha sido evaluada en ningún sujeto. |
+| `CRITERION_UNDEFINED` | «Criterio sin definir» | El criterio carece de definición aprobada (p. ej. D-05) y aún no puede evaluarse. |
+| `RESTRICTED` | «Sin permiso» | El rol no tiene el permiso de ese dominio; no se muestra valor, conteo ni desglose. |
+
+Junto al estado se publica lo **observado**: los conteos que sí se pueden hacer aunque el indicador principal no sea un número (parcelas sin evaluar, sujetos sin severidad, expedientes bloqueados). Nunca se usan para rellenar el valor principal.
+
+En los reportes por entidad, un sujeto sin evaluar **aparece en la tabla** rotulado como tal; no se omite. Las cantidades se muestran y se totalizan **por unidad**. Una descarga declara si es la instantánea mostrada o un recálculo con nueva fecha.
 
 ### 20.3 Importación Excel, P0-026
 

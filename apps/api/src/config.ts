@@ -33,6 +33,9 @@ export interface AppConfig {
   objectStore: ObjectStoreConfig;
   /** Perfil de importación GeoJSON (P0-009): límites configurables. */
   geojson: GeoJsonLimits;
+  /** P0-018: escáner antimalware (clamd) y límites de documentos. */
+  scanner: { host: string; port: number; timeoutMs: number };
+  documents: { maxBytes: number; orgQuotaBytes: number };
 }
 
 export interface GeoJsonLimits {
@@ -90,6 +93,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       maxComponents: positiveInt('GEOJSON_MAX_COMPONENTS', env, 50),
       maxRingsPerPolygon: positiveInt('GEOJSON_MAX_RINGS', env, 50),
     },
+    scanner: { host: env.SCANNER_HOST ?? 'localhost', port: positiveInt('SCANNER_PORT', env, 3310), timeoutMs: positiveInt('SCANNER_TIMEOUT_MS', env, 30_000) },
+    documents: { maxBytes: positiveInt('DOCUMENT_MAX_BYTES', env, 10 * 1024 * 1024), orgQuotaBytes: positiveInt('DOCUMENT_ORG_QUOTA_BYTES', env, 1024 * 1024 * 1024) },
     pii: (() => {
       const pii = parsePiiConfig(env);
       if (!pii) throw new Error('Variables requeridas no definidas: PII_KEYS, PII_ACTIVE_KEY_ID, PII_INDEX_KEY');

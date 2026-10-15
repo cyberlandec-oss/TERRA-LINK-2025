@@ -9,13 +9,11 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
-  Query,
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, ArrayMinSize, IsArray, IsEmail, IsIn, IsISO8601, IsInt, IsOptional, IsString, Length, Matches, Max, MaxLength, Min, MinLength,
+  ArrayMaxSize, ArrayMinSize, IsArray, IsEmail, IsIn, IsOptional, IsString, Length, Matches, MaxLength, MinLength,
 } from 'class-validator';
 import { createHash, randomBytes } from 'crypto';
 import { sql, type Kysely, type Transaction } from 'kysely';
@@ -63,11 +61,6 @@ class ChangeRolesDto {
   @IsIn(ORGANIZATION_ROLES, { each: true })
   roles!: string[];
   @ApiProperty() @IsString() @Length(3, 500) reason!: string;
-}
-
-class AuditQuery {
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
-  @IsOptional() @IsISO8601() before?: string;
 }
 
 class ReasonDto {
@@ -440,23 +433,6 @@ export class MembersService {
     });
   }
 
-  /**
-   * Bitácora de la organización (audit:read). Solo filas de ESA organización; la identidad de actores
-   * que no son miembros de ella (p. ej. personal de plataforma) se muestra como PLATFORM.
-   */
-  async auditLogs(user: AuthUser, orgId: string, limit: number, before?: string) {
-    await this.authz.require(user, orgId, 'audit:read', { mutation: false });
-    let q = this.db
-      .selectFrom('audit_logs as a')
-      .leftJoin('memberships as m', (j) => j.onRef('m.user_id', '=', 'a.actor_user_id').onRef('m.organization_id', '=', 'a.organization_id'))
-      .leftJoin('users as u', 'u.id', 'm.user_id')
-      .select(['a.id', 'a.action', 'a.entity_type', 'a.entity_id', 'a.result', 'a.reason', 'a.before', 'a.after', 'a.occurred_at', 'a.request_id', 'u.email as actor_email'])
-      .where('a.organization_id', '=', orgId);
-    if (before) q = q.where('a.occurred_at', '<', new Date(before));
-    const rows = await q.orderBy('a.occurred_at', 'desc').orderBy('a.id', 'desc').limit(limit).execute();
-    return rows.map(({ actor_email, ...r }) => ({ ...r, actor: actor_email ?? 'PLATFORM' }));
-  }
-
   /** SUPER_ADMIN: desactiva/reactiva la cuenta global e invalida todas sus sesiones (token_version + 1). */
   async changeUser(user: AuthUser, userId: string, target: 'ACTIVE' | 'INACTIVE', reason: string, requestId?: string) {
     this.authz.requirePlatform(user, 'user:deactivate');
@@ -520,11 +496,6 @@ export class MembersController {
     @Param('membershipId', ParseUUIDPipe) membershipId: string, @Body() dto: ChangeRolesDto, @Req() req: AuthedRequest,
   ) {
     return this.service.changeRoles(user, orgId, membershipId, dto.roles, dto.reason, req.requestId);
-  }
-
-  @Get('audit-logs')
-  auditLogs(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Query() q: AuditQuery) {
-    return this.service.auditLogs(user, orgId, q.limit ?? 50, q.before);
   }
 
   @Get('invitations')

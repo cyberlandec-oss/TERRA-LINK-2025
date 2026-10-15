@@ -1,6 +1,18 @@
 # Estado compartido de desarrollo
 
-Última actualización: 2026-10-10. Repositorio `cyberlandec-oss/TERRA-LINK-2025`, rama de trabajo `feat/tech-001-ci-p0-002` (PR #1 abierto como respaldo y revisión; `main` en `03bb2f6`).
+Última actualización: **2026-10-15**. Repositorio `cyberlandec-oss/TERRA-LINK-2025`, rama de trabajo `feat/tech-001-ci-p0-002` (PR #1 abierto como respaldo y revisión; `main` en `03bb2f6`).
+
+**Seguimiento por historias al 2026-10-15** (cuenta **historias**, no esfuerzo ni porcentaje de avance): **23**
+reportadas DONE_LOCAL con sus límites de evidencia · **8** abiertas con implementación parcial o criterios
+bloqueados · **1** (P0-031) cuyo piloto real sigue **sin ejecutar**. El bloqueo central que queda es **D-07**;
+de D-05 solo sigue abierta la parte **B** (aplicabilidad jurídica).
+
+**D-07 — mecanismos adoptados el 2026-10-15** (migración `0042`), **sin aprobar ningún catálogo**: aprobación con
+permiso propio y **adopción por organización** separada de la publicación global; **severidad por regla agregada
+por máximo**, siempre con su **cobertura**, y `NOT_ASSESSED` cuando no hay hallazgos; desactualización por cambio
+de datos o de reglas. **D-07.3 no aplica** (sin pesos). `0.1.0` y `0.2.0` siguen `NOT_APPROVED`, sin severidades y
+sin adopción. **D-07.5 y D-07.6 siguen pendientes**: la conclusión regulatoria sigue `UNDETERMINED` por `CHECK` y
+el expediente **no** se acerca a `READY`.
 
 > Resultados ajenos a este proyecto: la auditoría inicial del repo `cacao` no aplica a Terra Link 2025.
 
@@ -8,7 +20,41 @@
 
 GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/github-actions-ci.yml`). La facturación de GitHub **no es un bloqueo**. **DONE_LOCAL** = criterios de la historia cumplidos con evidencia local (`npm run validate` aprobado + suites de la historia). DONE_LOCAL no acredita producción, Android real ni conformidad EUDR.
 
-Última validación: `npm run validate` **APROBADA**, 7 pasos (servicios, typecheck, lint, build, OpenAPI validado, API 90/90 + web 3/3, E2E 14/14). Registro en `validation-results/` (no versionado); commit y resultado en el registro de sesión.
+Última validación: `npm run validate` **APROBADA** el 2026-10-15, corrida
+`validation-results/2026-10-15T20-04-51-326Z` (no versionada): 7 pasos — servicios, typecheck, lint, build, OpenAPI
+validado (**193 rutas**), **62 suites y 563 pruebas** de unitarias + integración y **62 pruebas** E2E de navegador.
+Acredita los **mecanismos D-07** (migración `0042`) y la presentación de la severidad con su cobertura.
+Su resumen anota `commit: 2430053` + 24 archivos sin confirmar: la corrida es **anterior** al commit, como siempre.
+
+Anteriores del mismo día: `2026-10-15T19-47-14-688Z` (62/563 + 62 E2E, antes de corregir la pantalla de riesgo) y
+`2026-10-15T18-33-43-757Z` (61 suites, 545 pruebas, 62 E2E, 192 rutas), que acreditó **D-05.A** (perfil
+`EUDR_GEO_V1`, migración `0041`) y el cierre de **P0-009** y **P0-010**.
+
+Su resumen anota `commit: b9b94cf` + 18 archivos sin confirmar, que es el contenido de esta entrega: la corrida es
+**anterior** al commit, como siempre. Durante la corrida se editó por error un comentario de
+`apps/api/src/plots/geo-profile.ts` y **se revirtió de inmediato**, de modo que el árbol probado es el que se
+confirma. El método para comprobar esa correspondencia es el de
+`docs/qa/EVIDENCIA_D32_D33_2026-10-15.md` §«Correspondencia entre la corrida y el commit».
+
+**Corrida anterior** (`2026-10-15T04-25-29-508Z`, 60 suites / 519 pruebas + 61 E2E): se ejecutó **antes** del
+commit final; su resumen anota `commit: 7e62c74` y 31 entradas sin confirmar. El código probado es el que después se guardó como **`2c1ab60`**, y esa correspondencia se
+comprobó —padre del commit, 31 segundos de diferencia, y los registros de la corrida mostrando las suites y los
+títulos de prueba que solo existen en ese commit— con su límite declarado, en
+`docs/qa/EVIDENCIA_D32_D33_2026-10-15.md` §«Correspondencia entre la corrida y el commit». **A la corrida no se le
+atribuye un SHA que aún no existía.**
+
+El 2026-10-15, después de esa validación, se ejecutaron además —sin repetir `validate` completa, por tratarse de
+código de prueba y documentación— el recorrido integral (**10/10**) y `e2e/tests/productos.spec.ts` completo
+**dos veces, en dos ordenaciones distintas** (**24/24** cada una).
+
+La anterior aprobada fue `a779ab3` (`2026-10-15T01-45-25-586Z`, 59 suites / 504 pruebas + 58 E2E). La corrida
+intermedia `2026-10-15T03-42-23-936Z` se **conserva FALLIDA**: una expectativa de prueba desactualizada por la
+publicación del catálogo `1.6.0`, no un defecto del producto.
+
+**Pendiente de entorno, abierto**: entre el 2026-10-12 y el 2026-10-14 cinco corridas seguidas fallaron, cada una con una
+suite distinta superando el timeout de 60 s. La causa no está confirmada; la hipótesis principal es la latencia del disco
+USB donde se trasladó el almacenamiento de Docker. Una corrida aprobada **no** la confirma ni la descarta. Diagnóstico y
+mediciones en `docs/qa/DIAGNOSTICO_VALIDACION_INESTABLE_2026-10-13.md`.
 
 ## Estado por historia
 
@@ -22,10 +68,30 @@ GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/git
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
+| P0-031 Piloto y operación reproducible | **NO INICIADA** como piloto. Preparación hecha: **recorrido integral** de la cadena en base aislada (10 casos: **once transiciones encadenadas** —incluido el **cierre de entrega con diferencia**, desde el 2026-10-15— y **cinco bloqueos** con su decisión: D-05, D-07, D-09 parte B, expediente y despacho); **QA-16 COMPLETA en sus dos mitades**: respaldo y restauración verificados sobre las 39 migraciones de entonces (hoy el despliegue lleva **40**) (cotejo de 25 tablas, 265 FK, descifrado 18+21 campos sin fallos, objetos 2/2 por clave, tamaño y hash) **y la aplicación operando sobre la copia** en instancia aislada con API y web propias (9 comprobaciones correctas, 3 bloqueos esperados, 0 fallas); **manual de operación y guion de capacitación escritos**. **Sin ejecutar**: volumen de piloto (20–50 productores), Android real, **RPO/RTO con volumen real** y **capacitación impartida** | Ver `docs/qa/MATRIZ_RECORRIDO_INTEGRAL.md`, `docs/qa/EVIDENCIA_QA16_RESTAURACION_2026-10-15.md`, `docs/MANUAL_OPERACION.md`, `docs/qa/CONTRASTE_SEGURIDAD_2026-10-15.md` y `docs/decisiones/DECISIONES-MINIMAS-PARA-CERRAR.md` |
+| P0-028 Primer proveedor satelital | **ABIERTA** (2026-10-14): contrato, persistencia, trabajo asíncrono, desenlaces, defensa de salida, permisos y ficha de parcela implementados y probados **sin proveedor seleccionado**. Ningún resultado puede guardarse con conclusión (`CHECK conclusion = 'NOT_EVALUATED'`) y los resultados de fixture quedan marcados `is_synthetic` y no satisfacen ningún requisito. **D-09 parte A adoptada (2026-10-15)**: adaptador Whisp de desarrollo, probado contra servidores controlados, con llamadas reales cerradas por configuración. Bloqueado por **D-09 parte B** (uso real), **D-07** (regla de riesgo evaluable) y **D-42** (contrato de resultado→evidencia; **no** es D-37, que decide la autoverificación). Validación vigente: `e9ffb9f` (57 suites, 472 pruebas, 58 E2E) | Ver `docs/decisiones/P0-028-SATELITE.md` y `docs/qa/EVIDENCIA_P0-028_2026-10-14.md` |
+| P0-030 Reportes e indicadores | **ABIERTA** (revisión 4, 2026-10-15). **`plots_valid` ya se calcula**: cuenta el dictamen del perfil `EUDR_GEO_V1` de la versión **vigente**, declara **perfil y versión contados** (y avisa si hay mezcla de versiones) y separa **cumple / no cumple / en revisión / no evaluable / sin evaluar**; las no evaluadas **no entran en el denominador**. Salió de `CRITERION_UNDEFINED` —el criterio ya existe— y pasa a `UNKNOWN` mientras no se ejecute. **Sigue ABIERTA**: la distribución de riesgo depende de **D-07** y del catálogo `NOT_APPROVED`, y qué *significa* el resultado del perfil depende de **D-05.B**. Antes (2026-10-14, revisión 3; `validate` APROBADA sobre `ebb8368`). Demostrado: 11 KPI de §60 con **cinco estados** y conteos `observed`; **seis reportes por entidad de §97** con permiso de **cada dominio del que publican datos**, probado en memoria con permisos arbitrarios; paginación por cursor (520 filas, sin duplicados ni omisiones) y exportación del conjunto completo hasta 20 000 filas, con el tope declarado; **GeoJSON técnico**; **comparación de actividad** por fecha operativa; cobertura histórica corregida; consistencia por instantánea declarada con su alcance exacto. Bloqueado: `plots_valid` (D-05), distribución de riesgo (**D-07** + catálogo NOT_APPROVED + `CHECK` del esquema) y perfil regulatorio del GeoJSON (D-05) | Ver `docs/decisiones/P0-030-CRITERIOS.md`, `docs/decisiones/P0-030-REPORTES.md` y `docs/qa/EVIDENCIA_P0-030_2026-10-14.md` |
+| P0-029 Movimientos y embarque | **ABIERTA**: reserva/liberación/cancelación en el ledger, preflight y destino en el Lot Hub demostrados; **despacho no demostrado** (bloqueado por D-34, DD READY inalcanzable y calidad pendiente; mecánica probada solo con preflight sintético). `npm run validate` **APROBADA** el 2026-10-14 sobre `ad03b80` (`2026-10-14T02-21-43-641Z`): es la primera completa que incluye esta historia, y no cierra el pendiente funcional. CTE `SHIPMENT` figura INTEGRATED en su sentido de contrato —la operación y su evento existen—, no como despacho acreditado | Ver `docs/decisiones/P0-029-EMBARQUES.md` y `docs/qa/EVIDENCIA_P0-029_2026-10-12.md` |
+| P0-027 Web por rol y Lot Hub | **DONE_LOCAL** (2026-10-12): reabierta por la condición de «Parcelas sin ubicación» y el aviso de parcelas restringidas; corregida y `npm run validate` aprobada (`2026-10-12T17-51-31-124Z`) | Ver `docs/decisiones/P0-027-WEB-POR-ROL-Y-LOT-HUB.md` |
+| P0-026 Importación Excel | **DONE_LOCAL** (2026-10-12): cinco plantillas (productores, productos, parcelas, entregas, lotes) con criterios originales contrastados; `npm run validate` aprobada sobre el commit. No acredita uso con un Excel real de una asociación | Ver `docs/decisiones/P0-026-IMPORTACION-EXCEL.md` |
+| Superficie declarada (P0-006) | **Adopción para desarrollo local** (2026-10-12): actualizarla conserva la geometría vigente; no hereda evaluaciones GIS | Ver `docs/decisiones/SUPERFICIE-DECLARADA-CONSERVA-GEOMETRIA.md` |
+| P0-024 Sync | **ABIERTA**: servidor y motor móvil para ubicación y foto; probado en integración y con cliente Node contra la API; sin dispositivo ni inventario | Ver criterios abajo |
+| P0-023 Captura offline | **ABIERTA**: sesión sin ventana extra, cifrado obligatorio en build nativo y fotos en la base probados en Node; sin ensayo Android real ni SQLCipher en dispositivo | Ver criterios abajo |
+| P0-022 Diligencia y paquete | **ABIERTA**: capacidades independientes DONE_LOCAL; aprobación READY y `DD_PACKAGE` con datos reales no demostrables (requisitos dependientes de decisiones y capacidades inexistentes, sin rebajar) | Ver criterios abajo |
+| P0-021 Mitigación | **DONE_LOCAL** (criterios originales demostrados); causas que dependen de D-05 o del proveedor satelital no se mitigan (no se simula su resolución) | Ver criterios abajo |
+| P0-020 Riesgo | **DONE_LOCAL** para sus criterios originales. Desde el 2026-10-15 el **mecanismo** de severidad existe (D-07.2: por regla, por máximo, con cobertura), pero **ningún catálogo la declara ni está adoptado**, así que toda evaluación sigue saliendo `NOT_ASSESSED` **con su motivo**. La conclusión sigue `UNDETERMINED` por `CHECK` (D-07.5/D-07.6). Reglas dependientes de D-05.B y P0-028 siguen no evaluables | Ver criterios abajo y `docs/decisiones/D-07-PROPUESTA.md` |
+| P0-017 Inventario y balance de masa | **Criterios demostrados localmente excepto despacho**; STORAGE integrada (CTE 1.3.0); reserva para embarques demostrada con P0-029 (2026-10-12). **Historia abierta**: el despacho sigue bloqueado (P0-029, D-34) | Ver criterios abajo |
+| P0-016 Lotes y procesos | **DONE_LOCAL (2026-10-15)**: criterios originales demostrados localmente; FERMENTATION integrada (CTE 1.2.0) y **DRYING integrada** (CTE 1.6.0) tras adoptar D-32 (humedad en %BH con método y responsable). Siguen pendientes, fuera de los criterios de la historia, los **límites de aceptación** de la humedad y las unidades adicionales de peso (D-32) | Ver criterios abajo y «2026-10-15» |
+| P0-012 Entregas y recepción | **DONE_LOCAL (2026-10-15)**: el criterio «diferencias con causa» queda demostrado con el cierre de entregas (D-33 adoptada). Antes: **Capacidades demostradas: verificadas localmente** (entrega, peso recibido, parciales, vínculos, calidad básica como decisión humana, no duplicación). **Historia completa: ABIERTA**, pendiente del criterio «diferencias con causa» (cierre y tolerancias sin política, D-33). Evidencia por criterio abajo (entrega, recepción física parcial, pesaje, soportes, calidad separada, correcciones, compuertas por transición) con decisiones de diseño MVP D-33/34/35 no validadas en campo; cierre por debajo de lo declarado, tolerancias, catálogo de límites, centros asignados e inventario (P0-017) pendientes | Ver criterios abajo |
+| P0-025 Auditoría | **DONE_LOCAL** (criterios de la historia sobre los módulos existentes); auditoría de riesgo, entregas, procesamiento, expediente y concesiones pendiente de sus historias; formato de exportación provisional (D-38) | Ver criterios abajo |
+| P0-019 Evidencias | **DONE_LOCAL** (criterios de la historia); afirmaciones de lote, análisis ambiental y mitigación esperan sus entidades; uso en riesgo/expediente es P0-020/P0-022 | Ver criterios abajo |
+| P0-018 Documentos | **DONE_LOCAL** (criterios de la historia); usa auditoría ya verificada; P0-025 y P0-019 ya cerradas en local | Ver criterios abajo |
+| P0-015 Eventos | **DONE_LOCAL** para los criterios internos de la organización (correction_of con efecto real en productor, historial autorizado, reproceso DEAD, fencing); concesiones externas y elevación siguen en P0-003 | Ver criterios abajo |
+| P0-014 KDE | **DONE_LOCAL** para catálogo y servicio de validación; 0 compuertas integradas (cada operación lo demuestra en su historia); D-33, D-34 y configuración jurídica pendientes | Ver criterios abajo |
 | P0-013 CTE | **DONE_LOCAL** (catálogo versionado y mapeo de lo existente; la integración de cada operación es criterio de su propia historia) | Ver criterios abajo |
-| P0-011 Productos | **ABIERTA**: catálogo, unidades, permisos, historia y UI-09 verificados localmente; queda 1 criterio que depende de P0-016/017 («transformación cambia estado con evento/rendimiento») | Ver criterios abajo |
-| P0-010 Validación GIS | **ABIERTA**: parte técnica verificada localmente (`TL_GIS_TECH 1.0.0`); umbral debajo/igual/encima y perfil de destino dependen de D-05 (propuesta no aprobada) | Ver criterios abajo |
-| P0-009 GeoJSON | **ABIERTA**: alcance independiente verificado localmente; «perfil destino» depende de P0-010/D-05 (dependencia del backlog conservada) | Ver criterios abajo |
+| P0-011 Productos | **DONE_LOCAL** (2026-10-10): el criterio pendiente «transformación cambia estado con evento/rendimiento» quedó demostrado con la fermentación de P0-016 (`lots.int-spec.ts`, E2E) | Ver criterios abajo |
+| P0-010 Validación GIS | **DONE_LOCAL (2026-10-15)**: la parte técnica ya estaba verificada (`TL_GIS_TECH 1.0.1`) y el criterio pendiente —«umbral debajo/igual/encima probado tras aprobar perfil»— queda demostrado con **D-05.A adoptado** e implementado como `EUDR_GEO_V1` (regla y tabla propias). **Separado y pendiente**: la **aplicabilidad jurídica (D-05.B)** y la **aceptación por el servicio real del destino**, que nunca se ha probado | Ver criterios abajo y `docs/decisiones/D-05-PROPUESTA.md` |
+| P0-009 GeoJSON | **DONE_LOCAL (2026-10-15)**: el alcance independiente ya estaba verificado y el criterio «perfil destino» queda demostrado con la **exportación con perfil por productor** (`EUDR_GEO_V1`), que convive con la exportación técnica sin sustituirla. **Separado y pendiente**: **D-05.B** y la **aceptación por el servicio real**; cumplir el perfil técnico no es conformidad | Ver criterios abajo |
 | P0-008 Polígono | **DONE_LOCAL** con evidencia de integración (PostGIS real) y navegador **[SIMULADA]**; captura real de campo pendiente | Ver criterios abajo |
 
 ### TECH-001 — criterio por criterio
@@ -153,7 +219,8 @@ Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T17-00-2
 | Exportación actual/anterior; reimportación | Feature RFC 7946 sin identidad personal y con aviso «no es paquete EUDR»; serialización de 17 dígitos; reimportar conserva `geometry_hash` | «exportación…», E2E |
 | Revocación/reasignación tras el análisis | Reasignado 404; membresía desactivada rechazada; org suspendida 403; la importación queda ANALYZED | «revocación o reasignación…» |
 | MultiPolygon con huecos y compatibilidad | Versiones previas sin cambios (`source_import_id` NULL) | «MultiPolygon con hueco…», suites P0-006/007/008 en verde |
-| **Perfil destino** | **Pendiente**: especificación GeoJSON del sistema receptor y reglas regulatorias dependen de P0-010/D-05 | — |
+| **Perfil destino** | **DEMOSTRADO (2026-10-15)** con **D-05.A** adoptado: exportación con perfil **por productor** (variante de nivel de productor del destino), coordenadas con **6 decimales como números**, `Area` solo en puntos y como número, **sin `ProducerName`** (dato personal) ni **`ProducerCountry`** (no se registra país de producción: deducirlo sería inventarlo), y **lista de no exportables con su motivo**, con código propio para «no evaluada» | `geo-profile.int-spec.ts` §exportación (6 casos) |
+| Perfil destino — **lo que NO acredita** | **Pendiente, separado**: la **aplicabilidad jurídica** (D-05.B) y la **aceptación por el servicio real del destino**, que no se ha probado nunca. El **período de producción** del Art. 9(1)(d) **no** viaja en el archivo: no hay contrato que diga cómo, y no se inventa la propiedad | — |
 | Evidencia visual de precisión null (P0-008) | **[FIXTURE]**: muestras sintéticas enviadas a la API real con `accuracy_m` null; «Precisión no informada» y «(resumen incompleto)» en pantalla | E2E `poligono.spec.ts` |
 
 Correcciones laterales: (1) el motivo de `ST_IsValidReason` incluía una coordenada y P0-008 lo guardaba en `notes` (visible sin `plot:read_geometry`); ahora se elimina en notas, eventos, auditoría y errores. (2) Las vistas de versiones usaban `ST_AsGeoJSON` con 9 decimales; ahora 17 (ida y vuelta exacta).
@@ -175,7 +242,9 @@ Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T17-37-1
 | Reintentos y rollback | `operation_id` concurrente → un registro; fallo forzado → sin evaluación, evento ni auditoría | «reintentos idempotentes…» |
 | Errores, logs y NOTICE | NOTICE de PostGIS bloqueado (`client_min_messages=warning`, `ST_IsValidDetail`); errores de base registrados solo con SQLSTATE | «NOTICE de PostGIS…», «reintentos…» |
 | Sin reparación destructiva | La evaluación no modifica versiones (plot_versions append-only) | — |
-| **Umbral debajo/igual/encima** | **Pendiente de D-05** (propuesta en `docs/decisiones/D-05-PROPUESTA.md`, no aprobada) | — |
+| **Umbral debajo/igual/encima** | **DEMOSTRADO (2026-10-15)** con **D-05.A** adoptado: operador **estricto** (`> 4` exige polígono), **exactamente 4 ha se admite** con aviso de igualdad y **sin banda de tolerancia**; mínimo de 0,0001 ha; comparación sobre el **valor almacenado**, sin reducirlo antes; punto sin superficie **no exportable**; discrepancia declarada/calculada que cruza el umbral → **revisión humana** | `geo-profile.int-spec.ts` (20 casos) |
+| Perfil de destino como **dictamen aparte** | **DEMOSTRADO**: regla `EUDR_GEO_V1` con tabla propia y append-only; las evaluaciones `TL_GIS_TECH` **no se migran, ni se recalculan, ni se invalidan** (prueba que compara filas antes y después); los **dos dictámenes se muestran juntos** y pueden discrepar (polígono con hueco: técnico `VALID`, perfil `DOES_NOT_MEET`) | `geo-profile.int-spec.ts`, E2E `geojson.spec.ts` |
+| Truncamiento del destino | **DEMOSTRADO**: simulación **hacia cero** en decimal exacto, con coordenadas **negativas**; se valida la geometría **resultante**; **el original no se modifica ni se repara**; el **cierre del anillo** se distingue de los vértices que **colapsan** | `geo-profile.int-spec.ts` (5 casos) |
 | Barrido programado (P0-009/D-29) | Worker: huérfanos con gracia y descartados; protección de referenciados bajo bloqueo; tareas reintentables; varios workers sin duplicar | `storage-sweeper.int-spec.ts` 6/6 |
 
 ### P0-011 — criterios
@@ -214,6 +283,310 @@ Justificación de DONE_LOCAL: la aceptación pide el catálogo y el mapeo de los
 
 GIS: `TL_GIS_TECH 1.0.1` publicada como versión de corrección (el alcance por evaluador cambia el conjunto comparado); registros 1.0.0 inmutables y marcados desactualizados.
 
+### P0-014 — criterios
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T18-57-26-508Z`): API 195/195, web 4/4, E2E 44/44, OpenAPI 66 rutas. Revisión visual 27 entradas, 0 incidencias.
+Fallo intermitente previo (`validation-results/2026-10-10T18-49-29-397Z`): `producers.int-spec.ts` superó 60 s en «búsqueda y paginación…» (la suite tardó 291 s; aislada tarda 12 s). Causa no determinada: sin conexiones pendientes en la base al revisar; hipótesis de contención del equipo durante la corrida. Se conserva la evidencia; no se declara resuelto.
+
+| Criterio | Resultado | Evidencia (`kde-validator.spec.ts` [fixtures], `kde.int-spec.ts`) |
+| --- | --- | --- |
+| Definición | 62 KDE con código, versión, hito exacto, entidad/campo, tipo, unidad/dimensión, obligatoriedad y condición, regla tipada, responsable, fuente y diferencias | «catálogo 1.0.0…» |
+| Validación | Válido, inválido, requerido/opcional ausente, no aplica, condición no evaluable y referencia no verificable; 0/false/""/null distinguidos; sin conversión | unitarias 6/6; «validación con referencias…», «condición entre hitos…» |
+| Condición | Verdadera, falsa, desconocida (no equivale a falsa) y no definida en el contrato | unitarias; «condición entre hitos…» |
+| Faltantes como faltantes e impedir la transición | `gate.transition_allowed=false` ante bloqueantes; nada se completa | unitarias; «validación…» |
+| Versión y responsable | Referencia `CODE@n` a la versión exacta del hito; nueva versión preserva la anterior; hito retirado → 409 para operaciones nuevas | «versionado…» |
+| Publicación atómica y esquema cerrado | Publicación fallida sin efectos; reglas fuera del esquema rechazadas | «publicación fallida…»; unitaria de esquema |
+| Autorización y privacidad | Productor 403, no miembro 404, referencias fuera de alcance/organización/inexistentes con el mismo código, respuestas sin valores ni datos sensibles | «validación…», «respuestas sin valores…» |
+| UI | Consulta por hito (tipo, unidad, obligatoriedad, condición, regla, responsable, fuente, integración) sin formularios; 390 px y teclado | E2E; revisión por rol |
+| **Integración en operaciones** | **0 integradas**; cada historia (P0-012, P0-016, P0-017, P0-029) debe demostrar el bloqueo | — |
+
+### P0-015 — criterios (alcance interno)
+
+Validación: `npm run validate` APROBADA a la primera (`validation-results/2026-10-10T19-28-15-559Z`): API 203/203, web 4/4, E2E 45/45, OpenAPI 70 rutas. Revisión visual 28 entradas, 0 incidencias.
+
+| Criterio | Resultado | Evidencia (`event-corrections.int-spec.ts`, `events.int-spec.ts`, E2E) |
+| --- | --- | --- |
+| Envolvente/versión/tenant/actor/tiempos, append-only | Existentes (TECH-001); actor de la sesión | `events.int-spec.ts` |
+| correction_of | Misma organización y agregado, motivo, cadena, sin autorreferencia ni referencias ajenas (también en BD); original inmutable; efecto de dominio real en el productor | «corrección real…», «rechazos…» |
+| Idempotencia y concurrencia | Reintento idéntico → réplica (con autorización revalidada); mismo id con otro contenido → 409; 3 correcciones simultáneas → 1; cambio posterior → obsoleta | «idempotencia y concurrencia…» |
+| Rollback | Fallo forzado → sin cambio, evento ni auditoría | «rollback…» |
+| Historial causal | Por recurso con alcance efectivo, orden y paginación estables, corrección y vínculo al original, campos permitidos, sin identidad ni secretos; tipo desconocido sin campos; reasignación y membresía desactivada retiran acceso | «historial por recurso…» |
+| Outbox atómico y consumo idempotente | Fallo de confirmación tras efectos → efectos revertidos; reintento aplica una vez; entrega repetida sin efectos; recibos no se borran | «el consumidor completa sus efectos…» |
+| Reproceso DEAD | Autorizado (ORG_ADMIN) con motivo y auditoría; auditor/técnico/otra organización denegados; solicitudes simultáneas → una; historial de intentos y recibos conservados | «DEAD → reproceso…» |
+| Fencing de arrendamientos | Un worker con arrendamiento vencido no confirma la entrega reclamada después (LEASE_LOST); efectos una vez | «fencing…» |
+| UI | Historial en fichas de productor y parcela; corrección solo con permiso y contrato; original visible y marcado; página de entregas DEAD; 390 px y teclado | E2E; revisión por rol |
+| **Concesiones externas y elevación** | **Pendientes en P0-003** | — |
+
+Diagnóstico del timeout de P0-004: `validate` guarda ahora `api-test-timings/` (duración por suite y prueba, fases del arnés —reinicio del esquema, migraciones, arranque, cierre— y consultas ≥ 1 s solo con texto SQL). En esta corrida no reapareció (suite más lenta 11,3 s; 0 consultas lentas). La causa original sigue sin determinar; evidencia en `validation-results/2026-10-10T18-49-29-397Z`. No se aumentó ningún timeout.
+
+### Revisión 2026-10-11 (4) — intento 5 en emulador, vista previa web y prueba negativa
+
+| Punto | Estado | Evidencia |
+| --- | --- | --- |
+| Recorrido en emulador, intento 5 (APK `184cbfa8`) | Todos los pasos OK salvo almacenamiento lleno | `docs/qa/EVIDENCIA_EMULADOR_INTENTO5_2026-10-11.md` |
+| Almacenamiento lleno: error técnico de SQLite al crear borrador | **DEFECTO DE LA APP**, corregido en código; pendiente de APK nuevo | `storageFullMessage` + prueba unitaria |
+| APK `184cbfa8` | **NO APTO** (renombrado `NO-APTO-mensaje-almacenamiento-lleno-184cbfa8.apk`) | README móvil |
+| Vista previa web móvil (3001) | Funciona; 32/32 pasos en 390 px y escritorio; 3 defectos visuales corregidos | `docs/qa/REVISION_WEB_MOVIL_2026-10-11.md` |
+| Prueba negativa sin SQLCipher | OK en emulador: bloqueo antes del login, sin base/token/fotos (etiqueta de variante incorrecta, documentada) | `docs/qa/EVIDENCIA_APK_9996a9b4_Y_NEGATIVA_2026-10-11.md` |
+| APK `9996a9b4` (commit `0ba960a`) | **APTO para el ensayo físico**: autoprueba 9/9 y recorrido completo en emulador (intento 6) | idem |
+| Teléfono físico | NO EJECUTADO | — |
+
+P0-023 y P0-024 siguen ABIERTAS.
+
+### Revisión 2026-10-11 (3) — recorrido en emulador, prueba negativa y orientación
+
+Móvil (separado de `npm run validate`): `validation-results/2026-10-11T17-08-34-732Z-movil` (typecheck, 25 pruebas de núcleo, recorrido contra la API, bundle Android, expo-doctor). API: solo cambió una prueba (`sync.int-spec.ts` 7/7, lint OK); la última `npm run validate` sigue siendo `validation-results/2026-10-11T07-46-54-839Z`. Evidencia: `docs/qa/EVIDENCIA_EMULADOR_Y_NEGATIVA_2026-10-11.md`.
+
+| Punto | Estado | Evidencia |
+| --- | --- | --- |
+| Recorrido integrado en emulador | **INTERRUMPIDO** | Login por la interfaz OK; apertura del almacén cifrado falló (defecto real) |
+| Defecto SQLCipher + transacción (conexión sin clave) | CORREGIDO EN CÓDIGO, **APK SIN RECOMPILAR** | `apps/mobile/src/adapters/expo.ts`; guardia de disco detuvo Gradle |
+| Prueba negativa sin SQLCipher | PREPARADA, **NO COMPILADA** | Variante aislada en `app.config.js`; 2,73 GB libres |
+| Sonda de cifrado antes del login | IMPLEMENTADA (sin ejecutar en emulador) | Bloquea sin token/dataset/fotos |
+| Orientación visual y aceptación del servidor | DEMOSTRADO | Chromium + `sync.int-spec.ts` |
+| APK para el ensayo físico | **NO APTO** (`43f26c95…` contiene el defecto) | Recompilar tras recuperar espacio |
+| Teléfono físico | NO EJECUTADO | — |
+
+### Revisión 2026-10-11 (2) — limpieza, build nativo y autoprueba en emulador
+
+Validación web/API: `npm run validate` APROBADA (`validation-results/2026-10-11T07-46-54-839Z`): 290/290 unitarias + integración, 55/55 E2E, OpenAPI 146 rutas. Móvil (separado): `validation-results/2026-10-11T07-58-10-356Z-movil` (typecheck, 24 pruebas de núcleo, recorrido contra la API en contenedor, bundle Android, expo-doctor).
+
+| Punto | Estado | Evidencia |
+| --- | --- | --- |
+| Limpieza autorizada | HECHA | +5,70 GB en C: (npm); caché Docker 11,25 GB → 0 dentro del disco virtual (sin compactar) |
+| Build nativo Android (release, clave de depuración) | GENERADO | APK `e484cf4a…`; SQLCipher en `libexpo-sqlite.so` |
+| SQLCipher real | DEMOSTRADO EN EMULADOR | Autoprueba 8/8 (API 30 x86_64) |
+| Fallo cerrado sin SQLCipher | PARCIAL | Lógica en el runtime real; sin build nativo sin SQLCipher |
+| Copia temporal de subida | DEMOSTRADO EN EMULADOR | Limpieza tras fallo y tras interrupción |
+| Salud con escáner caído | DEMOSTRADO | `degraded`, scanner `unavailable` (contenedor e integración) |
+| Orientación tras quitar metadatos | DEMOSTRADO (fixtures) | Orientación EXIF conservada; resto eliminado |
+| Teléfono físico (captura real, cierre, reinicio, vencimiento, cuentas, almacenamiento, conflictos) | **NO EJECUTADO** | Pasos en `apps/mobile/README.md` § B |
+
+### Revisión 2026-10-11 — escáner, D-41, Expo Go y entorno Android
+
+Validación web/API: `npm run validate` APROBADA (`validation-results/2026-10-11T05-58-21-233Z`): unitarias + integración (API y web) 289/289, E2E 55/55, OpenAPI 146 rutas. Móvil (separado): `validation-results/2026-10-11T05-56-44-934Z-movil (typecheck, 17 pruebas de núcleo, recorrido contra la API en contenedor, bundle Android, expo-doctor)`.
+
+| Punto | Estado | Evidencia |
+| --- | --- | --- |
+| SCANNER_HOST en docker-compose | CONFIRMADO (commit `761d07f`) | Servicio `api` recreado conservando volúmenes; `printenv SCANNER_HOST` = scanner |
+| Foto sintética pendiente → disponible por la API en contenedor | DEMOSTRADO | `docs/qa/evidencia-escaner-contenedor.json` (fase disponible) |
+| Escáner inaccesible nunca da limpio | DEMOSTRADO | Fase caído: `FAILED`/`PENDING_SCAN`; fase reintento: `AVAILABLE` tras volver el escáner |
+| D-41 adoptada; metadatos sin eludir clasificación | DEMOSTRADO (servidor y Node) | EXIF eliminado en el móvil; `PHOTO_METADATA_PRESENT` en el servidor; título/nombre neutros; eventos y auditoría sin leyenda, nombre ni coordenadas |
+| Expo Go solo con fixtures | IMPLEMENTADO (no ejecutado en teléfono) | La app reemplaza cámara y ubicación por fixtures en Expo Go |
+| SDK/JDK, build nativo, SQLCipher real, emulador, dispositivo | **NO EJECUTADO** | Bloqueado: 6,3 GB libres en el único disco |
+
+### P0-024 — criterios
+
+Validación web/API: `npm run validate` APROBADA (`validation-results/2026-10-11T05-28-58-923Z`): unitarias + integración (API y web) 289/289, E2E 55/55, OpenAPI 146 rutas; revisión por rol 40 entradas, 0 incidencias (corrida previa FALLIDA por lint en 2026-10-11T05-27-10-806Z, corregida). Móvil (separado): `validation-results/2026-10-11T05-25-49-416Z-movil`. Recorrido cliente-API: foto sincronizada con archivo verificado y escaneado (`AVAILABLE`), conflicto sin efecto, idempotencia y separación de cuentas. **No es validación en dispositivo.**
+
+| Criterio original | Estado | Evidencia |
+| --- | --- | --- |
+| operation_id estable | DEMOSTRADO | Reintento tras timeout y desde otro dispositivo con el mismo id y hash (`sync.int-spec.ts`, `sync.test.ts`) |
+| Dedup por hash | DEMOSTRADO | Mismo id+hash → `DUPLICATE` sin efecto doble; otro hash → `CONFLICT`; hash alterado → `HASH_MISMATCH` |
+| Dependencias | DEMOSTRADO | `DEPENDENCY_PENDING` sin bloquear independientes; dependiente de conflicto → `DEPENDENCY_FAILED` |
+| Cursor y tombstones | DEMOSTRADO (parcelas) | Cursor de servidor por org/usuario/dispositivo; tombstone al reasignar; cursor ajeno o caducado; bootstrap sin tocar pendientes |
+| Conflictos visibles | PARCIAL | Servidor y motor: conflicto con versiones y resolución por nueva operación; **interfaz del dispositivo no ejercitada** |
+| Adjuntos | DEMOSTRADO | Registro y archivo separados; integridad SHA-256/tamaño; Documentos (escaneo, permisos); subida incompleta rechazada |
+| Revalidación tenant/permisos | DEMOSTRADO | Dispositivo ajeno/otra org/revocado; permisos retirados → `FORBIDDEN` también al reenviar |
+| Timeout/retry no duplica inventario | PARCIAL | Demostrado para versiones de geometría (timeout tras commit, concurrencia); **inventario y entregas no tienen operaciones móviles** |
+| Recorrido integrado | PARCIAL | Cliente móvil en Node contra la API local; **sin dispositivo** |
+
+Defecto de entorno encontrado: la API en contenedor no tenía `SCANNER_HOST` (documentos quedaban sin analizar). Corregido localmente en `docker-compose.yml`, no confirmado en git (archivo raíz).
+
+### P0-023 — criterios
+
+Validación web/API: `npm run validate` APROBADA (`validation-results/2026-10-11T04-45-29-062Z`): unitarias + integración (API y web) 283/283, E2E 55/55, OpenAPI 141 rutas; revisión por rol 40 entradas, 0 incidencias. **No es validación del móvil.** Móvil: typecheck OK; `npm test` 9/9 (Node + SQLite real); `TL_API_SMOKE=1` 1/1 (cliente en Node contra la API local: tecnico1 recibió 5 parcelas, tecnico2 1, ninguna común); bundle Android exportado; expo-doctor 21/21.
+
+| Criterio original | Estado | Tipo de evidencia |
+| --- | --- | --- |
+| Entidad/cola en transacción local | DEMOSTRADO EN NODE | Unitaria con SQLite real: todo o nada; operation_id estable; dependencias |
+| Borradores/fotos/GPS sobreviven cierre y reboot | PARCIAL | Reapertura simulada en Node (nueva instancia, mismos archivos) y caché borrada; **sin cierre forzado ni reinicio en Android** |
+| Dataset limitado y separación por cuenta | DEMOSTRADO EN NODE + API | Base y adjuntos por cuenta+organización; dataset según asignación del servidor; otra cuenta no ve capturas |
+| Sesión offline definida | PROPUESTA | D-40 / ADR-0006 sin aprobar; ventana de 72 h; token no se renueva; revocaciones no detectables offline |
+| Ensayo Android real (docs/11) | NO EJECUTADO | Este equipo no tiene Android SDK, JDK ni adb; instrucciones en `apps/mobile/README.md` |
+| Cifrado local probado en la plataforma | NO EJECUTADO | SQLCipher requiere build de desarrollo; Expo Go queda sin cifrar (lo muestra «Diagnóstico») |
+
+### P0-022 — criterios
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-11T03-57-59-556Z`): unitarias + integración (API y web) 281/281, E2E 55/55, OpenAPI 140 rutas; revisión por rol 40 entradas, 0 incidencias. Corrida previa FALLIDA conservada (`validation-results/2026-10-11T03-45-52-370Z`): la prueba E2E de P0-022 mostró que, sin evaluación de riesgo, los requisitos de catálogo y conclusión no se listaban; se corrigió el guard (ahora aparecen como pendiente/no evaluable) y se añadió una prueba unitaria. El fallo anterior de arranque E2E (`2026-10-11T02-05-01-152Z`) sigue con **causa no determinada**; no se aumentaron tiempos de espera.
+
+| Criterio original (backlog) | Estado | Evidencia (`dd.int-spec.ts`, `requirements.spec.ts`, E2E, revisión) |
+| --- | --- | --- |
+| Guards por requisito | DEMOSTRADO | 16 requisitos: MET / PENDING / INVALID / NOT_EVALUABLE; desconocido = no evaluable; porcentaje alto no elimina bloqueos; calidad pendiente, origen incompleto y mitigaciones verificadas no equivalen a aprobación |
+| Revisión autorizada | PARCIAL | Iniciar y devolver con motivo, permisos, transiciones inválidas, una aprobación por instantánea (índice único). Aprobar se rechaza con `READINESS_NOT_MET` y la lista de requisitos; la aprobación positiva no puede demostrarse con datos reales |
+| Snapshot/manifest | DEMOSTRADO | Captura en REPEATABLE READ; contenido, hash total y por sección, manifest de versiones (lote, entregas, versiones de parcela con hash de geometría, versiones de documento con SHA-256, evidencias, evaluación de riesgo, catálogo, mitigaciones), fecha y autor; append-only |
+| Export auditado | PARCIAL | Borrador interno: permiso, auditoría (SUCCESS/DENIED), evento, idempotencia, descarga regenerada desde la instantánea con verificación de hash, redacción de geometrías y documentos PERSONAL_DATA. `DD_PACKAGE`: rechazado sin preparación (probado); éxito solo con fixture sintética en el generador |
+| Cambio relevante invalida readiness | DEMOSTRADO | Nueva evaluación de riesgo → instantánea STALE con secciones cambiadas; la instantánea y su paquete no cambian; aprobar/exportar sobre STALE se rechaza |
+| Export no marca DDS aceptada | DEMOSTRADO | `submission: NOT_SUBMITTED` en paquete, vista y evento; textos «descargar no es presentar» |
+
+Pendientes reales de P0-022: perfil jurídico (P1-005), D-05, proveedor satelital (P0-028), catálogo de riesgo aprobado, reserva/despacho y embarques (P0-017/P0-029); adjuntos incrustados en el paquete (hoy referencia por versión y SHA-256); política de identidad de productores en el paquete (hoy nunca se copia); un expediente por lote.
+
+### P0-021 — criterios
+
+Validación: `npm run validate` APROBADA en la primera corrida (`validation-results/2026-10-11T02-54-04-972Z`): API 269/269, web 4/4, E2E 54/54, OpenAPI 133 rutas. Revisión por rol: 36 entradas, 0 incidencias. **Fallo anterior de arranque E2E** (`2026-10-11T02-05-01-152Z`: el servidor web de E2E no arrancó en 240 s): **causa no determinada**; puertos libres y sin procesos residuales al revisarlo; no se aumentaron tiempos de espera. No se repitió en las corridas posteriores.
+
+| Criterio original (backlog) | Estado | Evidencia (`mitigations.int-spec.ts`; E2E; revisión) |
+| --- | --- | --- |
+| Acción ligada a causa | DEMOSTRADO | Evaluación + factor + lote conservados; factores dependientes de D-05/P0-028 rechazados (`CAUSE_NOT_ACTIONABLE`); sin identidad ni coordenadas |
+| Assignee / plazo / soporte / criterio | DEMOSTRADO | Responsable activo de la organización con facultad de aportar; plazo; evidencia requerida de la regla; criterio de aceptación documentado por quien crea |
+| Aportar soporte | DEMOSTRADO | Versión exacta de documento (disponible, vigente) o evidencia con su versión; adjuntar no verifica; solo el responsable; versión nueva no sustituye ni hereda aprobación (pide revisión) |
+| Verificar / rechazar con motivo y permisos | DEMOSTRADO | Ejecutor bloqueado (servicio y trigger de base); rechazo conserva soporte y motivo y abre nueva entrega; decisiones concurrentes: una gana |
+| Resolver dispara reevaluación | DEMOSTRADO | Evento `MitigationVerified` → consumidor del outbox → nueva evaluación con disparador; idempotente; un trabajo atrasado no sustituye una evaluación posterior |
+| Actualiza pendientes reales | DEMOSTRADO | `MITIGATION_UNVERIFIED` (reglas 0.2.0) bloquea el cierre de la revisión de riesgo; verificar no elimina otros bloqueos (DATA_MISSING_ORIGIN sigue) ni da por resuelta la causa |
+
+### P0-020 — criterios
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-11T02-28-47-248Z`): API 265/265, web 4/4, E2E 53/53, OpenAPI 127 rutas; revisión por rol 35 entradas, 0 incidencias. Otra corrida fallida conservada: 2026-10-11T02-23-01-580Z (segundo localizador ambiguo en la E2E de riesgo). Corridas previas fallidas conservadas: `2026-10-11T01-58-59-343Z` (localizador ambiguo en la prueba E2E) y `2026-10-11T02-05-01-152Z` (el servidor web de E2E no arrancó en 240 s por lentitud del equipo; puertos libres; sin pruebas ejecutadas).
+
+| Criterio original (backlog) | Estado | Evidencia (`risk.int-spec.ts`; E2E; revisión) |
+| --- | --- | --- |
+| Categorías / factores / reglas / snapshot | DEMOSTRADO | 10 categorías de docs/13 (las que no tienen reglas: «sin reglas»); 8 reglas versionadas (0.1.0, NO aprobadas) con fuente, límite y evidencia requerida; instantánea con versiones de datos y evidencias y hash SHA-256 |
+| Separar severidad / proceso / conclusión | DEMOSTRADO | Hallazgos técnicos · calidad de datos · resultado de riesgo (severidad NOT_ASSESSED, conclusión UNDETERMINED: CHECK en base) · revisión humana (OPEN → UNDER_REVIEW → RESOLVED) sin cambiar el resultado |
+| Faltantes no son score cero | DEMOSTRADO | Sin puntuación; no evaluables → INCOMPLETE como máximo, nunca favorable |
+| Reevaluación crea versión | DEMOSTRADO | Número de evaluación creciente; la anterior queda STALE sin modificarse (append-only); un trabajo basado en una evaluación vieja se rechaza (`STALE_BASE`) |
+| Factor crítico no se diluye | DEMOSTRADO | Resultado por precedencia: un bloqueante da BLOCKED aunque el resto no tenga hallazgos |
+| Autorización | DEMOSTRADO | Requiere alcance de organización completo; otra organización 404; roles sin permiso 403; sin referencias de recursos ocultos |
+| Límites declarados | — | TL_GIS_TECH = validez técnica, no deforestación; D-05, satélite (P0-028) y mitigaciones (P0-021) no evaluables; no hay perfil jurídico |
+
+### P0-017 — revisión enfocada (2026-10-10)
+
+Brechas corregidas: (1) ajuste positivo en lote de origen declarado ahora rechazado y cantidad añadida identificada sin trazabilidad; (2) conciliación/incorporación con alcance de organización completo; (3) compuerta STOCK_MOVEMENT guardada por línea y bloqueo real probado. Totales y movimientos ya respetaban el alcance (prueba añadida). P0-017 sigue **abierta** por reserva/despacho (P0-029).
+
+### P0-017 — criterios
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-11T01-20-07-037Z`): API 259/259, web 4/4, E2E 52/52, OpenAPI 122 rutas. Corrida previa fallida conservada: `2026-10-11T01-15-41-630Z` (expectativas de catálogo CTE/KDE/RBAC desactualizadas; código correcto). Revisión por rol: 34 entradas, 0 incidencias. DEMO incorporado al ledger por la migración 0024 (2 entradas por recepción, 2 asignaciones, 2 reservas, 1 cierre) y conciliado sin diferencias.
+
+| Criterio original (backlog) | Estado | Evidencia (`inventory.int-spec.ts`; `lots.int-spec.ts`; E2E; revisión) |
+| --- | --- | --- |
+| Ledger | DEMOSTRADO | Única fuente de existencia/reserva/disponible para recepciones, asignaciones, procesos y movimientos; append-only; trigger diferido de saldos; referencias exactas, actor y `operation_id` |
+| Merma | DEMOSTRADO | Con motivo; nunca sobre lo reservado; pérdida de proceso registrada una sola vez |
+| Traslado | DEMOSTRADO | Conserva el total de la organización; centro de otra organización 404; lo reservado no se traslada; asignación de ubicación pendiente |
+| Reserva/despacho | Reserva **DEMOSTRADA** (P0-029, 2026-10-12); despacho **NO DEMOSTRADO** | Reservas de proceso y de embarque reducen disponible, no existencia. El despacho está bloqueado por D-34 y por DD READY (P0-029) |
+| Ajuste con motivo | DEMOSTRADO | Solo `stock:adjust`; nunca por debajo de lo reservado; no opera sobre recepciones; historia intocable |
+| 800 → 750 + 50 válido, exceso rechazado | DEMOSTRADO | Existencia total −50 una sola vez; 3 líneas en el cierre; excesos rechazados (P0-016) |
+| Concurrencia: sin doble consumo ni saldo negativo | DEMOSTRADO | Traslados y mermas simultáneos (201/409); reservas y cierres concurrentes; red de seguridad en base |
+| Datos existentes | DEMOSTRADO | Incorporación idempotente (repetida no crea nada); conciliación informa diferencias sin ajustes |
+
+### P0-016 — criterios
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-11T00-46-10-001Z`): API 254/254, web 4/4, E2E 51/51, OpenAPI 115 rutas. Corridas previas fallidas conservadas: `2026-10-11T00-36-27-453Z` (prueba unitaria usaba «lot» como entidad aún no verificable) y `2026-10-11T00-40-31-876Z` (E2E de hitos esperaba CTE 1.1.0): expectativas desactualizadas, código correcto. Revisión por rol: 33 entradas, 0 incidencias.
+
+| Criterio original (backlog) | Estado | Evidencia (`lots.int-spec.ts`; E2E; revisión) |
+| --- | --- | --- |
+| Lote con inputs/outputs/run | DEMOSTRADO | Asignaciones parciales con referencias exactas (pesaje vigente, versión de recepción); proceso con reserva, consumo, salidas y pérdida |
+| DAG sin ciclos | DEMOSTRADO | Trigger en todo enlace (incluido uno posterior insertado por fuera); lotes de salida cerrados a entradas; aristas append-only |
+| Origen conservado en salida | DEMOSTRADO | Upstream hasta entrega, productor y parcela; «Origen incompleto» separado y propagado; sin mezcla (D-39.1) |
+| Cierre atómico | DEMOSTRADO | Rollback completo; doble cierre concurrente y reintento → una salida; balance 800 → 750 + 50 y rechazo de 760+50, 750+60, 900+0, 750+49,999999 |
+| Consulta upstream/downstream con cantidades y permisos | DEMOSTRADO | Solo nodos legibles; sin `delivery:read` no aparecen recepciones ni productores, sin conteos ni marcadores |
+| Sin doble uso | DEMOSTRADO | Asignaciones y reservas concurrentes (201/409); corrección compitiendo con asignación; triggers de red de seguridad |
+| Integración FERMENTATION/DRYING (nota del backlog) | FERMENTATION **sí** (2026-10-10); DRYING **sí** (2026-10-15) | Hasta el 2026-10-14: secado se iniciaba y el cierre quedaba bloqueado (`DECISION_PENDING`) aunque se enviara humedad. Con D-32 adoptada, el cierre se ejecuta con humedad en `%BH`, método y responsable, publica `ProcessingRunClosed` y DRYING pasa a INTEGRATED (CTE 1.6.0) |
+
+### P0-012 — revisión enfocada por criterio original (2026-10-10)
+
+Criterio de aceptación del backlog: «entrega declarada, peso recibido, recepción parcial/completa, diferencias con causa, vínculos válidos y quality básica; confirmar repetido no crea doble stock». No se eliminó ningún requisito.
+
+| Criterio original | Estado | Evidencia | Pendiente real |
+| --- | --- | --- | --- |
+| Entrega declarada | DEMOSTRADO | `deliveries.int-spec.ts` «compuertas KDE reales…», «periodo de cosecha…»; E2E P0-012 | — |
+| Peso recibido | DEMOSTRADO | «entrega y recepción sin documento…» (pesaje con método, KG, fecha y responsable de la sesión) | — |
+| Recepción parcial / completa | DEMOSTRADO (parcial, «recibida por lo declarado», exceso señalado) | «recepciones parciales…», «total recibido… correcciones» | **Resuelto el 2026-10-15**: el cierre explícito existe (`POST deliveries/:id/close`), con motivo obligatorio ante cualquier diferencia |
+| Diferencias con causa | **DEMOSTRADO (2026-10-15)** | `d32-d33.int-spec.ts`: cierre sin diferencia, por debajo y por encima; motivo obligatorio en ambos signos; permisos, aislamiento, concurrencia, rollback; recepción posterior rechazada; justificación desactualizada con historial conservado. En navegador: `productos.spec.ts` (D-33 en pantalla) | Límites de aceptación de calidad (D-33, siguen pendientes) y comprobación con operadores reales |
+| Vínculos válidos | DEMOSTRADO | Ajenos/inexistentes 404; parcela de otro productor; centro de otra organización; documento de otro titular o tipo | — |
+| Quality básica | DEMOSTRADO como **decisión humana registrada** | «calidad…»: muestra durante/después, pendiente, liberar/rechazar con responsable | Catálogo publicado de parámetros/límites: no existe; la referencia de límites es **declarada, no verificada** (KDE 1.2.0) |
+| Confirmar repetido no crea doble stock | DEMOSTRADO como «no duplica recepción ni cantidad» | «reintentos…», «total recibido…» (correcciones concurrentes 201/409, rollback) | No hay stock ni ledger (P0-017): ninguna cantidad es inventario disponible |
+
+Comprobaciones de esta revisión (pruebas añadidas):
+- **Contrato de calidad**: la respuesta expone `limits_reference.status = DECLARED_UNVERIFIED`, `limits_verification = NOT_AVAILABLE` y `downstream_enablement = NOT_EVALUATED`; el evento lleva `limits_reference_status` y `limits_catalog = NOT_AVAILABLE`. Tres estados distintos: recepción física, decisión de calidad, habilitación posterior (no evaluada).
+- **Perfiles por transición**: periodo desconocido + sin soporte + calidad pendiente → recepción permitida y pendientes visibles; la completitud enumera exactamente lo que falta (`DELIVERY_PLOTS:REQUIRED_MISSING`, `DELIVERY_PRODUCTION_PERIOD:DECLARED_UNKNOWN`, `DELIVERY_SUPPORT:REQUIRED_MISSING`) y solo es completa con todos los datos de entrega, recepción y pesaje.
+- **Cantidades**: total = suma de la cantidad vigente de cada recepción (última corrección o la original); ejemplo probado 100→90/91→95 + 50 = 145, con originales y pesajes conservados; lista y detalle coinciden (defecto corregido: la lista devolvía `145.000000`). Exceso: se registra como «Recibido supera lo declarado», sin tolerancia ni ajuste de la declaración.
+
+Validación de esta revisión: ver sesión `docs/sesiones/2026-10-10-p0-012-revision.md`.
+
+### P0-012 — criterios
+
+Validación: `npm run validate` APROBADA sobre el commit 58ee6fe (`validation-results/2026-10-10T23-29-45-285Z`): API 246/246, web 4/4, E2E 50/50, OpenAPI 104 rutas. Corridas previas fallidas conservadas: `2026-10-10T22-50-19-671Z` (E2E de hitos esperaba el catálogo 1.0.0: expectativa desactualizada; además la pantalla KDE decía «Ninguna operación usa todavía estos datos» para hitos ya integrados → **texto corregido**) y `2026-10-10T22-57-07-369Z` (la sección «Nueva entrega» se nombraba a sí misma con `aria-labelledby` → **defecto de accesibilidad corregido**). Revisión por rol: 32 entradas, 0 incidencias (tras corregir dos supuestos del script: membresías leídas del CSV bloqueado por Excel y conteo de integraciones CTE).
+
+| Criterio (backlog / orden) | Resultado | Evidencia (`deliveries.int-spec.ts`; E2E; revisión) |
+| --- | --- | --- |
+| Entrega declarada | Borrador → registrada con compuerta DELIVERY_REGISTER (producto, fecha, peso KG bloquean; parcelas, soporte y periodo quedan pendientes); registrada inmutable (trigger) | «compuertas KDE reales…» |
+| Periodo de cosecha (D-34) | Día, mes, intervalo de meses y desconocido; precisión conservada, sin días ficticios; derivados marcados; no se deriva de la fecha de entrega | «periodo de cosecha…», E2E |
+| Peso recibido / pesaje | Recepción exige pesaje válido (método, valor KG, fecha, responsable = sesión); declarado y recibido separados | «entrega y recepción sin documento…» |
+| Recepción parcial/completa | Parciales con historia propia; sin cierre automático ni ajuste de la declaración; exceso señalado | «recepciones parciales…» |
+| Diferencias con causa | **Desde el 2026-10-15 (D-33)**: al recibir sigue siendo NO EVALUADO —una parcial no es todavía una diferencia— y al **cerrar** se exige motivo para cualquier diferencia, en ambos signos. La nota de la compuerta de recepción se republicó (KDE 1.6.0) porque decía que el cierre no estaba definido | `d32-d33.int-spec.ts` |
+| Vínculos válidos | Productor, parcela (mismo productor), producto activo, centro, documento: mismo tenant y alcance; ajeno = inexistente (404) | varios casos |
+| Soportes (D-35) | Varios por versión exacta; disponibilidad, vigencia y revisión visibles; sin aprobación automática; ausencia no impide la recepción | «varios soportes…» |
+| Calidad básica (D-33) | Muestra durante o después del pesaje; «Pendiente de evaluación»; liberar exige versión de límites (declarada); decisión con `quality:decide`; estado separado | «calidad…» |
+| Confirmar repetido no crea doble stock | Reintento y doble envío concurrente → una sola recepción y cantidad; operación reutilizada con otro contenido → 409; rollback completo si falla la auditoría. (No hay stock: P0-017) | «reintentos…» |
+| Correcciones | DeliveryCorrected / ReceptionCorrected con correction_of; originales y pesajes conservados; fecha posterior a una recepción rechazada; conflicto de versión | «correcciones…» |
+| Aislamiento y roles | Otra organización 404; técnico solo asignados; recepción sin identidad ni soportes; calidad/auditor sin recibir | «aislamiento…», revisión |
+| UI §14, teclado y 390 px | Registro, revisión previa, recepción, soportes, pendientes, calidad, correcciones, historia | E2E P0-012, revisión `entregas.mjs` |
+
+### P0-025 — criterios (y contenido incrustado del escáner)
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T21-52-03-657Z`): API 237/237 (30 suites), web 4/4, E2E 49/49, OpenAPI 90 rutas. Corridas previas fallidas conservadas: `2026-10-10T21-39-05-402Z` (los filtros se perdían al volver del detalle y la exportación salía sin filtrar → **defecto real**, corregido conservando los filtros en la URL) y `2026-10-10T21-46-27-217Z` (localizador ambiguo en la prueba). Revisión por rol: 31 entradas, 0 incidencias.
+
+Escáner: políglota PDF+ZIP con objeto interno > MaxFileSize respondía `OK` (omitido sin aviso) → **brecha corregida** con rechazo `EMBEDDED_ARCHIVE_NOT_ALLOWED` antes de analizar; PDF con flujo inflado > MaxFileSize ya se detectaba como incompleto (prueba añadida). Detalle en docs/12 y `docs/sesiones/2026-10-10-p0-025-auditoria.md`.
+
+| Criterio | Resultado | Evidencia (`audit.int-spec.ts`; E2E; revisión) |
+| --- | --- | --- |
+| Alcance de la auditoría | Misma tabla `audit_logs`; cubre alta/edición, corrección, revisiones, descargas, exportaciones (incluida `audit.export`) y permisos; worker en sus tablas propias | sesión §2 |
+| Consulta con filtros y paginación estable | Período, tipo, id, operación, actor, resultado, correlación; cursor en SQL sin duplicados ni saltos | «filtros… y paginación estable» |
+| Alcance por recurso aun con `audit:read` | Filtro SQL; totales, facetas, detalle y cursor sin fugas; reasignación y revocación inmediatas (técnico con contexto simulado: ningún rol de técnico tiene `audit:read`) | «alcance por recurso…» |
+| Redacción | Lista blanca por tipo; sin secretos, enlaces, coordenadas, contenido ni identidad; original intacto y append-only | «redacción de presentación…» |
+| Correcciones y versiones | Corrección enlaza evento original y de corrección; historia del registro conserva ambos | «historia inmutable…» |
+| Exportación | Mismos filtros/alcance/redacción; metadatos; SHA-256 verificable; límite 5000; auditada; sin enlaces; fórmulas neutralizadas solo en el archivo | «exportación autorizada…», «celdas CSV…», E2E |
+| UI §20.1 | Filtros, resultados, detalle, exportación; carga/vacío/error/denegado distintos; teclado y 390 px | E2E P0-025 ×2; revisión |
+| Pendiente | Formato definitivo, retención, auditor externo por encargo, auditar consultas (D-38); dominios futuros | — |
+
+### P0-019 — criterios (y comprobación del escáner)
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T21-04-53-544Z`): API 228/228, web 4/4, E2E 47/47, OpenAPI 85 rutas. La 1.ª corrida falló por un localizador ambiguo en la prueba E2E nueva (corregido). Revisión visual 30 entradas, 0 incidencias.
+
+Escáner (brechas corregidas): `AlertExceedsMax` estaba desactivado (análisis incompleto podía responder «limpio») y `MaxScanTime` sin límite; el puerto se publicaba en todas las interfaces; multer aceptaba hasta 64 MiB antes de rechazar. Ahora: configuración versionada, límites alertados como FAILED, puerto en 127.0.0.1, límite de recepción = configuración. Limitación residual documentada en docs/12 (objeto interno > MaxFileSize → OK). Pruebas: `scanner-limits.int-spec.ts` (4) y casos nuevos en `documents.int-spec.ts` (cuota concurrente, análisis incompleto).
+
+| Criterio | Resultado | Evidencia (`evidence.int-spec.ts`; E2E) |
+| --- | --- | --- |
+| Claim, fuentes/versiones, enlaces tipados | Afirmación sobre entidad existente; soporte = versión exacta con SUPPORTS/CONTRADICTS/BASED_ON; adjuntar no valida | «flujo autorizado…» |
+| Revisión/verificación | Envío, verificación (facultad separada), rechazo, revocación y reapertura con motivo y responsable; historia completa | «flujo…», «nueva versión…» |
+| Nueva versión no hereda | Enlace a v1 conservado; «requiere revisión»; reverificación tras vincular v2 y retirar v1 | «nueva versión del documento…» |
+| Expiración y estados de soporte | Vencido, rechazado y no disponible bloquean la verificación con motivos distintos | «soportes vencidos…» |
+| Contradicción | Preservada; verificar exige reconocimiento expreso; no se sobrescribe (append-only) | «contradicción preservada…» |
+| Autorización y privacidad del grafo | Entidad/documento fuera de asignación o de otra organización → 404; soportes no visibles omitidos (sin conteos ni tipos), también en consulta inversa; auditor ve metadatos, no contenido personal | «autorización…», «privacidad del grafo…» |
+| Revocación de acceso | Reasignar el productor retira el acceso a sus afirmaciones | «acceso revocado…» |
+| Reintentos, concurrencia, rollback | `operation_id` en alta y vínculo; verificar/rechazar simultáneos → una decisión; fallo forzado sin efectos | «reintentos…» |
+
+### P0-018 — criterios
+
+Dependencias: P0-003 aporta la autorización dentro del tenant (verificada); de P0-025 se usa el registro de auditoría existente (`audit_logs`, verificado desde P0-002). La lectura/exportación de auditoría por alcance y la redacción (P0-025) no son necesarias para P0-018 y siguen pendientes. Concesiones externas y elevación: P0-003.
+
+Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T20-08-20-583Z`): API 215/215, web 4/4, E2E 46/46, OpenAPI 78 rutas. Revisión visual 29 entradas, 0 incidencias.
+
+| Criterio | Resultado | Evidencia (`documents.int-spec.ts` con ClamAV/S3/PostgreSQL reales; E2E) |
+| --- | --- | --- |
+| Carga y descarga autorizadas, privadas | Objeto privado, SHA-256 del servidor, bytes idénticos, descarga con permiso, alcance del titular y hash verificado; auditada | «carga autorizada…» |
+| Cuotas, tamaño, formato, MIME engañoso | Límite por archivo y cuota por organización serializada; tipo real por firma; declarado distinto → rechazo | «formatos…», «cuota…» |
+| Cuarentena y escaneo | EICAR rechazada por el escáner real sin almacenar; escáner caído → pendiente, sin descarga, revisión ni compuerta; reintento real → disponible; reintento con malware → rechazada | «muestra EICAR…», «escáner indisponible…» |
+| Vigencia y nueva versión | Versión vencida visible como «vencida» (no inaccesible); nueva versión conserva la anterior y no hereda revisión; conflicto de versión | «versiones y revisiones…» |
+| Acceso y referencias | Otra organización, titular ajeno o inexistente, técnico sin asignación → 404; datos personales sin `producer:read_identity` → metadatos sí, contenido no; entregas → 422 | «clasificación y alcance…», «referencias ajenas…» |
+| Idempotencia, almacenamiento y rollback | Reintento idéntico → réplica; mismo id con otro archivo → 409; S3 caído → nada; fallo de BD → objeto compensado; bytes alterados → no se entregan | «reintento…», «fallos de almacenamiento…» |
+| Revocación | Membresía desactivada durante la carga → rechazo y compensación; reasignación → sin acceso residual | «revocación…» |
+| Sin filtraciones | Errores y eventos sin contenido, nombres de archivo ni identidad | «sin filtraciones…» |
+
+### Preparación de P0-012 Entregas (revisión, sin implementar)
+
+| Aspecto | Situación |
+| --- | --- |
+| Productos | Capacidad disponible (catálogo por organización, KG) |
+| CTE/KDE que usará | DELIVERY@1 (7 KDE), RECEPTION@1 (6), WEIGHING@1 (5), CLASSIFICATION@1 (5) |
+| Condiciones indefinidas (D-34) | `DELIVERY_PRODUCTION_PERIOD` → CONDITION_NOT_EVALUABLE en **toda** entrega: la compuerta bloquearía cualquier registro |
+| Referencias sin entidad | `DELIVERY_SUPPORT`: **verificable desde P0-018** (referencia y disponibilidad técnica); falta decidir cuándo se exige (D-35); `RECEPTION_LOCATION` (centros: docs/06 `locations`), `WEIGHING_SUBJECT` (modelo de pesaje), `CLASSIFICATION_SAMPLE` (muestras) deben modelarse en P0-012 |
+| Diferencias de modelo | `deliveries` sin parcela en docs/06 (arreglo tipado en docs/09); proveedor no productor sin entidad; sin entidad de pesaje |
+| Eventos y correcciones | DeliveryRegistered, ReceptionConfirmed, WeightRecorded, QualityDecisionRecorded; `ReceptionCorrected` definido en docs/08 (referencia al original, motivo, ajuste; bloquear si hay descendientes) — usar el mecanismo `correction_of` de P0-015 |
+| Decisiones que **bloquean** | **D-34** (condición de production_period), **D-35** (exigencia del soporte documental o P0-018), **D-33** en lo que afecta a P0-012 (si pesaje y clasificación son obligatorios antes de confirmar la recepción) |
+| Decisiones que no bloquean | D-32 (KG es suficiente), D-31 (catálogo provisional ya usable), proveedor no productor (P0 puede limitarse a productores si se registra la limitación) |
+
+No se convierte ninguna condición desconocida en opcional para desbloquear Entregas.
+
 ## Interfaz según docs/UX_UI.md (2026-10-10)
 
 Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1/UX-V1 únicos en `apps/web/app/globals.css`; shell adaptable (organización activa con selector, usuario y rol efectivo, navegación por permisos, migas, «Saltar al contenido», menú móvil); login (UI-01) con mostrar/ocultar y mensajes distintos para 401/429/503/red; organizaciones (UI-02); miembros, invitaciones y roles (UI-03) en página propia; auditoría (UI-18) en página propia; productores y revisión de duplicados (UI-05) con tabla, filtros y estados diferenciados (carga, vacío, filtro sin resultados, error, 403, 404, conflicto 409 con recarga). Sin menús de módulos futuros; las capacidades pendientes por rol aparecen rotuladas en una tarjeta aparte. Revisión por rol: `docs/qa/REVISION_VISUAL_POR_ROL.md` (0 incidencias abiertas; 4 corregidas).
@@ -227,7 +600,24 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 - Android/offline, integraciones, despliegue: no iniciados.
 - Logotipo oficial y verificación de licencia de Inter (UX-D01/UX-D02). Evaluación de accesibilidad completa (lector de pantalla, zoom 200 %) no realizada: solo foco por teclado y móvil comprobados.
 
-## Próxima acción: P0-014 KDE (alcance en `sesiones/2026-10-10-p0-013-cte.md`); después, criterios de P0-015 dentro del tenant, incluido `correction_of`
+## Próxima acción (2026-10-15)
+
+**D-05**, ahora partida en dos (`docs/decisiones/D-05-PROPUESTA.md`, **revisión 3**, NO aprobada):
+
+- **D-05.A · perfil técnico de intercambio**: **decidible por el equipo**, con 20 reglas concretas y cada una
+  marcada según la exija el receptor o la proponga Terra Link. Falta ratificarlas, fijar la banda
+  `NEAR_THRESHOLD`, decidir `ProducerName` y preguntar cuatro incertidumbres al contacto técnico del destino.
+- **D-05.B · aplicabilidad jurídica**: **no decidible por el equipo**. Necesita un responsable regulatorio.
+
+La **norma ya no está pendiente de lectura**: el consolidado `02023R1115 — EN — 26.12.2025 — 002.001` y el
+Reglamento (UE) 2025/2650 están guardados con su sha256 en `docs/sources/eudr-norma-2026-10-15/`, con los
+artículos citados verbatim. Lo que **nadie ha hecho** es probar contra el servicio real de TRACES.
+
+Después, **D-07** (severidad de riesgo), que sigue siendo independiente. Lista completa y ordenada en
+`docs/decisiones/DECISIONES-MINIMAS-PARA-CERRAR.md`.
+
+Histórico: la acción anterior era «decisiones D-33/D-34/D-35 para P0-012». D-33 quedó **adoptada como regla
+provisional del MVP local** el 2026-10-15 (no validada en campo ni para producción); D-34 y D-35 siguen abiertas.
 
 ## Anterior: P0-006 Parcela
 

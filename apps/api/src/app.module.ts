@@ -21,6 +21,20 @@ import { DB, LATEST_MIGRATION } from './db/database';
 import type { Database } from './db/schema';
 import { ErrorFilter } from './common/errors';
 import { AuditService } from './audit/audit.service';
+import { AuditController, AuditQueryService } from './audit/audit-query';
+import { ReportsController } from './reports/reports';
+import { EntityReportsController } from './reports/reports-entities';
+import { DeliveriesController, DeliveriesService } from './deliveries/deliveries';
+import { LotsController, LotsService } from './lots/lots';
+import { InventoryController, InventoryService } from './inventory/inventory';
+import { RiskController, RiskService } from './risk/risk';
+import { MitigationsController, MitigationsService } from './mitigations/mitigations';
+import { DdController, DdService } from './dd/dd';
+import { ShipmentsController, ShipmentsService } from './shipments/shipments';
+import { SatelliteController, SatelliteService } from './satellite/satellite';
+import { SyncController, SyncService } from './sync/sync';
+import { ImportsController, ImportsService } from './imports/imports';
+import { MyWorkController, MyWorkService } from './work/my-work';
 import { AuthController, AuthGuard, CurrentUser, Public, type AuthUser, type AuthedRequest } from './auth/auth';
 import { AuthorizationService } from './authz/authorization.service';
 import { PLATFORM_PERMISSIONS, RBAC_CATALOG_VERSION, ROLE_PERMISSIONS } from './authz/catalog';
@@ -35,8 +49,14 @@ import { PII_CIPHER, PiiCipher } from './crypto/pii';
 import { OBJECT_STORE, S3ObjectStore, type ObjectStore } from './storage/object-store';
 import { GeometryImportsController, GeometryImportsService } from './plots/geometry-imports';
 import { GisEvaluationController, GisEvaluationService } from './plots/gis-evaluation';
+import { GeoProfileController, GeoProfileService } from './plots/geo-profile';
 import { ProductsController, ProductsService } from './products/products';
 import { CteController, CteService } from './traceability/cte';
+import { KdeController, KdeService } from './traceability/kde';
+import { EventHistoryController, EventHistoryService } from './events/event-history';
+import { DocumentsController, DocumentsService } from './documents/documents';
+import { EvidenceController, EvidenceService } from './evidence/evidence';
+import { ClamdScanner, MALWARE_SCANNER, type MalwareScanner } from './storage/scanner';
 import { PRODUCTION_CONSUMERS } from './events/consumers';
 import { LOGIN_RATE_LIMITER, LoginRateLimiter, REDIS, RedisAttemptStore } from './auth/login-rate-limit';
 
@@ -46,6 +66,7 @@ class HealthController {
   constructor(
     @Inject(DB) private readonly db: Kysely<Database>,
     @Inject(REDIS) private readonly redis: Redis,
+    @Inject(MALWARE_SCANNER) private readonly scanner: MalwareScanner,
   ) {}
 
   @Public()
@@ -54,7 +75,10 @@ class HealthController {
     return { status: 'ok' };
   }
 
-  // Readiness: estado por dependencia (sin detalles internos). 503 si alguna no está lista.
+  // Readiness: estado por dependencia (sin detalles internos). 503 si falla una dependencia NÚCLEO (base, esquema,
+  // Redis). El escáner antimalware es una capacidad: si está caído la API sigue atendiendo (las subidas se aceptan y
+  // quedan «análisis pendiente», nunca limpias) y la respuesta es 200 con status «degraded», checks.scanner
+  // «unavailable» y capabilities.document_analysis «UNAVAILABLE». No se informa todo como sano.
   @Public()
   @Get('ready')
   async ready(@Res({ passthrough: true }) res: Response) {
@@ -76,8 +100,15 @@ class HealthController {
       /* redis no disponible */
     }
     const ok = Object.values(checks).every((c) => c === 'ok');
+    const scannerOk = this.scanner.ping ? await this.scanner.ping().catch(() => false) : false;
     if (!ok) res.status(503);
-    return { status: ok ? 'ok' : 'unavailable', checks, migration };
+    return {
+      status: !ok ? 'unavailable' : scannerOk ? 'ok' : 'degraded',
+      checks: { ...checks, scanner: scannerOk ? 'ok' : 'unavailable' },
+      capabilities: { document_analysis: scannerOk ? 'AVAILABLE' : 'UNAVAILABLE' },
+      migration,
+      ...(scannerOk ? {} : { note: 'Escáner antimalware no disponible: los archivos nuevos quedan con análisis pendiente y no se habilitan; el resto de la API funciona.' }),
+    };
   }
 }
 
@@ -168,7 +199,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
-        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController,
+        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, GeoProfileController, ProductsController, CteController, KdeController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, ShipmentsController, SatelliteController, ReportsController, EntityReportsController,
       ],
       providers: [
         { provide: APP_CONFIG, useValue: config },
@@ -195,11 +226,29 @@ export class AppModule implements NestModule {
         { provide: OBJECT_STORE, useValue: new S3ObjectStore(config.objectStore) },
         GeometryImportsService,
         GisEvaluationService,
+        GeoProfileService,
         ProductsService,
         CteService,
+        KdeService,
+        EventHistoryService,
+        DocumentsService,
+        EvidenceService,
+        { provide: MALWARE_SCANNER, useValue: new ClamdScanner(config.scanner.host, config.scanner.port, config.scanner.timeoutMs) },
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },
         AuditService,
+        AuditQueryService,
+        DeliveriesService,
+        LotsService,
+        InventoryService,
+        RiskService,
+        MitigationsService,
+        DdService,
+        ShipmentsService,
+        SatelliteService,
+        SyncService,
+        ImportsService,
+        MyWorkService,
         AuthorizationService,
         OrganizationsService,
       ],

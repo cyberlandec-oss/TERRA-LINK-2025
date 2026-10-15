@@ -116,7 +116,8 @@ describeDb('eventos de dominio y outbox (PostgreSQL real)', () => {
     await worker().runOnce();
     let d = await delivery(e.event_id);
     expect(d).toMatchObject({ status: 'FAILED', attempts: 1 });
-    expect(d.last_error).toContain('fallo simulado del consumidor');
+    expect(d.last_error).toBe('ERROR_ERROR'); // solo el código: el mensaje puede contener datos
+    expect(d.last_error).not.toContain('fallo simulado del consumidor');
     expect(new Date(d.next_attempt_at).getTime()).toBeGreaterThan(Date.now() - 1000);
     expect(await effectsOf(e.event_id)).toBe(0);
     await new Promise((r) => setTimeout(r, 50));
@@ -141,7 +142,7 @@ describeDb('eventos de dominio y outbox (PostgreSQL real)', () => {
   });
 
   it('concurrencia: varios workers procesan cada entrega una sola vez', async () => {
-    await sql`DELETE FROM event_deliveries WHERE status <> 'DONE'`.execute(h.db);
+    await sql`UPDATE event_deliveries SET status = 'DEAD' WHERE status <> 'DONE'`.execute(h.db); // aísla la prueba sin borrar historial
     const events = [];
     for (let i = 0; i < 30; i++) events.push(await emit());
     const workers = [worker('w1', { batchSize: 5 }), worker('w2', { batchSize: 5 }), worker('w3', { batchSize: 5 })];

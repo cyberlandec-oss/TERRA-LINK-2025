@@ -11,7 +11,7 @@
 // Resultados: validation-results/<fecha>/ (resumen.md, resumen.json y un .log por paso). Código de
 // salida distinto de 0 si falla cualquier paso.
 import { spawn } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync, createWriteStream } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, createWriteStream } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -88,7 +88,7 @@ const dirty = await new Promise((r) => {
 });
 
 const steps = [
-  ['servicios', 'docker', ['compose', 'up', '-d', '--wait', 'postgres', 'redis', 'object-storage']],
+  ['servicios', 'docker', ['compose', 'up', '-d', '--wait', 'postgres', 'redis', 'object-storage', 'scanner']],
   ['typecheck', 'npm', ['run', 'typecheck']],
   ['lint', 'npm', ['run', 'lint']],
   ['build', 'npm', ['run', 'build']],
@@ -100,8 +100,16 @@ if (args.has('--docker')) steps.push(['imagenes-docker', 'docker', ['compose', '
 
 const results = [];
 for (const [name, cmd, a] of steps) {
+  if (name === 'pruebas-unitarias-integracion') {
+    // Diagnóstico de tiempos: se reinicia antes y se conserva después (aprobada o fallida).
+    rmSync(join(root, 'apps', 'api', 'test-results'), { recursive: true, force: true });
+  }
   const r = await run(name, cmd, a);
   results.push(r);
+  if (name === 'pruebas-unitarias-integracion') {
+    const src = join(root, 'apps', 'api', 'test-results');
+    if (existsSync(src)) cpSync(src, join(outDir, 'api-test-timings'), { recursive: true });
+  }
   if (r.code !== 0) {
     // Conserva la evidencia de E2E (trazas, capturas, reporte): Playwright la sobrescribe en cada corrida.
     if (name === 'e2e-navegador') {

@@ -1,4 +1,5 @@
 import { Kysely, Migrator, PostgresDialect, type Migration, type MigrationProvider } from 'kysely';
+import type { LogEvent } from 'kysely';
 import { Pool } from 'pg';
 import type { Database } from './schema';
 import * as m0001 from './migrations/0001_identity_organizations';
@@ -16,6 +17,33 @@ import * as m0012 from './migrations/0012_gis_evaluations_cleanup';
 import * as m0013 from './migrations/0013_gis_comparison_scope';
 import * as m0014 from './migrations/0014_products';
 import * as m0015 from './migrations/0015_cte_catalog';
+import * as m0016 from './migrations/0016_kde_catalog';
+import * as m0017 from './migrations/0017_event_corrections_delivery_fencing';
+import * as m0018 from './migrations/0018_documents';
+import * as m0019 from './migrations/0019_evidence';
+import * as m0020 from './migrations/0020_audit_query';
+import * as m0021 from './migrations/0021_deliveries';
+import * as m0022 from './migrations/0022_quality_limits_reference';
+import * as m0023 from './migrations/0023_lots_processes';
+import * as m0024 from './migrations/0024_inventory_ledger';
+import * as m0025 from './migrations/0025_risk';
+import * as m0026 from './migrations/0026_mitigations';
+import * as m0027 from './migrations/0027_dd_cases';
+import * as m0028 from './migrations/0028_mitigation_corrections';
+import * as m0029 from './migrations/0029_sync';
+import * as m0030 from './migrations/0030_imports';
+import * as m0031 from './migrations/0031_import_products';
+import * as m0032 from './migrations/0032_import_plots';
+import * as m0033 from './migrations/0033_declared_area_keeps_geometry';
+import * as m0034 from './migrations/0034_import_deliveries';
+import * as m0035 from './migrations/0035_import_references';
+import * as m0036 from './migrations/0036_import_lots';
+import * as m0037 from './migrations/0037_shipments';
+import * as m0038 from './migrations/0038_satellite';
+import * as m0039 from './migrations/0039_satellite_whisp_development';
+import * as m0040 from './migrations/0040_d32_humedad_d33_cierre_entregas';
+import * as m0041 from './migrations/0041_eudr_geo_profile';
+import * as m0042 from './migrations/0042_d07_mecanismos';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -34,6 +62,33 @@ const MIGRATIONS: Record<string, Migration> = {
   '0013_gis_comparison_scope': m0013,
   '0014_products': m0014,
   '0015_cte_catalog': m0015,
+  '0016_kde_catalog': m0016,
+  '0017_event_corrections_delivery_fencing': m0017,
+  '0018_documents': m0018,
+  '0019_evidence': m0019,
+  '0020_audit_query': m0020,
+  '0021_deliveries': m0021,
+  '0022_quality_limits_reference': m0022,
+  '0023_lots_processes': m0023,
+  '0024_inventory_ledger': m0024,
+  '0025_risk': m0025,
+  '0026_mitigations': m0026,
+  '0027_dd_cases': m0027,
+  '0028_mitigation_corrections': m0028,
+  '0029_sync': m0029,
+  '0030_imports': m0030,
+  '0031_import_products': m0031,
+  '0032_import_plots': m0032,
+  '0033_declared_area_keeps_geometry': m0033,
+  '0034_import_deliveries': m0034,
+  '0035_import_references': m0035,
+  '0036_import_lots': m0036,
+  '0037_shipments': m0037,
+  '0038_satellite': m0038,
+  '0039_satellite_whisp_development': m0039,
+  '0040_d32_humedad_d33_cierre_entregas': m0040,
+  '0041_eudr_geo_profile': m0041,
+  '0042_d07_mecanismos': m0042,
 };
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -45,8 +100,9 @@ class StaticMigrationProvider implements MigrationProvider {
 /** Opciones de sesión de cada conexión (ver createDb). */
 export const PG_SESSION_OPTIONS = { options: '-c client_min_messages=warning' };
 
-export function createDb(connectionString: string): Kysely<Database> {
+export function createDb(connectionString: string, onSlowQuery?: (sqlText: string, ms: number) => void, slowMs = 1000): Kysely<Database> {
   return new Kysely<Database>({
+    ...(onSlowQuery ? { log: (e: LogEvent) => { if (e.queryDurationMillis >= slowMs) onSlowQuery(e.query.sql.replace(/\s+/g, ' ').slice(0, 200), Math.round(e.queryDurationMillis)); } } : {}),
     // client_min_messages=warning: PostGIS emite NOTICE con coordenadas (p. ej. ST_IsValid ante una
     // autointersección). Sin esto llegarían al cliente; además se usa ST_IsValidDetail, que no emite NOTICE.
     dialect: new PostgresDialect({ pool: new Pool({ connectionString, max: 10, ...PG_SESSION_OPTIONS }) }),

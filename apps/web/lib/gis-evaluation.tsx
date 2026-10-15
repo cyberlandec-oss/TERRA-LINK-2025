@@ -39,6 +39,7 @@ const CHECK_LABEL: Record<string, string> = {
 const RELATION: Record<string, string> = { EQUAL: 'Misma geometría', OVERLAP: 'Comparte superficie', TOUCH: 'Solo contacto por borde' };
 const STALE: Record<string, string> = {
   GEOMETRY_CHANGED: 'la parcela tiene una versión geométrica más reciente',
+  PLOT_VERSION_CHANGED_SAME_GEOMETRY: 'la parcela tiene una versión nueva con la misma geometría (cambió la superficie declarada); esta evaluación no se hereda: evalúa la versión vigente',
   COMPARED_PLOTS_CHANGED: 'cambiaron las parcelas con las que se comparó',
   RULES_CHANGED: 'cambió la versión de las reglas',
 };
@@ -138,7 +139,12 @@ export function GisEvaluation({ orgId, plotId, canEvaluate, hasVersion }: { orgI
           <p className="muted">{latest.capture_quality.threshold_note}</p>
 
           <h3>Perfil de destino y requisitos regulatorios</h3>
-          <p><StatusBadge tone="neutral">No evaluado</StatusBadge> {latest.destination_profile.label}</p>
+          <p><StatusBadge tone="neutral">No evaluado aquí</StatusBadge> {latest.destination_profile.label}</p>
+          <p className="muted">
+            Desde el 2026-10-15 el perfil técnico de destino se evalúa con una regla propia y versionada aparte
+            (<strong>EUDR_GEO_V1</strong>, D-05.A), en la sección siguiente. Esta evaluación técnica no lo incluye
+            a propósito: son dos dictámenes distintos y pueden discrepar.
+          </p>
 
           <details>
             <summary>Límites del análisis</summary>

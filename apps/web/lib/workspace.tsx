@@ -68,17 +68,33 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     if (origen.length) groups.push({ title: 'Origen', items: origen });
     // Operación (UX_UI §8): solo módulos conectados a operaciones reales.
     const operacion: NavItem[] = [];
+    if (ws.can('delivery:read') || ws.can('delivery:read_assigned')) operacion.push({ href: `${base}/entregas`, label: 'Entregas', match: (p) => p.startsWith(`${base}/entregas`) && !p.startsWith(`${base}/entregas-eventos`) });
+    if (ws.can('lot:read')) operacion.push({ href: `${base}/lotes`, label: 'Lotes', match: (p) => p.startsWith(`${base}/lotes`) });
+    if (ws.can('stock:read')) operacion.push({ href: `${base}/inventario`, label: 'Inventario', match: (p) => p.startsWith(`${base}/inventario`) });
+    if (ws.can('shipment:read')) operacion.push({ href: `${base}/embarques`, label: 'Embarques', match: (p) => p.startsWith(`${base}/embarques`) });
+    if (ws.can('lot:read')) operacion.push({ href: `${base}/procesos`, label: 'Procesos', match: (p) => p.startsWith(`${base}/procesos`) });
     if (ws.can('product:read')) operacion.push({ href: `${base}/productos`, label: 'Productos', match: (p) => p.startsWith(`${base}/productos`) });
     if (operacion.length) groups.push({ title: 'Operación', items: operacion });
     const trazabilidad: NavItem[] = [];
     if (ws.can('traceability:read_catalog')) trazabilidad.push({ href: `${base}/trazabilidad/hitos`, label: 'Hitos (CTE)', match: (p) => p.startsWith(`${base}/trazabilidad/hitos`) });
+    if (ws.can('document:read')) trazabilidad.push({ href: `${base}/documentos`, label: 'Documentos', match: (p) => p.startsWith(`${base}/documentos`) });
+    if (ws.can('evidence:read')) trazabilidad.push({ href: `${base}/evidencias`, label: 'Evidencias', match: (p) => p.startsWith(`${base}/evidencias`) });
+    if (ws.can('risk:read')) trazabilidad.push({ href: `${base}/riesgo`, label: 'Riesgo', match: (p) => p.startsWith(`${base}/riesgo`) });
+    if (ws.can('mitigation:read')) trazabilidad.push({ href: `${base}/mitigaciones`, label: 'Mitigaciones', match: (p) => p.startsWith(`${base}/mitigaciones`) });
+    if (ws.can('dd:read')) trazabilidad.push({ href: `${base}/diligencia`, label: 'Debida diligencia', match: (p) => p.startsWith(`${base}/diligencia`) });
+    // P0-030: `report:read` abre la pantalla de indicadores; cada indicador exige además el permiso de su dominio,
+    // que aplica la API. Estar en el menú no concede lectura de riesgo, parcelas ni identidad.
+    if (ws.can('report:read')) trazabilidad.push({ href: `${base}/reportes`, label: 'Reportes', match: (p) => p.startsWith(`${base}/reportes`) });
     if (trazabilidad.length) groups.push({ title: 'Trazabilidad', items: trazabilidad });
     const admin: NavItem[] = [];
     const onboardingOnly = ws.isPlatformAdmin && !ws.activePerms;
     if (ws.can('membership:read') || onboardingOnly) {
       admin.push({ href: `${base}/miembros`, label: onboardingOnly ? 'Incorporar administrador' : 'Miembros e invitaciones', match: (p) => p.startsWith(`${base}/miembros`) });
     }
+    if (ws.can('import:manage')) admin.push({ href: `${base}/importaciones`, label: 'Importar datos (Excel)', match: (p) => p.startsWith(`${base}/importaciones`) });
+    if (ws.can('location:manage')) admin.push({ href: `${base}/centros`, label: 'Centros de acopio', match: (p) => p.startsWith(`${base}/centros`) });
     if (ws.can('audit:read')) admin.push({ href: `${base}/auditoria`, label: 'Auditoría', match: (p) => p.startsWith(`${base}/auditoria`) });
+    if (ws.can('events:reprocess')) admin.push({ href: `${base}/entregas-eventos`, label: 'Entregas de eventos', match: (p) => p.startsWith(`${base}/entregas-eventos`) });
     if (admin.length) groups.push({ title: 'Administración', items: admin });
   }
   const general: NavItem[] = [{ href: '/organizaciones', label: ws.isPlatformAdmin ? 'Organizaciones (plataforma)' : 'Mis organizaciones', match: (p) => p === '/organizaciones' }];
@@ -214,7 +230,13 @@ function Shell({ orgId, children }: { orgId: string | null; children: ReactNode 
             </button>
           </div>
         </header>
-        <main id="contenido" className="tl-content" tabIndex={-1}>{children}</main>
+        <main id="contenido" className="tl-content" tabIndex={-1}>
+          {/* Organización de la URL sin membresía activa (ni administración de plataforma): respuesta segura única, sin
+              revelar si existe; evita páginas en blanco y no carga datos (UX_UI §6.3, §9.2; P0-027). */}
+          {orgId && !ws.activeOrg
+            ? <ErrorPanel error={new ApiError(404, { code: 'NOT_FOUND', message: 'El recurso no existe o no está disponible para ti.', request_id: null })} />
+            : children}
+        </main>
       </div>
     </div>
   );

@@ -24,6 +24,8 @@ export interface NewEvent {
   correlationId?: string | null;
   causationId?: string | null;
   operationId?: string | null;
+  /** Corrección (P0-015): evento corregido de la misma organización y agregado, con motivo obligatorio. */
+  correctionOf?: { eventId: string; reason: string } | null;
   payload: Record<string, unknown>;
 }
 
@@ -58,6 +60,8 @@ export class EventStore {
         correlation_id: e.correlationId ?? null,
         causation_id: e.causationId ?? null,
         operation_id: e.operationId ?? null,
+        correction_of_event_id: e.correctionOf?.eventId ?? null,
+        correction_reason: e.correctionOf?.reason ?? null,
         payload: JSON.stringify(e.payload),
       })
       .returningAll()

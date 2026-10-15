@@ -5,19 +5,19 @@ Referencias S1–S4 y secciones corresponden a los originales conservados en `so
 | Fuente | Requisitos | Historias | Especificación | Verificación |
 | --- | --- | --- | --- | --- |
 | S1 §§8–12, 71; S4 §§2–4 | RF-01–05, RNF-01 | P0-001–005 | 05/06/07 | QA-01/02/03 |
-| S1 §§13–16, 72, 82–84; S3 §40 | RF-06–10 | P0-006–010 | 05/06/10 | QA-04 |
-| S1 §§17–23; S4 §§7–8 | RF-11–15 | P0-011–015 | 05/06/08/09 | QA-05 |
-| S1 §§24–29, 73–74; S4 §§9–11 | RF-16–17, RNF-02 | P0-016–017 | 05/06/08 | QA-06/07 |
+| S1 §§13–16, 72, 82–84; S3 §40 | RF-06–10 | P0-006–010 | 05/06/10 | QA-04 · `test/gis-evaluation.int-spec.ts` (TL_GIS_TECH), `test/geometry-imports.int-spec.ts`, **`test/geo-profile.int-spec.ts` (26, perfil `EUDR_GEO_V1`)**, `e2e/tests/geojson.spec.ts` (los dos dictámenes en pantalla); **P0-009 y P0-010 DONE_LOCAL el 2026-10-15** tras adoptar **D-05.A**. Pendientes **separados**: aplicabilidad jurídica (**D-05.B**) y aceptación por el **servicio real** del destino |
+| S1 §§17–23; S4 §§7–8 | RF-11–15 | P0-011–015 | 05/06/08/09 | QA-05 · `test/deliveries.int-spec.ts`, `test/d32-d33.int-spec.ts` (15, D-33 cierre de entregas), `test/kde.int-spec.ts`, `test/cte.int-spec.ts`, `e2e/tests/productos.spec.ts` (P0-012 y D-33 en pantalla); **P0-012 DONE_LOCAL el 2026-10-15** con el criterio «diferencias con causa» demostrado |
+| S1 §§24–29, 73–74; S4 §§9–11 | RF-16–17, RNF-02 | P0-016–017 | 05/06/08 | QA-06/07 · `test/lots.int-spec.ts`, `test/inventory.int-spec.ts`, `test/d32-d33.int-spec.ts` (D-32 humedad), `test/recorrido-integral.int-spec.ts` (el recorrido atraviesa el secado), `e2e/tests/productos.spec.ts` (P0-016, P0-017 y D-32 en pantalla); **P0-016 DONE_LOCAL el 2026-10-15** con DRYING integrada (CTE 1.6.0) |
 | S1 §§30–32, 55; S4 §§12–13 | RF-18–19 | P0-018–019 | 06/12 | QA-09/10 |
-| S1 §§33–42, 82–85; S3 §§20–21, 35–39 | RF-20–21, RF-36 | P0-020–021; P1-005 | 06/13 | QA-10/11 |
+| S1 §§33–42, 82–85; S3 §§20–21, 35–39 | RF-20–21, RF-36 | P0-020–021; P1-005 | 06/13 | QA-10/11 · `test/risk.int-spec.ts`, `test/mitigations.int-spec.ts`, **`test/d07-mecanismos.int-spec.ts` (16, mecanismos D-07)**; **mecanismos D-07.1/.2/.4 adoptados el 2026-10-15** (migración `0042`) **sin aprobar ningún catálogo**: severidad por regla agregada por máximo, con cobertura, y `NOT_ASSESSED` sin hallazgos. **D-07.5 y D-07.6 pendientes**: conclusión `UNDETERMINED` por `CHECK` |
 | S1 §§43–44; S4 §15 | RF-22 | P0-022 | 09/13 | QA-12 |
 | S1 §§45–48; S3 §18; S4 §§5–6 | RF-23–24, RNF-04 | P0-023–024 | 11/14 | QA-08/02 |
 | S1 §§56–59; S4 §18 | RF-25, RNF-03/07 | P0-025 | 07/08/12 | QA-13 |
-| S1 §§61–63; S3 §§15–16 | RF-26 | P0-026 | 06/09/14 | QA-03 |
-| S1 §§64–69; S4 §§1–24 | RF-27, RNF-09 | P0-027; P1-003 | 14 | QA-14 |
-| S1 §§39–41, 54, 95; S2 §§4–9 | RF-28 | P0-028 | 10/13/15 | QA-15 |
-| S1 §§27–29, 44; S4 §16 | RF-29 | P0-029 | 05/06/13/14 | QA-06/12 |
-| S1 §§60, 97 | RF-30 | P0-030 | 09/17 | QA-13/14 |
+| S1 §§61–63; S3 §§15–16 | RF-26 | P0-026 | 06/09/14 | QA-03 · `test/imports.int-spec.ts` (11), `imports-products` (11), `imports-plots` (13), `imports-deliveries` (14), `imports-lots` (10), `imports-authz-fixtures` (3), `src/imports/xlsx.spec.ts` (7), `e2e/review/importaciones*.mjs`; DONE_LOCAL |
+| S1 §§64–69; S4 §§1–24 | RF-27, RNF-09 | P0-027; P1-003 | 14 | QA-14 · `test/my-work.int-spec.ts` (6), `e2e/review/web-por-rol.mjs` (22 combinaciones), `e2e/review/estados-web.mjs`; P0-027 DONE_LOCAL |
+| S1 §§39–41, 54, 95; S2 §§4–9 | RF-28 | P0-028 | 10/13/15 | QA-15 en cuatro niveles: `egress.spec.ts` (decisión pura), `egress-transporte.spec.ts` (transporte con servidores controlados), `satellite.int-spec.ts` (desenlaces, fixture sintética) y **proveedor externo real: pendiente** (D-09). Adaptador Whisp (D-09 parte A): `whisp.spec.ts` contra servidor controlado. Revisión visual: `e2e/review/satelite.mjs`. Resultado→evidencia: **D-42** |
+| S1 §§27–29, 44; S4 §16 | RF-29 | P0-029 | 05/06/13/14 | QA-06/12 · `test/shipments.int-spec.ts` (6), `e2e/review/embarques-web.mjs`; P0-029 ABIERTA (despacho bloqueado por D-34) |
+| S1 §§60, 97 | RF-30 | P0-030 | 09/17 | QA-13/14 · `test/reports.int-spec.ts` (16), `test/reports-entities.int-spec.ts` (12), `src/reports/reports-catalog.spec.ts` (8, permisos en memoria), `src/reports/reports-risk.spec.ts` (6, caso mixto), `e2e/tests/productos.spec.ts` (P0-030 ×3); §60 y los seis reportes de §97 demostrados, GeoJSON técnico demostrado; historia **ABIERTA** por la conclusión regulatoria (**D-05.B**) y la distribución de riesgo (**D-07**); desde el 2026-10-15 hay **dos** exportaciones GeoJSON, la técnica y la del perfil `EUDR_GEO_V1` (D-05.A) — estado por criterio en `docs/decisiones/P0-030-CRITERIOS.md` |
 | S1 §§75–81, 98–99 | RF-31, RNF-05/06/10/12 | P0-031; TECH-001 | 16/17/19/20 | QA-16/17 |
 | S2 §§18–20, 24; S3 §§22, 38; S4 §17 | RF-32–33 | P1-001–002 | 07/14/15 | QA-02/14 |
 | S3 §§16, 18, 28; S4 §3 | RF-35 | P1-004 | 02/14 | Wizard/madurez con evidencia |

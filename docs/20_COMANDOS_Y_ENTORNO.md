@@ -1,6 +1,6 @@
 # Comandos y entorno comprobables
 
-Actualizado: 2026-10-10. Repositorio `cyberlandec-oss/TERRA-LINK-2025`, rama `main`, en `C:\Users\mario\TERRA LINK 2025`.
+Actualizado: 2026-10-12. Repositorio `cyberlandec-oss/TERRA-LINK-2025` (https://github.com/cyberlandec-oss/TERRA-LINK-2025.git), rama de trabajo `feat/tech-001-ci-p0-002`, en `D:\PROYECTOS CYBER LAND\TERRA LINK EUDR 2026\TERRA LINK 2025` (trasladado desde `C:\Users\mario\TERRA LINK 2025`, que ya no existe).
 
 > Corrección: la versión anterior de este documento registraba comandos de otro proyecto (`cyberlandec-oss/cacao`, `refactor/...`). Eran ajenos a Terra Link 2025 y se eliminaron.
 
@@ -85,8 +85,216 @@ El workflow se movió a `infra/ci/github-actions-ci.yml` y **no se ejecuta**: en
 
 ## Pendiente (no ejecutado / no existe aún)
 
-Móvil/Android, backup/restauración (QA-16) y despliegue. Ningún comando de producción está definido.
+Móvil/Android y despliegue. Ningún comando de producción está definido. **Backup/restauración ya no está aquí**: el
+procedimiento está verificado y documentado abajo (QA-16); lo que sigue pendiente de QA-16 es ejecutar un **recorrido
+operativo sobre la copia restaurada** y medir RPO/RTO con volumen de piloto.
+
+## Respaldo y restauración verificada (QA-16)
+
+Verificado el 2026-10-13 (37 migraciones) y repetido el **2026-10-15 sobre el estado actual (39 migraciones)**:
+`docs/qa/EVIDENCIA_QA16_RESTAURACION_2026-10-15.md`. Los respaldos viven **fuera del repositorio**, en
+`D:\PROYECTOS CYBER LAND\TERRA LINK EUDR 2026\_respaldos\<fecha>-<motivo>\`, y **no se sobrescriben entre sí**.
+
+**1. Pausar las escrituras** (la base y los objetos deben corresponder al mismo instante; el worker es el único que
+escribe objetos fuera de una petición):
+
+```
+docker compose stop api web worker
+```
+
+**2. Volcar base y objetos** (desde la carpeta del respaldo nuevo):
+
+```
+docker exec terra-link-postgres-1 pg_dump -U terra_link -d terra_link -Fc -f /tmp/terra_link.dump
+docker cp terra-link-postgres-1:/tmp/terra_link.dump ./terra_link.dump
+docker exec terra-link-postgres-1 rm -f /tmp/terra_link.dump
+docker run --rm -v terra-link_object-data:/data -v "<carpeta del respaldo>":/out alpine \
+  sh -c "tar czf /out/object-data.tar.gz -C /data ."
+```
+
+En Git Bash, anteponer `MSYS_NO_PATHCONV=1` a los `docker exec/cp/run` con rutas `/tmp` o `/data`: si no, las
+convierte a rutas de Windows y `pg_dump` falla con «could not open output file».
+
+**3. Claves necesarias para poder descifrar después**: copiar de `.env` solo `POSTGRES_*`, `S3_*`, `JWT_SECRET`,
+`PII_KEYS`, `PII_ACTIVE_KEY_ID`, `PII_INDEX_KEY` a `claves.env` dentro del respaldo, y restringir el acceso
+(`icacls claves.env /inheritance:r /grant:r "%USERNAME%:(R,W)"`). **Nunca se versiona ni se imprime.** Sin estas
+claves la copia es ilegible: un respaldo sin ellas no es un respaldo.
+
+**4. Estado capturado y huellas**: guardar conteos por tabla, migraciones e inventario de objetos
+(`estado-actual.txt`) y `sha256sum * > SHA256SUMS.txt`. El cotejo posterior se hace **contra ese archivo**, no contra
+la base de desarrollo, que sigue cambiando.
+
+**5. Reanudar la aplicación**: `docker compose --profile app up -d --wait`.
+
+**Restaurar para verificar, en un entorno totalmente aislado** (contenedor y volumen propios; **sin seed y sin
+migraciones** sobre la copia):
+
+```
+docker run -d --name tl-restore --rm=false -e POSTGRES_USER=restore -e POSTGRES_PASSWORD=<local> \
+  -e POSTGRES_DB=restore_check -v tl-restore-data:/var/lib/postgresql/data postgis/postgis:16-3.4
+docker cp ./terra_link.dump tl-restore:/tmp/terra_link.dump
+docker exec tl-restore psql -U restore -d postgres -c "CREATE DATABASE terra_link_restaurada OWNER restore;"
+docker exec tl-restore pg_restore -U restore -d terra_link_restaurada --no-owner --no-privileges /tmp/terra_link.dump
+```
+
+Comprobar: migraciones y sus marcas, conteos por tabla contra `estado-actual.txt`, restricciones (FK/CHECK/UNIQUE),
+descifrado de identidad con las claves del respaldo (**sin imprimir valores**) y objetos por clave, tamaño y sha256.
+Al terminar: `docker rm -f tl-restore && docker volume rm tl-restore-data`.
+
+**Levantar la aplicación contra la copia** (segunda mitad de QA-16): `infra/qa16/docker-compose.ensayo.yml`,
+proyecto `tl-ensayo-qa16`, puertos 5450/6390/9010/4010/3010, **sin `migrate` ni `worker`**.
+
+```
+# 1) archivo de variables en una carpeta temporal, a partir del claves.env del respaldo (nunca en el repositorio)
+# 2) infraestructura aislada
+docker compose -p tl-ensayo-qa16 -f infra/qa16/docker-compose.ensayo.yml --env-file <tmp>/ensayo.env   up -d postgres redis object-storage --wait
+# 3) objetos: desplegar el tar en el volumen del ensayo con el servicio detenido
+# 4) base: pg_restore dentro del postgres del ensayo
+# 5) aplicación
+docker compose -p tl-ensayo-qa16 -f infra/qa16/docker-compose.ensayo.yml --env-file <tmp>/ensayo.env up -d api web --wait
+# 6) al terminar
+docker compose -p tl-ensayo-qa16 -f infra/qa16/docker-compose.ensayo.yml --env-file <tmp>/ensayo.env down -v
+```
+
+Antes de arrancar, comprobar la configuración resuelta (`... config`) y que **no** aparecen `localhost:5440`,
+`/terra_link` ni los volúmenes de desarrollo. Evidencia completa:
+`docs/qa/EVIDENCIA_QA16_RESTAURACION_2026-10-15.md`.
+
+**Nunca** restaurar sobre `terra_link` ni sobre los volúmenes de desarrollo.
 
 ## Ejecución segura
 
 `infra:down -v` borra datos locales: no usarlo para «arreglar» un arranque. Las migraciones solo corren contra la base de dev o de test locales.
+
+### Interruptor de llamadas satelitales reales (P0-028, 2026-10-15)
+
+`SATELLITE_LIVE_CALLS=enabled` es lo **único** que habilita llamar a un proveedor satelital real. Seleccionar un
+proveedor, tener su adaptador implementado o encontrar una credencial guardada **no** lo activan. Sin él, el adaptador
+de Whisp termina el trabajo con `LIVE_CALLS_DISABLED` **sin abrir ninguna conexión**, y la API rechaza el encargo con
+`409 SATELLITE_REQUESTS_NOT_AUTHORIZED`.
+
+Hoy está **apagado** y debe seguir así hasta que se apruebe **D-09 parte B**. Encenderlo sin esa aprobación enviaría
+geometrías de productores a un tercero.
+
+### Interruptor de la fixture satelital (P0-028, 2026-10-14)
+
+`SATELLITE_FIXTURE_ENABLED=true` habilita el proveedor **sintético** de desarrollo y prueba: sin él no hay ningún
+adapter registrado y encargar un análisis responde `409 SATELLITE_PROVIDER_NOT_SELECTED` (D-09). La fixture no sale a
+la red, no analiza nada y todos sus resultados quedan marcados `is_synthetic`, que ningún requisito acepta. **Nunca
+debe estar activo fuera de desarrollo o pruebas.** El corredor de trabajos vive en el proceso worker
+(`npm run worker -w apps/api`); si no hay adapters, no se levanta y lo dice en el arranque.
+
+### Credenciales de cuentas DEMO nuevas (2026-10-10)
+
+`npm run seed:demo -w apps/api` crea una cuenta nueva solo si podrá guardar su contraseña: escribe el archivo completo en `CREDENCIALES.csv` o, si está abierto en otro programa, en `CREDENCIALES.pendiente.csv` (ambos ignorados por git). Volver a ejecutar el seed no regenera contraseñas existentes: las lee de esos archivos. Para recuperar la credencial de una cuenta nueva (p. ej. `eudr.cooperativa`, segunda persona del recorrido de mitigación), abrir localmente el archivo más reciente de los dos; nunca se imprime en consola, informes ni capturas. La revisión por rol usa el más reciente.
+
+### Móvil (P0-023, `apps/mobile`, proyecto independiente de los workspaces)
+
+Comandos ejecutados el 2026-10-10 en este equipo (Windows, Node 24): `npm ci`, `npm run typecheck`, `npm test`
+(núcleo en Node con `node:sqlite`), `TL_API_SMOKE=1 npm test` (cliente en Node contra la API local), `npx expo export
+--platform android --output-dir <tmp>` (bundle Hermes) y `npx expo-doctor` (21/21). No hay Android SDK, JDK ni adb: no se
+ejecutó emulador, build nativo ni dispositivo. Ensayo en Android real con Expo Go: `apps/mobile/README.md`.
+
+### Comprobaciones del móvil (2026-10-11)
+
+`npm run check --prefix apps/mobile` (añadir `-- --api` con la app levantada y DEMO sembrado) ejecuta typecheck, pruebas
+del núcleo (Node + SQLite real), recorrido opcional contra la API local, bundle Android y expo-doctor. Resultados en
+`validation-results/<fecha>-movil/`. **Separado de `npm run validate`**; no cubre emulador, build nativo ni dispositivo.
+
+Nota de entorno (2026-10-11): el servicio `api` de `docker-compose.yml` no recibía `SCANNER_HOST`, por lo que los
+documentos subidos a la API en contenedor quedaban «análisis pendiente» (`SCANNER_UNAVAILABLE`). Se añadió
+`SCANNER_HOST: scanner` **localmente**; el cambio de ese archivo raíz no está confirmado en git (pendiente de autorización).
+
+### Entorno Android inspeccionado (2026-10-11)
+
+- Herramientas: sin Android SDK, sin JDK, sin `adb`; Chocolatey presente; winget no disponible en la sesión; 23,7 GB de RAM;
+  hipervisor presente (Docker/WSL2).
+- **Bloqueo**: C: es el único disco y tenía **6,3 GB libres**. Requisitos oficiales (docs.expo.dev, build local Android):
+  Microsoft OpenJDK 17 (`choco install -y microsoft-openjdk17`), Android SDK Platform 36, Build-Tools, Platform-Tools,
+  Emulator, `ANDROID_HOME=%LOCALAPPDATA%\Android\Sdk` y `platform-tools` en PATH; además NDK/CMake que Gradle descarga
+  para módulos nativos (SQLCipher). Estimación: ≥ 15 GB libres recomendados. No se liberó espacio sin autorización.
+- Pasos cuando haya espacio: ver `apps/mobile/README.md` § B.
+
+### Evidencia del escáner en contenedor
+
+`node e2e/review/escaner-contenedor.mjs disponible|caido|reintento` (el operador detiene y arranca el escáner con
+`docker compose stop scanner` / `docker compose start scanner`; los volúmenes se conservan). Resultado acumulado en
+`docs/qa/evidencia-escaner-contenedor.json`.
+
+### Android local (2026-10-11)
+
+Entorno en el perfil de usuario: `JAVA_HOME=%LOCALAPPDATA%\Programs\Microsoft\jdk-17.0.20.1+1`,
+`ANDROID_HOME=%LOCALAPPDATA%\Android\Sdk` (definidas en las sesiones de trabajo; no persistidas). Comandos ejecutados:
+`npx expo prebuild --platform android --no-install`; en `apps/mobile/android`:
+`gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64`; emulador
+`emulator -avd tl-api30 -no-window -no-snapshot -wipe-data -partition-size 1000`; `adb install -r app-release.apk`;
+autoprueba `adb shell am start -a android.intent.action.VIEW -d "terralinkcampo://autoprueba" ec.agtech.terralink.campo`
+y `adb logcat -s ReactNativeJS:V` (línea `TL_SELFTEST`). Evidencia: `docs/qa/EVIDENCIA_LIMPIEZA_Y_ANDROID_2026-10-11.md`.
+
+### Recorrido en emulador y prueba negativa (2026-10-11)
+
+- Recorrido: `node e2e/movil/proxy.mjs <log>` (proxy 4001 → 4000; control 4002), `adb reverse tcp:4000 tcp:4001`,
+  `node e2e/movil/recorrido-emulador.mjs <paso>...` (preparar, login, descargar, capturar, foto, guardarOffline,
+  cierreForzado, cortarTrasCommit, fotoAnalisis, conflicto, cambioCuenta, vencimiento, almacenamientoLleno, revocacion).
+- Prueba negativa: `TL_VARIANT=negativa npx expo prebuild --platform android --no-install --clean` y
+  `gradlew assembleRelease -PreactNativeArchitectures=x86_64` (identificador `ec.agtech.terralink.campo.pruebanegativa`).
+- Orientación: `node e2e/review/orientacion-visual.mjs` (requiere `npm run build -w apps/api`).
+- Bloqueo 2026-10-11: 2,73 GB libres en C:; reiniciar Windows y medir antes de compilar (guardia de 4 GB).
+
+### Vista previa web de la app móvil (2026-10-11)
+
+- `npm run web:preview --prefix apps/mobile` → `http://localhost:3001` (Metro en modo web; con `CI=1` no recarga en
+  caliente: reiniciar tras cambios). Servidor SIMULADO en el navegador; no contacta la API; datos sintéticos.
+- Revisión: `node e2e/review/movil-web-preview.mjs` (Playwright; 390 px y escritorio) → `docs/qa/movil-web/revision.json`.
+- La web principal sigue en 3000 y la API en 4000.
+- Build Android desde Git Bash: definir `JAVA_HOME` (JDK 17 del perfil) y ejecutar `'.\gradlew.bat'` directamente bajo
+  la guardia (no `cmd /c`, que Git Bash reescribe).
+- Relleno de almacenamiento en emulador: solo con el paso `almacenamientoLleno` (exige ≥ 12 GB libres en C:, tramos de
+  ≤ 1 GB, aborta bajo 10 GB).
+
+### Importación Excel (P0-026) y comprobación del seed (2026-10-11)
+
+- `npx jest --runInBand test/imports.int-spec.ts src/imports` (desde `apps/api`): integración con PostgreSQL real y lector XLSX.
+- `npm run build -w apps/api && node e2e/review/importaciones.mjs`: revisión en navegador (admin, MANAGER, técnico denegado, teclado, 390 px) contra la app de desarrollo; crea productores DEMO-IMP-* en BORRADOR. Evidencia en `docs/qa/importacion/`.
+- `node e2e/seed/comprobar-seed-demo.mjs`: seed DEMO en base desechable `terra_link_seedcheck` (idempotencia, membresías, contraseñas, rotación). No toca `terra_link` ni `CREDENCIALES.csv`.
+- Entorno Android en variables de usuario (2026-10-11): `ANDROID_HOME`/`ANDROID_SDK_ROOT` = `C:\Users\mario\AppData\Local\Android\Sdk`, `JAVA_HOME` = JDK 17.0.20.1, `Path` con `platform-tools`, `emulator` y `%JAVA_HOME%\bin`. Abrir una terminal nueva para que apliquen.
+- El repositorio vigente está en `D:\PROYECTOS CYBER LAND\TERRA LINK EUDR 2026\TERRA LINK 2025` (la ruta `C:\Users\mario\TERRA LINK 2025` ya no existe).
+
+### Importación de productos (P0-026) y traslado a D: (2026-10-12)
+
+- `npx jest --runInBand test/imports.int-spec.ts test/imports-products.int-spec.ts test/imports-authz-fixtures.int-spec.ts src/imports` (desde `apps/api`).
+- `npm run build -w apps/api && node e2e/review/importaciones-productos.mjs`: revisión en navegador de la plantilla de productos (archivos sintéticos; crea productos `DEMO-IMP-*` activos en el catálogo DEMO).
+- Imagen de la API: la construye el servicio `migrate` (`docker compose --profile app build migrate`); `build api` no la reconstruye. Después: `docker compose --profile app up -d --wait`.
+- El proyecto Compose sigue siendo `terra-link` (mismos volúmenes); `docker compose ls` lista ambos archivos de configuración (C: y D:) porque los contenedores se crearon desde C: y se recrearon desde D:.
+- Cachés nativas Android (`apps/mobile/android/app/.cxx`, `apps/mobile/android/app/build`, `apps/mobile/android/build`, no versionadas) conservan rutas de C:; la próxima compilación nativa desde D: probablemente necesitará regenerarlas (no se borraron sin autorización).
+
+### Importación de parcelas (P0-026, 2026-10-12)
+
+- `npx jest --runInBand test/imports-plots.int-spec.ts` (desde `apps/api`): integración con PostGIS real y fixtures de autorización.
+- `npm run build -w apps/api && node e2e/review/importaciones-parcelas.mjs`: revisión en navegador (archivos sintéticos; crea `DEMO-IMP-PAR-001/002` del productor `DEMO-RV-008`, sin geometría).
+- Cachés Android con rutas de C: identificadas y **no** borradas en esta tarea (no hubo que recompilar): `apps/mobile/android/app/.cxx`, `apps/mobile/android/app/build`, `apps/mobile/android/build`. Están ignoradas (`apps/mobile/.gitignore`: `/android`, salida del prebuild) y son regenerables. Autorizado regenerarlas cuando haya que recompilar; conservar `apps/mobile/dist-apk/`, claves de firma, SDK/JDK y cachés globales.
+
+### Superficie declarada e importación de entregas (2026-10-12)
+
+- `npx jest --runInBand test/plot-declared-area.int-spec.ts test/imports-deliveries.int-spec.ts` (desde `apps/api`).
+- `npm run build -w apps/api && node e2e/review/importaciones-entregas.mjs`: revisión en navegador (archivos sintéticos; crea borradores DEMO del productor `DEMO-RV-008` y comprueba en la base que no hay efectos físicos).
+- Anomalía observada (no reproducida): la primera ejecución de `imports-deliveries.int-spec.ts` duró 690 s; según `test-results/harness-timings.jsonl`, el reinicio del esquema, las migraciones y las pruebas tardaron ~6 s, así que el tiempo se fue antes del arnés (carga/transpilación de jest). La repetición tardó 9,6 s. Causa no determinada.
+
+### Importación de lotes, referencias y rotación DEMO (2026-10-12)
+
+- `npx jest --runInBand test/imports-lots.int-spec.ts test/imports-deliveries.int-spec.ts test/dd.int-spec.ts` (desde `apps/api`).
+- `npm run build -w apps/api && node e2e/review/importaciones-lotes.mjs` y `importaciones-entregas.mjs`: revisiones en navegador (archivos sintéticos; usan la recepción DEMO de ENT-2026-00001 y referencias DEMO-REF-*/DEMO-IMP-LOTE-*).
+- Rotación de cuentas DEMO: `node --env-file-if-exists=../../.env dist/db/seed-demo.js --rotar=<cuenta>` (desde `apps/api`, tras compilar). Si `CREDENCIALES.csv` está abierto en Excel falla con EBUSY sin activar nada: cerrarlo y repetir; no forzar la escritura.
+- El episodio de 690 s de la primera ejecución de `imports-deliveries.int-spec.ts` sigue con **causa no determinada**; no se cambiaron timeouts.
+
+### Web por rol y Lot Hub (P0-027, 2026-10-12)
+
+- `npx jest --runInBand test/my-work.int-spec.ts` (desde `apps/api`).
+- `node e2e/review/web-por-rol.mjs`: matriz de todas las combinaciones cuenta–organización–rol de `CREDENCIALES.csv` (menú, contexto, Mi trabajo, Lot Hub, denegaciones), filtros, teclado, 390 px, zoom 200 % y una acción real de Mi trabajo. Evidencia en `docs/qa/web-por-rol/`.
+- `node e2e/review/estados-web.mjs`: carga, error con reintento, vacío y sin permiso (intercepta la red solo en el navegador de prueba).
+- `node e2e/review/revision-por-rol.mjs` (heredada): sus comprobaciones de parcelas y productos ya no exigen conteos fijos del seed (la DEMO incluye registros importados y capturas del emulador).
+
+### Embarques (P0-029, 2026-10-12)
+
+- `npx jest --runInBand test/shipments.int-spec.ts` (desde `apps/api`): autorización, reservas concurrentes e idempotentes, preflight real bloqueado y mecánica de despacho con preflight sintético.
+- `node e2e/review/embarques-web.mjs`: flujo en navegador con datos DEMO (comprador, embarque, reserva, preflight bloqueado, cancelación), roles sin permiso, auditor y 390 px. Cancela al empezar los embarques de revisión que quedaran en preparación. Evidencia en `docs/qa/embarques/`.

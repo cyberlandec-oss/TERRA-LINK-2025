@@ -7,6 +7,7 @@ import { useWorkspace } from '../../../../../lib/workspace';
 import { Alert, Breadcrumb, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../../lib/ui';
 import { ProducerFields, STATUS_LABEL, toPayload, type Producer } from '../page';
 import { ProducerPlots } from './parcelas-productor';
+import { EventHistory } from '../../../../../lib/event-history';
 
 type ProducerDetail = Producer & { can_update: boolean; can_assign: boolean; can_archive: boolean };
 
@@ -20,7 +21,7 @@ interface Version {
 }
 
 const CHANGE_LABEL: Record<string, string> = {
-  CREATE: 'Registro', UPDATE: 'Edición', ASSIGN: 'Cambio de responsable', ARCHIVE: 'Baja', ACTIVATE: 'Activación',
+  CREATE: 'Registro', UPDATE: 'Edición', ASSIGN: 'Cambio de responsable', ARCHIVE: 'Baja', ACTIVATE: 'Activación', CORRECTION: 'Corrección',
 };
 const FIELD_LABEL: Record<string, string> = {
   first_name: 'nombre', last_name: 'apellido', legal_name: 'razón social', document_type: 'tipo de documento',
@@ -88,6 +89,8 @@ export default function ProducerDetailPage() {
           {p.can_assign && p.status !== 'INACTIVE' && <AssignProducer orgId={orgId} producer={p} onSaved={load} />}
           {p.can_archive && <StatusProducer orgId={orgId} producer={p} onSaved={load} />}
           <ProducerPlots orgId={orgId} producerId={p.id} producerActive={p.status !== 'INACTIVE'} />
+          <EventHistory orgId={orgId} kind="producers" id={p.id}
+            correction={p.can_update && p.status !== 'INACTIVE' ? { current: p as unknown as Record<string, string | null>, rowVersion: p.row_version, onCorrected: load } : null} />
           <section className="card">
             <h2>Historial</h2>
             <ul className="plain" aria-label="Historial">
