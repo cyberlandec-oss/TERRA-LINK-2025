@@ -25,6 +25,9 @@ export interface Run {
   outputs: Array<{ lot_id: string; lot_code: string; quantity: Qty }>;
   balance: { input: string; output: string; loss: string; unit: string; mass_yield_percent: string | null; note: string } | null;
   gates: RunGate[]; close_preview: RunGate | null; drying_note: string | null;
+  // Humedad del secado (D-32): medición con unidad, método y responsable. `display` es presentación (un decimal);
+  // `value` conserva lo que se midió.
+  moisture: { value: string; unit: string; display: string; method: string | null; measured_by: string | null; note: string } | null;
   actions: { start: boolean; close: boolean; cancel: boolean };
 }
 export interface LotOptions {

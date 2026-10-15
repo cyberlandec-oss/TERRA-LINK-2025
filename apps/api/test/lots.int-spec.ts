@@ -191,21 +191,30 @@ describeDb('P0-016 lotes, asignaciones, procesos y grafo de origen', () => {
     await close(f.id, ['150'], '0').expect(409);
   });
 
-  it('secado: se prepara e inicia; el cierre queda bloqueado por la unidad de humedad (D-32) aunque se envíe la humedad; DRYING sigue pendiente en el catálogo', async () => {
+  // D-32 adoptada (2026-10-15): el secado ya cierra, con la humedad como medición obligatoria en %BH.
+  it('secado: se prepara, inicia y CIERRA con humedad medida; la humedad no convierte masas; DRYING queda integrada', async () => {
     const l = (await createLot(ADMIN, [{ reception_id: await reception('100'), quantity: '100' }]).expect(201)).body.lot;
     const d = await run('DRYING', seco);
     const started = (await start(d.id, [{ lot_id: l.id, quantity: '100' }]).expect(200)).body.run;
     expect(started.status).toBe('RUNNING');
     expect(started.gates[0].pending.map((p: { code: string }) => p.code)).toEqual(['DRYING_MOISTURE']); // pendiente al iniciar, no opcional
-    expect(started.close_preview.blocking.map((b: { result: string }) => b.result)).toEqual(expect.arrayContaining(['DECISION_PENDING', 'REQUIRED_MISSING']));
-    const blocked = (await close(d.id, ['60'], '40', TRAZ, randomUUID(), { moisture: { value: '7.0', unit: '%' } }).expect(422)).body;
-    expect(blocked.error.code).toBe('TRANSITION_BLOCKED');
-    expect(blocked.error.details.map((x: { reason: string }) => x.reason)).toContain('DECISION_PENDING');
-    expect((await close(d.id, ['60'], '40').expect(422)).body.error.details.map((x: { field: string }) => x.field)).toEqual(expect.arrayContaining(['DRYING_MOISTURE', 'DECISION_PENDING']));
-    expect((await http().get(`${base(orgA)}/process-runs/${d.id}`).set(as(TRAZ)).expect(200)).body.drying_note).toMatch(/bloqueado hasta definir la unidad de humedad/);
+    // Sin humedad no se cierra: el dato es exigido por el contrato, ya no por una decisión pendiente.
+    const sinHumedad = (await close(d.id, ['60'], '40').expect(422)).body.error;
+    expect(sinHumedad.details.map((x: { field: string }) => x.field)).toContain('DRYING_MOISTURE');
+    expect(sinHumedad.details.map((x: { reason: string }) => x.reason)).not.toContain('DECISION_PENDING');
+    // Balance exacto en KG: 100 = 60 + 40. La humedad se registra; no corrige el balance.
+    const cerrado = (await close(d.id, ['60'], '40', TRAZ, randomUUID(), { moisture: { value: '7.25', unit: '%BH', method: 'Medidor portátil (sintético)' } }).expect(200)).body.run;
+    expect(cerrado.status).toBe('CLOSED');
+    expect({ ...cerrado.balance, input: Number(cerrado.balance.input), output: Number(cerrado.balance.output), loss: Number(cerrado.balance.loss) })
+      .toMatchObject({ input: 100, output: 60, loss: 40, unit: 'KG' });
+    expect(cerrado.balance.note).toMatch(/No es base seca/);
+    // La precisión recibida se conserva: 7.25 se guarda como 7.25, y «7.3» es solo la presentación con un decimal.
+    expect(Number(cerrado.moisture.value)).toBe(7.25);
+    expect(cerrado.moisture).toMatchObject({ unit: '%BH', display: '7.3', method: 'Medidor portátil (sintético)' });
+    expect(cerrado.moisture.note).toMatch(/base húmeda/);
     const cat = (await http().get(`${base(orgA)}/cte-catalog`).set(as(ADMIN)).expect(200)).body.definitions;
     expect(cat.find((x: { code: string }) => x.code === 'FERMENTATION').operations[0].integration_status).toBe('INTEGRATED');
-    expect(cat.find((x: { code: string }) => x.code === 'DRYING').operations[0].integration_status).toBe('PENDING');
+    expect(cat.find((x: { code: string }) => x.code === 'DRYING').operations[0].integration_status).toBe('INTEGRATED');
   });
 
   it('ciclos imposibles también por enlaces posteriores; aislamiento y permisos; consultas sin nodos ocultos ni conteos', async () => {

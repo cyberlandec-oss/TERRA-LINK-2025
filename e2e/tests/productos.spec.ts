@@ -125,18 +125,19 @@ test('usuario sin permiso: sin enlace en el menú y acceso directo denegado', as
   await bctx.close();
 });
 
-test('P0-013 hitos (CTE): consulta de solo lectura con versión, vigencia e integración (P0-012, fermentación y embarque integrados; secado pendiente); sin acciones operativas', async ({ browser }) => {
+test('P0-013 hitos (CTE): consulta de solo lectura con versión, vigencia e integración (P0-012, fermentación, secado y embarque integrados); sin acciones operativas', async ({ browser }) => {
   const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
   await page.goto(`${orgUrl}/trazabilidad/hitos`);
   const table = page.getByRole('table', { name: 'Hitos de trazabilidad' });
   await expect(table.locator('tbody tr')).toHaveCount(11);
-  await expect(page.getByText(/Catálogo versión 1\.4\.0/)).toBeVisible();
+  await expect(page.getByText(/Catálogo versión 1\.6\.0/)).toBeVisible();
   await expect(table).toContainText('DELIVERY@2');
   await expect(table).toContainText('DeliveryRegistered');
   // 1.4.0 (P0-029): SHIPMENT pasa a INTEGRATED con SHIPMENT_DISPATCH → ShipmentDispatched.
-  // Integradas: CLASSIFICATION, DELIVERY, FERMENTATION, RECEPTION, SHIPMENT, STORAGE, WEIGHING.
-  // Pendientes: DRYING (D-32), HARVEST, PACKAGING, SALE.
-  await expect(page.getByText(/7 operación\(es\) integrada\(s\) y 4 pendiente\(s\)/)).toBeVisible();
+  // 1.6.0 (D-32, 2026-10-15): DRYING pasa a INTEGRATED; su cierre existe y publica ProcessingRunClosed.
+  // Integradas: CLASSIFICATION, DELIVERY, DRYING, FERMENTATION, RECEPTION, SHIPMENT, STORAGE, WEIGHING.
+  // Pendientes: HARVEST, PACKAGING, SALE (sin historia asignada, D-33).
+  await expect(page.getByText(/8 operación\(es\) integrada\(s\) y 3 pendiente\(s\)/)).toBeVisible();
   // Contrato de INTEGRATED (cte-release.ts): la operación y su evento EXISTEN; no que esté acreditada de extremo a
   // extremo. La pantalla debe decirlo, para que «Integrada» no se lea como «demostrada».
   await expect(page.getByText(/Integrada.*significa que la operación y su evento existen en la plataforma/)).toBeVisible();
@@ -149,7 +150,7 @@ test('P0-013 hitos (CTE): consulta de solo lectura con versión, vigencia e inte
   await expect(shipment).toContainText(/la compuerta bloquea mientras D-34 no defina/);
   await expect(page.getByRole('button', { name: /cosecha|entrega|recepción|procesar|registrar/i })).toHaveCount(0);
   await page.getByLabel('Mostrar definiciones retiradas o sustituidas').press('Space');
-  await expect(table.locator('tbody tr')).toHaveCount(18); // las 7 versiones sustituidas (1.1.0, 1.2.0, 1.3.0 y 1.4.0) siguen consultables
+  await expect(table.locator('tbody tr')).toHaveCount(19); // las 8 versiones sustituidas (1.1.0 a 1.6.0) siguen consultables
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });
@@ -365,7 +366,12 @@ test('P0-012 entregas: registrar con periodo por mes, recibir sin documento con 
   await expect(rec).toContainText('Pendiente de evaluación');
   await expect(rec).toContainText('Soporte documental');
   await expect(page.getByText('Recepción parcial').first()).toBeVisible();
-  await expect(page.getByText(/no se cierra automáticamente ni se ajusta su declaración/)).toBeVisible();
+  // La entrega sigue ABIERTA: recibir no la cierra sola y su declaración no se ajusta (D-33, desde el 2026-10-15
+  // el cierre existe, pero es explícito).
+  const cierreParcial = page.getByRole('region', { name: 'Cierre de la entrega' });
+  await expect(cierreParcial).toContainText('Abierta');
+  await expect(cierreParcial).toContainText(/La entrega no se ha cerrado; admite recepciones/);
+  await expect(cierreParcial).toContainText('180 kg'); // 300 declarados − 120 recibidos, ambas cifras conservadas
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   // la lista muestra declarado y recibido por separado
   await page.goto(`${orgUrl}/entregas`);
@@ -711,5 +717,124 @@ test('P0-030 reportes: sin permiso no hay menú ni acceso; la exportación exige
   await expect(page.getByText(/se recalcula en ese momento/)).toBeVisible(); // la descarga no es la instantánea mostrada
   await expect(page.getByText(/No genera enlaces públicos/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Exportar CSV' })).toBeEnabled();
+  await ctx.close();
+});
+
+// ---------------------------------------------------------------------------------------------------
+// D-32 y D-33 en pantalla. Van al FINAL del archivo a propósito: el secado consume 100 kg del lote
+// fermentado y el cierre de entregas crea entregas nuevas; colocarlas antes movería los saldos que
+// comprueban inventario, riesgo y reportes, y esas pruebas dejarían de medir lo que medían.
+test('D-32 secado en pantalla: la humedad se exige al cerrar, en %BH y con método; la medición queda visible; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  const orgId = orgUrl.split('/organizaciones/')[1];
+  const h = { authorization: `Bearer ${token}` };
+  const o = `${API_URL}/api/v1/organizations/${orgId}`;
+  await page.request.post(`${o}/products`, { headers: h, data: { code: 'CACAO_SECO_E2E', name: 'Cacao seco E2E', product_state: 'CACAO_SECO', unit: 'KG' } });
+  // Lote propio para esta prueba: los lotes de las pruebas anteriores quedaron repartidos entre centros por los
+  // traslados de inventario, y un proceso exige su entrada en un solo centro. Preparar el material por API mantiene
+  // la prueba centrada en lo que verifica: la pantalla del secado.
+  const products = await (await page.request.get(`${o}/products?limit=100`, { headers: h })).json() as { items: Array<{ id: string; code: string }> };
+  const ferment = products.items.find((x) => x.code === 'CACAO_FERM_E2E')!.id;
+  const producer = (await (await page.request.get(`${o}/producers?q=ENT-E2E-1`, { headers: h })).json()).items[0].id;
+  const center = (await (await page.request.get(`${o}/locations`, { headers: h })).json()).find((l: { code: string }) => l.code === 'CA-E2E').id;
+  const hoy = new Date().toISOString().slice(0, 10);
+  const entrega = (await (await page.request.post(`${o}/deliveries`, { headers: h, data: { operation_id: crypto.randomUUID(), producer_id: producer, product_id: ferment, delivery_date: hoy, quantity_declared: '100', unit: 'KG', register: true } })).json()).delivery;
+  const recepcion = (await (await page.request.post(`${o}/deliveries/${entrega.id}/receptions`, { headers: h, data: { operation_id: crypto.randomUUID(), location_id: center, received_at: new Date().toISOString(), weighing: { method: 'Báscula E2E', quantity: '100', unit: 'KG', weighed_on: hoy } } })).json()).reception_id;
+  const ferm = (await (await page.request.post(`${o}/lots`, { headers: h, data: { operation_id: crypto.randomUUID(), inputs: [{ reception_id: recepcion, quantity: '100' }] } })).json()).lot as { id: string; lot_code: string };
+
+  await page.goto(`${orgUrl}/procesos`);
+  await page.getByLabel('Tipo', { exact: true }).selectOption('DRYING');
+  await page.getByLabel('Producto de salida').selectOption({ label: 'Cacao seco E2E (CACAO_SECO_E2E)' });
+  await page.getByRole('button', { name: 'Preparar proceso' }).click();
+  await expect(page.getByRole('heading', { name: /Secado PRC-/ })).toBeVisible();
+  // El aviso del secado ya no dice «bloqueado por una decisión pendiente»: dice qué dato hace falta.
+  await expect(page.getByText(/exige la humedad final medida en %BH, con método y responsable/)).toBeVisible();
+  await page.getByLabel(`Reservar de ${ferm.lot_code}`).fill('100');
+  await page.getByRole('button', { name: 'Iniciar proceso' }).click();
+  await expect(page.getByText('En curso (entradas reservadas)')).toBeVisible();
+
+  // Cerrar sin humedad: el formulario la exige, así que ni siquiera se envía.
+  await page.getByLabel('Salida (kg)').fill('90');
+  await page.getByLabel('Pérdida (kg)').fill('10');
+  await page.getByRole('button', { name: 'Cerrar proceso' }).click();
+  await expect(page.getByText('Cerrado', { exact: true })).toHaveCount(0);
+
+  // Más precisión de la que se conserva: el servidor la RECHAZA con su motivo, no la redondea.
+  await page.getByLabel('Humedad final (% en base húmeda)').fill('7.1234567');
+  await page.getByLabel('Método de medición').fill('Medidor portátil E2E');
+  await page.getByRole('button', { name: 'Cerrar proceso' }).click();
+  await expect(page.getByText(/No se redondea/)).toBeVisible();
+
+  await page.getByLabel('Humedad final (% en base húmeda)').fill('7.25');
+  await page.getByRole('button', { name: 'Cerrar proceso' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Cerrado', { exact: true })).toBeVisible();
+  // La medición queda a la vista con su método y su responsable; un decimal es presentación, no el dato guardado.
+  await expect(page.getByText(/7\.3 %BH/)).toBeVisible();
+  await expect(page.getByText(/valor registrado: 7\.25/)).toBeVisible();
+  await expect(page.getByText('Medidor portátil E2E')).toBeVisible();
+  await expect(page.getByText(/No hay límites de aceptación/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await ctx.close();
+});
+
+test('D-33 cierre de entrega en pantalla: toda diferencia exige motivo, lo cerrado no se reabre y la justificación se conserva; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  const orgId = orgUrl.split('/organizaciones/')[1];
+  const h = { authorization: `Bearer ${token}` };
+  const o = `${API_URL}/api/v1/organizations/${orgId}`;
+  const producer = (await (await page.request.get(`${o}/producers?q=ENT-E2E-1`, { headers: h })).json()).items[0].id;
+  const products = (await (await page.request.get(`${o}/products?limit=100`, { headers: h })).json()).items as Array<{ id: string; code: string }>;
+  const baba = products.find((x) => x.code === 'CACAO_BABA_E2E')!.id;
+  const center = (await (await page.request.get(`${o}/locations`, { headers: h })).json()).find((l: { code: string }) => l.code === 'CA-E2E').id;
+  const today = new Date().toISOString().slice(0, 10);
+  const crear = async (declarado: string, recibido: string) => {
+    const d = (await (await page.request.post(`${o}/deliveries`, { headers: h, data: { operation_id: crypto.randomUUID(), producer_id: producer, product_id: baba, delivery_date: today, quantity_declared: declarado, unit: 'KG', register: true } })).json()).delivery;
+    await page.request.post(`${o}/deliveries/${d.id}/receptions`, { headers: h, data: { operation_id: crypto.randomUUID(), location_id: center, received_at: new Date().toISOString(), weighing: { method: 'Báscula E2E', quantity: recibido, unit: 'KG', weighed_on: today } } });
+    return d;
+  };
+  const conDiferencia = await crear('100', '90');
+
+  await page.goto(`${orgUrl}/entregas/${conDiferencia.id}`);
+  const cierre = page.getByRole('region', { name: 'Cierre de la entrega' });
+  await expect(cierre).toContainText('Abierta');
+  await expect(cierre).toContainText('10 kg');
+  await expect(cierre).toContainText('faltó respecto de lo declarado');
+  await cierre.getByText('Cerrar la entrega', { exact: true }).click();
+  await expect(page.getByText(/el motivo es obligatorio/)).toBeVisible();
+  await page.getByLabel('Motivo de la diferencia').fill('Merma de transporte verificada en el centro');
+  await page.getByRole('button', { name: 'Cerrar entrega' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(cierre).toContainText('Cerrada y justificada');
+  await expect(cierre).toContainText('Merma de transporte verificada en el centro');
+  // Cerrada: ni se registran recepciones nuevas ni hay forma de reabrir en pantalla.
+  await expect(page.getByRole('button', { name: 'Revisar recepción' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /reabrir/i })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+
+  // Sin diferencia no se pide motivo alguno: cerrar es rutina.
+  const sinDiferencia = await crear('50', '50');
+  await page.goto(`${orgUrl}/entregas/${sinDiferencia.id}`);
+  await page.getByRole('region', { name: 'Cierre de la entrega' }).getByText('Cerrar la entrega', { exact: true }).click();
+  await expect(page.getByText('No hay diferencia que explicar.')).toBeVisible();
+  await expect(page.getByLabel('Motivo de la diferencia')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Cerrar entrega' }).click();
+  await expect(page.getByRole('region', { name: 'Cierre de la entrega' })).toContainText('Cerrada y justificada');
+  await ctx.close();
+});
+
+test('D-33: un rol sin lectura de entregas no ve ni la pantalla ni el cierre; la negación se explica', async ({ browser }) => {
+  const login = await (await browser.newContext()).request.post(`${API_URL}/api/v1/auth/login`, { data: { email: BUYER.email, password: BUYER.password } });
+  test.skip(!login.ok(), 'requiere la cuenta de comprador creada en las pruebas anteriores');
+  const t = (await login.json()).access_token as string;
+  const { ctx, page } = await open(browser, t, { width: 390, height: 844 });
+  const orgId = orgUrl.split('/organizaciones/')[1];
+  const lista = await (await browser.newContext()).request.get(`${API_URL}/api/v1/organizations/${orgId}/deliveries?status=CLOSED`, { headers: { authorization: `Bearer ${token}` } });
+  const cerrada = (await lista.json() as Array<{ id: string }>)[0];
+  test.skip(!cerrada, 'requiere una entrega cerrada de la prueba anterior');
+  await page.goto(`${orgUrl}/entregas/${cerrada.id}`);
+  await expect(page.getByText('Tu rol no permite consultar entregas.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Cerrar entrega' })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });

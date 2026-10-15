@@ -25,6 +25,14 @@ export type RefResolver = (entity: string, ids: string[]) => Promise<{ found: Se
 
 export interface KdeItem { code: string; reference: string; result: KdeResult; error_code: string | null; message: string; action: string | null }
 
+/**
+ * Detalle de una compuerta bloqueada, tal como se devuelve al cliente.
+ * El validador ya redacta el motivo y la acción de cada dato; omitirlos dejaba al usuario con un código
+ * («DECIMAL_PRECISION_EXCEEDED») y sin saber qué corregir. Se rechaza **con su motivo** (D-32).
+ */
+export const gateDetails = (blocking: Array<{ code: string; result: string; error_code: string | null; message: string }>) =>
+  blocking.map((b) => ({ field: b.code, reason: b.error_code ?? b.result, message: b.message }));
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DECIMAL = /^-?\d{1,14}(\.\d{1,6})?$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -45,10 +53,18 @@ const bad = (code: string, message: string, action: string): Check => ({ ok: fal
 
 function checkNumber(v: unknown, val: Validation, integer: boolean): Check {
   if (typeof v !== 'string') return bad('DECIMAL_MUST_BE_STRING', 'El valor debe enviarse como texto decimal (p. ej. "12.5").', 'Envía el número como texto, sin convertirlo.');
-  if (integer ? !/^-?\d{1,14}$/.test(v) : !DECIMAL.test(v)) return bad(integer ? 'INTEGER_INVALID' : 'DECIMAL_INVALID', integer ? 'Debe ser un número entero.' : 'Debe ser un decimal con hasta 6 decimales.', 'Corrige el formato del número.');
+  if (integer ? !/^-?\d{1,14}$/.test(v) : !DECIMAL.test(v)) {
+    // Precisión superior a la que el almacenamiento conserva: se RECHAZA con su motivo. Nunca se redondea al
+    // escribir, porque redondear descartaría en silencio la precisión que informó quien midió (D-32).
+    const decimales = /^-?\d+\.(\d+)$/.exec(v)?.[1]?.length ?? 0;
+    if (!integer && decimales > 6) return bad('DECIMAL_PRECISION_EXCEEDED', `El valor tiene ${decimales} decimales y solo se conservan 6. No se redondea: corrige el valor a la precisión que se puede guardar.`, 'Envía el valor con 6 decimales como máximo.');
+    return bad(integer ? 'INTEGER_INVALID' : 'DECIMAL_INVALID', integer ? 'Debe ser un número entero.' : 'Debe ser un decimal con hasta 6 decimales.', 'Corrige el formato del número.');
+  }
   const n = scaled(v);
   if (val.positive && n <= 0n) return bad('MUST_BE_POSITIVE', 'Debe ser mayor que cero.', 'Registra un valor mayor que cero.');
   if (val.non_negative && n < 0n) return bad('MUST_BE_NON_NEGATIVE', 'No puede ser negativo.', 'Registra cero o un valor positivo.');
+  // Tope ESTRUCTURAL del dato (un porcentaje no pasa de 100). No es un límite de aceptación de calidad.
+  if (val.max !== undefined && n > scaled(String(val.max))) return bad('ABOVE_MAXIMUM', `No puede superar ${val.max}.`, 'Corrige el valor; este tope es estructural, no un criterio de calidad.');
   return { ok: true };
 }
 

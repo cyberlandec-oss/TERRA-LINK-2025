@@ -61,6 +61,20 @@ Depende P0-004/006/013/014/015 y de la **capacidad** «catálogo de productos y 
 Aceptación: entrega declarada, peso recibido, recepción parcial/completa, diferencias con causa, vínculos válidos y quality básica; confirmar repetido no crea doble stock. RF-12; QA-05/06.
 Estado (2026-10-10): capacidades demostradas verificadas localmente; **historia abierta** por «diferencias con causa» (requiere política de cierre y tolerancias, D-33). P0-016 puede usar las cantidades ya recibidas sin esperar ese cierre (propuesta sin aprobar en `docs/decisiones/P0-016-017-PROPUESTA-LOTES-INVENTARIO.md`).
 
+**Contraste de los criterios originales (2026-10-15), antes de cerrar la historia:**
+
+| Criterio de aceptación | Dónde se demuestra | Resultado |
+| --- | --- | --- |
+| Entrega declarada | `test/deliveries.int-spec.ts` (alta, registro y compuerta con sus KDE) | Cumplido |
+| Peso recibido | `test/deliveries.int-spec.ts` (pesaje con método, unidad y responsable) | Cumplido |
+| Recepción parcial/completa | `test/deliveries.int-spec.ts` + `test/recorrido-integral.int-spec.ts` (500 declarados, 480 recibidos) | Cumplido |
+| **Diferencias con causa** | `test/d32-d33.int-spec.ts`: cierre sin diferencia, por debajo y por encima; motivo obligatorio en ambos signos; permisos; aislamiento; doble envío y concurrencia; recepción posterior rechazada; justificación desactualizada con historial conservado | **Cumplido el 2026-10-15** con D-33 adoptada; era el único criterio abierto |
+| Vínculos válidos | Compuertas KDE por transición; `test/deliveries.int-spec.ts` | Cumplido |
+| Quality básica | Muestras y resultados de calidad, estado separado de la recepción física (D-33, 2026-10-10) | Cumplido |
+| Confirmar repetido no crea doble stock | `test/deliveries.int-spec.ts` (confirmación idempotente) y el ledger de P0-017 | Cumplido |
+
+**2026-10-15 — P0-012 DONE_LOCAL**: el criterio «diferencias con causa» queda demostrado con el cierre de entregas (D-33). DONE_LOCAL no acredita producción, uso en campo ni conformidad EUDR. **Lo que no cierra esta historia**: los límites de aceptación de calidad (D-33, pendientes) y la comprobación con operadores reales.
+
 ### P0-013 — CTE
 Depende TECH-001. Como trazabilidad, necesito hitos definidos.
 Aceptación: catálogo versionado de harvest/delivery/reception/weighing/processing/storage/packaging/sale/shipment; hechos operativos mapeados a eventos existentes. RF-13; QA-05.
@@ -79,6 +93,21 @@ Depende P0-012/015. Al cerrar un proceso se demuestra el criterio pendiente de P
 Aceptación: lote con inputs/outputs/run; DAG sin ciclos; origen conservado en salida; cierre atómico y consulta upstream/downstream con cantidades y permisos. RF-16; QA-07.
 Contrato propuesto (2026-10-10, sin aprobar): `docs/decisiones/P0-016-017-PROPUESTA-LOTES-INVENTARIO.md` (asignación sin doble uso desde P0-016; ledger completo en P0-017). Decisiones bloqueantes: D-39 (adoptadas para desarrollo local el 2026-10-10).
 Estado (2026-10-10): criterios originales demostrados localmente (lote con entradas/salidas/proceso, DAG sin ciclos, origen conservado, cierre atómico, consultas con cantidades y permisos); FERMENTATION integrada. **Historia abierta** por la integración de DRYING (cierre bloqueado hasta definir la unidad de humedad, D-32), que el backlog asocia a P0-016.
+
+**Contraste de los criterios originales (2026-10-15), antes de cerrar la historia:**
+
+| Criterio de aceptación | Dónde se demuestra | Resultado |
+| --- | --- | --- |
+| Lote con inputs/outputs/run | `test/lots.int-spec.ts` | Cumplido (2026-10-10) |
+| DAG sin ciclos | `test/lots.int-spec.ts` (control de ciclos en todo enlace) | Cumplido (2026-10-10) |
+| Origen conservado en la salida | `test/lots.int-spec.ts`, `test/recorrido-integral.int-spec.ts` | Cumplido (2026-10-10) |
+| Cierre atómico | `test/lots.int-spec.ts` (idempotente, con balance exacto en KG) | Cumplido (2026-10-10) |
+| Consulta upstream/downstream con cantidades y permisos | `test/lots.int-spec.ts`, `test/recorrido-integral.int-spec.ts` | Cumplido (2026-10-10) |
+| **Vínculo CTE DRYING integrado** | `test/d32-d33.int-spec.ts` y `test/lots.int-spec.ts`: cierre real de un secado con humedad en `%BH`, método y responsable, balance 100 = 60 + 40, evento `ProcessingRunClosed` publicado y `integration_status = INTEGRATED` | **Cumplido el 2026-10-15** con D-32 adoptada; era el único criterio abierto |
+
+DRYING se marca INTEGRATED porque **la operación y su evento están demostrados**, no por publicar el catálogo: el mismo caso de prueba cierra el secado, comprueba el evento y lee el estado del vínculo.
+
+**2026-10-15 — P0-016 DONE_LOCAL**: DONE_LOCAL no acredita producción, Android real ni conformidad EUDR. **Lo que no cierra esta historia**: los límites de aceptación de calidad de la humedad (D-32, pendientes) y las unidades adicionales de peso con sus factores (D-32, pendientes).
 
 ### P0-017 — Inventario/balance de masa
 Depende P0-016. Como operación, necesito cantidades conservadas.

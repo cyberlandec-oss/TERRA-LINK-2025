@@ -53,7 +53,12 @@ describe('validador KDE [fixtures sintéticos]', () => {
     const u = await run({ ...BASE, F_WEIGHT: { value: '10', unit: 'QQ' }, F_LOSS: { value: '1' } });
     expect(res(u, 'F_WEIGHT').error_code).toBe('UNIT_NOT_ALLOWED'); // sin conversión
     expect(res(u, 'F_LOSS').error_code).toBe('UNIT_REQUIRED'); // no se asume KG
-    expect(res(await run({ ...BASE, F_WEIGHT: { value: '1.1234567', unit: 'KG' } }), 'F_WEIGHT').error_code).toBe('DECIMAL_INVALID');
+    // Más precisión de la que se conserva: motivo propio y explícito, nunca redondeo silencioso (D-32).
+    const exceso = res(await run({ ...BASE, F_WEIGHT: { value: '1.1234567', unit: 'KG' } }), 'F_WEIGHT');
+    expect(exceso.error_code).toBe('DECIMAL_PRECISION_EXCEEDED');
+    expect(exceso.message).toMatch(/No se redondea/);
+    // Un formato sencillamente mal escrito sigue siendo DECIMAL_INVALID.
+    expect(res(await run({ ...BASE, F_WEIGHT: { value: '1.2.3', unit: 'KG' } }), 'F_WEIGHT').error_code).toBe('DECIMAL_INVALID');
   });
 
   it('condición verdadera, falsa y no evaluable', async () => {

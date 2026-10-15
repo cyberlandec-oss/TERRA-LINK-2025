@@ -159,7 +159,10 @@ describeDb('Recorrido integral de la cadena (preparación P0-031, datos sintéti
     anota('lote → proceso → inventario', '480 kg consumidos = 430 producidos + 50 de merma; ledger conciliado sin diferencias');
   });
 
-  it('el secado se prepara e inicia, pero NO se cierra: falta la unidad de humedad', async () => {
+  // Hasta el 2026-10-15 este tramo se cortaba: el cierre del secado estaba bloqueado por una decisión pendiente
+  // (D-32, unidad de humedad). Adoptada D-32, el corte desaparece y el recorrido lo atraviesa de verdad. Lo que
+  // sigue exigido es el DATO: sin humedad medida no se cierra, y eso se comprueba aquí antes de cerrar.
+  it('fermentación → secado: sin la humedad no cierra; con la medición en %BH sí, y el balance se conserva', async () => {
     const run = (await http().post(`${A()}/process-runs`).set(as(TRAZ))
       .send({ operation_id: op(), process_type: 'DRYING', output_product_id: ctx.seco }).expect(201)).body.run;
     await http().post(`${A()}/process-runs/${run.id}/start`).set(as(TRAZ))
@@ -167,12 +170,26 @@ describeDb('Recorrido integral de la cadena (preparación P0-031, datos sintéti
     const cierre = await http().post(`${A()}/process-runs/${run.id}/close`).set(as(TRAZ))
       .send({ operation_id: op(), closed_at: new Date(Date.now() + 1000).toISOString(), outputs: [{ quantity: '90' }], loss_quantity: '10' }).expect(422);
     expect(cierre.body.error.details.map((x: { field: string }) => x.field)).toEqual(expect.arrayContaining(['DRYING_MOISTURE']));
-    expect((await http().get(`${A()}/process-runs/${run.id}`).set(as(TRAZ)).expect(200)).body.drying_note).toMatch(/unidad de humedad/);
-    // El material sigue reservado por el proceso abierto: el bloqueo no «pierde» inventario.
-    const salida = (await http().get(`${A()}/lots/${ctx.loteFermentado}`).set(as(ADMIN)).expect(200)).body;
-    expect(saldos(salida.quantities)).toMatchObject({ physical: 430, reserved: 100, available: 330 });
-    await http().post(`${A()}/process-runs/${run.id}/cancel`).set(as(TRAZ)).send({ operation_id: op(), reason: 'Recorrido sintético: no se puede cerrar' }).expect(200);
-    corta('fermentación → secado cerrado', 'DRYING_MOISTURE', 'D-32 (unidad y definición de humedad)');
+    // El material sigue reservado mientras el proceso está abierto: el bloqueo no «pierde» inventario.
+    const reservado = (await http().get(`${A()}/lots/${ctx.loteFermentado}`).set(as(ADMIN)).expect(200)).body;
+    expect(saldos(reservado.quantities)).toMatchObject({ physical: 430, reserved: 100, available: 330 });
+
+    const cerrado = (await http().post(`${A()}/process-runs/${run.id}/close`).set(as(TRAZ)).send({
+      operation_id: op(), closed_at: new Date(Date.now() + 2000).toISOString(), outputs: [{ quantity: '90' }], loss_quantity: '10',
+      moisture: { value: '7.2', unit: '%BH', method: 'Medidor portátil (dato sintético del recorrido)' },
+    }).expect(200)).body.run;
+    expect(cerrado.status).toBe('CLOSED');
+    expect(cerrado.moisture).toMatchObject({ unit: '%BH', display: '7.2' });
+    expect(cerrado.moisture.method).toMatch(/Medidor portátil/);
+    // Conservación: 100 consumidos = 90 de salida + 10 de merma declarada. La humedad no convierte masas.
+    const consumido = (await http().get(`${A()}/lots/${ctx.loteFermentado}`).set(as(ADMIN)).expect(200)).body;
+    expect(saldos(consumido.quantities)).toMatchObject({ physical: 330, reserved: 0, available: 330 });
+    const seco = (await http().get(`${A()}/lots/${cerrado.outputs[0].lot_id}`).set(as(ADMIN)).expect(200)).body;
+    expect(saldos(seco.quantities)).toMatchObject({ physical: 90, available: 90 });
+    expect(seco.origin.status).toBe('COMPLETE'); // el origen sobrevive a la segunda transformación
+    const conciliacion = (await http().get(`${A()}/inventory/reconciliation`).set(as(ADMIN)).expect(200)).body;
+    expect(conciliacion.differences).toHaveLength(0);
+    anota('fermentación → secado cerrado', '100 kg consumidos = 90 de salida + 10 de merma; humedad 7,2 %BH con método y responsable (D-32); origen conservado y ledger conciliado');
   });
 
   // ---------------------------------------------------------------- 4. riesgo → mitigación
@@ -232,7 +249,7 @@ describeDb('Recorrido integral de la cadena (preparación P0-031, datos sintéti
 
     // Reservar NO reduce la existencia física: solo compromete.
     const lote = (await http().get(`${A()}/lots/${ctx.loteFermentado}`).set(as(ADMIN)).expect(200)).body;
-    expect(saldos(lote.quantities)).toMatchObject({ physical: 430, reserved: 200, available: 230 });
+    expect(saldos(lote.quantities)).toMatchObject({ physical: 330, reserved: 200, available: 130 }); // 430 − 100 consumidos por el secado
 
     const pre = (await http().get(`${A()}/shipments/${s.id}/preflight`).set(as(EXP)).expect(200)).body;
     expect(pre.allowed).toBe(false);
@@ -245,7 +262,7 @@ describeDb('Recorrido integral de la cadena (preparación P0-031, datos sintéti
     expect(d.body.error.code).toBe('DISPATCH_BLOCKED');
     // El bloqueo no consume: el inventario queda exactamente como estaba.
     const despues = (await http().get(`${A()}/lots/${ctx.loteFermentado}`).set(as(ADMIN)).expect(200)).body;
-    expect(saldos(despues.quantities)).toMatchObject({ physical: 430, reserved: 200, dispatched: 0 });
+    expect(saldos(despues.quantities)).toMatchObject({ physical: 330, reserved: 200, dispatched: 0 });
     anota('lote → embarque', 'reserva real en el ledger sin reducir existencia; preflight con sus comprobaciones fallidas visibles');
     corta('embarque → despacho', d.body.error.code, `D-34 y requisitos del preflight (${fallan.join(', ')})`);
   });

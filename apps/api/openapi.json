@@ -4537,6 +4537,98 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/deliveries/{id}/close": {
+      "post": {
+        "operationId": "DeliveriesController_closeDelivery",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseDeliveryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/deliveries/{id}/closure-justifications": {
+      "post": {
+        "operationId": "DeliveriesController_justifyClosure",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JustifyClosureDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "deliveries"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/deliveries/{id}/receptions": {
       "post": {
         "operationId": "DeliveriesController_receive",
@@ -9435,6 +9527,40 @@
           "operation_id"
         ]
       },
+      "CloseDeliveryDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "expected_version": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Obligatorio si hay diferencia entre lo declarado y lo recibido."
+          }
+        },
+        "required": [
+          "operation_id",
+          "expected_version"
+        ]
+      },
+      "JustifyClosureDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "reason"
+        ]
+      },
       "WeighingDto": {
         "type": "object",
         "properties": {
@@ -9809,15 +9935,25 @@
         "type": "object",
         "properties": {
           "value": {
-            "type": "string"
+            "type": "string",
+            "description": "Porcentaje en base húmeda, como texto decimal; hasta 6 decimales (D-32). Más precisión se rechaza con su motivo, no se redondea."
           },
           "unit": {
             "type": "string",
-            "description": "Sin unidad definida (D-32)"
+            "enum": [
+              "%BH"
+            ],
+            "description": "Única unidad admitida: porcentaje en base húmeda (D-32)."
+          },
+          "method": {
+            "type": "string",
+            "description": "Método de medición declarado (p. ej. medidor portátil, estufa, laboratorio)."
           }
         },
         "required": [
-          "value"
+          "value",
+          "unit",
+          "method"
         ]
       },
       "CloseDto": {

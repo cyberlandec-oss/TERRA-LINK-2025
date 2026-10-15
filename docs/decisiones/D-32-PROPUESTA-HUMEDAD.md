@@ -1,6 +1,24 @@
-# D-32 — Humedad: unidad, definición y efecto en el cierre de secado (propuesta, 2026-10-15)
+# D-32 — Humedad: unidad, definición y efecto en el cierre de secado
 
-**Propuesta para decidir. Nada de esto está aprobado.** Hasta que se decida, el cierre de secado sigue bloqueado.
+**ADOPTADA como regla provisional del MVP local el 2026-10-15**, por instrucción del responsable de producto.
+**No** es validación en campo ni aprobación para producción. Siguen pendientes, expresamente: los **límites de
+aceptación de calidad** y las **unidades y conversiones generales** (el resto de D-32, ver al final).
+
+## El texto de la decisión (lo que se adopta)
+
+1. **Porcentaje en base húmeda**, declarado como **medición**, con **método** y **responsable**.
+2. **Obligatorio para cerrar el secado**, según el contrato KDE.
+3. **Se conserva la precisión recibida dentro de la capacidad del almacenamiento** (seis decimales). Un valor con
+   más precisión **se rechaza explícitamente**: **no se redondea al escribir**. Dicho con claridad, porque
+   `numeric(20,6)` no admite «cualquier precisión imaginable»: hasta seis decimales se guardan tal cual; el séptimo
+   decimal no se acepta en silencio, se rechaza con su motivo.
+4. **Un decimal es presentación**, y el detalle muestra el valor completo.
+5. **No se deduce la humedad de la merma** ni se implementan conversiones de rendimiento por humedad.
+6. **No se introducen límites de aceptación de calidad**: siguen pendientes.
+
+---
+
+## Fundamento (lo que se analizó antes de adoptarla)
 
 ## Qué dicen las fuentes, literalmente
 

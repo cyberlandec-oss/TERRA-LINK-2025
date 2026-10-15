@@ -54,7 +54,7 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
 
   it('catálogo vigente 1.2.0 (P0-012 + referencia de límites declarada): cada KDE con hito exacto, contrato, tipo, unidad, obligatoriedad, regla, responsable y fuente', async () => {
     const r = (await http().get(`${base(orgA)}/kde-catalog`).set(as('trazabilidad@test.local')).expect(200)).body;
-    expect(r).toMatchObject({ scope: 'SYSTEM', current_release: { version: '1.5.0' }, flow_requirement: { status: 'PENDING', decision: 'D-33' }, legal_configuration: { status: 'NOT_ACTIVE' } });
+    expect(r).toMatchObject({ scope: 'SYSTEM', current_release: { version: '1.6.0' }, flow_requirement: { status: 'PENDING', decision: 'D-33' }, legal_configuration: { status: 'NOT_ACTIVE' } });
     const codes = r.definitions.map((d: { code: string }) => d.code);
     expect(new Set(codes).size).toBe(codes.length);
     const w = r.definitions.find((d: { code: string }) => d.code === 'DELIVERY_DECLARED_WEIGHT');
@@ -74,8 +74,11 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
     const harvest = r.definitions.find((d: { code: string }) => d.code === 'HARVEST_QUANTITY');
     expect(harvest.integration.story).toBeNull(); // D-33: sin historia, sin numeración inventada
     expect(r.definitions.find((d: { code: string }) => d.code === 'DELIVERY_PLOTS').difference).toMatch(/docs\/06 deliveries no tiene parcela/);
-    // todas las cantidades solo admiten KG
-    expect(r.definitions.filter((d: { value_type: string }) => d.value_type === 'QUANTITY').every((d: { unit: { allowed: string[] } }) => d.unit.allowed.join() === 'KG')).toBe(true);
+    // Los PESOS solo admiten KG: no hay conversiones (D-32 sigue pendiente en ese punto). La única cantidad que
+    // no es un peso es la humedad del secado, en %BH (porcentaje en base húmeda, D-32 adoptada el 2026-10-15).
+    const cantidades: Array<{ code: string; unit: { allowed: string[] } }> = r.definitions.filter((d: { value_type: string }) => d.value_type === 'QUANTITY');
+    expect(cantidades.filter((d) => d.code !== 'DRYING_MOISTURE').every((d) => d.unit.allowed.join() === 'KG')).toBe(true);
+    expect(cantidades.find((d) => d.code === 'DRYING_MOISTURE')!.unit.allowed).toEqual(['%BH']);
     // productor sin permiso; no miembro
     await http().get(`${base(orgA)}/kde-catalog`).set(as('productor@test.local')).expect(403);
     await http().get(`${base(orgA)}/kde-catalog`).set(as('admin-b@test.local')).expect(404);
@@ -93,7 +96,7 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
     expect(item(r, 'DELIVERY_SUPPORT').result).toBe('REQUIRED_MISSING');
     expect(item(r, 'DELIVERY_PRODUCTION_PERIOD').result).toBe('REQUIRED_MISSING'); // 1.1.0 (D-34): requerido para completitud
     expect(r.gate).toMatchObject({ transition_allowed: false, outcome: 'INCOMPLETE' });
-    expect(r).toMatchObject({ persisted: false, cte: { reference: 'DELIVERY@2' }, kde_release: '1.5.0' });
+    expect(r).toMatchObject({ persisted: false, cte: { reference: 'DELIVERY@2' }, kde_release: '1.6.0' });
     // parcela de otro productor (fuera del alcance del técnico), de otra organización e inexistente: mismo resultado
     for (const id of [plotOther, plotB, randomUUID()]) {
       const x = (await validate('tecnico1@test.local', delivery, { ...values, DELIVERY_PLOTS: [id] }).expect(200)).body;

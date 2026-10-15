@@ -496,7 +496,7 @@ export interface EvidenceDecisionsTable {
 // P0-012 Entregas y recepción
 export interface LocationsTable { id: string; organization_id: string; code: string; name: string; location_type: 'COLLECTION_CENTER' | 'WAREHOUSE' | 'OTHER'; status: 'ACTIVE' | 'INACTIVE'; row_version: Generated<string>; created_by: string; created_at: Generated<Timestamp> }
 export interface DeliveriesTable {
-  id: string; organization_id: string; delivery_code: string; status: 'DRAFT' | 'REGISTERED'; producer_id: string; product_id: string | null; location_id: string | null;
+  id: string; organization_id: string; delivery_code: string; status: 'DRAFT' | 'REGISTERED' | 'CLOSED'; producer_id: string; product_id: string | null; location_id: string | null;
   delivery_date: string | null; quantity_declared: string | null; unit: string | null; harvest_precision: 'DAY' | 'MONTH' | 'UNKNOWN' | null; harvest_start: string | null; harvest_end: string | null;
   harvest_derived_start: string | null; harvest_derived_end: string | null; notes: string | null; created_by: string; registered_by: string | null; registered_at: Timestamp | null;
   operation_id: string; row_version: Generated<string>; created_at: Generated<Timestamp>; updated_at: Generated<Timestamp>;
@@ -532,7 +532,7 @@ export interface GateEvaluationsTable { id: string; organization_id: string; ent
 // P0-016 Lotes y procesos
 export interface ProcessRunsTable {
   id: string; organization_id: string; run_code: string; process_type: 'FERMENTATION' | 'DRYING'; status: 'DRAFT' | 'RUNNING' | 'CLOSED' | 'CANCELLED'; output_product_id: string;
-  started_at: Timestamp | null; closed_at: Timestamp | null; loss_quantity: string | null; moisture_value: string | null; moisture_unit: string | null; notes: string | null; cancel_reason: string | null;
+  started_at: Timestamp | null; closed_at: Timestamp | null; loss_quantity: string | null; moisture_value: string | null; moisture_unit: string | null; moisture_method: string | null; moisture_measured_by: string | null; notes: string | null; cancel_reason: string | null;
   created_by: string; operation_id: string; start_operation_id: string | null; close_operation_id: string | null; cancel_operation_id: string | null; row_version: Generated<string>; created_at: Generated<Timestamp>;
 }
 export interface LotsTable {
@@ -582,6 +582,11 @@ export interface DevicesTable { id: string; organization_id: string; user_id: st
 export interface SyncOperationsTable { id: string; organization_id: string; operation_id: string; operation_type: string; entity_id: string; content_hash: string; depends_on: unknown; base_version: string | null; captured_at: Timestamp; resolves_operation_id: string | null; status: 'ACCEPTED' | 'REJECTED' | 'CONFLICT'; result: unknown; user_id: string; device_id: string; received_at: Generated<Timestamp> }
 export interface SyncCursorsTable { id: string; organization_id: string; user_id: string; device_id: string; scope: 'PLOTS'; visible: unknown; issued_at: Generated<Timestamp>; expires_at: Timestamp }
 export interface SyncAttachmentUploadsTable { operation_id: string; organization_id: string; document_id: string; version_id: string; sha256: string; uploaded_by: string; device_id: string; uploaded_at: Generated<Timestamp> }
+export interface DeliveryClosuresTable {
+  id: string; organization_id: string; delivery_id: string; justification_number: number; kind: 'CLOSE' | 'REJUSTIFY';
+  declared_quantity: string; received_quantity: string; difference: string; reason: string | null;
+  justified_by: string; justified_at: Generated<Timestamp>; operation_id: string;
+}
 export interface DdCasesTable { id: string; organization_id: string; case_number: string; subject_type: 'LOT'; subject_id: string; scope_note: string; created_by: string; created_at: Generated<Timestamp>; operation_id: string }
 export interface DdSnapshotsTable { id: string; organization_id: string; case_id: string; snapshot_number: number; content: unknown; content_hash: string; section_hashes: unknown; manifest: unknown; requirements: unknown; readiness: 'BLOCKED' | 'IN_PROGRESS' | 'READY'; captured_by: string; captured_at: Generated<Timestamp>; operation_id: string }
 export interface DdReviewsTable { id: string; organization_id: string; snapshot_id: string; action: 'START_REVIEW' | 'RETURN' | 'APPROVE'; reason: string; reviewer_id: string; reviewed_at: Generated<Timestamp>; operation_id: string }
@@ -754,6 +759,7 @@ export interface Database {
   mitigation_submissions: MitigationSubmissionsTable;
   mitigation_decisions: MitigationDecisionsTable;
   mitigation_corrections: MitigationCorrectionsTable;
+  delivery_closures: DeliveryClosuresTable;
   dd_cases: DdCasesTable;
   devices: DevicesTable;
   sync_operations: SyncOperationsTable;

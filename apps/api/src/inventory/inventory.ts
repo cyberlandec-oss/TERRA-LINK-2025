@@ -12,7 +12,7 @@ import type { Permission } from '../authz/catalog';
 import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { EVENT_STORE, type EventStore } from '../events/events';
 import { KdeService } from '../traceability/kde';
-import { scaled } from '../traceability/kde-validator';
+import { gateDetails, scaled } from '../traceability/kde-validator';
 import { LotsService } from '../lots/lots';
 import { holderBalances, incorporateOrganization, postMovement, reconcile, type Line, type MovementType } from './ledger';
 
@@ -195,7 +195,7 @@ export class InventoryService {
       const g = await this.kde.evaluateTransition({ ...ctx, permissions: [...new Set([...ctx.permissions, 'lot:read', 'location:read'] as Permission[])] }, 'STOCK_MOVEMENT', {
         STORAGE_LOT: l.lot_id, STORAGE_LOCATION: l.location_id, STORAGE_QUANTITY: { value: l.quantity, unit: 'KG' }, STORAGE_DIRECTION: l.direction, STORAGE_RESPONSIBLE: ctx.membershipId,
       }, trx);
-      if (!g.allowed) throw new AppError(422, 'TRANSITION_BLOCKED', 'Movimiento incompleto: lote, ubicación, cantidad, dirección o responsable no válidos.', g.blocking.map((b) => ({ field: b.code, reason: b.error_code ?? b.result })));
+      if (!g.allowed) throw new AppError(422, 'TRANSITION_BLOCKED', 'Movimiento incompleto: lote, ubicación, cantidad, dirección o responsable no válidos.', gateDetails(g.blocking));
       results.push({ direction: l.direction, g });
     }
     return results;

@@ -13,7 +13,7 @@ import type { Permission } from '../authz/catalog';
 import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { EVENT_STORE, type EventStore } from '../events/events';
 import { KdeService } from '../traceability/kde';
-import { scaled } from '../traceability/kde-validator';
+import { gateDetails, scaled } from '../traceability/kde-validator';
 import { postMovement } from '../inventory/ledger';
 
 // P0-012 Entregas y recepción (RF-12, QA-05/06; UX_UI §14). Decisiones de diseño del MVP local D-33/D-34/D-35
@@ -69,6 +69,22 @@ class SupportDto {
   @ApiProperty({ enum: ['DELIVERY_NOTE', 'REMISSION_GUIDE', 'PURCHASE_SETTLEMENT', 'OTHER'] }) @IsIn(['DELIVERY_NOTE', 'REMISSION_GUIDE', 'PURCHASE_SETTLEMENT', 'OTHER']) support_kind!: string;
 }
 class ReasonDto { @ApiProperty() @IsString() @Length(3, 500) reason!: string }
+/**
+ * Cierre de una entrega (D-33, adoptada el 2026-10-15). El motivo es obligatorio cuando hay diferencia —positiva o
+ * negativa— y opcional solo si la diferencia es exactamente cero. Cerrar con diferencia NO está prohibido: lo único
+ * que se exige es explicarla.
+ */
+class CloseDeliveryDto {
+  @ApiProperty() @IsUUID() operation_id!: string;
+  @ApiProperty() @IsInt() @Min(1) expected_version!: number;
+  @ApiPropertyOptional({ description: 'Obligatorio si hay diferencia entre lo declarado y lo recibido.' })
+  @IsOptional() @IsString() @Length(3, 500) reason?: string;
+}
+/** Justificación nueva de un cierre cuya diferencia cambió por una corrección admitida. La anterior se conserva. */
+class JustifyClosureDto {
+  @ApiProperty() @IsUUID() operation_id!: string;
+  @ApiProperty() @IsString() @Length(3, 500) reason!: string;
+}
 class WeighingDto {
   @ApiProperty() @IsString() @Length(1, 120) method!: string;
   @ApiProperty({ description: 'Texto decimal' }) @IsString() @Matches(DEC) quantity!: string;
@@ -120,7 +136,7 @@ class ReceptionCorrectionDto {
   @ApiProperty({ type: WeighingDto }) @ValidateNested() @Type(() => WeighingDto) weighing!: WeighingDto;
 }
 class ListQuery {
-  @IsOptional() @IsIn(['DRAFT', 'REGISTERED']) status?: 'DRAFT' | 'REGISTERED';
+  @IsOptional() @IsIn(['DRAFT', 'REGISTERED', 'CLOSED']) status?: 'DRAFT' | 'REGISTERED' | 'CLOSED';
   @IsOptional() @IsIn(['NOT_RECEIVED', 'PARTIAL', 'RECEIVED_DECLARED', 'ABOVE_DECLARED']) reception?: string;
   @IsOptional() @IsUUID() producer_id?: string;
   @IsOptional() @IsString() @Length(1, 40) q?: string;
@@ -309,7 +325,7 @@ export class DeliveriesService {
   }
   private blocked(g: Awaited<ReturnType<DeliveriesService['gate']>>, what: string) {
     return new AppError(422, 'TRANSITION_BLOCKED', `No se puede ${what}: faltan datos obligatorios o no son válidos.`,
-      g.blocking.map((b) => ({ field: b.code, reason: b.error_code ?? b.result })));
+      gateDetails(g.blocking));
   }
 
   private async record(trx: Transaction<Database>, ctx: TenantContext, userId: string, d: { id: string; delivery_code: string }, ev: { type: string; aggregateType: string; aggregateId: string; version: number; payload: Record<string, unknown>; correctionOf?: { eventId: string; reason: string } } | null, action: string, after: Record<string, unknown>, requestId?: string, reason?: string) {
@@ -530,6 +546,8 @@ export class DeliveriesService {
     try {
       const receptionId = await this.db.transaction().execute(async (trx) => {
         const d = await this.loadDelivery(trx, ctx, id, 'read', true);
+        // D-33: una entrega cerrada no admite recepciones nuevas ni se reabre. Si llega más material, es otra entrega.
+        if (d.status === 'CLOSED') throw conflict('DELIVERY_CLOSED', 'La entrega está cerrada: no admite recepciones nuevas y no se reabre. Si llegó más material, registra otra entrega.');
         if (d.status !== 'REGISTERED') throw conflict('DELIVERY_NOT_REGISTERED', 'Solo se recibe una entrega registrada.');
         await this.checkLocation(trx, ctx, dto.location_id, 'location_id');
         const rid = randomUUID();
@@ -799,6 +817,133 @@ export class DeliveriesService {
     return this.view(this.db, ctx, await this.loadDelivery(this.db, ctx, id, 'read'));
   }
 
+  // ---------- Cierre de entregas (D-33, adoptada como regla provisional del MVP local el 2026-10-15) ----------
+
+  /** Diferencia vigente: declarado efectivo (tras correcciones) − suma de recepciones vigentes. */
+  private async difference(db: Db, d: Delivery) {
+    const e = await this.effective(db, d);
+    const declared = scaled(e.quantity_declared ?? '0');
+    // «Vigente» = el último peso corregido de cada recepción, o el original si no se corrigió. Sumar
+    // `quantity_received` a secas ignoraba las correcciones y dejaba la diferencia congelada en la cifra
+    // original: es la misma expresión que ya usa el listado.
+    const r = await sql<{ total: string | null }>`
+      SELECT sum(coalesce((SELECT a.new_quantity FROM reception_adjustments a WHERE a.reception_id = r.id ORDER BY a.adjustment_number DESC LIMIT 1), r.quantity_received))::text AS total
+      FROM receptions r WHERE r.delivery_id = ${d.id}`.execute(db);
+    const received = scaled(r.rows[0].total ?? '0');
+    return { declared, received, difference: declared - received };
+  }
+
+  /**
+   * Estado DERIVADO del cierre, nunca almacenado, para que no pueda quedar desincronizado con las cifras:
+   * - `OPEN`: sin justificación de cierre;
+   * - `CLOSED`: la última justificación explica la diferencia vigente;
+   * - `CLOSED_JUSTIFICATION_STALE`: cerrada, pero una corrección admitida cambió la diferencia y el motivo
+   *   vigente explica una cifra que ya no existe. **La entrega sigue cerrada**: falta explicar la cifra nueva.
+   */
+  private async closure(db: Db, ctx: TenantContext, d: Delivery) {
+    const rows = await db.selectFrom('delivery_closures as c').leftJoin('users as u', 'u.id', 'c.justified_by')
+      .select(['c.justification_number', 'c.kind', 'c.declared_quantity', 'c.received_quantity', 'c.difference', 'c.reason', 'c.justified_at', 'u.first_name', 'u.last_name'])
+      .where('c.organization_id', '=', ctx.organizationId).where('c.delivery_id', '=', d.id).orderBy('c.justification_number').execute();
+    const actual = await this.difference(db, d);
+    const last = rows[rows.length - 1];
+    const stale = !!last && scaled(dec(last.difference)!) !== actual.difference;
+    const status = !last ? 'OPEN' : stale ? 'CLOSED_JUSTIFICATION_STALE' : 'CLOSED';
+    return {
+      status,
+      label: status === 'OPEN' ? 'Abierta' : status === 'CLOSED' ? 'Cerrada y justificada' : 'Cerrada, justificación desactualizada',
+      note: status === 'CLOSED_JUSTIFICATION_STALE'
+        ? 'Una corrección admitida cambió la diferencia después del cierre. El cierre y su motivo se conservan tal cual; hace falta añadir una justificación para la cifra nueva. La entrega sigue cerrada: no se reabre ni admite recepciones.'
+        : status === 'CLOSED' ? 'Cerrada con su diferencia justificada. Cerrar no equivale a conformidad de ningún tipo.'
+          : 'La entrega no se ha cerrado; admite recepciones.',
+      // Cifras vigentes con su unidad explícita, como el resto de pesos de la vista. La resta presume una sola
+      // unidad en la entrega: declarado y recibido comparten la de la entrega.
+      current: { declared: { value: unscaled(actual.declared), unit: d.unit }, received: { value: unscaled(actual.received), unit: d.unit }, difference: { value: unscaled(actual.difference), unit: d.unit } },
+      justifications: rows.map((r) => ({
+        number: r.justification_number, kind: r.kind, reason: r.reason,
+        declared: { value: dec(r.declared_quantity)!, unit: d.unit }, received: { value: dec(r.received_quantity)!, unit: d.unit }, difference: { value: dec(r.difference)!, unit: d.unit },
+        at: r.justified_at, by: `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim() || 'Miembro',
+      })),
+      stale,
+    };
+  }
+
+  /** Cierra la entrega. Con diferencia exige además `delivery:correct`: afirmar una pérdida no es rutina. */
+  async closeDelivery(user: AuthUser, orgId: string, id: string, dto: CloseDeliveryDto, requestId?: string) {
+    const ctx = await this.ctx(user, orgId, ['reception:confirm'], true);
+    const prior = await this.db.selectFrom('delivery_closures').selectAll().where('organization_id', '=', orgId).where('operation_id', '=', dto.operation_id).executeTakeFirst();
+    if (prior) {
+      if (prior.delivery_id !== id) throw conflict('OPERATION_ID_REUSED', 'Ese identificador de operación ya se usó en otra entrega.');
+      return { replayed: true, delivery: await this.view(this.db, ctx, await this.loadDelivery(this.db, ctx, id, 'read')) };
+    }
+    let replayed = false;
+    await this.db.transaction().execute(async (trx) => {
+      const d = await this.loadDelivery(trx, ctx, id, 'read', true);
+      // El reintento se reconoce AQUÍ, ya con la fila bloqueada: dos envíos simultáneos con el mismo
+      // `operation_id` se serializan y el segundo encuentra su propio cierre. Comprobarlo solo antes de la
+      // transacción dejaba al segundo chocando contra la versión que el primero acababa de incrementar, y un
+      // reintento idéntico habría parecido un conflicto.
+      const yaCerrado = await trx.selectFrom('delivery_closures').select(['id']).where('organization_id', '=', orgId).where('operation_id', '=', dto.operation_id).executeTakeFirst();
+      if (yaCerrado) { replayed = true; return; }
+      if (Number(d.row_version) !== dto.expected_version) throw conflict('VERSION_CONFLICT', 'La entrega cambió desde que la consultaste; vuelve a cargarla.');
+      if (d.status === 'CLOSED') throw conflict('DELIVERY_ALREADY_CLOSED', 'La entrega ya está cerrada; un cierre no se repite ni se deshace.');
+      if (d.status !== 'REGISTERED') throw conflict('DELIVERY_NOT_REGISTERED', 'Solo se cierra una entrega registrada.');
+      const { declared, received, difference } = await this.difference(trx, d);
+      if (received === 0n) throw conflict('NO_RECEPTIONS', 'La entrega no tiene ninguna recepción: no hay nada que cerrar.');
+      const reason = dto.reason?.trim() || null;
+      if (difference !== 0n && !reason) {
+        throw new AppError(422, 'DIFFERENCE_REASON_REQUIRED', `Hay una diferencia de ${unscaled(difference)} KG entre lo declarado y lo recibido: cerrar exige explicarla. Cerrar con diferencia está permitido; dejarla sin motivo, no.`, [{ field: 'reason', reason: 'REQUIRED_WITH_DIFFERENCE' }]);
+      }
+      if (difference !== 0n && !this.has(ctx, 'delivery:correct')) {
+        throw forbidden('PERMISSION_DENIED', 'Cerrar una entrega con diferencia afirma una pérdida o un excedente: requiere delivery:correct, no solo confirmar recepciones.');
+      }
+      await trx.insertInto('delivery_closures').values({
+        id: randomUUID(), organization_id: orgId, delivery_id: id, justification_number: 1, kind: 'CLOSE',
+        declared_quantity: unscaled(declared), received_quantity: unscaled(received), difference: unscaled(difference),
+        reason, justified_by: user.id, operation_id: dto.operation_id,
+      }).execute();
+      const after = await trx.updateTable('deliveries').set({ status: 'CLOSED', row_version: sql`row_version + 1` } as never)
+        .where('id', '=', id).returningAll().executeTakeFirstOrThrow();
+      await this.record(trx, ctx, user.id, d, {
+        type: 'DeliveryClosed', aggregateType: 'DELIVERY', aggregateId: id, version: Number(after.row_version),
+        payload: { delivery_id: id, declared: unscaled(declared), received: unscaled(received), difference: unscaled(difference), unit: 'KG', has_difference: difference !== 0n },
+      }, 'delivery.close', { difference: unscaled(difference), unit: 'KG' }, requestId, reason ?? undefined);
+    });
+    return { replayed, delivery: await this.view(this.db, ctx, await this.loadDelivery(this.db, ctx, id, 'read')) };
+  }
+
+  /** Añade una justificación cuando la diferencia cambió tras el cierre. Nunca sustituye el motivo anterior. */
+  async justifyClosure(user: AuthUser, orgId: string, id: string, dto: JustifyClosureDto, requestId?: string) {
+    const ctx = await this.ctx(user, orgId, ['delivery:correct'], true);
+    const prior = await this.db.selectFrom('delivery_closures').selectAll().where('organization_id', '=', orgId).where('operation_id', '=', dto.operation_id).executeTakeFirst();
+    if (prior) {
+      if (prior.delivery_id !== id) throw conflict('OPERATION_ID_REUSED', 'Ese identificador de operación ya se usó en otra entrega.');
+      return { replayed: true, delivery: await this.view(this.db, ctx, await this.loadDelivery(this.db, ctx, id, 'read')) };
+    }
+    let replayed = false;
+    await this.db.transaction().execute(async (trx) => {
+      const d = await this.loadDelivery(trx, ctx, id, 'read', true);
+      const yaJustificado = await trx.selectFrom('delivery_closures').select(['id']).where('organization_id', '=', orgId).where('operation_id', '=', dto.operation_id).executeTakeFirst();
+      if (yaJustificado) { replayed = true; return; }
+      if (d.status !== 'CLOSED') throw conflict('DELIVERY_NOT_CLOSED', 'Solo se justifica de nuevo el cierre de una entrega cerrada.');
+      const last = await trx.selectFrom('delivery_closures').selectAll().where('delivery_id', '=', id).orderBy('justification_number', 'desc').executeTakeFirstOrThrow();
+      const { declared, received, difference } = await this.difference(trx, d);
+      if (scaled(dec(last.difference)!) === difference) {
+        throw conflict('JUSTIFICATION_NOT_STALE', 'La justificación vigente ya explica la diferencia actual: no hay nada que actualizar.');
+      }
+      await trx.insertInto('delivery_closures').values({
+        id: randomUUID(), organization_id: orgId, delivery_id: id, justification_number: last.justification_number + 1, kind: 'REJUSTIFY',
+        declared_quantity: unscaled(declared), received_quantity: unscaled(received), difference: unscaled(difference),
+        reason: dto.reason.trim(), justified_by: user.id, operation_id: dto.operation_id,
+      }).execute();
+      const after = await trx.updateTable('deliveries').set({ row_version: sql`row_version + 1` } as never).where('id', '=', id).returningAll().executeTakeFirstOrThrow();
+      await this.record(trx, ctx, user.id, d, {
+        type: 'DeliveryClosureJustified', aggregateType: 'DELIVERY', aggregateId: id, version: Number(after.row_version),
+        payload: { delivery_id: id, justification_number: last.justification_number + 1, previous_difference: dec(last.difference), difference: unscaled(difference), unit: 'KG' },
+      }, 'delivery.closure_justify', { justification_number: last.justification_number + 1, difference: unscaled(difference) }, requestId, dto.reason.trim());
+    });
+    return { replayed, delivery: await this.view(this.db, ctx, await this.loadDelivery(this.db, ctx, id, 'read')) };
+  }
+
   private async view(db: Db, ctx: TenantContext, d: Delivery & { producer_assignee: string | null }) {
     const has = (p: Permission) => this.has(ctx, p);
     const e = await this.effective(db, d);
@@ -926,7 +1071,7 @@ export class DeliveriesService {
       supports, supports_visible: has('document:read'), support_status: activeSupports ? 'REGISTERED' : 'PENDING',
       receptions,
       totals: { declared: declared ? { value: declared, unit: d.unit } : null, received: receivedStr ? { value: receivedStr, unit: 'KG' } : null, reception_status: recStatus, reception_status_label: RECEPTION_LABEL[recStatus],
-        closure: { status: 'NOT_DEFINED', note: 'El cierre de una entrega por debajo de lo declarado y las tolerancias no están definidos (D-33). La entrega no se cierra automáticamente ni se ajusta su declaración.' } },
+        closure: await this.closure(db, ctx, d) },
       gates, history,
       inventory_effect: { status: 'RECORDED_IN_LEDGER', note: 'Cada recepción confirmada es la única entrada física de ese cacao en el ledger (recepción @ centro). Formar lotes mueve cantidad, no crea existencias. Ver Inventario.' },
       disclaimer: 'Registrar una entrega o una recepción con pendientes no es un expediente completo, producto liberado ni cumplimiento EUDR.',
@@ -935,6 +1080,8 @@ export class DeliveriesService {
         edit: d.status === 'DRAFT' && canWrite, register: d.status === 'DRAFT' && canWrite, link_support: canWrite && has('document:read'),
         receive: d.status === 'REGISTERED' && has('reception:confirm'), correct_delivery: d.status === 'REGISTERED' && has('delivery:correct'),
         correct_reception: has('reception:correct'), record_quality: has('quality:record'), decide_quality: has('quality:decide'),
+        close: d.status === 'REGISTERED' && receptions.length > 0 && has('reception:confirm'),
+        justify_closure: d.status === 'CLOSED' && has('delivery:correct'),
       },
     };
   }
@@ -1066,6 +1213,10 @@ export class DeliveriesController {
   @Post('deliveries/:id/supports') addSupport(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: SupportDto, @Req() req: AuthedRequest) { return this.service.addSupport(u, o, id, dto, req.requestId); }
   @Post('deliveries/:id/supports/:supportId/withdraw') @HttpCode(200)
   withdrawSupport(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string, @Param('supportId', ParseUUIDPipe) s: string, @Body() dto: ReasonDto, @Req() req: AuthedRequest) { return this.service.withdrawSupport(u, o, id, s, dto, req.requestId); }
+  @Post('deliveries/:id/close') @HttpCode(200)
+  closeDelivery(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: CloseDeliveryDto, @Req() req: AuthedRequest) { return this.service.closeDelivery(u, o, id, dto, req.requestId); }
+  @Post('deliveries/:id/closure-justifications')
+  justifyClosure(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: JustifyClosureDto, @Req() req: AuthedRequest) { return this.service.justifyClosure(u, o, id, dto, req.requestId); }
   @Post('deliveries/:id/receptions') receive(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ReceptionDto, @Req() req: AuthedRequest) { return this.service.receive(u, o, id, dto, req.requestId); }
   @Post('deliveries/:id/corrections') correctDelivery(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: DeliveryCorrectionDto, @Req() req: AuthedRequest) { return this.service.correctDelivery(u, o, id, dto, req.requestId); }
   @Post('deliveries/:id/receptions/:receptionId/corrections')

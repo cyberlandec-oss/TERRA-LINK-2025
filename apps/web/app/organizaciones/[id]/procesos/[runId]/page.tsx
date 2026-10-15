@@ -44,6 +44,15 @@ export default function RunDetailPage() {
         {r.inputs.length === 0 ? <p className="muted">Sin entradas (se reservan al iniciar).</p> : <ul className="plain" aria-label="Entradas del proceso">{r.inputs.map((i) => <li key={i.lot_id}><Link href={`/organizaciones/${orgId}/lotes/${i.lot_id}`}>{i.lot_code}</Link> · {i.product}: {kg(i.quantity.value)} {EFFECT[i.effect]}{i.origin_status === 'INCOMPLETE' ? ' · origen incompleto' : ''}</li>)}</ul>}
         {r.outputs.length > 0 && <><h3>Salidas</h3><ul className="plain" aria-label="Salidas del proceso">{r.outputs.map((o) => <li key={o.lot_id}><Link href={`/organizaciones/${orgId}/lotes/${o.lot_id}`}>{o.lot_code}</Link>: {kg(o.quantity.value)}</li>)}</ul></>}
         {r.balance && <p>Balance: entradas {kg(r.balance.input)} = salidas {kg(r.balance.output)} + pérdida {kg(r.balance.loss)} · rendimiento en masa {r.balance.mass_yield_percent} %<br /><span className="field-help">{r.balance.note}</span></p>}
+        {r.moisture && <>
+          <h3>Humedad final</h3>
+          <dl className="props">
+            <dt>Medición</dt><dd>{r.moisture.display} {r.moisture.unit} <span className="muted">(valor registrado: {r.moisture.value})</span></dd>
+            <dt>Método</dt><dd>{r.moisture.method ?? <span className="muted">—</span>}</dd>
+            <dt>Responsable</dt><dd>{r.moisture.measured_by ?? <span className="muted">—</span>}</dd>
+          </dl>
+          <p className="field-help">{r.moisture.note}</p>
+        </>}
       </section>
       {r.actions.start && <StartForm base={base} orgId={orgId} onDone={setR} />}
       {r.status === 'RUNNING' && r.close_preview && <section className="card"><GatePanel title="Para cerrar el proceso" gate={r.close_preview} /></section>}
@@ -91,7 +100,8 @@ function StartForm({ base, orgId, onDone }: { base: string; orgId: string; onDon
 
 function CloseForm({ r, base, onDone }: { r: Run; base: string; onDone: (r: Run) => void }) {
   const s = useRun(onDone);
-  const [f, setF] = useState({ at: nowLocal(), output: '', loss: '', moisture: '', unit: '' });
+  // D-32: la humedad del secado es una medición en %BH con método declarado; la unidad no se escribe a mano.
+  const [f, setF] = useState({ at: nowLocal(), output: '', loss: '', moisture: '', method: '' });
   const total = r.inputs.reduce((a, i) => a + Number(i.quantity.value), 0);
   return (
     <section className="card form" aria-labelledby="cl-title">
@@ -99,16 +109,21 @@ function CloseForm({ r, base, onDone }: { r: Run; base: string; onDone: (r: Run)
       <p className="muted">Entradas reservadas: {kg(String(total))}. Debe cumplirse entradas = salida + pérdida explícita (0 admitido), sin tolerancia.</p>
       <form onSubmit={(e: FormEvent) => { e.preventDefault(); void s.run((op) => api<{ run: Run }>(`${base}/close`, { method: 'POST', body: {
         operation_id: op, closed_at: withZone(f.at), outputs: [{ quantity: f.output.replace(',', '.') }], loss_quantity: f.loss.replace(',', '.'),
-        ...(f.moisture ? { moisture: { value: f.moisture.replace(',', '.'), ...(f.unit ? { unit: f.unit } : {}) } } : {}) } })); }}>
+        ...(f.moisture ? { moisture: { value: f.moisture.replace(',', '.'), unit: '%BH', method: f.method.trim() } } : {}) } })); }}>
         <div className="grid-3">
           <div><label htmlFor="cl-at">Cierre</label><input id="cl-at" type="datetime-local" required value={f.at} onChange={(e) => setF({ ...f, at: e.target.value })} /></div>
           <div><label htmlFor="cl-out">Salida (kg)</label><input id="cl-out" required inputMode="decimal" value={f.output} onChange={(e) => setF({ ...f, output: e.target.value })} /></div>
           <div><label htmlFor="cl-loss">Pérdida (kg)</label><input id="cl-loss" required inputMode="decimal" value={f.loss} onChange={(e) => setF({ ...f, loss: e.target.value })} /></div>
         </div>
-        {r.process_type === 'DRYING' && <div className="grid-2">
-          <div><label htmlFor="cl-moist">Humedad</label><input id="cl-moist" inputMode="decimal" value={f.moisture} onChange={(e) => setF({ ...f, moisture: e.target.value })} /></div>
-          <div><label htmlFor="cl-mu">Unidad de humedad <span className="muted">(no definida en el contrato)</span></label><input id="cl-mu" maxLength={20} value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })} /></div>
-        </div>}
+        {r.process_type === 'DRYING' && <>
+          <div className="grid-2">
+            <div><label htmlFor="cl-moist">Humedad final (% en base húmeda)</label><input id="cl-moist" required inputMode="decimal" value={f.moisture} onChange={(e) => setF({ ...f, moisture: e.target.value })} />
+              <div className="field-help">Porcentaje en base húmeda. Se guarda el valor que midas, hasta seis decimales; más precisión se rechaza en vez de redondearse. La pantalla muestra un decimal.</div></div>
+            <div><label htmlFor="cl-mm">Método de medición</label><input id="cl-mm" required minLength={3} maxLength={120} value={f.method} onChange={(e) => setF({ ...f, method: e.target.value })} />
+              <div className="field-help">Con qué se midió (medidor portátil, estufa, laboratorio…). El responsable es quien cierra el proceso.</div></div>
+          </div>
+          <p className="muted">Cerrar un secado exige la humedad (D-32). No hay límites de aceptación: el sistema no decide si un valor es «bueno».</p>
+        </>}
         {s.feedback}
         <div className="actions"><button type="submit" disabled={s.busy}>Cerrar proceso</button></div>
       </form>

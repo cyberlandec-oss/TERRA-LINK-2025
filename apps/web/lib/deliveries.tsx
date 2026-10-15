@@ -15,7 +15,7 @@ export interface Reception {
   quality: { status: 'PENDING_EVALUATION' | 'RELEASED' | 'REJECTED'; status_label: string; note: string; limits_verification: string; samples: Array<{ id: string; moment: 'DURING_RECEPTION' | 'AFTER_WEIGHING'; sample_reference: string | null; sampled_at: string; sampled_by: string; results: QualityResult[] }> };
 }
 export interface Delivery {
-  id: string; delivery_code: string; status: 'DRAFT' | 'REGISTERED'; row_version: number;
+  id: string; delivery_code: string; status: 'DRAFT' | 'REGISTERED' | 'CLOSED'; row_version: number;
   producer: { id: string; code: string; name: string | null; identity_visible: boolean };
   product: { id: string; code: string; name: string; status: string } | null; location: { id: string; code: string; name: string } | null;
   delivery_date: string | null; quantity_declared: Qty | null; harvest_period: HarvestPeriod | null;
@@ -25,14 +25,24 @@ export interface Delivery {
   supports: Array<{ id: string; kind: string; document_id: string; document_version_id: string; title: string; version_number: number; availability: string; validity: string; expires_at: string | null; review: string; newer_version_exists: boolean; withdrawn: { reason: string; at: string } | null }>;
   supports_visible: boolean; support_status: 'REGISTERED' | 'PENDING';
   receptions: Reception[];
-  totals: { declared: Qty | null; received: Qty | null; reception_status: string; reception_status_label: string; closure: { status: string; note: string } };
+  totals: { declared: Qty | null; received: Qty | null; reception_status: string; reception_status_label: string; closure: Closure };
   gates: { register?: Gate; registration?: { transition: string; release_version: string; allowed: boolean; result: { blocking: GateItem[]; pending: GateItem[]; not_evaluated: Gate['not_evaluated'] } } | null; reception_preview?: Gate; completeness: Gate; downstream: Gate };
   history: Array<{ event_id: string; event_type: string; aggregate_type: string; aggregate_version: number; occurred_at: string; actor: string; data: Record<string, unknown>; correction_of: { event_id: string; reason: string } | null }>;
   inventory_effect: { status: string; note: string }; disclaimer: string;
-  actions: { edit: boolean; register: boolean; link_support: boolean; receive: boolean; correct_delivery: boolean; correct_reception: boolean; record_quality: boolean; decide_quality: boolean };
+  actions: { edit: boolean; register: boolean; link_support: boolean; receive: boolean; correct_delivery: boolean; correct_reception: boolean; record_quality: boolean; decide_quality: boolean; close: boolean; justify_closure: boolean };
+}
+/**
+ * Cierre de la entrega (D-33). El estado se deriva en el servidor y nunca se almacena:
+ * `OPEN` · `CLOSED` · `CLOSED_JUSTIFICATION_STALE` (el motivo explica una cifra que ya cambió).
+ * Las justificaciones se acumulan: ninguna sustituye a la anterior.
+ */
+export interface Closure {
+  status: 'OPEN' | 'CLOSED' | 'CLOSED_JUSTIFICATION_STALE'; label: string; note: string; stale: boolean;
+  current: { declared: Qty; received: Qty; difference: Qty };
+  justifications: Array<{ number: number; kind: 'CLOSE' | 'REJUSTIFY'; reason: string | null; declared: Qty; received: Qty; difference: Qty; at: string; by: string }>;
 }
 export interface DeliveryRow {
-  id: string; delivery_code: string; status: 'DRAFT' | 'REGISTERED'; delivery_date: string | null; producer: { id: string; code: string; name: string | null };
+  id: string; delivery_code: string; status: 'DRAFT' | 'REGISTERED' | 'CLOSED'; delivery_date: string | null; producer: { id: string; code: string; name: string | null };
   product: string | null; quantity_declared: Qty | null; received: Qty | null; receptions: number; reception_status: string; reception_status_label: string; harvest_precision: string | null;
 }
 export interface DeliveryOptions {
@@ -42,7 +52,10 @@ export interface DeliveryOptions {
 }
 
 export const STATUS_LABEL: Record<string, { label: string; tone: 'neutral' | 'valid' | 'review' | 'blocked' | 'process' }> = {
-  DRAFT: { label: 'Borrador', tone: 'neutral' }, REGISTERED: { label: 'Registrada', tone: 'process' },
+  DRAFT: { label: 'Borrador', tone: 'neutral' }, REGISTERED: { label: 'Registrada', tone: 'process' }, CLOSED: { label: 'Cerrada', tone: 'valid' },
+};
+export const CLOSURE_TONE: Record<string, 'neutral' | 'valid' | 'review' | 'blocked' | 'process'> = {
+  OPEN: 'neutral', CLOSED: 'valid', CLOSED_JUSTIFICATION_STALE: 'review',
 };
 export const RECEPTION_TONE: Record<string, 'neutral' | 'valid' | 'review' | 'blocked' | 'process'> = {
   NOT_RECEIVED: 'neutral', PARTIAL: 'review', RECEIVED_DECLARED: 'valid', ABOVE_DECLARED: 'review',
@@ -65,9 +78,13 @@ export const FIELD_LABEL: Record<string, string> = {
   CLASSIFICATION_METHOD: 'Método de análisis', CLASSIFICATION_DECISION: 'Decisión de calidad', CLASSIFICATION_LIMITS_VERSION: 'Versión de límites aplicada',
 };
 /** Detalle de un error de la API en español (campo y motivo), sin valores. */
-export function ErrorDetails({ details }: { details?: Array<{ field?: string; reason: string }> }) {
+/**
+ * Datos a revisar de una compuerta bloqueada. Si el servidor explica el motivo, se muestra **su** mensaje: traducir
+ * solo el código dejaba al usuario con «DECIMAL_PRECISION_EXCEEDED» y sin saber qué corregir.
+ */
+export function ErrorDetails({ details }: { details?: Array<{ field?: string; reason: string; message?: string }> }) {
   if (!details?.length) return null;
-  return <ul className="error" aria-label="Datos a revisar">{details.map((d, i) => <li key={i}>{(d.field && FIELD_LABEL[d.field]) ?? d.field ?? 'Dato'}: {RESULT_LABEL[d.reason] ?? d.reason}</li>)}</ul>;
+  return <ul className="error" aria-label="Datos a revisar">{details.map((d, i) => <li key={i}>{(d.field && FIELD_LABEL[d.field]) ?? d.field ?? 'Dato'}: {d.message ?? RESULT_LABEL[d.reason] ?? d.reason}</li>)}</ul>;
 }
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const monthLabel = (ym: string) => { const [y, m] = ym.split('-'); return `${MONTHS[Number(m) - 1]} de ${y}`; };

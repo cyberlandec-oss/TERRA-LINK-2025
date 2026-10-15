@@ -28,12 +28,12 @@ Que el despacho se rechace no acredita que un despacho vaya a funcionar cuando s
 | 2 | Productor → **parcela** | RF-06; S1 §§13–14 | P0-006 | I `plots` · N `parcelas` · R | Captura en campo | Ensayo Android real (gate aparte) |
 | 3 | Parcela → **versión geométrica** (punto, polígono, GeoJSON) | RF-07/08/09; docs/10 | P0-007/008/009 | I `location-capture`, `polygon-drafts`, `geometry-imports` · N `ubicacion`, `poligono`, `geojson` · E | GPS nativo en dispositivo real | Ensayo Android real |
 | 4 | Geometría → **validez GIS técnica** | RF-10; docs/10 | `TL_GIS_TECH 1.0.1` | I `gis-evaluation` · R `gis` · **I recorrido integral** | Umbral de superficie y perfil de destino | **D-05** |
-| 5 | Parcela → **entrega** con origen declarado | RF-12; S1 §§22–24 | P0-012 | I `deliveries` · R `entregas` · **I recorrido** | Cierre de entrega con diferencia y tolerancias | **D-33** |
-| 6 | Entrega → **recepción** y pesaje | RF-12; docs/06 | P0-012 | I `deliveries` · **I recorrido** (500 declarados ≠ 480 recibidos) | Recepciones parciales en operación real | **D-33** |
+| 5 | Parcela → **entrega** con origen declarado | RF-12; S1 §§22–24 | P0-012 | I `deliveries` · R `entregas` · **I recorrido** | Cierre con diferencia **en operación real** (la regla ya se ejecuta: `d32-d33`) | — (D-33 adoptada el 2026-10-15) |
+| 6 | Entrega → **recepción** y pesaje | RF-12; docs/06 | P0-012 | I `deliveries` · **I recorrido** (500 declarados ≠ 480 recibidos) | Recepciones parciales en operación real | — (D-33 adoptada el 2026-10-15) |
 | 7 | Recepción → **calidad** (muestra, resultado, decisión) | RF-12; D-33 | P0-012 | I `deliveries` · **I recorrido** (liberada por decisión humana) | Catálogo de parámetros y límites verificados | **D-33** (+ D-32 para humedad) |
 | 8 | Recepción → **lote** | RF-16; S1 §§25–27 | P0-016 | I `lots` · R `lotes` · **I recorrido** | — | — |
 | 9 | Lote → **proceso** (fermentación cerrada con merma) | RF-16; QA-06 | P0-016 | I `lots` · **I recorrido** (480 = 430 + 50) | — | — |
-| 10 | Proceso → **secado cerrado** | RF-16; D-39.3 | Preparar e iniciar sí; cerrar no | **I recorrido** (`DRYING_MOISTURE`) | Cierre de secado | **D-32** |
+| 10 | Proceso → **secado cerrado** | RF-16; D-39.3; D-32 | P0-016 (desde el 2026-10-15) | **I recorrido** (100 = 90 + 10 con humedad 7,2 %BH) · I `d32-d33`, `lots` | Secado real con medidor en campo | — (D-32 adoptada el 2026-10-15; siguen sin definirse los **límites de aceptación**) |
 | 11 | Proceso → **inventario** (ledger única fuente) | RF-17; QA-06 | P0-017 | I `inventory` · R `inventario` · **I recorrido** (conciliación sin diferencias) | Concurrencia bajo carga de piloto | — |
 | 12 | Lote → **evaluación de riesgo** | RF-20; docs/13 | P0-020, catálogo `0.1.0` **NO APROBADO** | I `risk` · R `riesgo` · **I recorrido** | Severidad y conclusión | **D-07** + catálogo aprobado |
 | 13 | Riesgo → **mitigación** | RF-21; docs/13 | P0-021 | I `mitigations` · R `mitigaciones` · **I recorrido** (causa no accionable rechazada) | Verificación con soportes reales | — (las causas de D-05/D-09B no se mitigan a propósito) |
@@ -57,16 +57,15 @@ deja escrito su propio alcance al terminar:
 declarados → recepción de 480 (las dos cantidades conservadas por separado) → calidad liberada por decisión humana →
 lote → fermentación cerrada (480 consumidos = 430 producidos + 50 de merma) → ledger conciliado sin diferencias →
 riesgo técnico `INCOMPLETE` con severidad `NOT_ASSESSED` → expediente con cantidades y origen **cumplidos** →
-embarque con **reserva real** (430 físicos, 200 reservados, 230 disponibles) → recorrido **inverso** desde el lote de
+embarque con **reserva real** (330 físicos tras el secado, 200 reservados, 130 disponibles) → recorrido **inverso** desde el lote de
 salida hasta el productor y la parcela → y la organización ajena sin poder leer ni referenciar nada.
 
-**Seis bloqueos comprobados**, cada uno con su decisión responsable:
+**Cuatro bloqueos comprobados** (eran seis hasta el 2026-10-15; la adopción de D-32 y D-33 levantó dos y el
+recorrido los atraviesa ahora de verdad, no por haberlos rebajado), cada uno con su decisión responsable:
 
 | Bloqueo | Código observado | Decisión |
 | --- | --- | --- |
 | Geometría → validez regulatoria | `DESTINATION_PROFILE_NOT_EVALUATED` | D-05 |
-| Recepción → cierre con diferencia | sin política de cierre | D-33 |
-| Fermentación → secado cerrado | `DRYING_MOISTURE` | D-32 |
 | Riesgo → severidad y conclusión | catálogo `NOT_APPROVED` | D-07 |
 | Expediente → READY y paquete | `READINESS_NOT_MET` (`GEOLOCATION_PROFILE`, `DEFORESTATION_ANALYSIS`) | D-05 y D-09 parte B |
 | Embarque → despacho | `DISPATCH_BLOCKED` (`DD_PACKAGE`, `EVIDENCE`, `GATE`) | D-34 |

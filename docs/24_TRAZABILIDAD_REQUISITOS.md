@@ -6,8 +6,8 @@ Referencias S1–S4 y secciones corresponden a los originales conservados en `so
 | --- | --- | --- | --- | --- |
 | S1 §§8–12, 71; S4 §§2–4 | RF-01–05, RNF-01 | P0-001–005 | 05/06/07 | QA-01/02/03 |
 | S1 §§13–16, 72, 82–84; S3 §40 | RF-06–10 | P0-006–010 | 05/06/10 | QA-04 |
-| S1 §§17–23; S4 §§7–8 | RF-11–15 | P0-011–015 | 05/06/08/09 | QA-05 |
-| S1 §§24–29, 73–74; S4 §§9–11 | RF-16–17, RNF-02 | P0-016–017 | 05/06/08 | QA-06/07 |
+| S1 §§17–23; S4 §§7–8 | RF-11–15 | P0-011–015 | 05/06/08/09 | QA-05 · `test/deliveries.int-spec.ts`, `test/d32-d33.int-spec.ts` (15, D-33 cierre de entregas), `test/kde.int-spec.ts`, `test/cte.int-spec.ts`, `e2e/tests/productos.spec.ts` (P0-012 y D-33 en pantalla); **P0-012 DONE_LOCAL el 2026-10-15** con el criterio «diferencias con causa» demostrado |
+| S1 §§24–29, 73–74; S4 §§9–11 | RF-16–17, RNF-02 | P0-016–017 | 05/06/08 | QA-06/07 · `test/lots.int-spec.ts`, `test/inventory.int-spec.ts`, `test/d32-d33.int-spec.ts` (D-32 humedad), `test/recorrido-integral.int-spec.ts` (el recorrido atraviesa el secado), `e2e/tests/productos.spec.ts` (P0-016, P0-017 y D-32 en pantalla); **P0-016 DONE_LOCAL el 2026-10-15** con DRYING integrada (CTE 1.6.0) |
 | S1 §§30–32, 55; S4 §§12–13 | RF-18–19 | P0-018–019 | 06/12 | QA-09/10 |
 | S1 §§33–42, 82–85; S3 §§20–21, 35–39 | RF-20–21, RF-36 | P0-020–021; P1-005 | 06/13 | QA-10/11 |
 | S1 §§43–44; S4 §15 | RF-22 | P0-022 | 09/13 | QA-12 |

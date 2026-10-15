@@ -45,7 +45,7 @@ export default function DeliveriesPage() {
       <div className="card">
         <div className="grid-3">
           <div><label htmlFor="en-status">Estado</label>
-            <select id="en-status" value={status} onChange={(e) => setStatus(e.target.value)}><option value="">Todos</option><option value="DRAFT">Borrador</option><option value="REGISTERED">Registrada</option></select></div>
+            <select id="en-status" value={status} onChange={(e) => setStatus(e.target.value)}><option value="">Todos</option><option value="DRAFT">Borrador</option><option value="REGISTERED">Registrada</option><option value="CLOSED">Cerrada</option></select></div>
           <div><label htmlFor="en-rec">Recepción</label>
             <select id="en-rec" value={reception} onChange={(e) => setReception(e.target.value)}>
               <option value="">Todas</option><option value="NOT_RECEIVED">Sin recepción</option><option value="PARTIAL">Recepción parcial</option>
@@ -69,7 +69,7 @@ export default function DeliveriesPage() {
                   <td>{r.product ?? <span className="muted">pendiente</span>}</td>
                   <td>{qty(r.quantity_declared)}</td>
                   <td>{qty(r.received)}{r.receptions > 0 && <div className="muted">{r.receptions} recepción(es)</div>}</td>
-                  <td><StatusBadge tone={STATUS_LABEL[r.status].tone}>{STATUS_LABEL[r.status].label}</StatusBadge>{r.status === 'REGISTERED' && <div><StatusBadge tone={RECEPTION_TONE[r.reception_status]}>{r.reception_status_label}</StatusBadge></div>}</td>
+                  <td><StatusBadge tone={STATUS_LABEL[r.status].tone}>{STATUS_LABEL[r.status].label}</StatusBadge>{r.status !== 'DRAFT' && <div><StatusBadge tone={RECEPTION_TONE[r.reception_status]}>{r.reception_status_label}</StatusBadge></div>}</td>
                 </tr>
               ))}
             </tbody>

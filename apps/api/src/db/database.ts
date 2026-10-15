@@ -41,6 +41,7 @@ import * as m0036 from './migrations/0036_import_lots';
 import * as m0037 from './migrations/0037_shipments';
 import * as m0038 from './migrations/0038_satellite';
 import * as m0039 from './migrations/0039_satellite_whisp_development';
+import * as m0040 from './migrations/0040_d32_humedad_d33_cierre_entregas';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -83,6 +84,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0037_shipments': m0037,
   '0038_satellite': m0038,
   '0039_satellite_whisp_development': m0039,
+  '0040_d32_humedad_d33_cierre_entregas': m0040,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

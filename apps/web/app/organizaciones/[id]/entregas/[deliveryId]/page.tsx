@@ -6,7 +6,7 @@ import { ApiError, api } from '../../../../../lib/api';
 import { useWorkspace } from '../../../../../lib/workspace';
 import { Alert, Breadcrumb, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../../lib/ui';
 import {
-  AVAILABILITY, ErrorDetails, GatePanel, MOMENT, PARAM, QUALITY_TONE, RECEPTION_TONE, REVIEW, STATUS_LABEL, SUPPORT_KIND, nowLocal, periodLabel, qty, todayLocal, withZone,
+  AVAILABILITY, CLOSURE_TONE, ErrorDetails, GatePanel, MOMENT, PARAM, QUALITY_TONE, RECEPTION_TONE, REVIEW, STATUS_LABEL, SUPPORT_KIND, nowLocal, periodLabel, qty, todayLocal, withZone,
   type Delivery, type DeliveryOptions, type Reception,
 } from '../../../../../lib/deliveries';
 
@@ -38,7 +38,8 @@ export default function DeliveryDetailPage() {
       <Breadcrumb items={[...crumbs, { label: d.delivery_code }]} />
       <PageHeader title={`Entrega ${d.delivery_code}`} meta={<>
         <StatusBadge tone={STATUS_LABEL[d.status].tone}>{STATUS_LABEL[d.status].label}</StatusBadge>{' '}
-        {d.status === 'REGISTERED' && <StatusBadge tone={RECEPTION_TONE[d.totals.reception_status]}>{d.totals.reception_status_label}</StatusBadge>}
+        {d.status !== 'DRAFT' && <StatusBadge tone={RECEPTION_TONE[d.totals.reception_status]}>{d.totals.reception_status_label}</StatusBadge>}{' '}
+        {d.totals.closure.status !== 'OPEN' && <StatusBadge tone={CLOSURE_TONE[d.totals.closure.status]}>{d.totals.closure.label}</StatusBadge>}
       </>} />
       <Alert tone="info">{d.disclaimer}</Alert>
 
@@ -80,12 +81,14 @@ export default function DeliveryDetailPage() {
         <dl className="props">
           <dt>Declarado</dt><dd>{qty(d.totals.declared)}</dd>
           <dt>Recibido (suma)</dt><dd>{qty(d.totals.received)}</dd>
-          <dt>Cierre</dt><dd className="muted">{d.totals.closure.note}</dd>
+          <dt>Cierre</dt><dd>{d.totals.closure.label} <span className="muted">· ver «Cierre de la entrega»</span></dd>
         </dl>
         {d.receptions.length === 0 && <p className="muted">Sin recepciones registradas.</p>}
         {d.receptions.map((r, i) => <ReceptionCard key={r.id} n={i + 1} r={r} d={d} base={base} onDone={reload} />)}
         {d.actions.receive && <NewReception d={d} base={base} orgId={orgId} onDone={reload} />}
       </section>
+
+      <ClosureSection d={d} base={base} onDone={reload} />
 
       {d.actions.correct_delivery && <CorrectDelivery d={d} base={base} onDone={reload} />}
 
@@ -263,6 +266,70 @@ function QualityResultForm({ base, canDecide, id, onDone }: { base: string; canD
       {f.decision === 'REJECTED' && <><label htmlFor={`qr-${id}`}>Motivo del rechazo</label><input id={`qr-${id}`} required minLength={3} maxLength={500} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></>}
       {s.feedback}
       <div className="actions"><button type="submit" className="secondary" disabled={s.busy}>Guardar resultado</button></div>
+    </form>
+  );
+}
+
+/**
+ * Cierre de la entrega (D-33, regla provisional del MVP local desde el 2026-10-15).
+ * Muestra las cifras vigentes, la diferencia con su signo y TODAS las justificaciones: ninguna sustituye a otra.
+ * Cerrar con diferencia está permitido; lo que no se admite es dejarla sin explicar.
+ */
+function ClosureSection({ d, base, onDone }: { d: Delivery; base: string; onDone: Reload }) {
+  const c = d.totals.closure;
+  const diferencia = Number(c.current.difference.value);
+  return (
+    <section className="card" aria-labelledby="dl-close">
+      <h2 id="dl-close">Cierre de la entrega</h2>
+      <p><StatusBadge tone={CLOSURE_TONE[c.status]}>{c.label}</StatusBadge></p>
+      <p className="muted">{c.note}</p>
+      <dl className="props">
+        <dt>Declarado</dt><dd>{qty(c.current.declared)}</dd>
+        <dt>Recibido (vigente)</dt><dd>{qty(c.current.received)}</dd>
+        <dt>Diferencia</dt><dd>{qty(c.current.difference)} {diferencia === 0 ? <span className="muted">· sin diferencia</span> : diferencia > 0 ? <span className="muted">· faltó respecto de lo declarado</span> : <span className="muted">· llegó más de lo declarado</span>}</dd>
+      </dl>
+      {c.justifications.length > 0 && (
+        <ol className="plain" aria-label="Justificaciones del cierre">
+          {c.justifications.map((j) => (
+            <li key={j.number}><strong>{j.kind === 'CLOSE' ? 'Cierre' : `Justificación ${j.number}`}</strong>: diferencia {qty(j.difference)} de {qty(j.declared)} declarados y {qty(j.received)} recibidos
+              {' · '}{j.reason ?? <span className="muted">sin diferencia que explicar</span>}
+              <span className="muted"> · {j.by}, {new Date(j.at).toLocaleString('es-EC')}</span></li>
+          ))}
+        </ol>
+      )}
+      {d.actions.close && <CloseForm d={d} base={base} diferencia={diferencia} onDone={onDone} />}
+      {c.stale && d.actions.justify_closure && <JustifyForm base={base} diferencia={diferencia} onDone={onDone} />}
+      {c.stale && !d.actions.justify_closure && <p className="muted">Actualizar la justificación requiere `delivery:correct`; tu rol no lo tiene.</p>}
+    </section>
+  );
+}
+
+function CloseForm({ d, base, diferencia, onDone }: { d: Delivery; base: string; diferencia: number; onDone: Reload }) {
+  const s = useSubmit(onDone);
+  const [reason, setReason] = useState('');
+  return (
+    <details>
+      <summary>Cerrar la entrega</summary>
+      <form className="form" onSubmit={(e) => { e.preventDefault(); void s.run((op) => api<{ delivery: Delivery }>(`${base}/close`, { method: 'POST', body: { operation_id: op, expected_version: d.row_version, ...(reason.trim() ? { reason: reason.trim() } : {}) } })); }}>
+        <p className="field-help">Cerrar impide recepciones nuevas y no se deshace. {diferencia === 0 ? 'No hay diferencia que explicar.' : 'Hay diferencia: el motivo es obligatorio y cerrarla requiere el permiso de corrección.'}</p>
+        {diferencia !== 0 && <div><label htmlFor="cl-reason">Motivo de la diferencia</label><input id="cl-reason" required minLength={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
+          <div className="field-help">Merma de transporte, humedad, pesaje en otro punto… Se conserva tal cual, con tu nombre y la cifra de este momento.</div></div>}
+        {s.feedback}
+        <div className="actions"><button type="submit" disabled={s.busy}>Cerrar entrega</button></div>
+      </form>
+    </details>
+  );
+}
+
+function JustifyForm({ base, diferencia, onDone }: { base: string; diferencia: number; onDone: Reload }) {
+  const s = useSubmit(onDone);
+  const [reason, setReason] = useState('');
+  return (
+    <form className="form" onSubmit={(e) => { e.preventDefault(); void s.run((op) => api<{ delivery: Delivery }>(`${base}/closure-justifications`, { method: 'POST', body: { operation_id: op, reason: reason.trim() } })); }}>
+      <p className="field-help">Una corrección admitida cambió la diferencia a {diferencia}. La justificación anterior se conserva; esta se añade.</p>
+      <div><label htmlFor="jc-reason">Motivo de la diferencia actual</label><input id="jc-reason" required minLength={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></div>
+      {s.feedback}
+      <div className="actions"><button type="submit" className="secondary" disabled={s.busy}>Añadir justificación</button></div>
     </form>
   );
 }

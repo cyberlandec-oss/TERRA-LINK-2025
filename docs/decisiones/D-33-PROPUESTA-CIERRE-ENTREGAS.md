@@ -1,7 +1,58 @@
-# D-33 — Cierre de entregas y diferencias con causa (propuesta, 2026-10-15)
+# D-33 — Cierre de entregas y diferencias con causa
 
-**Propuesta para decidir. Nada de esto está aprobado.** Hasta que se decida, una entrega con diferencia queda
-abierta indefinidamente.
+**ADOPTADA como regla provisional del MVP local el 2026-10-15**, por instrucción del responsable de producto.
+**No** es validación en campo ni aprobación para producción. Lo que sigue pendiente, expresamente: los **límites de
+aceptación de calidad** y la comprobación con operadores reales.
+
+Lo adoptado, en una línea: **cierre explícito, toda diferencia con motivo, sin reapertura, y un cierre cuya cifra
+cambia queda marcado como desactualizado sin perder el motivo anterior.**
+
+## Representación del cierre y de su desactualización (definido antes de implementar)
+
+Esta es la parte que había que escribir **antes** de tocar código, porque determina si el historial se conserva o se
+pisa.
+
+**Modelo**: una tabla `delivery_closures` **append-only**, una fila por **justificación**, nunca una actualización.
+
+| Campo | Qué guarda |
+| --- | --- |
+| `kind` | `CLOSE` (la primera, la que cierra) o `REJUSTIFY` (cada actualización posterior del motivo) |
+| `justification_number` | 1, 2, 3… orden dentro de la entrega |
+| `declared_quantity`, `received_quantity`, `difference` | Las **tres cifras tal como eran en ese momento** |
+| `reason` | El motivo escrito entonces. **Nunca se modifica ni se borra** |
+| `closed_by` / `justified_by`, `at`, `operation_id` | Quién, cuándo, con qué operación |
+
+**Estado derivado, no almacenado** (se calcula al leer, para que no pueda quedar desincronizado):
+
+| Estado | Cómo se calcula | Qué significa |
+| --- | --- | --- |
+| `OPEN` | No hay ninguna fila `CLOSE` | La entrega admite recepciones |
+| `CLOSED` | Hay `CLOSE` y `difference` de la **última** justificación **coincide** con la diferencia actual | Cerrada y justificada |
+| `CLOSED_JUSTIFICATION_STALE` | Hay `CLOSE` pero la diferencia actual **ya no coincide** con la de la última justificación | Cerrada, pero el motivo explica una cifra que ya no existe |
+
+**Cómo se resuelve la desactualización**: añadiendo una justificación `REJUSTIFY` con la cifra nueva y un motivo
+nuevo. La anterior **se conserva**: la entrega acumula su historia de justificaciones y cualquiera puede ver qué se
+dijo, cuándo y sobre qué cifra. **No hay forma de reemplazar un motivo**, ni por la API ni por la base (la tabla es
+append-only por trigger).
+
+**Qué NO cambia por estar desactualizado**: la entrega **sigue cerrada**. No se reabre, no admite recepciones nuevas
+y no se bloquea el material. Desactualizado significa «falta explicar la cifra nueva», no «el cierre se deshace».
+
+## El texto de la decisión (lo que se adopta)
+
+1. **Cierre explícito** por quien puede confirmar recepciones (`reception:confirm`); si hay diferencia, exige
+   **además** `delivery:correct`.
+2. **Diferencia** = `cantidad_declarada − Σ recepciones vigentes`, con ambas cifras conservadas. Positiva (faltó) y
+   negativa (llegó de más) son diferencia.
+3. **Toda diferencia exige motivo.** Esto **no** prohíbe cerrar con diferencia: cerrar con diferencia es normal.
+4. Una entrega cerrada **no admite recepciones nuevas ni reapertura**.
+5. Las **correcciones conservan todas sus guardas** por asignación, reserva y consumo.
+6. Si una corrección permitida cambia la diferencia, **se conserva el cierre y el motivo históricos**, se muestra la
+   desactualización y se exige una justificación nueva, según el modelo de arriba.
+
+---
+
+## Fundamento (lo que se analizó antes de adoptarla)
 
 ## Qué dicen las fuentes, literalmente
 

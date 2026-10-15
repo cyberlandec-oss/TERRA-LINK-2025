@@ -128,7 +128,7 @@ describeDb('P0-012 entregas, recepción física, soportes y calidad', () => {
     expect(rec.confirmation_gate).toMatchObject({ transition: 'RECEPTION_CONFIRM', allowed: true });
     expect(rec.confirmation_gate.pending.map((p: { code: string }) => p.code)).toContain('DELIVERY_SUPPORT');
     expect(rec.confirmation_gate.not_evaluated.map((p: { code: string }) => p.code)).toContain('RECEPTION_DIFFERENCE_REASON');
-    expect(ok.delivery.totals).toMatchObject({ declared: { value: '500', unit: 'KG' }, received: { value: '480.25', unit: 'KG' }, reception_status: 'PARTIAL', closure: { status: 'NOT_DEFINED' } });
+    expect(ok.delivery.totals).toMatchObject({ declared: { value: '500', unit: 'KG' }, received: { value: '480.25', unit: 'KG' }, reception_status: 'PARTIAL', closure: { status: 'OPEN' } });
     const row = await h.db.selectFrom('receptions').select(['receiver_membership_id']).where('id', '=', rec.id).executeTakeFirstOrThrow();
     expect(row.receiver_membership_id).toBe(await mid('recepcion@test.local'));
     // pesaje inválido: sin zona horaria, peso cero
@@ -356,7 +356,7 @@ describeDb('P0-012 entregas, recepción física, soportes y calidad', () => {
     expect(rec1.adjustments.map((x: { previous_quantity: string; new_quantity: string }) => `${x.previous_quantity}→${x.new_quantity}`)).toEqual([`100→${won}`, `${won}→95`]);
     expect(rec1.weighings).toHaveLength(3);
     // total = suma de la cantidad vigente de cada recepción (95 + 50), igual en lista y detalle
-    expect(v.totals).toMatchObject({ declared: { value: '200' }, received: { value: '145' }, reception_status: 'PARTIAL', closure: { status: 'NOT_DEFINED' } });
+    expect(v.totals).toMatchObject({ declared: { value: '200' }, received: { value: '145' }, reception_status: 'PARTIAL', closure: { status: 'OPEN' } });
     const row = (await http().get(`${base(orgA)}/deliveries?q=${d.delivery_code}`).set(as('admin-a@test.local')).expect(200)).body[0];
     expect(row.received.value).toBe('145');
     expect(v.receptions.find((x: { id: string }) => x.id === r2).quantity_received.value).toBe('50');
@@ -370,8 +370,11 @@ describeDb('P0-012 entregas, recepción física, soportes y calidad', () => {
     const over = (await receive('recepcion@test.local', d.id, '80').expect(201)).body.delivery;
     expect(over.totals).toMatchObject({ received: { value: '225' }, reception_status: 'ABOVE_DECLARED' });
     expect(over.quantity_declared.value).toBe('200');
-    // no existe operación de cierre (política pendiente) ni efecto de inventario
-    await http().post(`${base(orgA)}/deliveries/${d.id}/close`).set(as('admin-a@test.local')).send({}).expect(404);
+    // Cerrar existe desde el 2026-10-15 (D-33) y exige explicar la diferencia: aquí se recibió MÁS de lo declarado,
+    // así que el cierre sin motivo se rechaza. Cerrar no produce efecto de inventario: el ledger ya registró cada recepción.
+    const sinMotivo = await http().post(`${base(orgA)}/deliveries/${d.id}/close`).set(as('admin-a@test.local'))
+      .send({ operation_id: randomUUID(), expected_version: over.row_version }).expect(422);
+    expect(sinMotivo.body.error.code).toBe('DIFFERENCE_REASON_REQUIRED');
     expect(over.inventory_effect.status).toBe('RECORDED_IN_LEDGER');
     expect(JSON.stringify(over)).not.toMatch(/available_quantity|stock_balance/);
   });

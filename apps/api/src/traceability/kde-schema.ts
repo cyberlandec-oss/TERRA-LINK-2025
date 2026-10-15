@@ -17,6 +17,7 @@ export const PENDING_ENTITIES: Record<string, string> = {
 export interface Validation {
   positive?: boolean;          // > 0 (QUANTITY/DECIMAL/INTEGER)
   non_negative?: boolean;      // >= 0
+  max?: number;                // tope ESTRUCTURAL del dato (p. ej. un porcentaje no supera 100). No es un límite de aceptación de calidad.
   allowed_units?: string[];    // QUANTITY
   dimension?: string;          // QUANTITY
   max_length?: number;         // TEXT
@@ -32,7 +33,7 @@ export type Condition =
   | { kind: 'quantities_differ'; a: string; b: string }
   | { kind: 'undefined_in_contract'; note: string };
 
-const VALIDATION_KEYS = new Set(['positive', 'non_negative', 'allowed_units', 'dimension', 'max_length', 'pattern', 'values', 'entity', 'min_items']);
+const VALIDATION_KEYS = new Set(['positive', 'non_negative', 'max', 'allowed_units', 'dimension', 'max_length', 'pattern', 'values', 'entity', 'min_items']);
 
 /** Comprueba que una definición use solo el esquema cerrado. Devuelve la lista de problemas. */
 export function schemaProblems(d: { code: string; value_type: string; requirement: string; condition: Condition | null; validation: Validation }): string[] {

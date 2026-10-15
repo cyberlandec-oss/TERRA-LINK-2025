@@ -13,7 +13,7 @@ import type { Permission } from '../authz/catalog';
 import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { EVENT_STORE, type EventStore } from '../events/events';
 import { KdeService } from '../traceability/kde';
-import { scaled } from '../traceability/kde-validator';
+import { gateDetails, scaled } from '../traceability/kde-validator';
 import { closeLines, holderBalances, postMovement, singleLocationWith } from '../inventory/ledger';
 
 // P0-016 Lotes y procesos (RF-16, QA-07; UX_UI §15). Reglas D-39 adoptadas para desarrollo local (2026-10-10):
@@ -54,7 +54,21 @@ class StartDto {
   @ApiProperty({ type: [RunInputDto] }) @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => RunInputDto) inputs!: RunInputDto[];
 }
 class OutputDto { @ApiProperty() @IsString() @Matches(DEC) quantity!: string }
-class MoistureDto { @ApiProperty() @IsString() @Matches(DEC) value!: string; @ApiPropertyOptional({ description: 'Sin unidad definida (D-32)' }) @IsOptional() @IsString() @Length(1, 20) unit?: string }
+/**
+ * Humedad al cerrar un secado (D-32, adoptada el 2026-10-15): es una MEDICIÓN, no un número suelto.
+ * - `unit` obligatoria y solo `%BH` (porcentaje en base húmeda): sin base, «7,2 %» es ambiguo.
+ * - `method` obligatorio: quién midió con qué. `measured_by` sale de la sesión, no del cuerpo.
+ * - La precisión se conserva hasta la del almacenamiento; más decimales se RECHAZAN en la compuerta KDE, no se
+ *   redondean (`DECIMAL_PRECISION_EXCEEDED`).
+ */
+class MoistureDto {
+  // Forma laxa a propósito: el número se juzga en la COMPUERTA KDE, que explica por qué se rechaza (precisión
+  // excedida, negativo, por encima del tope). Un 400 genérico diría «revisa los datos» y ocultaría el motivo.
+  @ApiProperty({ description: 'Porcentaje en base húmeda, como texto decimal; hasta 6 decimales (D-32). Más precisión se rechaza con su motivo, no se redondea.' })
+  @IsString() @Matches(/^-?\d{1,14}(\.\d{1,12})?$/) value!: string;
+  @ApiProperty({ enum: ['%BH'], description: 'Única unidad admitida: porcentaje en base húmeda (D-32).' }) @IsIn(['%BH']) unit!: string;
+  @ApiProperty({ description: 'Método de medición declarado (p. ej. medidor portátil, estufa, laboratorio).' }) @IsString() @Length(3, 120) method!: string;
+}
 class CloseDto {
   @ApiProperty() @IsUUID() operation_id!: string;
   @ApiProperty() @IsISO8601({ strict: true }) closed_at!: string;
@@ -372,7 +386,7 @@ export class LotsService {
     return this.kde.evaluateTransition(this.systemCtx(ctx), transition, values, db);
   }
   private blocked(g: Awaited<ReturnType<LotsService['gate']>>, what: string) {
-    return new AppError(422, 'TRANSITION_BLOCKED', `No se puede ${what}: faltan datos obligatorios, no son válidos o hay una decisión pendiente.`, g.blocking.map((b) => ({ field: b.code, reason: b.error_code ?? b.result })));
+    return new AppError(422, 'TRANSITION_BLOCKED', `No se puede ${what}: faltan datos obligatorios, no son válidos o hay una decisión pendiente.`, gateDetails(g.blocking));
   }
   private async storeGate(trx: Transaction<Database>, ctx: TenantContext, userId: string, runId: string, g: Awaited<ReturnType<LotsService['gate']>>) {
     await trx.insertInto('gate_evaluations').values({ id: randomUUID(), organization_id: ctx.organizationId, entity_type: 'process_run', entity_id: runId, transition: g.transition, release_version: g.release,
@@ -448,7 +462,10 @@ export class LotsService {
         const values = run.process_type === 'FERMENTATION'
           ? { FERMENTATION_RUN: runId, FERMENTATION_INPUT_LOTS: inputs.map((i) => i.lot_id), FERMENTATION_STARTED_AT: iso(run.started_at), FERMENTATION_CLOSED_AT: new Date(dto.closed_at).toISOString(),
               FERMENTATION_OUTPUT: { value: unscaled(outSum), unit: 'KG' }, FERMENTATION_LOSS: { value: unscaled(loss), unit: 'KG' } }
-          : { DRYING_RUN: runId, DRYING_INPUT: { value: unscaled(inSum), unit: 'KG' }, DRYING_OUTPUT: { value: unscaled(outSum), unit: 'KG' }, DRYING_LOSS: { value: unscaled(loss), unit: 'KG' }, DRYING_MOISTURE: dto.moisture?.value ?? null };
+          : { DRYING_RUN: runId, DRYING_INPUT: { value: unscaled(inSum), unit: 'KG' }, DRYING_OUTPUT: { value: unscaled(outSum), unit: 'KG' }, DRYING_LOSS: { value: unscaled(loss), unit: 'KG' },
+              // La humedad viaja como cantidad con unidad: la compuerta exige `%BH` y rechaza más precisión de la
+              // que se conserva. No se deduce de la merma ni se convierte nada por humedad (D-32).
+              DRYING_MOISTURE: dto.moisture ? { value: dto.moisture.value, unit: dto.moisture.unit } : null };
         const g = await this.gate(trx, ctx, `PROCESS_CLOSE_${run.process_type}`, values);
         if (!g.allowed) throw this.blocked(g, 'cerrar el proceso');
         const inLots = await trx.selectFrom('lots').select(['id', 'origin_status']).where('id', 'in', inputs.map((i) => i.lot_id)).execute();
@@ -474,7 +491,9 @@ export class LotsService {
         await postMovement(trx, { organizationId: orgId, type: 'PROCESS_CLOSE', sourceType: 'process_run', sourceId: runId, operationId: dto.operation_id, actorId: user.id, processLoss: dto.loss_quantity,
           reference: { outputs: created.map((c) => c.id) }, lines: closeLines(reserves.map((x) => ({ ...x, quantity: dec(x.quantity)! })), created.map((c) => ({ lot_id: c.id, quantity: c.quantity }))) });
         const after = await trx.updateTable('process_runs').set({ status: 'CLOSED', closed_at: new Date(dto.closed_at), loss_quantity: dto.loss_quantity, close_operation_id: dto.operation_id,
-          moisture_value: dto.moisture?.value ?? null, moisture_unit: dto.moisture?.unit ?? null, row_version: sql`row_version + 1` } as never).where('id', '=', runId).returningAll().executeTakeFirstOrThrow();
+          moisture_value: dto.moisture?.value ?? null, moisture_unit: dto.moisture?.unit ?? null,
+          moisture_method: dto.moisture?.method?.trim() ?? null, moisture_measured_by: dto.moisture ? user.id : null,
+          row_version: sql`row_version + 1` } as never).where('id', '=', runId).returningAll().executeTakeFirstOrThrow();
         const inProduct = (await trx.selectFrom('lots').select('product_id').where('id', '=', inputs[0].lot_id).executeTakeFirstOrThrow()).product_id;
         await this.record(trx, ctx, user.id, { type: 'process_run', id: runId, code: run.run_code }, { type: 'ProcessingRunClosed', aggregateType: 'PROCESS_RUN', aggregateId: runId, version: Number(after.row_version),
           payload: { run_id: runId, process_type: run.process_type, input_product_id: inProduct, output_product_id: run.output_product_id,
@@ -654,12 +673,17 @@ export class LotsService {
     const inputs = await db.selectFrom('process_inputs as i').innerJoin('lots as l', 'l.id', 'i.lot_id').innerJoin('products as p', 'p.id', 'l.product_id')
       .select(['i.lot_id', 'l.lot_code', 'l.origin_status', 'i.quantity', 'i.lot_version', 'p.name as product_name']).where('i.run_id', '=', id).orderBy('l.lot_code').execute();
     const outputs = await db.selectFrom('process_outputs as o').innerJoin('lots as l', 'l.id', 'o.lot_id').select(['o.lot_id', 'l.lot_code', 'o.quantity']).where('o.run_id', '=', id).orderBy('l.lot_code').execute();
+    // Quién midió la humedad, por su nombre: una medición sin responsable legible no es una medición declarada (D-32).
+    const medidor = r.moisture_measured_by
+      ? await db.selectFrom('users').select(['first_name', 'last_name']).where('id', '=', r.moisture_measured_by).executeTakeFirst()
+      : null;
     const inSum = inputs.reduce((a, i) => a + scaled(String(i.quantity)), 0n);
     const outSum = outputs.reduce((a, o) => a + scaled(String(o.quantity)), 0n);
     const gates = await db.selectFrom('gate_evaluations').select(['transition', 'release_version', 'allowed', 'result', 'evaluated_at']).where('entity_type', '=', 'process_run').where('entity_id', '=', id).orderBy('evaluated_at').execute();
     const closePreview = r.status === 'RUNNING' ? await this.gate(db, ctx, `PROCESS_CLOSE_${r.process_type}`, r.process_type === 'FERMENTATION'
       ? { FERMENTATION_RUN: id, FERMENTATION_INPUT_LOTS: inputs.map((i) => i.lot_id), FERMENTATION_STARTED_AT: iso(r.started_at), FERMENTATION_CLOSED_AT: null, FERMENTATION_OUTPUT: null, FERMENTATION_LOSS: null }
       : { DRYING_RUN: id, DRYING_INPUT: { value: unscaled(inSum), unit: 'KG' }, DRYING_OUTPUT: null, DRYING_LOSS: null, DRYING_MOISTURE: null }) : null;
+    // La vista previa enseña lo que falta para cerrar; con la humedad ausente, aparece como bloqueante.
     return {
       id: r.id, run_code: r.run_code, process_type: r.process_type, status: r.status, row_version: Number(r.row_version), output_product: product,
       started_at: r.started_at, closed_at: r.closed_at, notes: r.notes, cancel_reason: r.cancel_reason,
@@ -668,10 +692,17 @@ export class LotsService {
       outputs: outputs.map((o) => ({ lot_id: o.lot_id, lot_code: o.lot_code, quantity: { value: dec(o.quantity), unit: 'KG' } })),
       balance: r.status === 'CLOSED' ? { input: unscaled(inSum), output: unscaled(outSum), loss: dec(r.loss_quantity), unit: 'KG', mass_yield_percent: inSum ? (Number((outSum * 10000n) / inSum) / 100).toFixed(2) : null,
         note: 'Rendimiento en masa (KG salida / KG entrada). No es base seca: la humedad no convierte masas.' } : null,
-      moisture: r.moisture_value ? { value: dec(r.moisture_value), unit: r.moisture_unit, unit_status: 'UNDEFINED_IN_CONTRACT' } : null,
+      // Valor completo en el detalle; la presentación con un decimal es cosa de la pantalla, no del dato (D-32).
+      moisture: r.moisture_value ? {
+        value: dec(r.moisture_value), unit: r.moisture_unit, display: Number(r.moisture_value).toFixed(1),
+        method: r.moisture_method, measured_by: medidor ? `${medidor.first_name ?? ''} ${medidor.last_name ?? ''}`.trim() || 'Miembro' : null,
+        note: 'Porcentaje en base húmeda declarado como medición (D-32, regla provisional del MVP local). No hay límites de aceptación: que un valor sea «bueno» no está definido.',
+      } : null,
       gates: gates.map((g) => ({ transition: g.transition, release: g.release_version, allowed: g.allowed, ...(g.result as object), evaluated_at: g.evaluated_at })),
       close_preview: closePreview,
-      drying_note: r.process_type === 'DRYING' ? 'El secado puede prepararse e iniciarse, pero su cierre está bloqueado hasta definir la unidad de humedad (D-32) y cumplir el KDE obligatorio (D-39).' : null,
+      drying_note: r.process_type === 'DRYING'
+        ? 'Cerrar un secado exige la humedad final medida en %BH, con método y responsable (D-32, adoptada el 2026-10-15 como regla provisional del MVP local). El balance en KG sigue siendo exacto: la humedad no convierte masas.'
+        : null,
       actions: { start: r.status === 'DRAFT' && this.has(ctx, 'process:manage'), close: r.status === 'RUNNING' && this.has(ctx, 'process:close'), cancel: (r.status === 'DRAFT' || r.status === 'RUNNING') && this.has(ctx, 'process:manage') },
     };
   }
