@@ -23,7 +23,11 @@ describeDb('P0-028 satélite: contrato, desenlaces y candados', () => {
   const square = { type: 'Polygon', coordinates: [[[-79.5, -1], [-79.49, -1], [-79.49, -0.99], [-79.5, -0.99], [-79.5, -1]]] };
 
   const fixtureOn = (on: boolean) => { process.env.SATELLITE_FIXTURE_ENABLED = on ? 'true' : 'false'; };
-  const runner = (opts = {}) => new SatelliteRunner(h.db, [new FixtureSatelliteProvider()], {}, { maxAttempts: 1, backoffBaseMs: 1, ...opts });
+  /** `conAlmacen` usa un almacén en memoria: conserva los bytes originales sin depender del S3 local. */
+  const guardados = new Map<string, Buffer>();
+  const almacen = { put: async (k: string, b: Buffer) => { guardados.set(k, b); }, get: async (k: string) => guardados.get(k)!, exists: async (k: string) => guardados.has(k), delete: async () => undefined, list: async () => [], close: () => undefined };
+  const runner = (opts = {}, conAlmacen = false) =>
+    new SatelliteRunner(h.db, [new FixtureSatelliteProvider()], conAlmacen ? { store: almacen } : {}, { maxAttempts: 1, backoffBaseMs: 1, ...opts });
   const ask = (plot: string, body: Record<string, unknown> = {}, actor = ADMIN) =>
     http().post(`${org()}/plots/${plot}/satellite/analyses`).set(as(actor)).send({ operation_id: randomUUID(), operation: 'FOREST_COVER', ...body });
   const jobRow = (id: string) => h.db.selectFrom('satellite_jobs').selectAll().where('id', '=', id).executeTakeFirstOrThrow();
@@ -251,6 +255,17 @@ describeDb('P0-028 satélite: contrato, desenlaces y candados', () => {
   });
 
   // ---------------------------------------------------------------- candados de honestidad
+
+  it('la respuesta original se acredita por su huella, nunca por su ruta en el almacén privado', async () => {
+    const job = (await ask(plotA, { fixture_scenario: 'RESULT_COVERED' }).expect(201)).body.job.id;
+    await runner({}, true).runOnce();
+    const r = await http().get(`${org()}/satellite/analyses/${job}`).set(as(ADMIN)).expect(200);
+    // Guardada de verdad (el corredor de esta prueba sí tiene almacén) y acreditada por SHA-256...
+    expect(r.body.result.raw_evidence).toMatchObject({ stored: true, sha256: expect.stringMatching(/^[0-9a-f]{64}$/) });
+    // ...pero la clave del objeto no sale por la API: revelaría la estructura del almacén privado.
+    expect(JSON.stringify(r.body)).not.toContain('object_key');
+    expect(JSON.stringify(r.body)).not.toMatch(/satellite\/[0-9a-f-]{36}\//);
+  });
 
   it('un resultado no se corrige en su sitio ni un trabajo terminado vuelve a cambiar', async () => {
     const job = (await ask(plotA, { fixture_scenario: 'RESULT_COVERED' }).expect(201)).body.job.id;

@@ -19,7 +19,7 @@ interface Result {
   confidence: string | null;
   confidence_note: string | null;
   limitations: string;
-  raw_evidence: { object_key: string; sha256: string } | null;
+  raw_evidence: { stored: boolean; sha256: string } | null;
   conclusion: string;
   conclusion_note: string;
 }

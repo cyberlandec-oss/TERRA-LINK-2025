@@ -327,7 +327,10 @@ export class SatelliteService {
             confidence_note: result.confidence === null ? 'El proveedor no define confianza para este resultado; no se infiere.' : null,
             limitations: result.limitations,
             indicators: result.indicators,
-            raw_evidence: result.raw_object_key ? { object_key: result.raw_object_key, sha256: result.raw_sha256 } : null,
+            // La respuesta original se ACREDITA por su huella, no por su ruta de almacenamiento. Ningún otro módulo
+            // devuelve `object_key` (los documentos exponen su SHA-256 y su versión, no la clave), y publicarla
+            // revelaría la estructura interna del almacén privado.
+            raw_evidence: result.raw_object_key ? { stored: true, sha256: result.raw_sha256 } : null,
             conclusion: result.conclusion,
             conclusion_note: 'NOT_EVALUATED: el resultado de un proveedor externo no se convierte en conclusión regulatoria (S1 §41).',
           }
