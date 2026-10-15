@@ -139,7 +139,12 @@ export function GisEvaluation({ orgId, plotId, canEvaluate, hasVersion }: { orgI
           <p className="muted">{latest.capture_quality.threshold_note}</p>
 
           <h3>Perfil de destino y requisitos regulatorios</h3>
-          <p><StatusBadge tone="neutral">No evaluado</StatusBadge> {latest.destination_profile.label}</p>
+          <p><StatusBadge tone="neutral">No evaluado aquí</StatusBadge> {latest.destination_profile.label}</p>
+          <p className="muted">
+            Desde el 2026-10-15 el perfil técnico de destino se evalúa con una regla propia y versionada aparte
+            (<strong>EUDR_GEO_V1</strong>, D-05.A), en la sección siguiente. Esta evaluación técnica no lo incluye
+            a propósito: son dos dictámenes distintos y pueden discrepar.
+          </p>
 
           <details>
             <summary>Límites del análisis</summary>

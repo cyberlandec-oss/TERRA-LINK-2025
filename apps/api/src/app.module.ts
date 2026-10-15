@@ -49,6 +49,7 @@ import { PII_CIPHER, PiiCipher } from './crypto/pii';
 import { OBJECT_STORE, S3ObjectStore, type ObjectStore } from './storage/object-store';
 import { GeometryImportsController, GeometryImportsService } from './plots/geometry-imports';
 import { GisEvaluationController, GisEvaluationService } from './plots/gis-evaluation';
+import { GeoProfileController, GeoProfileService } from './plots/geo-profile';
 import { ProductsController, ProductsService } from './products/products';
 import { CteController, CteService } from './traceability/cte';
 import { KdeController, KdeService } from './traceability/kde';
@@ -198,7 +199,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
-        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, ProductsController, CteController, KdeController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, ShipmentsController, SatelliteController, ReportsController, EntityReportsController,
+        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, GeoProfileController, ProductsController, CteController, KdeController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, ShipmentsController, SatelliteController, ReportsController, EntityReportsController,
       ],
       providers: [
         { provide: APP_CONFIG, useValue: config },
@@ -225,6 +226,7 @@ export class AppModule implements NestModule {
         { provide: OBJECT_STORE, useValue: new S3ObjectStore(config.objectStore) },
         GeometryImportsService,
         GisEvaluationService,
+        GeoProfileService,
         ProductsService,
         CteService,
         KdeService,

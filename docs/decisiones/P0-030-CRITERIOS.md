@@ -85,14 +85,22 @@ estado de validación, superficie declarada y calculada, `geometry_hash` y el sh
 Esto reutiliza lo construido en **P0-009** (`exportVersion` de una versión concreta) y lo extiende a la colección de la
 organización, con el mismo permiso `plot:read_geometry`, la misma ausencia de reproyección y el mismo aviso.
 
-**Depende de D-05**, y por eso se declara pendiente dentro del propio archivo (`terra_link.regulatory_profile`):
+**Resuelto el 2026-10-15 por D-05.A**, que añadió una **segunda** exportación sin tocar la técnica:
 
-1. **Qué geometría exige cada caso**: punto o polígono según el umbral de superficie que fije la decisión.
-2. **Precisión y redondeo** admitidos por el sistema de destino. Hoy se exporta con la precisión guardada (17 dígitos de
-   `ST_AsGeoJSON`), sin recortar: recortar sin regla aprobada sería alterar el dato.
-3. **Qué propiedades espera el destino** y con qué nombres. Las actuales son las de Terra Link, no las de ningún esquema oficial.
-4. **Qué parcelas quedan calificadas** para una presentación. Eso exige el criterio de validez GIS, que es justamente lo
-   que falta (P0-010) y lo que mantiene `plots_valid` en `CRITERION_UNDEFINED`.
+1. **Qué geometría exige cada caso** → umbral **estricto** de 4 ha; exactamente 4 ha se admite.
+2. **Precisión del destino** → **6 decimales**, escritos como números. La exportación **técnica** sigue con 17
+   dígitos a propósito: entrega lo guardado sin recortar. Son dos archivos con dos propósitos.
+3. **Qué propiedades espera el destino** → `ProductionPlace` y `Area` (solo puntos, como número). **Sin
+   `ProducerName`** (dato personal) ni **`ProducerCountry`** (no se registra país de producción).
+4. **Qué parcelas quedan calificadas** → las que el perfil marca `MEETS_PROFILE`; el resto **se lista con su
+   motivo**, y «no evaluada» tiene código propio.
+
+**Sigue dependiendo de D-05.B**, la aplicabilidad jurídica:
+
+- Qué **significa** el resultado: cumplir el perfil técnico **no es conformidad** ni habilita presentar nada.
+- `plots_valid`: puede pasar a contarse contra un criterio nombrado y versionado, pero **seguirá sin ser un
+  indicador de conformidad**.
+- Y nada de esto se ha probado contra el **servicio real** del destino.
 
 Lo que **no** se hace mientras tanto: inventar una geometría para las parcelas que solo tienen superficie declarada. Se
 excluyen del archivo y su número se declara en el propio GeoJSON (`counts.solo_superficie_declarada`), de modo que nadie

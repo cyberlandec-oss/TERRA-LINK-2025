@@ -2424,6 +2424,86 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/plots/{plotId}/geo-profile/evaluations": {
+      "post": {
+        "operationId": "GeoProfileController_evaluate",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluateProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      },
+      "get": {
+        "operationId": "GeoProfileController_history",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/product-catalog/options": {
       "get": {
         "operationId": "ProductsController_options",
@@ -8209,6 +8289,34 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/reports/entities/plots/geojson/profile": {
+      "get": {
+        "operationId": "EntityReportsController_geojsonProfile",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "reports"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/reports/entities/plots/geojson": {
       "get": {
         "operationId": "EntityReportsController_geojson",
@@ -9090,6 +9198,21 @@
           "based_on_evaluation_id": {
             "type": "string",
             "description": "Última evaluación conocida por quien solicita: si ya hay una posterior, se rechaza (un trabajo antiguo no pisa uno nuevo)"
+          }
+        },
+        "required": [
+          "operation_id"
+        ]
+      },
+      "EvaluateProfileDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "plot_version_id": {
+            "type": "string",
+            "description": "Versión a evaluar; por omisión la vigente"
           }
         },
         "required": [

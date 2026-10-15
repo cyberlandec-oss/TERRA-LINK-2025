@@ -10,6 +10,7 @@ import type { Permission } from '../authz/catalog';
 import { AuditService } from '../audit/audit.service';
 import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { AppError, forbidden, notFound } from '../common/errors';
+import { GEO_PROFILE, PROFILE_SOURCE } from '../plots/geo-profile';
 import { csvCell } from '../audit/audit-query';
 import { ReportPageDto } from './reports.dto';
 import {
@@ -61,6 +62,20 @@ type Db = Kysely<Database> | Transaction<Database>;
 const GEOJSON_NOTICE =
   'Exportación TÉCNICA de las geometrías vigentes registradas en Terra Link (RFC 7946, WGS84 longitud/latitud). No es un paquete de debida ' +
   'diligencia EUDR, no es una declaración presentada y no sigue el perfil de ningún sistema de destino.';
+/** Decimales que se ESCRIBEN en el archivo: formato de intercambio, no precision de captura. */
+const PROFILE_DECIMALS = GEO_PROFILE.parameters.interchange_decimals;
+const GEOJSON_PROFILE_FORMAT = 'TERRA_LINK_GEOJSON_EUDR_PROFILE_V1';
+const GEOJSON_PROFILE_NOTICE =
+  'Archivo preparado segun el PERFIL TECNICO de destino EUDR_GEO_V1 (D-05.A), contra una version DOCUMENTADA del sistema receptor. ' +
+  'Cumplir el perfil tecnico NO es conformidad EUDR, NO es una declaracion presentada y NO se ha comprobado contra el servicio real. ' +
+  'La aplicabilidad juridica (D-05.B) sigue pendiente.';
+const PROFILE_STATUS_LABEL: Record<string, string> = {
+  DOES_NOT_MEET: 'No cumple el perfil tecnico de destino.',
+  REVIEW_REQUIRED: 'Requiere revision humana antes de decidir.',
+  NOT_EVALUABLE: 'No evaluable con los datos disponibles.',
+  MEETS_PROFILE: 'Cumple el perfil tecnico de destino.',
+};
+
 const GEOJSON_REGULATORY =
   'El PERFIL DE DESTINO REGULATORIO sigue pendiente de D-05: qué geometría exige cada caso (punto o polígono y su umbral de superficie), ' +
   'qué precisión y redondeo admite el destino, qué propiedades espera y qué parcelas quedan calificadas. Nada de eso se decide aquí: esta ' +
@@ -530,6 +545,120 @@ export class EntityReportsController {
         notice: GEOJSON_NOTICE, regulatory_profile: GEOJSON_REGULATORY,
       },
     };
+  }
+
+  /**
+   * D-05.A - Exportacion con PERFIL DE DESTINO, **por productor** (la variante de nivel de productor que
+   * documenta el destino). Convive con la exportacion tecnica de abajo, que NO se toca: una entrega lo
+   * registrado tal cual, esta entrega lo que el perfil deja preparar.
+   *
+   * Lo que esta exportacion NO hace, a proposito:
+   * - **No exporta `ProducerName`**: es dato personal y la propiedad es opcional en el destino.
+   * - **No anade el periodo de produccion.** El Art. 9(1)(d) lo exige junto a la geolocalizacion, pero vive en
+   *   el contexto operativo (la entrega), no en la parcela, y no hay contrato que diga como viaja en este
+   *   archivo. Inventar una propiedad seria fabricar el dato.
+   * - **No presenta nada ante nadie.** Preparar un archivo no es declararlo.
+   */
+  @Get('plots/geojson/profile')
+  async geojsonProfile(
+    @CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Query('producer_id') producerId: string | undefined,
+    @Req() req: AuthedRequest, @Res() res: Response,
+  ) {
+    const ctx = await this.ctx(user, orgId, 'report:read');
+    const faltan = missingPermissions(ctx.permissions, GEOJSON_REQUIRES);
+    if (faltan.length) throw forbidden('PERMISSION_DENIED', denialMessage(GEOJSON_REQUIRES, faltan, GEOJSON_WHY));
+    if (!producerId || !/^[0-9a-f-]{36}$/i.test(producerId)) {
+      throw new AppError(400, 'PRODUCER_REQUIRED', 'Indica el productor: esta exportacion es por productor, como la variante de nivel de productor del destino.', [{ field: 'producer_id', reason: 'REQUIRED' }]);
+    }
+    const org = ctx.organizationId;
+    const prod = await this.db.selectFrom('producers').select(['id', 'producer_code'])
+      .where('organization_id', '=', org).where('id', '=', producerId).executeTakeFirst();
+    if (!prod) throw notFound();
+
+    const rows = await this.snapshot(async (trx) => (await sql<{
+      plot_code: string; version_id: string; geometry: unknown; geometry_type: string;
+      profile_status: string | null; exportable: boolean | null; area_value_ha: string | null;
+      profile_version: string | null; evaluated_at: Date | null; failed: unknown;
+    }>`
+      SELECT pl.plot_code, v.id AS version_id,
+             ST_AsGeoJSON(v.geometry, ${PROFILE_DECIMALS})::jsonb AS geometry, v.geometry_type,
+             e.status AS profile_status, e.exportable, e.area_value_ha::text,
+             e.profile_version, e.evaluated_at,
+             (SELECT jsonb_agg(c->'reason_code') FROM jsonb_array_elements(e.checks) c WHERE c->>'outcome' = 'FAIL') AS failed
+      FROM plots pl
+      JOIN plot_versions v ON v.id = pl.current_version_id AND v.organization_id = pl.organization_id
+      LEFT JOIN LATERAL (
+        SELECT * FROM geo_profile_evaluations ge
+        WHERE ge.organization_id = pl.organization_id AND ge.plot_version_id = v.id
+        ORDER BY ge.evaluated_at DESC LIMIT 1) e ON true
+      WHERE pl.organization_id = ${org} AND pl.producer_id = ${producerId} AND pl.deleted_at IS NULL
+      ORDER BY pl.plot_code LIMIT ${EXPORT_MAX_ROWS}`.execute(trx)).rows);
+
+    const exportables = rows.filter((r) => r.exportable === true && r.geometry);
+    // Lo que NO se exporta se LISTA con su motivo: omitir en silencio haria parecer completo un archivo que no lo es.
+    const excluidas = rows.filter((r) => !(r.exportable === true && r.geometry)).map((r) => ({
+      plot_code: r.plot_code,
+      reason_code: r.geometry === null ? 'NO_GEOMETRY' : r.profile_status === null ? 'PROFILE_NOT_EVALUATED' : r.profile_status,
+      reason: r.geometry === null
+        ? 'La version vigente no tiene geometria: una superficie declarada no es una ubicacion.'
+        : r.profile_status === null
+          ? 'El perfil no se ha evaluado para la version vigente de esta parcela. NO evaluada no es lo mismo que no cumple.'
+          : PROFILE_STATUS_LABEL[r.profile_status] ?? r.profile_status,
+      failed_checks: (r.failed as string[] | null) ?? [],
+      profile_evaluated_at: r.evaluated_at,
+    }));
+
+    const generatedAt = new Date().toISOString();
+    const collection = {
+      type: 'FeatureCollection',
+      features: exportables.map((r) => ({
+        type: 'Feature',
+        geometry: r.geometry,
+        properties: {
+          // Propiedades del destino. ProducerName NO va: es dato personal y alli es opcional.
+          ProductionPlace: r.plot_code,
+          // ProducerCountry NO se emite: Terra Link no guarda pais de produccion por productor (hay provincia y
+          // canton, que no es lo mismo). Es opcional en esta variante, y deducirlo del pais de la organizacion
+          // seria inventarlo. Se declara abajo en vez de rellenarlo.
+          // `Area` es la propiedad que el destino documenta para los PUNTOS, y va como NUMERO, no como texto.
+          ...(r.geometry_type === 'POINT' && r.area_value_ha !== null ? { Area: Number(r.area_value_ha) } : {}),
+        },
+      })),
+      terra_link: {
+        format: GEOJSON_PROFILE_FORMAT, profile: { id: GEO_PROFILE.id, version: exportables[0]?.profile_version ?? GEO_PROFILE.version },
+        source: {
+          service_version: PROFILE_SOURCE.service_version, document_version: PROFILE_SOURCE.document_version,
+          page_date: PROFILE_SOURCE.page_date, verification: PROFILE_SOURCE.verification,
+        },
+        organization_id: org, producer_code: prod.producer_code, generated_at: generatedAt,
+        counts: { parcelas: rows.length, exportadas: exportables.length, no_exportables: excluidas.length },
+        limit: { max_features: EXPORT_MAX_ROWS, truncated: rows.length >= EXPORT_MAX_ROWS },
+        not_exported: excluidas,
+        decimals: {
+          written: PROFILE_DECIMALS,
+          note: 'Seis decimales es FORMATO de intercambio: la norma exige al menos seis digitos decimales y el destino trunca a seis. NO es prueba de precision de captura, y los ceros finales no anaden informacion.',
+        },
+        producer_country_note: 'ProducerCountry NO se emite: Terra Link no registra pais de produccion por productor (guarda provincia y canton). Es opcional en la variante de nivel de productor; deducirlo del pais de la organizacion seria inventar el dato.',
+        producer_name_note: 'ProducerName NO se exporta: es dato personal y el destino lo admite como opcional. Incluirlo seria una decision de producto y de proteccion de datos.',
+        production_period_note: 'El periodo de produccion que exige el Art. 9(1)(d) NO viaja en este archivo: vive en el contexto operativo (entregas) y no hay contrato que diga como representarlo aqui.',
+        notice: GEOJSON_PROFILE_NOTICE,
+        snapshot: SNAPSHOT_NOTE,
+        coverage: COVERAGE,
+      },
+    };
+    const body = Buffer.from(JSON.stringify(collection, null, 2), 'utf8');
+    const sha256 = createHash('sha256').update(body).digest('hex');
+    await this.audit.record(this.db, {
+      organizationId: org, actorUserId: user.id, action: 'report.geojson_profile_export', entityType: 'producer', entityId: producerId,
+      requestId: req.requestId, result: 'SUCCESS',
+      after: { format: GEOJSON_PROFILE_FORMAT, sha256, features: exportables.length, not_exported: excluidas.length, generated_at: generatedAt },
+    });
+    res.setHeader('Content-Type', 'application/geo+json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="parcelas-perfil-${prod.producer_code}-${generatedAt.slice(0, 10)}.geojson"`);
+    res.setHeader('X-Content-Sha256', sha256);
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(body);
   }
 
   @Get('plots/geojson')

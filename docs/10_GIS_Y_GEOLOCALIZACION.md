@@ -40,7 +40,7 @@ Cuatro niveles distintos: **intercambio** (este perfil, RFC 7946), **estructura*
 | Original | Bytes intactos en almacenamiento privado S3 + SHA-256 calculado en el servidor (identidad de bytes, no autenticidad del origen) |
 | Exportación | Feature RFC 7946 de una versión concreta (`ST_AsGeoJSON` con 17 dígitos: ida y vuelta exacta de los dobles); propiedades técnicas sin identidad personal; aviso «no es paquete EUDR ni declaración presentada». Distinta de la descarga del original |
 
-Pendiente de P0-010/D-05: «perfil destino» (especificación GeoJSON del sistema receptor y reglas de exportación regulatoria), validación GIS, umbral de 4 ha y cobertura.
+Desde el 2026-10-15, «perfil destino», validación GIS y umbral de 4 ha están cubiertos por el perfil técnico `EUDR_GEO_V1` (D-05.A, abajo). Pendiente y **separado**: la aplicabilidad jurídica (**D-05.B**) y la aceptación por el **servicio real** del destino, nunca probada.
 
 ## Evaluación GIS técnica (P0-010, `TL_GIS_TECH` 1.0.1, implementada)
 
@@ -48,7 +48,7 @@ Evalúa una versión geométrica **sin modificarla** y guarda un registro inmuta
 
 1. **Validez técnica** → estado `VALID` / `WARNING` / `INVALID` / `REVIEW_REQUIRED`, siempre con alcance técnico («VALID» no es conformidad EUDR).
 2. **Calidad y cobertura de captura** → informativa: COMPLETE / PARTIAL / ABSENT (resumen de precisión) o NOT_AVAILABLE («Precisión de captura no disponible» para importadas o sin muestras; nunca se infiere de decimales). Sin umbrales (D-25).
-3. **Perfil de destino / regulatorio** → siempre «No evaluado: requiere definición (D-05)». Propuesta: `docs/decisiones/D-05-PROPUESTA.md` (no aprobada).
+3. **Perfil de destino / regulatorio** → esta evaluación técnica sigue diciendo «No evaluado» **a propósito**: desde el 2026-10-15 el perfil se evalúa con una regla propia y versionada aparte (`EUDR_GEO_V1`, abajo). Son dos dictámenes y pueden discrepar.
 
 | Comprobación | Resultado posible | Nota |
 | --- | --- | --- |
@@ -66,11 +66,77 @@ Desactualización (sin tocar el registro): `GEOMETRY_CHANGED` (hay versión más
 
 Privacidad (corregida el 2026-10-10, doc 09: «no revelar counts o identidades ocultas»): (1) el alcance de comparación es el del evaluador: con `plot:read`, toda la organización (`ORGANIZATION`); con solo `_assigned`, únicamente sus parcelas asignadas (`EVALUATOR_ASSIGNED`), y queda registrado en el resultado; (2) un lector sin `plot:read` ve el bloque de comparación de una evaluación de organización como «Reservada» **siempre**, haya o no coincidencias, y el estado se calcula solo con las comprobaciones de la propia geometría (`view_scope: GEOMETRY_ONLY`); (3) no se devuelve ningún tipo ni cantidad de relaciones ocultas, ni la desactualización por cambios en parcelas que no puede ver. **Versionado (precisado el 2026-10-10):** la corrección cambia el *contenido calculado* de las evaluaciones de quien solo lee sus parcelas asignadas (se compara con otro conjunto), por lo que se publica `TL_GIS_TECH 1.0.1`. 1.0.0 = comparación siempre con toda la organización (registros anteriores, inmutables, que ahora se muestran desactualizados por `RULES_CHANGED`); 1.0.1 = conjunto comparado según el alcance del evaluador (`comparison_scope` y `scope_membership_id` guardados en cada registro para reproducirlo). Las comprobaciones geométricas son idénticas. D-30 sigue sin ratificar y no se añaden comprobaciones. PostGIS emite `NOTICE` con coordenadas (p. ej. `ST_IsValid`): las conexiones usan `client_min_messages=warning` y el código usa `ST_IsValidDetail`; los errores de base se registran solo con SQLSTATE. El servidor PostgreSQL local registra desde WARNING (`log_min_messages=warning`), así que los NOTICE no llegan a su registro; las sentencias usan parámetros y `log_parameter_max_length_on_error=0`, por lo que los valores no se registran. Riesgo residual: el registro del servidor sí guarda el **mensaje** de un ERROR de base de datos; la aplicación evita operaciones GEOS sobre geometrías inválidas y valida GeoJSON antes de PostGIS para no provocar errores con coordenadas. El acceso a ese registro debe restringirse en operación.
 
-## Umbral pendiente
+## Perfil técnico de destino (D-05.A, `EUDR_GEO_V1` 1.0.0, implementado el 2026-10-15)
 
-La fuente técnica escribe `<4 ha` y `>4 ha`, dejando indefinido `=4`. El paquete no convierte esa omisión en norma. Modelar `threshold_ha`, operador de comparación, producto, jurisdicción, vigencia y fuente legal en el perfil. Antes de activarlo, validar texto consolidado y especificación GeoJSON del destino con responsable regulatorio. Probar casos por debajo, igual y por encima; sin perfil aprobado la preparación regulatoria queda pendiente.
+**Dictamen aparte de `TL_GIS_TECH`**, con regla, tabla (`geo_profile_evaluations`, append-only) y versión propias.
+Los dos se muestran juntos en la ficha de parcela porque **pueden discrepar**: un polígono con hueco es
+técnicamente válido (OGC) y **no cumple el perfil**, porque el destino no procesa huecos.
 
-La precisión mínima de exportación, tipos admitidos (Polygon/MultiPolygon), holes y límites de tamaño requieren verificación específica del destino. Validez interna no garantiza aceptación en EUDR-IS.
+`MEETS_PROFILE` significa **«bien formado para una versión documentada del destino»**. No significa conforme, ni
+legal, ni aceptado: la aplicabilidad jurídica es **D-05.B** y sigue pendiente, y **nada se ha probado contra el
+servicio real**.
+
+**Fuente**, con sus identificadores separados —que no son intercambiables—: **servicio V3** · **documento
+«Operator API Reference» v1.2** · página *GeoJSON File Description* del **17-08-2026**. Copias con `sha256` en
+`docs/sources/eudr-is-2026-10-15/`; norma en `docs/sources/eudr-norma-2026-10-15/`.
+
+### Umbral
+
+| Superficie de referencia | Punto | Polígono |
+| --- | --- | --- |
+| `< 4 ha` | Admitido | Admitido |
+| **`= 4 ha` exactas** | **Admitido**, con aviso de igualdad | Admitido |
+| `> 4 ha` | **No cumple**: exige polígono | Admitido |
+| `< 0,0001 ha` | No cumple | — |
+| Punto **sin** superficie | **No evaluable y no exportable** | — |
+
+Operador **estricto** (`> 4`), respaldado por las dos capas: el Art. 2(28) dice «more than four hectares» y el
+destino levanta error solo por encima de 4. **Sin banda de tolerancia**: la igualdad se avisa, no se amortigua.
+
+La **referencia** es la superficie **calculada** si hay polígono válido y la **declarada** si solo hay punto —un
+punto no tiene superficie calculada—. La comparación usa el **valor almacenado**, sin reducirlo antes para
+presentación. Si declarada y calculada caen a **distinto lado** del umbral → **revisión humana**, nunca la cifra
+favorable.
+
+### Decimales: cuatro cosas distintas
+
+| Qué | Dónde | Qué NO es |
+| --- | --- | --- |
+| **Valor numérico** | La coordenada | No cambia por cómo se escriba: `-79.5` = `-79.500000` |
+| **Formato de intercambio** | 6 decimales al exportar, como **números** | No es precisión ni resolución |
+| **Resolución del dato** | Declarada `numeric(12,4)`, calculada `numeric(14,6)` | Representación, no exactitud |
+| **Exactitud de captura** | Bloque de calidad de `TL_GIS_TECH`; sin umbral (D-25) | **No se deduce de los decimales** |
+
+Por qué 6: la norma exige **al menos** seis dígitos decimales y el destino **trunca** a seis. **Una coordenada no
+se rechaza por sus ceros finales**, y seis decimales **no se presentan como prueba de precisión física**
+(RFC 7946 §11.2 advierte justo de eso).
+
+### Truncamiento del destino, simulado
+
+Sobre una **copia**, con `trunc(numeric, 6)`: decimal exacto y **hacia cero**, como muestran los ejemplos del
+destino —incluidos los **negativos**, que es el caso normal en Ecuador—. Sobre la geometría **resultante** se
+comprueba validez, degeneración y **colapso de vértices**. El **cierre del anillo** es obligatorio y **se excluye**
+de la comprobación de duplicados; un duplicado anterior al truncamiento tiene motivo propio y manda a revisión.
+
+**La geometría almacenada no se modifica, no se repara y no se reproyecta.** Corregirla sigue siendo crear una
+**versión nueva**.
+
+### Tipos y exportación
+
+Admitidos: `Point`, `Polygon`, `MultiPolygon`. **`MultiPoint` NO está implementado** y se declara como tal: el
+destino lo admite, Terra Link no lo modela, y no se improvisa —tampoco cómo repartiría `Area` entre varios puntos—.
+
+La exportación con perfil es **por productor** y **convive** con la técnica, que no se tocó. No lleva
+`ProducerName` (dato personal) ni `ProducerCountry` (no se registra país de producción; deducirlo sería
+inventarlo). `Area` solo acompaña a los puntos y va como **número**. Lo no exportable **se lista con su motivo**, y
+«no evaluada» tiene **código propio**: no es lo mismo que «no cumple». El **período de producción** del Art. 9(1)(d)
+**no viaja** en el archivo: no hay contrato que diga cómo, y no se inventa la propiedad.
+
+### Resultados
+
+`MEETS_PROFILE` · `DOES_NOT_MEET` · `REVIEW_REQUIRED` · `NOT_EVALUABLE`. Un caso que no se puede decidir **no se
+acepta en silencio ni arrastra a los demás a rechazo**: queda con su motivo. Un `CHECK` del esquema impide marcar
+`exportable` algo que no sea `MEETS_PROFILE`.
 
 ## GPS de campo
 

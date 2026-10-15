@@ -3,8 +3,12 @@
 Preparación de **P0-031**. Esto **no inicia ni completa el piloto**: no hay operadores reales, ni dataset de piloto,
 ni Android real, ni restauración de respaldo. Preparar documentos y ejecutar pruebas sintéticas no es operar.
 
-Validación de referencia: `validation-results/2026-10-15T04-25-29-508Z` — **APROBADA** sobre el árbol que se confirmó
-como **`2c1ab60`**: **60 suites, 519 pruebas** de integración y **61 E2E**. La corrida se ejecutó **antes** de ese
+Validación de referencia: `validation-results/2026-10-15T18-33-43-757Z` — **APROBADA**: **61 suites, 545 pruebas**
+de integración y **62 E2E**, con OpenAPI validado (192 rutas). Acredita el perfil técnico `EUDR_GEO_V1` (D-05.A) y
+el cierre de P0-009 y P0-010.
+
+Anterior: `validation-results/2026-10-15T04-25-29-508Z` — APROBADA sobre el árbol que se confirmó como
+**`2c1ab60`**: **60 suites, 519 pruebas** de integración y **61 E2E**. La corrida se ejecutó **antes** de ese
 commit, sobre su contenido exacto; cómo se comprobó esa correspondencia está en
 `docs/qa/EVIDENCIA_D32_D33_2026-10-15.md` §«Correspondencia entre la corrida y el commit». **A la corrida no se le
 atribuye un SHA que aún no existía.**
@@ -34,7 +38,9 @@ Que el despacho se rechace no acredita que un despacho vaya a funcionar cuando s
 | 1 | Alta de **productor** (identidad cifrada, duplicados) | RF-04/05; S1 §§10–12 | P0-004/005 | I `producers`, `producer-matching`, `producer-identity-encryption` · N `productores` · R | Volumen de piloto (20–50 productores) | — (volumen es P0-031) |
 | 2 | Productor → **parcela** | RF-06; S1 §§13–14 | P0-006 | I `plots` · N `parcelas` · R | Captura en campo | Ensayo Android real (gate aparte) |
 | 3 | Parcela → **versión geométrica** (punto, polígono, GeoJSON) | RF-07/08/09; docs/10 | P0-007/008/009 | I `location-capture`, `polygon-drafts`, `geometry-imports` · N `ubicacion`, `poligono`, `geojson` · E | GPS nativo en dispositivo real | Ensayo Android real |
-| 4 | Geometría → **validez GIS técnica** | RF-10; docs/10 | `TL_GIS_TECH 1.0.1` | I `gis-evaluation` · R `gis` · **I recorrido integral** | Umbral de superficie y perfil de destino | **D-05** |
+| 4 | Geometría → **validez GIS técnica** | RF-10; docs/10 | `TL_GIS_TECH 1.0.1` | I `gis-evaluation` · R `gis` · **I recorrido integral** | — | — |
+| 4b | Geometría → **perfil técnico de destino** | RF-09/10; D-05.A | `EUDR_GEO_V1 1.0.0` (desde el 2026-10-15), regla y tabla **aparte** | I `geo-profile` (26) · N `geojson` · **I recorrido** (`MEETS_PROFILE`) | Prueba contra el **servicio real** del destino | — (D-05.A adoptada; **no** acredita conformidad) |
+| 4c | Perfil técnico → **conclusión regulatoria** | RF-10; docs/13 | No implementado a propósito | **I recorrido** (`LEGAL_APPLICABILITY_NOT_DECIDED`) | Qué actor es cada usuario y qué acredita el perfil | **D-05.B** |
 | 5 | Parcela → **entrega** con origen declarado | RF-12; S1 §§22–24 | P0-012 **DONE_LOCAL** | I `deliveries` · R `entregas` · **I recorrido** | Cierre con diferencia **en operación real**, con operadores | — (D-33 adoptada el 2026-10-15) |
 | 6 | Entrega → **recepción** y pesaje | RF-12; docs/06 | P0-012 **DONE_LOCAL** | I `deliveries` · **I recorrido** (500 declarados ≠ 480 recibidos, conservados por separado) | Recepciones parciales en operación real | — |
 | 6b | Recepción → **cierre de la entrega con diferencia** | RF-12; D-33 | P0-012 (desde el 2026-10-15) | **I recorrido** (20 kg faltantes, motivo obligatorio, `delivery:correct` exigido, recepción posterior rechazada) · I `d32-d33` · N `productos` | Cierre con diferencia hecho por personal de acopio real | — (D-33 adoptada el 2026-10-15) |
@@ -53,7 +59,7 @@ Que el despacho se rechace no acredita que un despacho vaya a funcionar cuando s
 | 19 | Transversal: **auditoría** | RF-25; docs/07 | P0-025 **DONE_LOCAL** | I `audit` · R `auditoria` | Auditoría de un recorrido completo de piloto | **D-38** (formato y retención): política pendiente, **no** un criterio incumplido |
 | 20 | Transversal: **offline y sincronización** | RF-23/24; docs/11 | P0-023/024 | I `sync` · E emulador · R `movil-web-preview` | Captura y sincronización en dispositivo real | Ensayo Android real · **D-40** |
 | 21 | Transversal: **satélite** | RF-28; S1 §§39–41 | Adaptador Whisp de **desarrollo** | U `egress`, `provider`, `whisp` · I `satellite` · R `satelite` | Llamada a un proveedor real | **D-09 parte B** |
-| 22 | Transversal: **reportes e indicadores** | RF-30; S1 §60/§97 | P0-030 | I `reports`, `reports-entities` · R | Cifras de un piloto real | **D-05** y **D-07** (2 de 11 indicadores) |
+| 22 | Transversal: **reportes e indicadores** | RF-30; S1 §60/§97 | P0-030 | I `reports`, `reports-entities` · R | Cifras de un piloto real | **D-05.B** y **D-07** (2 de 11 indicadores). La exportación GeoJSON ya tiene **dos variantes**: técnica y con perfil |
 | 23 | Transversal: **autorización y aislamiento** | RF-02/03; docs/07 | RBAC versionado | I `rbac` + pruebas por módulo · **I recorrido** (organización ajena) | Elevación de SUPER_ADMIN **y concesiones entre organizaciones** (los dos criterios abiertos de P0-003) | **D-04** · contrato de concesiones (ADR-0002, P1-001) |
 
 ## Lo que el recorrido integral demostró de una sola pasada
@@ -63,7 +69,9 @@ deja escrito su propio alcance al terminar:
 
 **La cadena completa, transición por transición**, tal como la ejecuta la prueba:
 
-1. **Origen.** Productor → parcela con polígono → evaluación técnica `VALID` (que **no** es validez regulatoria).
+1. **Origen.** Productor → parcela con polígono → evaluación técnica `VALID` (que **no** es validez regulatoria) →
+   **perfil técnico de destino** `MEETS_PROFILE` con `EUDR_GEO_V1` (que tampoco lo es: son dos dictámenes y el
+   segundo dice, en su propio resultado, que está comprobado **en documentación, no contra el servicio real**).
 2. **Recepción con diferencia.** Entrega de **500 kg declarados** → recepción de **480 kg**. Las dos cifras se
    conservan por separado: recibir menos **no ajusta** lo declarado.
 3. **Calidad.** Muestra → resultado → **decisión humana** de liberación, con versión de límites **declarada y no
@@ -89,27 +97,35 @@ deja escrito su propio alcance al terminar:
 **Cinco bloqueos comprobados**, cada uno con su decisión responsable. Eran **seis** hasta el 2026-10-15: la adopción
 de D-32 y D-33 levantó el del cierre de entregas, que el recorrido **atraviesa ahora de verdad** (paso 4 de arriba),
 no por haberlo rebajado. El del secado nunca fue un bloqueo de esta lista, sino un corte dentro del tramo 10.
+La adopción de **D-05.A** no cambió el número: **sustituyó** el bloqueo de geometría por uno más preciso
+(`LEGAL_APPLICABILITY_NOT_DECIDED → D-05.B`), porque lo que falta ya no es el formato sino a quién obliga la norma.
 
 > **Corrección de una cifra anterior.** Las revisiones previas de esta matriz decían «cuatro» y omitían el factor
 > satelital, que la prueba sí registra. La cifra correcta la imprime el propio recorrido al terminar
-> (`transiciones demostradas: 11; bloqueos comprobados: 5`), y es la que figura aquí.
+> (`transiciones demostradas: 12; bloqueos comprobados: 5`), y es la que figura aquí. La duodécima transición es
+> el **perfil técnico de destino**, que se añadió al recorrido el mismo día al adoptar D-05.A.
 
 | Bloqueo | Código observado | Decisión |
 | --- | --- | --- |
-| Geometría → validez regulatoria | `DESTINATION_PROFILE_NOT_EVALUATED` | **D-05** |
+| Perfil técnico → conclusión regulatoria | `LEGAL_APPLICABILITY_NOT_DECIDED` | **D-05.B** |
 | Riesgo → severidad y conclusión | `RULE_SET_NOT_APPROVED` (catálogo `NOT_APPROVED`) | **D-07** |
 | Riesgo → factor satelital | `SATELLITE_COVERAGE_UNKNOWN` | **D-09 parte B** |
-| Expediente → READY y paquete | `READINESS_NOT_MET` (`GEOLOCATION_PROFILE`, `DEFORESTATION_ANALYSIS`) | D-05 y D-09 parte B |
+| Expediente → READY y paquete | `READINESS_NOT_MET` (`GEOLOCATION_PROFILE`, `DEFORESTATION_ANALYSIS`) | **D-05.B** y D-09 parte B |
 | Embarque → despacho | `DISPATCH_BLOCKED` (`DD_PACKAGE`, `EVIDENCE`, `GATE`) | **D-34** |
 
 Lo que **no** cambia con los cierres de P0-012 y P0-016: el expediente sigue sin poder llegar a `READY` y el despacho
 sigue detenido. Cerrar una entrega o un secado **no acerca ninguno de los dos**.
 
-**Nota sobre D-05 (2026-10-15).** La propuesta se revisó y se partió en **D-05.A** (perfil técnico, decidible por el
-equipo) y **D-05.B** (aplicabilidad jurídica, que necesita un responsable regulatorio);
-`docs/decisiones/D-05-PROPUESTA.md`. **Nada de eso cambia esta tabla**: el bloqueo sigue siendo el mismo y
-`DESTINATION_PROFILE_NOT_EVALUATED` sigue siendo lo que devuelve el recorrido. Una propuesta mejor documentada no
-es una decisión aprobada.
+**Nota sobre D-05 (2026-10-15).** La decisión se partió en dos y **solo una se adoptó**:
+
+- **D-05.A · perfil técnico** — **ADOPTADO para desarrollo local** e implementado como `EUDR_GEO_V1`. El recorrido
+  ya no devuelve `DESTINATION_PROFILE_NOT_EVALUATED`: ahora atraviesa la transición 4b con `MEETS_PROFILE`.
+- **D-05.B · aplicabilidad jurídica** — **PENDIENTE**. El bloqueo no desapareció: **se movió y se precisó**, de
+  `DESTINATION_PROFILE_NOT_EVALUATED → D-05` a `LEGAL_APPLICABILITY_NOT_DECIDED → D-05.B`.
+
+**Lo que sigue exactamente igual**: el expediente no llega a `READY`, el despacho sigue detenido, **D-07** y el
+catálogo `NOT_APPROVED` no se tocaron, y **ninguna compuerta ni conclusión regulatoria cambió**. Cumplir el perfil
+técnico **no es conformidad**, y nada de esto se ha probado contra el servicio real del destino.
 
 Un detalle que sale de ejecutarlo y no de leerlo: en el preflight del embarque, **calidad pasa** (`OK`) porque el
 recorrido la liberó de verdad. Lo que detiene el despacho no es la calidad, sino el paquete DD, la evidencia y la

@@ -14,11 +14,18 @@ preparación del expediente.
 GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/github-actions-ci.yml`). La facturación de GitHub **no es un bloqueo**. **DONE_LOCAL** = criterios de la historia cumplidos con evidencia local (`npm run validate` aprobado + suites de la historia). DONE_LOCAL no acredita producción, Android real ni conformidad EUDR.
 
 Última validación: `npm run validate` **APROBADA** el 2026-10-15, corrida
-`validation-results/2026-10-15T04-25-29-508Z` (no versionada): 7 pasos — servicios, typecheck, lint, build, OpenAPI
-validado, **60 suites y 519 pruebas** de unitarias + integración y **61 pruebas** E2E de navegador.
+`validation-results/2026-10-15T18-33-43-757Z` (no versionada): 7 pasos — servicios, typecheck, lint, build, OpenAPI
+validado (**192 rutas**), **61 suites y 545 pruebas** de unitarias + integración y **62 pruebas** E2E de navegador.
+Acredita **D-05.A** (perfil técnico `EUDR_GEO_V1`, migración `0041`) y el cierre de **P0-009** y **P0-010**.
 
-**Qué código acredita esa corrida.** Se ejecutó **antes** del commit final: su resumen anota `commit: 7e62c74` y 31
-entradas sin confirmar. El código probado es el que después se guardó como **`2c1ab60`**, y esa correspondencia se
+Su resumen anota `commit: b9b94cf` + 18 archivos sin confirmar, que es el contenido de esta entrega: la corrida es
+**anterior** al commit, como siempre. Durante la corrida se editó por error un comentario de
+`apps/api/src/plots/geo-profile.ts` y **se revirtió de inmediato**, de modo que el árbol probado es el que se
+confirma. El método para comprobar esa correspondencia es el de
+`docs/qa/EVIDENCIA_D32_D33_2026-10-15.md` §«Correspondencia entre la corrida y el commit».
+
+**Corrida anterior** (`2026-10-15T04-25-29-508Z`, 60 suites / 519 pruebas + 61 E2E): se ejecutó **antes** del
+commit final; su resumen anota `commit: 7e62c74` y 31 entradas sin confirmar. El código probado es el que después se guardó como **`2c1ab60`**, y esa correspondencia se
 comprobó —padre del commit, 31 segundos de diferencia, y los registros de la corrida mostrando las suites y los
 títulos de prueba que solo existen en ese commit— con su límite declarado, en
 `docs/qa/EVIDENCIA_D32_D33_2026-10-15.md` §«Correspondencia entre la corrida y el commit». **A la corrida no se le
@@ -71,8 +78,8 @@ mediciones en `docs/qa/DIAGNOSTICO_VALIDACION_INESTABLE_2026-10-13.md`.
 | P0-014 KDE | **DONE_LOCAL** para catálogo y servicio de validación; 0 compuertas integradas (cada operación lo demuestra en su historia); D-33, D-34 y configuración jurídica pendientes | Ver criterios abajo |
 | P0-013 CTE | **DONE_LOCAL** (catálogo versionado y mapeo de lo existente; la integración de cada operación es criterio de su propia historia) | Ver criterios abajo |
 | P0-011 Productos | **DONE_LOCAL** (2026-10-10): el criterio pendiente «transformación cambia estado con evento/rendimiento» quedó demostrado con la fermentación de P0-016 (`lots.int-spec.ts`, E2E) | Ver criterios abajo |
-| P0-010 Validación GIS | **ABIERTA**: parte técnica verificada localmente (`TL_GIS_TECH 1.0.0`); umbral debajo/igual/encima y perfil de destino dependen de D-05 (propuesta no aprobada) | Ver criterios abajo |
-| P0-009 GeoJSON | **ABIERTA**: alcance independiente verificado localmente; «perfil destino» depende de P0-010/D-05 (dependencia del backlog conservada) | Ver criterios abajo |
+| P0-010 Validación GIS | **DONE_LOCAL (2026-10-15)**: la parte técnica ya estaba verificada (`TL_GIS_TECH 1.0.1`) y el criterio pendiente —«umbral debajo/igual/encima probado tras aprobar perfil»— queda demostrado con **D-05.A adoptado** e implementado como `EUDR_GEO_V1` (regla y tabla propias). **Separado y pendiente**: la **aplicabilidad jurídica (D-05.B)** y la **aceptación por el servicio real del destino**, que nunca se ha probado | Ver criterios abajo y `docs/decisiones/D-05-PROPUESTA.md` |
+| P0-009 GeoJSON | **DONE_LOCAL (2026-10-15)**: el alcance independiente ya estaba verificado y el criterio «perfil destino» queda demostrado con la **exportación con perfil por productor** (`EUDR_GEO_V1`), que convive con la exportación técnica sin sustituirla. **Separado y pendiente**: **D-05.B** y la **aceptación por el servicio real**; cumplir el perfil técnico no es conformidad | Ver criterios abajo |
 | P0-008 Polígono | **DONE_LOCAL** con evidencia de integración (PostGIS real) y navegador **[SIMULADA]**; captura real de campo pendiente | Ver criterios abajo |
 
 ### TECH-001 — criterio por criterio
@@ -200,7 +207,8 @@ Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T17-00-2
 | Exportación actual/anterior; reimportación | Feature RFC 7946 sin identidad personal y con aviso «no es paquete EUDR»; serialización de 17 dígitos; reimportar conserva `geometry_hash` | «exportación…», E2E |
 | Revocación/reasignación tras el análisis | Reasignado 404; membresía desactivada rechazada; org suspendida 403; la importación queda ANALYZED | «revocación o reasignación…» |
 | MultiPolygon con huecos y compatibilidad | Versiones previas sin cambios (`source_import_id` NULL) | «MultiPolygon con hueco…», suites P0-006/007/008 en verde |
-| **Perfil destino** | **Pendiente**: especificación GeoJSON del sistema receptor y reglas regulatorias dependen de P0-010/D-05 | — |
+| **Perfil destino** | **DEMOSTRADO (2026-10-15)** con **D-05.A** adoptado: exportación con perfil **por productor** (variante de nivel de productor del destino), coordenadas con **6 decimales como números**, `Area` solo en puntos y como número, **sin `ProducerName`** (dato personal) ni **`ProducerCountry`** (no se registra país de producción: deducirlo sería inventarlo), y **lista de no exportables con su motivo**, con código propio para «no evaluada» | `geo-profile.int-spec.ts` §exportación (6 casos) |
+| Perfil destino — **lo que NO acredita** | **Pendiente, separado**: la **aplicabilidad jurídica** (D-05.B) y la **aceptación por el servicio real del destino**, que no se ha probado nunca. El **período de producción** del Art. 9(1)(d) **no** viaja en el archivo: no hay contrato que diga cómo, y no se inventa la propiedad | — |
 | Evidencia visual de precisión null (P0-008) | **[FIXTURE]**: muestras sintéticas enviadas a la API real con `accuracy_m` null; «Precisión no informada» y «(resumen incompleto)» en pantalla | E2E `poligono.spec.ts` |
 
 Correcciones laterales: (1) el motivo de `ST_IsValidReason` incluía una coordenada y P0-008 lo guardaba en `notes` (visible sin `plot:read_geometry`); ahora se elimina en notas, eventos, auditoría y errores. (2) Las vistas de versiones usaban `ST_AsGeoJSON` con 9 decimales; ahora 17 (ida y vuelta exacta).
@@ -222,7 +230,9 @@ Validación: `npm run validate` APROBADA (`validation-results/2026-10-10T17-37-1
 | Reintentos y rollback | `operation_id` concurrente → un registro; fallo forzado → sin evaluación, evento ni auditoría | «reintentos idempotentes…» |
 | Errores, logs y NOTICE | NOTICE de PostGIS bloqueado (`client_min_messages=warning`, `ST_IsValidDetail`); errores de base registrados solo con SQLSTATE | «NOTICE de PostGIS…», «reintentos…» |
 | Sin reparación destructiva | La evaluación no modifica versiones (plot_versions append-only) | — |
-| **Umbral debajo/igual/encima** | **Pendiente de D-05** (propuesta en `docs/decisiones/D-05-PROPUESTA.md`, no aprobada) | — |
+| **Umbral debajo/igual/encima** | **DEMOSTRADO (2026-10-15)** con **D-05.A** adoptado: operador **estricto** (`> 4` exige polígono), **exactamente 4 ha se admite** con aviso de igualdad y **sin banda de tolerancia**; mínimo de 0,0001 ha; comparación sobre el **valor almacenado**, sin reducirlo antes; punto sin superficie **no exportable**; discrepancia declarada/calculada que cruza el umbral → **revisión humana** | `geo-profile.int-spec.ts` (20 casos) |
+| Perfil de destino como **dictamen aparte** | **DEMOSTRADO**: regla `EUDR_GEO_V1` con tabla propia y append-only; las evaluaciones `TL_GIS_TECH` **no se migran, ni se recalculan, ni se invalidan** (prueba que compara filas antes y después); los **dos dictámenes se muestran juntos** y pueden discrepar (polígono con hueco: técnico `VALID`, perfil `DOES_NOT_MEET`) | `geo-profile.int-spec.ts`, E2E `geojson.spec.ts` |
+| Truncamiento del destino | **DEMOSTRADO**: simulación **hacia cero** en decimal exacto, con coordenadas **negativas**; se valida la geometría **resultante**; **el original no se modifica ni se repara**; el **cierre del anillo** se distingue de los vértices que **colapsan** | `geo-profile.int-spec.ts` (5 casos) |
 | Barrido programado (P0-009/D-29) | Worker: huérfanos con gracia y descartados; protección de referenciados bajo bloqueo; tareas reintentables; varios workers sin duplicar | `storage-sweeper.int-spec.ts` 6/6 |
 
 ### P0-011 — criterios

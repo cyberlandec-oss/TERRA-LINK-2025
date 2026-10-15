@@ -11,17 +11,18 @@ Estado de origen: `docs/22_DECISIONES_Y_PENDIENTES.md` (texto completo de cada d
 | Decisión | Qué se adoptó | Qué desbloqueó | Qué sigue pendiente de ella |
 | --- | --- | --- | --- |
 | **D-32** · humedad del secado | Medición en **`%BH`** con método y responsable, **obligatoria para cerrar**; 6 decimales conservados y más precisión **rechazada**, nunca redondeada; tope 100 **estructural** | **P0-016 DONE_LOCAL**; `DRYING` INTEGRATED; transición 10 de la matriz | **Límites de aceptación**, **unidades de peso adicionales** con sus factores y **comprobación con operadores reales** |
+| **D-05.A** · perfil técnico de intercambio geoespacial | Perfil `EUDR_GEO_V1`, con regla y tabla **propias**, separado de `TL_GIS_TECH`: umbral **estricto** (4 ha exactas se admiten, sin banda), punto sin superficie **no exportable**, huecos no exportables, simulación de truncamiento **hacia cero** sobre copia, y exportación **por productor** sin datos personales | **P0-009** y **P0-010** DONE_LOCAL; transición 4b de la matriz | **Aplicabilidad jurídica (D-05.B)**; **prueba contra el servicio real** del destino; contrato del **período de producción** del Art. 9(1)(d); `ProducerName` |
 | **D-33** · cierre de entregas | Cierre **explícito**; **toda** diferencia exige motivo (lo que no prohíbe cerrar con diferencia); con diferencia exige `delivery:correct`; cerrada **no se reabre** ni admite recepciones; una corrección posterior **añade** justificación y conserva la anterior | **P0-012 DONE_LOCAL**; transiciones 5–6b de la matriz | **Tolerancias** y **límites de aceptación de calidad**; **comprobación con operadores reales** |
 
-Ambas son **reglas provisionales del MVP local**: aprobación **para desarrollo**, no validación en campo ni para
-producción.
+Las tres son **reglas provisionales del MVP local**: aprobación **para desarrollo**, no validación en campo ni para
+producción. En el caso de D-05.A, además: **no acredita conformidad jurídica y no autoriza presentar nada**.
 
 ## Las que bloquean la cadena operativa
 
 | Decisión | Qué hay que decidir, en concreto | Desbloquea | Recomendación (no aprobada) |
 | --- | --- | --- | --- |
 | **D-34** · condición de `dd_package_id` y `dispatch_at` | Qué exige exactamente despachar: paquete DD aprobado y vigente, y qué fecha es `dispatch_at` | **P0-029** y **P0-017** (despacho) · transición 17 | No despachar sin paquete DD aprobado, vigente y exportado; `dispatch_at` = salida física registrada |
-| **D-05.A** · perfil técnico de intercambio (**revisión 3**: `docs/decisiones/D-05-PROPUESTA.md`) | Cómo prepara Terra Link un GeoJSON contra una versión documentada del destino, y qué parcelas no puede preparar | «Perfil destino» de **P0-009** · «umbral debajo/igual/encima» de **P0-010** · `plots_valid` de **P0-030** · transición 4 | **Decidible por el equipo ya.** 20 reglas escritas, cada una marcada según la exija el receptor o la proponga Terra Link. Falta ratificarlas, fijar la banda `NEAR_THRESHOLD`, decidir `ProducerName` y consultar 4 incertidumbres al contacto técnico del destino |
+
 | **D-05.B** · aplicabilidad jurídica | A qué actores y operaciones de Terra Link alcanzan las obligaciones: quién es «operator» (Art. 2(15)), clasificación de riesgo de Ecuador (Art. 29), condiciones del Art. 2(15a), Anexo III | Qué **significa** el resultado del perfil · requisito `GEOLOCATION_PROFILE` de **P0-022** · transiciones 14, 22 | **No decidible por el equipo**: responsable regulatorio. La norma ya está leída y guardada con su hash (`docs/sources/eudr-norma-2026-10-15/`); lo que falta es el criterio, no el texto |
 | **D-07** · severidad, proceso y conclusión de riesgo | Enums reales, mapeo de factores a severidad y **quién aprueba** el catálogo de reglas | **P0-020** (severidad), distribución de riesgo de **P0-030**, `RISK_CATALOG_APPROVED` de **P0-022** · transición 12 | Aprobar primero el catálogo `0.1.0` tal cual (sin pesos) y decidir severidad por regla, no por promedio |
 
@@ -56,10 +57,11 @@ producción.
 
 ~~1. **D-32 y D-33**~~ — **adoptadas el 2026-10-15** (ver la sección de arriba).
 
-1. **D-05.A** — perfil técnico, **revisión 3**. Es lo único de esta lista que el equipo puede cerrar sin nadie
-   externo. **D-05.B** — aplicabilidad jurídica — es trabajo de un responsable regulatorio: la norma ya está
-   leída y guardada, lo que falta es el criterio sobre qué actor es cada usuario y si Ecuador figura como riesgo
-   bajo.
+~~1. **D-05.A** — perfil técnico~~ — **adoptado e implementado el 2026-10-15** (ver arriba).
+
+1. **D-05.B** — aplicabilidad jurídica. Trabajo de un responsable regulatorio: qué actor es cada usuario bajo el
+   Art. 2(15), y las condiciones del Art. 2(15a). **La clasificación de Ecuador ya está verificada: riesgo
+   ESTÁNDAR**, lo que deja la vía de dirección postal **fuera de alcance mientras siga así**.
 2. **D-07** — propuesta escrita; **independiente de D-05**. Desbloquea severidad de riesgo, un indicador de reportes
    y dos requisitos del expediente.
 3. **D-34** — depende de que exista un paquete DD aprobado, que a su vez depende de las anteriores.

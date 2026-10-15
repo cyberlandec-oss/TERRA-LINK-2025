@@ -45,10 +45,20 @@ Aceptación: vértices persistentes, cierre/validación, precisiones por muestra
 ### P0-009 — GeoJSON
 Depende P0-006/010. Como trazabilidad, necesito intercambio geográfico.
 Aceptación: import/export autorizado, `[lon,lat]`, perfil destino, límites y errores; file import no duplica registros al reintentar. RF-09; QA-04/02.
+**2026-10-15: DONE_LOCAL.** El criterio «perfil destino» queda demostrado con **D-05.A** adoptado como perfil
+técnico provisional para desarrollo local: exportación con perfil **por productor**, 6 decimales como números,
+sin datos personales y con lista de no exportables y motivos. **No acredita** conformidad jurídica (D-05.B) ni
+aceptación por el servicio real del destino, que no se ha probado.
 
 ### P0-010 — Validación GIS
 Depende P0-006. Como responsable de datos, necesito motivos de validez.
 Aceptación: geometría/CRS/área/duplicados/cobertura, estados y versión de regla; umbral debajo/igual/encima probado tras aprobar perfil; sin reparación destructiva silenciosa. RF-10; QA-04.
+**2026-10-15: DONE_LOCAL.** El criterio «umbral debajo/igual/encima probado tras aprobar perfil» queda demostrado
+tras adoptar **D-05.A**: operador estricto, caso exactamente igual admitido con aviso y sin banda, y comparación
+sobre el valor almacenado. El perfil es una regla **aparte** (`EUDR_GEO_V1`, tabla propia): `TL_GIS_TECH` y sus
+evaluaciones históricas **no se tocan**, y los dos dictámenes se muestran juntos porque pueden discrepar. Sin
+reparación: la simulación del truncamiento trabaja sobre una copia. **Pendiente y separado**: D-05.B y la
+aceptación por el servicio real.
 
 ### P0-011 — Productos
 Depende P0-003. Como operador, necesito producto/estado/unidad coherentes.

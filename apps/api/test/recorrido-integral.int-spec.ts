@@ -85,8 +85,20 @@ describeDb('Recorrido integral de la cadena (preparación P0-031, datos sintéti
     // La evaluación es TÉCNICA: su estado no es conformidad, y el perfil de destino no se evalúa (D-05).
     expect(ev.status_scope).toBe('TECHNICAL');
     expect(ev.destination_profile.status).toBe('NOT_EVALUATED');
-    anota('productor → parcela → geometría', `parcela con polígono y evaluación técnica ${ev.status}; perfil de destino NO EVALUADO`);
-    corta('geometría → validez regulatoria', 'DESTINATION_PROFILE_NOT_EVALUATED', 'D-05 (umbral y perfil de destino)');
+    anota('productor → parcela → geometría', `parcela con polígono y evaluación técnica ${ev.status}; el perfil de destino es otro dictamen`);
+
+    // D-05.A (2026-10-15): el PERFIL TÉCNICO de destino ya se evalúa, con regla propia y versionada aparte.
+    // Es un dictamen distinto del técnico y aquí se recorren los dos.
+    const perfil = (await http().post(`${A()}/plots/${ctx.plot}/geo-profile/evaluations`).set(as(ADMIN)).send({ operation_id: op() }).expect(201)).body.evaluation;
+    expect(perfil.profile.id).toBe('EUDR_GEO_V1');
+    expect(perfil.status).toBe('MEETS_PROFILE');
+    expect(perfil.exportable).toBe(true);
+    // Y dice, en el propio resultado, que eso NO es conformidad.
+    expect(perfil.source.verification).toBe('DOCUMENTED_NOT_TESTED_AGAINST_SERVICE');
+    expect(perfil.disclaimer).toMatch(/NO es conformidad EUDR/i);
+    anota('geometría → perfil técnico de destino', `${perfil.status} con ${perfil.profile.id}@${perfil.profile.version}, contra la documentación fechada del destino (servicio ${perfil.source.service_version}, documento v${perfil.source.document_version}); comprobado en documentación, NO contra el servicio real`);
+    // Lo que sigue bloqueado NO es el formato: es a quién obliga la norma y qué significa el resultado.
+    corta('perfil técnico → conclusión regulatoria', 'LEGAL_APPLICABILITY_NOT_DECIDED', 'D-05.B (qué actor es cada usuario y qué acredita el perfil)');
   });
 
   // ---------------------------------------------------------------- 2. entrega → recepción → calidad
@@ -266,7 +278,7 @@ describeDb('Recorrido integral de la cadena (preparación P0-031, datos sintéti
     const aprobar = await http().post(`${A()}/dd-snapshots/${s.id}/reviews`).set(as(EUDR2)).send({ operation_id: op(), action: 'APPROVE', reason: 'Intento del recorrido' }).expect(409);
     expect(aprobar.body.error.details.map((d: { field: string }) => d.field)).toEqual(expect.arrayContaining(['GEOLOCATION_PROFILE', 'DEFORESTATION_ANALYSIS']));
     anota('lote → expediente', `instantánea con cantidades y origen CUMPLIDOS; readiness ${s.readiness.effective}`);
-    corta('expediente → READY y paquete DD', aprobar.body.error.code, 'D-05 y D-09 parte B (requisitos no evaluables)');
+    corta('expediente → READY y paquete DD', aprobar.body.error.code, 'D-05.B y D-09 parte B (requisitos no evaluables; el perfil TÉCNICO ya no es el bloqueo)');
   });
 
   // ---------------------------------------------------------------- 6. embarque

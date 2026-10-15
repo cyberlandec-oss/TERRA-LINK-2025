@@ -378,6 +378,28 @@ export interface ObjectDeletionsTable {
   completed_at: Timestamp | null;
 }
 
+export interface GeoProfileEvaluationsTable {
+  id: string;
+  organization_id: string;
+  plot_id: string;
+  plot_version_id: string;
+  geometry_hash: string | null;
+  profile_id: string;
+  profile_version: string;
+  source_service_version: string;
+  source_document_version: string;
+  source_page_date: ColumnType<string, string, string>;
+  parameters: unknown;
+  status: 'MEETS_PROFILE' | 'DOES_NOT_MEET' | 'REVIEW_REQUIRED' | 'NOT_EVALUABLE';
+  checks: unknown;
+  area_basis: 'CALCULATED' | 'DECLARED' | 'NONE';
+  area_value_ha: string | null;
+  exportable: boolean;
+  operation_id: string;
+  evaluated_by: string;
+  evaluated_at: ColumnType<Date, Date | string | undefined, Date | string>;
+}
+
 export interface GisEvaluationsTable {
   id: string;
   organization_id: string;
@@ -697,6 +719,7 @@ export interface Database {
   products: ProductsTable;
   product_versions: ProductVersionsTable;
   object_deletions: ObjectDeletionsTable;
+  geo_profile_evaluations: GeoProfileEvaluationsTable;
   gis_evaluations: GisEvaluationsTable;
   gis_evaluation_comparisons: GisEvaluationComparisonsTable;
   geometry_imports: GeometryImportsTable;

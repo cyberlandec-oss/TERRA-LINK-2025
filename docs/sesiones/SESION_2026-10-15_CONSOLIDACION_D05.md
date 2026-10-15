@@ -1,4 +1,4 @@
-# Sesión 2026-10-15 — Consolidación de P0-012/P0-016 y revisiones 2 y 3 de D-05
+# Sesión 2026-10-15 — Consolidación de P0-012/P0-016 y adopción de D-05.A
 
 Continuación de `SESION_2026-10-15_D32_D33.md`. **No se adoptó ninguna decisión nueva** y **no se modificó ninguna
 compuerta regulatoria.** D-07, D-09, D-34, D-37, D-38 y D-42 siguen exactamente donde estaban.
@@ -191,6 +191,89 @@ alcance real de su regla sobre «overlapping sides»; dos **inconsistencias del 
 de Tipo II que llevan `Area` en features `Polygon`, y un ejemplo de `Point` con un nivel de anidamiento de más); y
 el comportamiento **real** del servicio, que exigiría un ensayo contra el entorno de aceptación —con credenciales y
 autorización, emparentado con D-09 parte B y **no autorizado aquí**—.
+
+## 5.6 Revisión 4 y adopción de D-05.A
+
+El responsable de producto **adoptó D-05.A como perfil técnico provisional para desarrollo local**, con ajustes.
+**D-05.B sigue pendiente.**
+
+### Fuentes, antes de implementar
+
+| Qué | Resultado |
+| --- | --- |
+| **Consolidación posterior** | Existe `02023R1115-20260918` (003.001). Se recuperó y **se comparó** con la de diciembre: la diferencia la introduce **M3** (Reglamento Delegado (UE) 2026/2102) y está **entera en el Anexo I**. **Ningún artículo cambió**, verificado uno a uno. Para cacao, `1801` no cambia; solo `1802` excluye residuos. La copia anterior **se conserva como historia** |
+| **Ecuador** | **`standard risk category`** en la lista oficial de la Comisión, con fecha y hash. **Cierra en contra** la vía de dirección postal: el Art. 2(15a) exige **riesgo bajo**. Y queda escrito que esto **no es** el riesgo de una parcela ni de un lote, que sigue dependiendo de D-07 |
+
+### Lo implementado
+
+`EUDR_GEO_V1@1.0.0`, migración `0041_eudr_geo_profile`, tabla `geo_profile_evaluations` **append-only**.
+
+- **Separado de `TL_GIS_TECH` de verdad**: regla, tabla y versión propias. Las evaluaciones técnicas **no se
+  migraron, ni se recalcularon, ni se invalidaron**, y una prueba lo comprueba fila por fila. **Los dos dictámenes
+  se muestran juntos** y pueden discrepar: el polígono con hueco es técnico `VALID` y perfil `DOES_NOT_MEET`.
+- **Umbral estricto**, con **4 ha exactas admitidas** y aviso de igualdad. **Sin banda δ**: la que proponía la
+  revisión 3 **se retiró**, porque fijar un δ sin fuente sería inventar una regla y acabaría funcionando como una
+  condición de cierre encubierta.
+- **Contrato de decimales corregido**, en cuatro capas que ya no se mezclan: valor numérico · formato de
+  intercambio (6 decimales, escritos como **números**) · resolución del dato (declarada `numeric(12,4)`, calculada
+  `numeric(14,6)`) · exactitud de captura. **Los decimales escritos no acreditan exactitud** y **una coordenada no
+  se rechaza por sus ceros finales**: `-79.5` y `-79.500000` son el mismo valor.
+- **La comparación con el umbral usa el valor almacenado**, sin reducirlo antes para presentación.
+- **Truncamiento y cálculo de superficie, separados.** La simulación trunca **hacia cero** en decimal exacto
+  (`trunc(numeric, 6)`), incluye **coordenadas negativas** —el caso normal en Ecuador— y **valida la geometría
+  resultante**. **El original no se modifica, no se repara y no se sustituye.**
+- **Cierre del anillo distinguido de los duplicados problemáticos**: repetir la primera posición al final es
+  obligatorio y **se excluye** de la comprobación; un duplicado previo al truncamiento tiene motivo propio y manda
+  a revisión, no a rechazo.
+- **El modelo no se amplió**: `MultiPoint` queda **declarado como capacidad no implementada**, y no se inventó
+  ninguna regla para repartir `Area` entre varios puntos.
+- **Casos ambiguos**: `NOT_EVALUABLE` o `REVIEW_REQUIRED` **con motivo específico**. Un caso que no se puede
+  decidir **no se acepta en silencio** ni arrastra al resto a rechazo. Un `CHECK` del esquema impide marcar
+  `exportable` algo que no sea `MEETS_PROFILE`.
+- **Exportación con perfil, por productor**, junto a la técnica que **no se tocó**: sin `ProducerName` (dato
+  personal) ni `ProducerCountry` (Terra Link no registra país de producción: deducirlo sería inventarlo), con
+  **lista de no exportables y motivos** y **código propio para «no evaluada»**. **El período de producción del
+  Art. 9(1)(d) no viaja en el archivo**: no hay contrato que diga cómo, y no se añadió propiedad ni dato
+  permanente a la parcela.
+
+### Historias
+
+**P0-009 y P0-010 pasan a DONE_LOCAL**, con sus criterios originales demostrados y **separados** los pendientes
+que no son suyos: **D-05.B** (aplicabilidad jurídica) y la **aceptación por el servicio real** del destino.
+
+### Integración con reportes y expediente
+
+- **Reportes**: la exportación con perfil vive junto a la técnica, que **no se tocó**. `plots_valid` **no se
+  cambió**: pasar a contarlo contra el perfil sería tocar un indicador, y eso no se hizo.
+- **Expediente**: la prueba más relevante es la que **no** cambia nada. En el recorrido integral, el perfil se
+  evalúa **antes** del expediente y aun así `GEOLOCATION_PROFILE` sigue `NOT_EVALUABLE` y el `READY` sigue
+  bloqueado. **Adoptar el perfil técnico no acerca el expediente**, y la prueba lo demuestra por ejecución.
+
+### Validación y despliegue
+
+`npm run validate` **APROBADA** (`validation-results/2026-10-15T18-33-43-757Z`): **61 suites, 545 pruebas** de
+integración y **62 E2E**, OpenAPI validado con **192 rutas**.
+
+Un apunte de método: **durante la corrida se editó por error un comentario** de `geo-profile.ts`, y **se revirtió
+de inmediato**, de modo que el árbol probado es el que se confirma. Se anota porque es exactamente el problema de
+correspondencia que esta misma sesión había documentado unas horas antes.
+
+**Despliegue reconstruido y verificado** tras la validación:
+
+| Comprobación | Resultado |
+| --- | --- |
+| 3000 · 4000/api/docs · 3001 | **200**, **200**, **200** |
+| Migraciones | **41** (la `0041` aplicada) |
+| Marcas de migración | de `2026-10-13T15:14:19Z` a `2026-10-15T18:52:00Z` → las primeras **no se reejecutaron**: sin pérdida de datos |
+| `geo_profile_evaluations` | existe, **0 filas** (tabla nueva, sin uso en desarrollo) |
+| Datos DEMO | 9 productores, intactos |
+| `SATELLITE_LIVE_CALLS` | **apagado**, sin tocar |
+
+### Lo que la adopción NO cambió
+
+**D-07**, el catálogo `risk_rule_sets` (`NOT_APPROVED`), el requisito `GEOLOCATION_PROFILE` del expediente y las
+demás compuertas: **intactos**. El recorrido integral sigue cortándose en el mismo punto, con un motivo más
+preciso: `LEGAL_APPLICABILITY_NOT_DECIDED → D-05.B` en vez de `DESTINATION_PROFILE_NOT_EVALUATED → D-05`.
 
 ## 6. Qué NO se hizo
 

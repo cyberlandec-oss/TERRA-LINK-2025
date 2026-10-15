@@ -1,12 +1,45 @@
-# D-05 — Perfil de destino geoespacial. Propuesta NO APROBADA
+# D-05 — Perfil de destino geoespacial
 
-Estado: **PROPUESTA**. Nada de este documento está activo en el código: `TL_GIS_TECH 1.0.1` sigue informando
-«Perfil de destino: no evaluado (D-05)», el recorrido integral sigue devolviendo
-`DESTINATION_PROFILE_NOT_EVALUATED`, `plots_valid` sigue en `CRITERION_UNDEFINED` y el requisito
-`GEOLOCATION_PROFILE` del expediente sigue sin evaluar. **No se ha cambiado ninguna compuerta, indicador ni
-conclusión regulatoria.** D-07 sigue independiente.
+| | Estado |
+| --- | --- |
+| **D-05.A · perfil técnico de intercambio** | **ADOPTADO como regla provisional para desarrollo local** (2026-10-15, instrucción del responsable de producto). Implementado como `EUDR_GEO_V1`. **No** es validación en campo ni aprobación para producción |
+| **D-05.B · aplicabilidad jurídica** | **PENDIENTE.** Necesita un responsable regulatorio |
 
-**Revisión 3 — 2026-10-15.** Qué cambia respecto de la revisión 2:
+**Lo que la adopción de D-05.A NO hace**, y conviene leerlo antes de seguir:
+
+- **No acredita conformidad jurídica.** `MEETS_PROFILE` dice que el archivo está bien formado para una versión
+  **documentada** del sistema de destino. Nada más.
+- **No autoriza presentar declaraciones ni llamar a TRACES.** Preparar un archivo no es declararlo.
+- **No se ha probado contra el servicio real.** Ninguna regla de este documento es comportamiento observado del
+  servicio: todas son comportamiento **documentado**.
+- **No cambia D-07**, ni la severidad de riesgo, ni el catálogo `NOT_APPROVED`, ni ninguna conclusión regulatoria.
+- **No desbloquea el expediente.** `GEOLOCATION_PROFILE` sigue sin poder darse por cumplido mientras D-05.B siga
+  abierta, y los otros cinco requisitos de la fila 14 de la matriz no se tocan.
+
+---
+
+## Revisión 4 — 2026-10-15 (lo que cambia respecto de la revisión 3)
+
+| Cambio | Detalle |
+| --- | --- |
+| **Consolidación posterior encontrada y comparada** | `02023R1115-20260918` (003.001) frente a `-20251226`. **Ningún artículo cambió**: todo el cambio (M3, Reglamento Delegado (UE) 2026/2102) está en el Anexo I. §5.0 |
+| **Ecuador: riesgo ESTÁNDAR** | Verificado en la lista oficial. Cierra la pregunta de la vía postal, y **en contra** de la lectura permisiva. §5.4 |
+| **Contrato de decimales corregido** | La revisión 3 confundía decimales escritos con exactitud. Se separan **cuatro** cosas. §4.0 |
+| **La comparación con el umbral, corregida** | No se reduce el valor antes de comparar, ni a 6 decimales ni a 4. §4.1 |
+| **Sin banda δ** | La revisión 3 proponía una banda `NEAR_THRESHOLD`. **Se retira**: el umbral es exacto y la igualdad solo se avisa. §4.4 |
+| **Implementado** | `EUDR_GEO_V1` en código, con tabla propia, 26 pruebas de integración y prueba de navegador. §8 |
+
+---
+
+## Histórico: revisión 3 — propuesta NO APROBADA
+
+> **Nota de lectura (revisión 4).** Lo que sigue es el análisis que sostiene la decisión. Su encabezado original
+> decía que nada estaba activo en el código: eso **ya no es cierto para D-05.A**, que se implementó el mismo día
+> (§8). Sigue siendo cierto para **D-05.B**, y siguen intactos `plots_valid` (`CRITERION_UNDEFINED`), el requisito
+> `GEOLOCATION_PROFILE` del expediente, **D-07** y todas las compuertas. El análisis se conserva sin reescribir
+> porque es lo que se revisó y corrigió.
+
+**Revisión 3 — 2026-10-15.** Qué cambiaba respecto de la revisión 2:
 
 | Cambio | Detalle |
 | --- | --- |
@@ -191,40 +224,57 @@ fuente documenta `Area` como propiedad **del elemento `Point`** (B14) y no dice 
 
 ## 4. D-05.A — Los cálculos, corregidos
 
-### 4.1 La comparación con 4 ha
+### 4.1 Contrato de decimales: cuatro cosas que no son la misma
 
-**Regla propuesta (TL), corregida respecto de la revisión 2:**
+La revisión 3 seguía mezclando «decimales escritos» con «precisión». RFC 7946 §11.2 advierte justo de eso: el
+número de decimales de un GeoJSON **no** se interpreta como incertidumbre. `-79.5` y `-79.500000` son **el mismo
+valor**; añadir ceros no mejora ninguna medición.
 
-> La comparación con el umbral usa **el valor de referencia tal como está almacenado**, sin ninguna reducción
-> previa. El redondeo de presentación es una operación **posterior e independiente** que **nunca** alimenta la
-> comparación.
+| # | Qué es | Dónde vive | Qué NO es |
+| --- | --- | --- | --- |
+| 1 | **Valor numérico** | La coordenada almacenada | No cambia por cómo se escriba |
+| 2 | **Formato de intercambio** | Cuántos decimales se **escriben** al exportar: **6** | No es precisión ni resolución |
+| 3 | **Resolución del dato** | Escalón que el almacenamiento distingue: declarada `numeric(12,4)`, calculada `numeric(14,6)` | Capacidad de representación, no exactitud |
+| 4 | **Exactitud de captura** | Bloque de calidad de captura de `TL_GIS_TECH`; hoy **sin umbral** (D-25) | **No se deduce de los decimales**, ni los del archivo ni los escritos |
 
-La revisión 2 decía «comparar con 6 decimales de hectárea, presentar con 4». **Era incorrecto por dos motivos**:
+Reglas que salen de ahí, y que el código cumple:
 
-1. Reducir a 6 decimales *antes* de comparar es una operación de presentación metida en la decisión. Con el
-   operador estricto, un valor que redondee a `4.000000` desde arriba cambiaría de lado del umbral.
-2. **6 decimales no es la precisión de ambos datos.** Los dos valores de referencia se almacenan distinto.
+- **Una coordenada NO se rechaza por sus ceros finales.** Lo único que se comprueba es qué le pasa a la
+  **geometría** cuando el destino trunca el **valor**.
+- **Seis decimales no se presentan como prueba de precisión física**, ni en pantalla ni en el archivo exportado.
+- Al exportar se escriben **6 decimales como NÚMEROS**, nunca como cadenas: el propio destino advierte que
+  `"Area": "3"` entrecomillado da área 0, y una coordenada entrecomillada no es una coordenada.
+- Por qué 6: el Art. 2(28) exige **al menos** seis dígitos decimales y el destino **trunca** a seis. Es el único
+  número que satisface ambas cosas. Escribir menos incumpliría la norma; escribir más se pierde en destino.
 
-### 4.2 Precisión y límites del dato almacenado
+### 4.2 La comparación con el umbral
 
-| Dato | Columna | Tipo | Decimales | Quién lo produce |
-| --- | --- | --- | ---: | --- |
-| Superficie **declarada** | `plot_versions.area_declared_ha` | `numeric(12,4)` | **4** | Persona |
-| Superficie **calculada** | `plot_versions.area_calculated_ha` | `numeric(14,6)` | **6** | `ST_Area(geography)/10000` |
+> La comparación usa **el valor de referencia disponible, tal como está almacenado**. **No se reduce antes de
+> comparar** —ni a 6 decimales ni a 4—: el redondeo de presentación es una operación posterior que **nunca**
+> alimenta la decisión.
 
-Limitaciones que deben quedar escritas en el perfil, no descubrirse después:
+La revisión 3 decía «comparar a 6 decimales, presentar a 4». **Seguía siendo incorrecto**: reducir el valor antes
+de compararlo puede cambiarlo de lado del umbral. Con un operador estricto eso convierte un `>` en un `=`, que es
+justo el borde que la decisión tenía que fijar. La comparación se hace en `numeric`, en decimal exacto, sobre el
+valor guardado.
 
-- **La superficie declarada está cuantizada en 0,0001 ha.** No puede expresar `4,00001`: el escalón mínimo por
-  encima de 4 es `4,0001`. La API **rechaza** más de 4 decimales (`@IsNumber({ maxDecimalPlaces: 4 })`), **no
-  redondea** — coherente con la regla del proyecto de no redondear al escribir (D-32).
-- **La superficie calculada tiene 6 decimales de representación, que no son 6 decimales de exactitud.**
-  `ST_Area(geography)` calcula sobre el elipsoide WGS84 y arrastra el error de la propia captura (GPS, trazado).
-  **Precisión de representación ≠ exactitud de medición**, y una parcela de 4,000001 ha calculadas está dentro del
-  error de cualquier captura de campo. Por eso §4.4 propone una **banda de revisión**, no una tolerancia que
-  mueva el umbral.
-- **Un `POINT` nunca tiene superficie calculada**: el `CHECK` del esquema lo impide
-  (`geometry_type IS DISTINCT FROM 'POINT' OR area_calculated_ha IS NULL`). Para un punto, el único valor de
-  referencia posible es el **declarado**, con sus 4 decimales.
+### 4.2.1 Precisión y límites del dato almacenado
+
+| Dato | Columna | Tipo | Escalón | Quién lo produce |
+| --- | --- | --- | --- | --- |
+| Superficie **declarada** | `plot_versions.area_declared_ha` | `numeric(12,4)` | 0,0001 ha | Persona |
+| Superficie **calculada** | `plot_versions.area_calculated_ha` | `numeric(14,6)` | 0,000001 ha | `ST_Area(geography)/10000` |
+
+Límites que el perfil declara en vez de dejar que se descubran después:
+
+- **La declarada está cuantizada en 0,0001 ha**: no puede expresar `4,00001`; el primer escalón por encima de 4 es
+  `4,0001`. La API **rechaza** más de 4 decimales (`@IsNumber({ maxDecimalPlaces: 4 })`), **no redondea**.
+- **Los 6 decimales de la calculada son representación, no exactitud.** `ST_Area(geography)` trabaja sobre el
+  elipsoide y arrastra el error de la captura. Una parcela de `4,000001` ha calculadas está dentro del error de
+  cualquier captura de campo: el perfil **lo dice**, pero **no mueve el umbral por ello** (§4.4).
+- **Un `POINT` nunca tiene superficie calculada**: lo impide un `CHECK` del esquema. Su única referencia posible es
+  la **declarada**, con 4 decimales.
+
 
 ### 4.3 Superficie de referencia
 
@@ -247,9 +297,11 @@ Con el operador **estricto** (`> 4`), que ahora está respaldado por **las dos c
 | `> 4` | **No cumple**: exige polígono | Admitido | `NO_CUMPLE` con motivo `POLYGON_REQUIRED_ABOVE_THRESHOLD` |
 | `< 0,0001` | **No cumple** (mínimo de B1) | Admitido si encierra superficie | `NO_CUMPLE` con motivo `AREA_BELOW_MINIMUM` |
 
-**Banda de revisión (TL)**: cuando la referencia calculada cae en `[4 − δ, 4 + δ]`, el perfil marca además
-`NEAR_THRESHOLD` para revisión humana, **sin cambiar el resultado**. `δ` queda por fijar con quien decida; es un
-aviso, no una tolerancia, y **no mueve el umbral**.
+**Sin banda de tolerancia.** La revisión 3 proponía una banda `[4 − δ, 4 + δ]` marcada `NEAR_THRESHOLD`. **Se
+retira y no se implementa**: fijar un δ sin fuente sería inventar una regla, y una banda acabaría funcionando como
+una condición de cierre encubierta. Lo que sí hay es el **aviso de igualdad** (`AT_THRESHOLD`) cuando la superficie
+es exactamente 4 ha, que **no cambia el resultado**. Si más adelante se quiere una banda, será **una decisión
+propia y posterior**, y no una condición nueva para cerrar historias.
 
 ### 4.5 Discrepancia entre declarada y calculada
 
@@ -326,6 +378,36 @@ OJ L 3234, 23.12.2024) y **M2** = Reg. (UE) 2025/2650 (19-12-2025, OJ L 2650, 23
 > effect. […] The authentic versions […] are those published in the Official Journal.» Sirve para **citar con
 > exactitud**, no para fundar una conclusión jurídica.
 
+### 5.0 Consolidación vigente: se buscó una posterior y se comparó
+
+La revisión 3 citaba `02023R1115 — EN — 26.12.2025 — 002.001`. **Existe una posterior**, y se recuperó y comparó
+antes de llamarla vigente:
+
+| | Anterior | **Vigente** |
+| --- | --- | --- |
+| Identificación | `— 26.12.2025 — 002.001` | **`— 18.09.2026 — 003.001`** |
+| Modificaciones | M1 (2024/3234), M2 (2025/2650) | M1, M2 y **M3** |
+
+**M3** = **Reglamento Delegado (UE) 2026/2102 de la Comisión, de 13 de julio de 2026** (OJ L 2102, 17.9.2026).
+
+**Qué cambió, comprobado y no supuesto.** La comparación completa de los dos textos devuelve **diez bloques
+distintos y los diez están en el Anexo I**. **Ningún artículo cambió**, verificado uno a uno:
+
+| Artículo | Resultado |
+| --- | --- |
+| Art. 2(28) geolocalización · Art. 2(27) parcela · Art. 2(15) y 2(15a) actores | **Idénticos** |
+| Art. 4a(5) dirección postal · Art. 9(1)(d) información · Art. 38 fechas | **Idénticos** |
+
+M3 precisa el **alcance de productos**: excluye residuos (Directiva 2008/98/CE), productos usados y de segunda
+mano y cierto material de embalaje, y añade partidas como `2101 11 00` (extractos de café, aplicable desde el
+30-12-2027).
+
+**Para cacao**, el alcance de este proyecto: **`1801` (granos de cacao) no cambia.** El único retoque del bloque
+es en `1802` (cáscara y residuos), que pasa a excluir residuos.
+
+**Efecto sobre D-05: ninguno.** Se actualiza la cita por exactitud, no porque cambie una regla. Las dos copias
+quedan en `docs/sources/eudr-norma-2026-10-15/`, la anterior **conservada como historia**.
+
 ### 5.1 Lo que dice, verbatim
 
 | # | Artículo | Cita |
@@ -355,29 +437,38 @@ OJ L 3234, 23.12.2024) y **M2** = Reg. (UE) 2025/2650 (19-12-2025, OJ L 2650, 23
   inmobiliaria**. No resuelve si dos recintos no contiguos de la misma propiedad son una parcela o dos, pero
   **acota la pregunta** y la saca del terreno de la opinión.
 
-### 5.3 La vía de la dirección postal: NO es «para cualquier pequeño productor»
+### 5.3 La vía de la dirección postal: condiciones acumulativas
 
-La revisión 2 la enunció de forma demasiado laxa. **La norma la condiciona a ser un «micro or small primary
-operator», y esa figura exige TODAS estas condiciones a la vez** (A5, y A4 para el término base):
+El Art. 4a(5) la reserva a los **«micro or small primary operators»**. Esa figura (Art. 2(15a), con Art. 2(15) para
+el término base) exige **todas** estas condiciones **a la vez**:
 
-1. Ser **«operator»** en el sentido de A4: quien **coloca por primera vez en el mercado de la Unión** o **exporta
-   desde la Unión**. Un productor o una cooperativa de Ecuador que vende a un importador europeo **normalmente no
-   es el operador**: lo es el importador. Esta sola condición puede excluir a la mayoría de los usuarios de
-   Terra Link, y **no se asume en ninguna dirección**.
-2. Ser **persona física o micro/pequeña empresa** según el Art. 3(1) o 3(2), párrafo primero, de la **Directiva
-   2013/34/UE** — umbrales que hay que comprobar, con la regla especial de A5 para quien los supere solo en parte.
-3. Estar **establecido en un país clasificado como de riesgo bajo conforme al Art. 29**.
-4. Colocar o exportar productos que **ese mismo operador** haya cultivado, cosechado u obtenido en parcelas
-   **situadas en ese país**.
-5. Y, operativamente, presentar la **Declaración Simplificada** del Art. 4a por el servicio correspondiente
-   (`EUDRSimplifiedDeclarationServiceV3`).
+| # | Condición | Estado para los usuarios de Terra Link |
+| --- | --- | --- |
+| 1 | Ser **«operator»**: quien coloca **por primera vez en el mercado de la Unión** o exporta desde ella | **Sin determinar.** Una cooperativa de Ecuador que vende a un importador europeo normalmente **no** es el operador: lo es el importador. Es D-05.B |
+| 2 | Ser persona física o micro/pequeña empresa según el Art. 3(1) o 3(2) de la **Directiva 2013/34/UE** | Sin determinar: exige datos de balance, cifra de negocio y empleados |
+| 3 | Estar **establecido en un país clasificado como de riesgo bajo** (Art. 29) | **RESUELTO, y en contra: Ecuador es `standard risk`.** §5.4 |
+| 4 | Colocar o exportar productos que **ese mismo operador** haya producido en parcelas **de ese país** | Sin determinar |
+| 5 | Presentar la **Declaración Simplificada** del Art. 4a por su servicio propio | Fuera de alcance: no se presenta nada |
 
-**Dato que falta y que no se inventa**: el Art. 29 establece que, de partida, **todos los países tienen riesgo
-estándar**, y que la Comisión publica por **actos de ejecución** la lista de los de riesgo bajo o alto. **Si
-Ecuador está hoy en esa lista, y en qué categoría, no se ha verificado en esta sesión.** Sin ese dato, la
-condición 3 está sin comprobar y **la vía postal no puede darse por disponible ni por descartada**.
+**La condición 3 ya basta para cerrar la pregunta hoy**: mientras Ecuador siga en riesgo estándar, la vía postal
+**no está disponible** para un operador establecido allí, aunque se cumplieran las otras cuatro. Lo que **no** se
+concluye es nada sobre las condiciones 1, 2 y 4: siguen sin determinar y son D-05.B.
 
----
+### 5.4 Clasificación de riesgo de Ecuador: **estándar**
+
+> **Ecuador — `standard risk category`.** Comisión Europea, *Country Classification List*, consultada el
+> 2026-10-15. Copia con `sha256` en `docs/sources/eudr-norma-2026-10-15/country-classification-list.html`.
+
+Tres cosas que **no deben confundirse**:
+
+1. **Riesgo de país ≠ riesgo de parcela o de lote.** La clasificación del Art. 29 es una categoría del Reglamento
+   sobre un **territorio**. La evaluación de riesgo de Terra Link es sobre **sujetos concretos**, depende de
+   **D-07** y de un catálogo `risk_rule_sets` que sigue **NO APROBADO**, con un `CHECK` en el esquema que impide
+   guardar severidad o conclusión. **Este dato no toca nada de eso, y no se usa para rellenarlo.**
+2. **Riesgo estándar no es incumplimiento.** Es la categoría por defecto: el Art. 29 asigna riesgo estándar a
+   todos los países hasta que la Comisión publique lo contrario.
+3. **La lista cambia.** Por eso el dato va fechado y con hash, y por eso su efecto sobre la condición 3 se enuncia
+   como «mientras siga así».
 
 ## 6. Incertidumbres que las fuentes no resuelven
 
@@ -400,11 +491,13 @@ autorizado**: es un trabajo emparentado con D-09 parte B.
 
 ---
 
-## 7. Propuesta mínima para decidir D-05.A
+## 7. Las reglas de D-05.A (adoptadas)
 
 Cada regla lleva su capa: **B#** si la exige el receptor, **TL** si es nuestra. El perfil se identifica como
 `EUDR_GEO_V1`, y declara contra qué versión del destino evalúa, con los cuatro identificadores separados:
 **servicio V3**, **documento v1.2**, página GeoJSON de **17-08-2026**, y el **sha256** de cada copia guardada.
+
+Estas son las reglas **adoptadas e implementadas** (§8), no una propuesta pendiente.
 
 | # | Regla | Valor propuesto | Capa |
 | --- | --- | --- | --- |
@@ -421,7 +514,7 @@ Cada regla lleva su capa: **B#** si la exige el receptor, **TL** si es nuestra. 
 | **T11** | Huecos | **No exportables** aunque sean OGC-válidos | **B6** |
 | **T12** | Autointersección y degenerados | No exportables | **B6, B8** |
 | **T13** | CRS y orden de ejes | WGS84/EPSG:4326, `[lon, lat]`, sin reproyectar | **B10** |
-| **T14** | Propiedades | `Area` (puntos), `ProductionPlace`, `ProducerCountry`. **`ProducerName` NO se exporta** sin decisión de protección de datos | **B14 + TL** |
+| **T14** | Propiedades | `Area` (puntos, como **número**) y `ProductionPlace`. **`ProducerName` NO se exporta**: dato personal. **`ProducerCountry` tampoco**: Terra Link no guarda país de producción (tiene provincia y cantón) y deducirlo sería inventarlo; la ausencia se declara en el archivo | **B14 + TL** |
 | **T15** | Tipo de archivo | **Tipo I** (nivel de productor). Tipo II queda fuera por ahora | **B15 + TL** |
 | **T16** | `Area` numérica | Número, nunca texto | **B17** |
 | **T17** | Límites | Avisar al acercarse a 25 Mb / 1 000 / 10 000, **declarándolos configurables** | **B19** |
@@ -445,41 +538,122 @@ de producto **y** de protección de datos, no una casilla técnica.
 
 ---
 
-## 8. Qué cambiaría en el sistema (si se aprueba D-05.A)
+## 8. D-05.A, implementado (2026-10-15)
 
-1. **Regla `EUDR_GEO_V1` separada de `TL_GIS_TECH`**, con su propio resultado. Las evaluaciones técnicas existentes
-   **no cambian ni se invalidan**.
-2. **Dos dictámenes a la vez** en la ficha de parcela, porque pueden discrepar: un polígono con hueco es
-   técnicamente válido y no cumple el perfil. Mostrar uno solo haría creer que hay un único veredicto.
-3. **`plots_valid` de P0-030** pasa de `CRITERION_UNDEFINED` a contar contra un criterio nombrado y versionado.
-   **Sigue sin ser un indicador de conformidad**: eso depende de D-05.B.
-4. **Exportación con perfil** junto a la técnica actual, **no en su lugar**: 6 decimales en vez de 17, propiedades
-   de T14, aviso de truncamiento y lista de no exportables con motivo.
-5. **`GEOLOCATION_PROFILE` del expediente**: evaluable en lo técnico. Los otros cinco requisitos de la fila 14 de
-   la matriz **siguen igual**. D-05.A levanta parte de uno, no el bloqueo.
+| Qué | Dónde |
+| --- | --- |
+| Regla y motor del perfil | `apps/api/src/plots/geo-profile.ts` (`EUDR_GEO_V1@1.0.0`) |
+| Tabla propia, **append-only** | migración `0041_eudr_geo_profile`, tabla `geo_profile_evaluations` |
+| Dos dictámenes en pantalla | `apps/web/lib/geo-profile.tsx`, junto a `gis-evaluation.tsx` en la ficha de parcela |
+| Exportación con perfil, por productor | `GET …/reports/entities/plots/geojson/profile?producer_id=…` |
+| Pruebas | `apps/api/test/geo-profile.int-spec.ts` (**26**), `e2e/tests/geojson.spec.ts` (perfil en navegador), recorrido integral |
+
+**Separación de `TL_GIS_TECH`, de verdad y no de nombre:**
+
+- Tabla, regla y versión **propias**. Un cambio de versión del perfil **no** invalida un dictamen técnico, y al
+  revés tampoco.
+- **Las evaluaciones técnicas existentes no se migraron, ni se recalcularon, ni se invalidaron.** Una prueba
+  comprueba fila por fila que evaluar el perfil **no toca** `gis_evaluations`.
+- **Las geometrías no se tocan.** El perfil **informa**; no repara, no reproyecta, no cierra anillos y no sustituye
+  nada. Corregir una geometría sigue siendo crear una **versión nueva**, que es un acto humano con su registro.
+- Los **dos dictámenes se muestran a la vez** y pueden discrepar. La prueba que más lo demuestra es la del polígono
+  con hueco: técnicamente `VALID`, perfil `DOES_NOT_MEET`.
+
+**Las comprobaciones del perfil, cada una con su capa** (`NORM` norma · `DEST` destino · `TL` Terra Link):
+
+| Comprobación | Capa | Qué decide |
+| --- | --- | --- |
+| `GEOMETRY_PRESENT` | TL | Sin geometría no hay nada que preparar |
+| `GEOMETRY_TYPE` | DEST | Point/Polygon/MultiPolygon. **MultiPoint: no implementado**, declarado como tal |
+| `CRS` · `COORDINATE_RANGE` | DEST | WGS84/EPSG:4326, `[lon, lat]`, rangos |
+| `TECHNICAL_VALIDITY` | DEST | Prerrequisito; sobre geometría inválida no se evalúa nada más |
+| `NO_HOLES` | DEST | El destino no procesa huecos |
+| `AREA_BASIS` | TL | Qué superficie se usa y **de dónde sale** |
+| `AREA_MINIMUM` | DEST | 0,0001 ha para el área de un punto |
+| `THRESHOLD` | NORM | **Estricto**: `> 4` exige polígono; `= 4` se admite con aviso |
+| `AREA_DISCREPANCY` | TL | Declarada y calculada a distinto lado → **revisión humana** |
+| `INTERCHANGE_PRECISION` | DEST | Simulación del truncamiento |
+
+**Los cuatro resultados posibles**, y por qué son cuatro y no dos:
+
+| Resultado | Cuándo | Exportable |
+| --- | --- | --- |
+| `MEETS_PROFILE` | Todo pasa | Sí |
+| `DOES_NOT_MEET` | Alguna comprobación **falla** | No |
+| `REVIEW_REQUIRED` | Discrepancia que cruza el umbral, o duplicados ya presentes en el origen | No |
+| `NOT_EVALUABLE` | Falta un dato para decidir (sin geometría; punto sin superficie) | No |
+
+Un caso que no se puede decidir **no se convierte en aceptado ni arrastra al resto a rechazo**: queda
+`NOT_EVALUABLE` **con su motivo**. Y un `CHECK` del esquema impide marcar `exportable` algo que no sea
+`MEETS_PROFILE`: el candado es estructural, no de aplicación.
+
+### 8.1 La simulación del truncamiento
+
+Se ejecuta **sobre una copia**, con `trunc(numeric, 6)` de PostgreSQL: decimal exacto y **hacia cero**, que es lo
+que muestran los ejemplos del propio destino —incluidos los **negativos**, que es el caso normal en Ecuador—. Sobre
+la geometría truncada se comprueba:
+
+1. **Validez**: si el original era válido y la truncada no lo es → `INVALID_AFTER_TRUNCATION`.
+2. **Degeneración**: si deja de encerrar superficie → `DEGENERATE_AFTER_TRUNCATION`.
+3. **Colapso de vértices**: dos posiciones distintas que pasan a ser la misma → `VERTEX_COLLAPSE_ON_TRUNCATION`.
+
+**El cierre del anillo se excluye de la comprobación de duplicados.** Repetir la primera posición al final es
+**obligatorio** (RFC 7946, y el destino rechaza los polígonos abiertos): confundirlo con un duplicado daría por
+inválido todo polígono bien cerrado. Un duplicado que ya existía **antes** de truncar es otra cosa y tiene su
+propio motivo, `DUPLICATE_VERTEX_IN_SOURCE`, que manda a **revisión**, no a rechazo.
+
+**La geometría almacenada no se modifica en ningún punto de este proceso.**
+
+### 8.2 La exportación con perfil
+
+Convive con la exportación técnica, que **no se tocó**: una entrega lo registrado tal cual; la otra, lo que el
+perfil deja preparar.
+
+- **Por productor** (`?producer_id=`), que es la variante de nivel de productor del destino. Sin productor,
+  `400 PRODUCER_REQUIRED`.
+- **Permisos efectivos**: los mismos cuatro de la exportación GeoJSON (`report:export`, `plot:read`,
+  `plot:read_geometry`, `producer:read`). Un rol sin ellos recibe `403` explicado, y un productor de otra
+  organización, `404`.
+- **Solo se exporta lo que cumple el perfil.** Lo demás **se lista con su motivo**, nunca se omite en silencio, y
+  **«no evaluada» tiene código propio** (`PROFILE_NOT_EVALUATED`): no evaluada no es lo mismo que no cumple.
+- **`ProducerName` no se exporta**: es dato personal y en el destino es opcional.
+- **`ProducerCountry` tampoco**: Terra Link guarda provincia y cantón, no país de producción. Deducirlo del país de
+  la organización sería inventarlo. Se declara la ausencia en el archivo.
+- **`Area` solo acompaña a los puntos**, y va como **número**, no como cadena.
+- **El período de producción del Art. 9(1)(d) NO viaja aquí.** Vive en el contexto operativo (las entregas) y no
+  hay contrato que diga cómo representarlo en este archivo. No se añade propiedad al GeoJSON ni dato permanente a
+  la parcela: inventar el campo sería inventar el dato. Queda **identificado y abierto** (§9).
+- Coordenadas con **6 decimales**, como números, y el archivo declara que eso es formato y no precisión.
 
 ---
 
-## 9. Qué falta para aprobar
+## 9. Qué sigue abierto
 
-### D-05.A — decidible por el equipo
-
-| # | Pendiente | De quién |
-| --- | --- | --- |
-| 1 | Ratificar las 20 reglas de §7 | Responsable de producto/GIS |
-| 2 | Fijar `δ` de la banda `NEAR_THRESHOLD` (§4.4) | Responsable de producto/GIS |
-| 3 | Decidir `ProducerName` (§7.1) | Producto + protección de datos |
-| 4 | Consultar U1, U3, U4 y U5 al contacto técnico del destino | Equipo |
-
-### D-05.B — NO decidible por el equipo
+### D-05.A — abierto pero no bloqueante
 
 | # | Pendiente | De quién |
 | --- | --- | --- |
-| 5 | Determinar **qué actor** es cada usuario de Terra Link bajo A4: operador, downstream, comerciante o ninguno | Responsable regulatorio |
-| 6 | Verificar la clasificación de riesgo de Ecuador (Art. 29, acto de ejecución vigente) — **U7** | Responsable regulatorio |
-| 7 | Comprobar, una por una, las condiciones de A5 antes de afirmar que la vía postal aplica a alguien | Responsable regulatorio |
-| 8 | Contenido del **Anexo III** y efecto de la modificación en curso del Reglamento de Ejecución (UE) 2024/3084 | Responsable regulatorio |
-| 9 | Decidir si Terra Link **presenta** o solo **prepara** — decisión propia, con su propia autorización | Producto |
+| 1 | Consultar **U1, U3, U4 y U5** al contacto técnico del destino (§6) | Equipo |
+| 2 | **Probar contra el servicio real** (pasar de DOC a SRV). Exige credenciales y autorización, y enviaría geometrías a un tercero: trabajo aparte, emparentado con D-09 parte B y **no autorizado** | Producto + responsable regulatorio |
+| 3 | Decidir si `ProducerName` debe exportarse alguna vez | Producto + protección de datos |
+| 4 | Contrato del **período de producción** del Art. 9(1)(d): dónde vive y cómo viaja | Producto |
 
-**D-05 sigue sin aprobar.** D-05.A está completa y lista para revisarse; D-05.B no avanza sin las filas 5 a 8. No
-se ha modificado ninguna compuerta, indicador ni conclusión regulatoria, y **D-07 sigue independiente**.
+### D-05.B — sigue pendiente, y es lo que bloquea
+
+| # | Pendiente | De quién |
+| --- | --- | --- |
+| 5 | Determinar **qué actor** es cada usuario de Terra Link bajo el Art. 2(15): operador, downstream, comerciante o ninguno | Responsable regulatorio |
+| 6 | Comprobar las condiciones 1, 2 y 4 del Art. 2(15a) (§5.3). La 3 ya está resuelta **en contra** | Responsable regulatorio |
+| 7 | Contenido del **Anexo III** y efecto de la modificación en curso del Reglamento de Ejecución (UE) 2024/3084 | Responsable regulatorio |
+| 8 | Decidir si Terra Link **presenta** o solo **prepara** | Producto |
+
+**Nada de lo anterior se da por cumplido.** `MEETS_PROFILE` seguirá significando «bien formado para una versión
+documentada del destino» y **nunca** «conforme», mientras D-05.B siga abierta.
+
+### Lo que esta adopción NO cambió
+
+- **D-07** y el catálogo `risk_rule_sets` (`NOT_APPROVED`): intactos.
+- El requisito `GEOLOCATION_PROFILE` del expediente y los otros cinco de la fila 14 de la matriz: intactos.
+- Las compuertas, los indicadores y las conclusiones regulatorias: **ninguna se tocó**.
+- El recorrido integral sigue cortándose en el mismo sitio, con otro motivo más preciso:
+  `LEGAL_APPLICABILITY_NOT_DECIDED → D-05.B`, en vez de `DESTINATION_PROFILE_NOT_EVALUATED → D-05`.

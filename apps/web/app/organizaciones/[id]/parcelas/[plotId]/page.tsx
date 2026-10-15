@@ -11,6 +11,7 @@ import { PolygonCapture } from '../../../../../lib/polygon-capture';
 import { GeometryImport } from '../../../../../lib/geometry-import';
 import { VersionDownloads } from '../../../../../lib/geometry-downloads';
 import { GisEvaluation } from '../../../../../lib/gis-evaluation';
+import { GeoProfileEvaluation } from '../../../../../lib/geo-profile';
 import { SatelliteAnalysis } from '../../../../../lib/satellite';
 import { EventHistory } from '../../../../../lib/event-history';
 import { GEOMETRY_STATUS, GEOMETRY_TYPE_LABEL, GeometrySketch, METHOD_LABEL, ha, positions, type Plot, type PlotVersion } from '../../../../../lib/plots';
@@ -133,6 +134,8 @@ export default function PlotDetailPage() {
           </section>
 
           <GisEvaluation orgId={orgId} plotId={plot.id} canEvaluate={!!plot.can_evaluate_gis} hasVersion={!!plot.current_version} />
+          {/* Dos dictámenes, a la vista y por separado: el técnico de arriba y el de perfil de destino. Pueden discrepar. */}
+          <GeoProfileEvaluation orgId={orgId} plotId={plot.id} canEvaluate={!!plot.can_evaluate_gis} hasVersion={!!plot.current_version} />
 
           <SatelliteAnalysis orgId={orgId} plotId={plot.id} />
 

@@ -163,9 +163,15 @@ Ninguno es una avería. Son decisiones que faltan, y el sistema prefiere detener
 | Lo que no se puede hacer | Por qué | Quién lo desbloquea |
 | --- | --- | --- |
 | Obtener severidad o conclusión de riesgo | El catálogo de reglas no está aprobado | **D-07** |
-| Llegar a `READY` en el expediente | Seis requisitos no evaluables: perfil de geolocalización (**D-05**), análisis de deforestación (**D-09 parte B**), perfil jurídico (**P1-005**), catálogo de riesgo aprobado y conclusión regulatoria (**D-07**), vínculo con embarque (**D-34**/P0-029) | Las cinco decisiones citadas |
+| Llegar a `READY` en el expediente | Seis requisitos no evaluables: perfil de geolocalización (**D-05.B**: el perfil **técnico** ya existe y no basta), análisis de deforestación (**D-09 parte B**), perfil jurídico (**P1-005**), catálogo de riesgo aprobado y conclusión regulatoria (**D-07**), vínculo con embarque (**D-34**/P0-029) | Las cinco decisiones citadas |
 | Despachar un embarque | Preflight y compuerta `SHIPMENT_DISPATCH` | **D-34** |
 | Encargar un análisis satelital real | El adaptador existe, su uso real no está autorizado | **D-09 parte B** |
+
+**Lo que cambió con el perfil de destino (2026-10-15).** La ficha de parcela muestra ahora **dos dictámenes**: la
+evaluación técnica de siempre y el **perfil técnico de destino**. Pueden **discrepar**, y eso no es un fallo: una
+geometría puede ser técnicamente válida y no estar bien formada para el sistema de destino (por ejemplo, si el
+polígono tiene un hueco). **Cumplir el perfil no es conformidad EUDR**, y nada de esto se ha probado contra el
+sistema real: solo contra su documentación fechada.
 
 **Dos que ya NO están bloqueados** (desde el 2026-10-15): **cerrar un secado** y **cerrar una entrega con
 diferencia**. D-32 y D-33 se adoptaron como reglas provisionales del MVP local y ambas operaciones se ejecutan. Ver
