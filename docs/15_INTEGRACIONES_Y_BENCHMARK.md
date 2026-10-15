@@ -36,7 +36,7 @@ Fallback: evidencia manual versionada y evaluación pendiente; simuladores solo 
 
 ## Seguridad de llamadas externas
 
-Hosts/protocolos permitidos, validación de destinos y redirecciones, protección SSRF/DNS según infraestructura real, timeout, tamaño máximo y redacción de credenciales. No adjuntar clave a host no autorizado; no aceptar URL arbitraria como «documento» para descarga de servidor.
+Hosts/protocolos permitidos, validación de destinos y redirecciones, protección SSRF/DNS según infraestructura real, timeout, tamaño máximo y redacción de credenciales. **Implementado en P0-028** (`apps/api/src/satellite/egress.ts`): solo `https`; lista blanca **exacta** donde el **puerto forma parte de la entrada** (`host` implica 443, `host:puerto` para el resto); sin credenciales en la URL ni literales IP; cada dirección resuelta se comprueba **al conectar** (cierra la ventana de *DNS rebinding*); **ninguna redirección se sigue** (un 3xx es bloqueo, no reintento: seguirla entregaría la credencial a un destino no autorizado); plazo y tamaño máximo; redacción del secreto en todo texto conservado. Se admite **anclar una CA**; no existe forma de desactivar la verificación TLS. No adjuntar clave a host no autorizado; no aceptar URL arbitraria como «documento» para descarga de servidor.
 
 Clave satelital cifrada y referenciada por tenant; no en payload público, log o frontend. Rate limit/cupo/coste medidos; circuit breaker y retry con backoff. Webhook con firma/timestamp/deduplicación; referencia externa no sustituye autorización interna.
 

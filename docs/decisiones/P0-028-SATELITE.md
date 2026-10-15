@@ -145,8 +145,15 @@ máximo; tamaño máximo de respuesta; y redacción de la credencial en cualquie
   proveedor seleccionado, y los resultados **sintéticos nunca lo satisfacen**. El cambio es de procedencia, no de
   resultado: hoy sigue `NOT_EVALUABLE`.
 - **Evidencia (P0-019).** S1 §95 encadena `Result → Evidence → Risk`. Vincular un resultado satelital como evidencia
-  exige un tipo de afirmación en el catálogo de docs/12 y la decisión de quién la verifica (D-37). **Queda fuera de
-  esta entrega** y se registra como pendiente, no como hecho.
+  **queda fuera de esta entrega**, y conviene separar bien de qué depende:
+  - **D-37** decide la **política de autoverificación y revisión** de una afirmación: quién no puede verificar lo que
+    él mismo aportó, y con qué plazo se revisa tras una versión nueva. Es una política *sobre* las evidencias.
+  - Lo que falta aquí es **otra cosa y se registra aparte, como D-42**: qué **tipo de afirmación** del catálogo de
+    docs/12 es un resultado satelital, cuál es su **entidad titular**, **qué acredita y qué no**, si exige verificación
+    humana o es evidencia de sistema con procedencia, y qué ocurre con ella cuando cambia la versión geométrica o la
+    versión del dataset.
+  - Orden: primero D-42 (qué es esa evidencia), después D-37 (quién la verifica). Ampliar D-37 para abarcar el
+    contrato entero sería cambiarle el significado por la puerta de atrás.
 
 ---
 
@@ -168,11 +175,15 @@ revisable, consultada en documentación oficial el 2026-10-14.
 | Datos que saldrían del equipo | **Geometría de la parcela** y parámetros técnicos; sin identificadores de usuario. Retención declarada: temporal durante el análisis, borrado típico en ~10 min; metadatos de petición con IP anonimizada a los 90 días | Área de interés | Ninguno (se consume el mapa) |
 | Lo que **no** entrega | «You can use Whisp to support due diligence reports, **but there is no certification involved**»; devuelve «more info needed» cuando la evidencia es insuficiente | No concluye cumplimiento | No concluye cumplimiento |
 
-**Propuesta para decidir (sin aprobar):** **Whisp** como primer proveedor, por tres razones comprobables: su contrato
-asíncrono (`submit` → `status/{token}` → descarga) encaja exactamente con el modelo de trabajo que exige S1 §54; su
-corte temporal es el de la EUDR; y su licencia MIT y coste cero eliminan la negociación comercial del camino crítico.
-GFW quedaría como segundo adapter (la sustituibilidad es el criterio de RF-28) y el mapa del JRC como capa de
-referencia, no como proveedor por parcela.
+**Propuesta para decidir (sin aprobar):** **Whisp** como primer proveedor, por dos razones comprobables: su contrato
+asíncrono (`submit` → `status/{token}` → descarga) encaja exactamente con el modelo de trabajo que exige S1 §54, y su
+corte temporal es el de la EUDR. GFW quedaría como segundo adapter (la sustituibilidad es el criterio de RF-28) y el
+mapa del JRC como capa de referencia, no como proveedor por parcela.
+
+**Precisión importante sobre la licencia:** la licencia **MIT** cubre el **código** de Whisp. **No** es aceptación de
+los **términos del servicio alojado**, **no** es un acuerdo de nivel de servicio y, sobre todo, **no autoriza a
+enviarle geometrías de productores**. «Gratuito y de código abierto» reduce la fricción de *construir* el adaptador;
+no reduce en nada lo que hay que decidir para *usar* el servicio. Las dos aprobaciones están separadas más abajo.
 
 **Lo que esta propuesta NO resuelve y debe decidirse antes de enviar una sola coordenada:**
 
@@ -186,6 +197,43 @@ referencia, no como proveedor por parcela.
 Mientras tanto, **no se contrata, no se registra clave y no se envía ninguna coordenada**.
 
 ---
+
+## D-09 lista para decidir: dos aprobaciones distintas, ninguna supuesta
+
+La licencia del **código** de Whisp (MIT) **no es** aceptación de los **términos del servicio alojado** ni autorización
+para enviarle geometrías. Son tres cosas separadas y aquí se separan también las aprobaciones:
+
+| Aprobación | Qué habilita | Qué NO habilita | Quién decide |
+| --- | --- | --- | --- |
+| **A. Seleccionar un adaptador para desarrollo** | Escribir e integrar el adaptador contra el contrato publicado del proveedor; probarlo con servidores controlados | Ninguna llamada al servicio del proveedor; ninguna geometría fuera del equipo | Tech lead / producto |
+| **B. Autorizar el envío de geometrías reales** | Registrar la credencial y llamar al servicio con parcelas reales | Cualquier conclusión regulatoria; sigue haciendo falta D-07 para que una regla use el resultado | Responsable de datos + producto/legal |
+
+**A no implica B.** El sistema lo refleja: un proveedor queda `SELECTED` con su decisión registrada, pero sin
+credencial no se llama a nadie, y la credencial se registra por organización en un paso aparte.
+
+### Resumen para la decisión (datos de la documentación oficial consultada el 2026-10-14; no verificados con el proveedor)
+
+| | |
+| --- | --- |
+| **Proveedor recomendado** | **Whisp** (Open Foris / FAO · Forest Data Partnership) como primer adaptador; GFW como segundo (la sustituibilidad es el criterio de RF-28); JRC GFC2020 como capa de referencia, no como proveedor por parcela |
+| **Modalidad de uso** | Servicio **alojado por el proveedor**, API REST asíncrona: `POST /api/submit/geojson` → `GET /api/status/{token}` → descarga. Encaja con S1 §54 (la petición HTTP no espera el análisis). Alternativa a evaluar aparte: ejecutar el **paquete abierto** por cuenta propia, que cambia el perfil de datos (no saldría ninguna geometría) y el de coste (infraestructura propia) |
+| **Términos del servicio y datos** | Pendientes de lectura y aceptación formal por el responsable. Lo publicado: geometría y parámetros técnicos; sin identificadores de usuario; almacenamiento temporal durante el análisis con borrado declarado en minutos; metadatos de petición con IP anonimizada a los 90 días. **No verificado por nosotros**; la infraestructura subyacente declarada incluye un tercero (Google Earth Engine) |
+| **Coste o cuota verificable** | Publicado como gratuito y de código abierto (MIT). Cuotas publicadas: 5000 geometrías por trabajo asíncrono (250 síncrono), 30 peticiones/60 s por clave, 2 trabajos simultáneos, 600 s de plazo asíncrono (90 s síncrono). **Sin cotización ni acuerdo de nivel de servicio**: no hay compromiso contractual que invocar si cambia |
+| **Credenciales necesarias** | Una clave de API por cabecera `x-api-key`, obtenida mediante registro. Falta decidir **titularidad y custodia**: ¿una clave por organización o una de plataforma? El sistema ya soporta clave **por organización**, cifrada y nunca devuelta por la API |
+| **Datos que saldrían del equipo** | La **geometría exacta** de parcelas de productores (polígono o punto, WGS84) y los parámetros del análisis. **Nada más**: ni identidad del productor, ni códigos internos, ni nombres. La clave de API viaja solo a los hosts de la lista blanca |
+| **Qué habría que registrar al aprobar** | `satellite_providers.selection_status = 'SELECTED'`, el responsable (`selected_by`) y la **referencia de la decisión** (`decision_reference`). La restricción de esquema impide «activar» un proveedor sin esos dos datos |
+
+### Condiciones previas a B (envío de geometrías reales)
+
+1. **Autorización para que las geometrías de productores salgan hacia un tercero** y su base de tratamiento (**D-14**:
+   retención y base del tratamiento). Una parcela georreferenciada es dato del productor, no solo del sistema.
+2. **Aceptación de los términos vigentes** del servicio alojado por el responsable que corresponda, leídos en su
+   versión actual, no en el resumen de este documento.
+3. **Titularidad y custodia de la clave**, y qué pasa al revocarla.
+4. **Significado operativo de cada indicador** antes de que ninguna regla lo use: eso es **D-07**, no esta decisión.
+   Hasta entonces el resultado es consultable y trazable, pero no alimenta ninguna conclusión.
+
+Mientras A y B no estén aprobadas: **no se contrata, no se registra clave y no sale ninguna coordenada.**
 
 ## Alcance implementable sin D-09 (lo que entra en esta entrega)
 
