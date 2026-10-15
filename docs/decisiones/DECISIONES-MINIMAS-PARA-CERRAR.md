@@ -24,7 +24,7 @@ producción. En el caso de D-05.A, además: **no acredita conformidad jurídica 
 | **D-34** · condición de `dd_package_id` y `dispatch_at` | Qué exige exactamente despachar: paquete DD aprobado y vigente, y qué fecha es `dispatch_at` | **P0-029** y **P0-017** (despacho) · transición 17 | No despachar sin paquete DD aprobado, vigente y exportado; `dispatch_at` = salida física registrada |
 
 | **D-05.B** · aplicabilidad jurídica | A qué actores y operaciones de Terra Link alcanzan las obligaciones: quién es «operator» (Art. 2(15)), clasificación de riesgo de Ecuador (Art. 29), condiciones del Art. 2(15a), Anexo III | Qué **significa** el resultado del perfil · requisito `GEOLOCATION_PROFILE` de **P0-022** · transiciones 14, 22 | **No decidible por el equipo**: responsable regulatorio. La norma ya está leída y guardada con su hash (`docs/sources/eudr-norma-2026-10-15/`); lo que falta es el criterio, no el texto |
-| **D-07** · severidad, proceso y conclusión de riesgo | Enums reales, mapeo de factores a severidad y **quién aprueba** el catálogo de reglas | **P0-020** (severidad), distribución de riesgo de **P0-030**, `RISK_CATALOG_APPROVED` de **P0-022** · transición 12 | Aprobar primero el catálogo `0.1.0` tal cual (sin pesos) y decidir severidad por regla, no por promedio |
+| **D-07** · severidad, proceso y conclusión de riesgo (**contrato escrito**: `docs/decisiones/D-07-PROPUESTA.md`) | **Seis** decisiones separadas, no una: quién aprueba un catálogo (D-07.1), vía de severidad (D-07.2), pesos si se elige score (D-07.3), antigüedad de los datos (D-07.4), perfil jurídico (D-07.5) y quién concluye (D-07.6) | **D-07.1 + D-07.2** desbloquean la distribución de riesgo de **P0-030**. D-07.5/6 desbloquean `RISK_CATALOG_APPROVED` y `REGULATORY_CONCLUSION` de **P0-022** · transición 12 | **Empezar por D-07.1 y D-07.2**, que son de **producto** y no necesitan jurista. Severidad **por regla**, agregada por máximo, sin pesos sin fuente. Cambiar `NOT_APPROVED` o quitar el `CHECK` **no decide nada**: solo deja afirmar lo que nadie decidió |
 
 ## Las que bloquean el satélite y la evidencia
 
@@ -62,8 +62,9 @@ producción. En el caso de D-05.A, además: **no acredita conformidad jurídica 
 1. **D-05.B** — aplicabilidad jurídica. Trabajo de un responsable regulatorio: qué actor es cada usuario bajo el
    Art. 2(15), y las condiciones del Art. 2(15a). **La clasificación de Ecuador ya está verificada: riesgo
    ESTÁNDAR**, lo que deja la vía de dirección postal **fuera de alcance mientras siga así**.
-2. **D-07** — propuesta escrita; **independiente de D-05**. Desbloquea severidad de riesgo, un indicador de reportes
-   y dos requisitos del expediente.
+2. **D-07** — **el frente siguiente**, con contrato escrito. Está partido en seis decisiones precisamente para que
+   no haya que decidirlo todo de golpe: **D-07.1 y D-07.2** son de producto y desbloquean dos indicadores de
+   reportes; **D-07.5 y D-07.6** necesitan un responsable regulatorio y son las que tocan el expediente.
 3. **D-34** — depende de que exista un paquete DD aprobado, que a su vez depende de las anteriores.
 4. **D-09 parte B** (empezando por el ensayo sintético) y después **D-42**.
 5. **D-04** y el **contrato de concesiones** — los dos criterios que faltan para cerrar **P0-003**.

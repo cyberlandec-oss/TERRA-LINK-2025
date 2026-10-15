@@ -172,8 +172,11 @@ describeDb('D-05.A perfil técnico EUDR_GEO_V1 (PostGIS real)', () => {
   it('punto sin superficie: no evaluable y NO exportable, para que el destino no asuma 4 ha', async () => {
     const plot = await mkPlot('PT-3', point(-79.7, -1.5));
     const ev = await evaluate(plot);
-    expect(chk(ev, 'AREA_BASIS')).toMatchObject({ outcome: 'FAIL', reason_code: 'AREA_UNKNOWN_FOR_POINT' });
+    // Falta el dato, no falla la regla: NOT_EVALUABLE, no DOES_NOT_MEET. Decir que «no cumple» afirmaría que se
+    // comprobó; lo cierto es que no se pudo comprobar.
+    expect(chk(ev, 'AREA_BASIS')).toMatchObject({ outcome: 'NOT_EXECUTED', reason_code: 'AREA_UNKNOWN_FOR_POINT' });
     expect(chk(ev, 'THRESHOLD').outcome).toBe('NOT_EXECUTED');
+    expect(ev.status).toBe('NOT_EVALUABLE');
     expect(ev.exportable).toBe(false);
     expect(chk(ev, 'AREA_BASIS').message).toMatch(/asumir[ií]a 4 ha|4 ha por defecto/i);
   });

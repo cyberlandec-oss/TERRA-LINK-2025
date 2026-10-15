@@ -20,7 +20,7 @@ Pero tampoco todo lo que no es un número se mete en el mismo cajón. **Cinco si
 | `OK` | Calculado desde la base. **Un 0 aquí es un cero observado** y se publica como tal | `due_diligence_ready` = 0 con 1 expediente BLOCKED |
 | `NO_DENOMINATOR` | El denominador es cero: el cociente no existe. Ni 0 % ni 100 % | `traceability_completeness` sin lotes |
 | `UNKNOWN` | El universo se conoce, pero la condición **no ha sido evaluada** en ningún sujeto | `risk_high` con lotes evaluados y todos `NOT_ASSESSED` |
-| `CRITERION_UNDEFINED` | El criterio **carece de definición aprobada** y todavía no puede evaluarse | `plots_valid` mientras D-05 no fije umbral y perfil |
+| `CRITERION_UNDEFINED` | El criterio **carece de definición aprobada** y todavía no puede evaluarse | **Sin usuarios desde el 2026-10-15**: `plots_valid` salió de este estado al adoptarse D-05.A. Se conserva porque el caso puede volver a darse |
 | `RESTRICTED` | El lector no tiene el permiso de ese dominio | Cualquiera, según el rol |
 
 Dos consecuencias que se vigilan en las pruebas:
@@ -38,7 +38,7 @@ Dos consecuencias que se vigilan en las pruebas:
 | --- | --- | --- | --- | --- | --- | --- |
 | `producers_total` | E | Productores no dados de baja (`deleted_at IS NULL`) del tenant | productores | — (estado) | — | `OK`; observa activos y dados de baja |
 | `plots_total` | E | Parcelas no dadas de baja del tenant | parcelas | — | — | `OK` |
-| `plots_valid` | E | Parcelas cuya **versión vigente** tiene `validation_status = VALID` | parcelas | — | parcelas con versión vigente **evaluada** | `CRITERION_UNDEFINED`: ninguna versión puede evaluarse mientras D-05 no apruebe umbral y perfil (P0-010). Observa cuántas tienen versión vigente y cuántas están sin evaluar. Sin ninguna versión vigente sería `NO_DENOMINATOR` |
+| `plots_valid` | E | Parcelas cuya **versión vigente** tiene dictamen `EUDR_GEO_V1 = MEETS_PROFILE` | parcelas | parcelas que **cumplen el perfil** | parcelas con versión vigente **evaluada con el perfil** | Desde el 2026-10-15 **se calcula**. Declara en `criterion` el perfil, su versión y las versiones realmente contadas (avisa si hay **mezcla**). Observa **cumple / no cumple / en revisión / no evaluable / sin evaluar**; las sin evaluar **no entran en el denominador**. Sin ninguna evaluación: `UNKNOWN` (el criterio existe, falta ejecutarlo), **no** `CRITERION_UNDEFINED`. Sin ninguna versión vigente: `NO_DENOMINATOR`. **No es conformidad**: eso depende de D-05.B |
 | `deliveries_total` | A | Entregas **registradas** con `delivery_date` dentro del período (límites inclusivos) | entregas | `deliveries.delivery_date` (**no** `created_at`) | — | `OK`. Observa borradores y entregas registradas **sin fecha**, que quedan fuera de todo período y no se descartan en silencio |
 | `lots_active` | E | Lotes en `OPEN` o `CLOSED_FOR_INPUT` | lotes | — | — | `OK`; observa el desglose por estado |
 | `traceability_completeness` | E | Lotes con `origin_status = COMPLETE` ÷ lotes del tenant | % | — | lotes del tenant | `OK`, o `NO_DENOMINATOR` sin lotes. Mide **origen declarado completo**, no conformidad ni verificación |
@@ -228,5 +228,5 @@ así que no se implementan; si se adoptaran, exigirían autorización vigente al
 **Saldo o existencias a una fecha pasada**: capacidad distinta, sin contrato, que no se aproxima.
 **Volumen de piloto medido**: corresponde a P0-031.
 El detalle, con la fuente exacta de cada uno y su clasificación —requisito, mejora o bloqueo externo—, está en
-`docs/decisiones/P0-030-CRITERIOS.md` §3.bis. La historia **sigue ABIERTA** por `plots_valid`, la distribución de riesgo
-y el perfil regulatorio del GeoJSON.
+`docs/decisiones/P0-030-CRITERIOS.md` §3.bis. **Actualización 2026-10-15**: `plots_valid` ya no bloquea, se calcula contra el perfil `EUDR_GEO_V1`. La historia **sigue ABIERTA** por la distribución de riesgo
+y por lo que el perfil NO decide: la conclusión regulatoria (D-05.B).

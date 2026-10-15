@@ -59,7 +59,7 @@ Que el despacho se rechace no acredita que un despacho vaya a funcionar cuando s
 | 19 | Transversal: **auditoría** | RF-25; docs/07 | P0-025 **DONE_LOCAL** | I `audit` · R `auditoria` | Auditoría de un recorrido completo de piloto | **D-38** (formato y retención): política pendiente, **no** un criterio incumplido |
 | 20 | Transversal: **offline y sincronización** | RF-23/24; docs/11 | P0-023/024 | I `sync` · E emulador · R `movil-web-preview` | Captura y sincronización en dispositivo real | Ensayo Android real · **D-40** |
 | 21 | Transversal: **satélite** | RF-28; S1 §§39–41 | Adaptador Whisp de **desarrollo** | U `egress`, `provider`, `whisp` · I `satellite` · R `satelite` | Llamada a un proveedor real | **D-09 parte B** |
-| 22 | Transversal: **reportes e indicadores** | RF-30; S1 §60/§97 | P0-030 | I `reports`, `reports-entities` · R | Cifras de un piloto real | **D-05.B** y **D-07** (2 de 11 indicadores). La exportación GeoJSON ya tiene **dos variantes**: técnica y con perfil |
+| 22 | Transversal: **reportes e indicadores** | RF-30; S1 §60/§97 | P0-030 | I `reports` (incluye `plots_valid` contra `EUDR_GEO_V1`), `reports-entities` · R | Cifras de un piloto real | **D-07** (distribución de riesgo) y **D-05.B** (qué significa el resultado). `plots_valid` **ya se calcula**: declara perfil y versión y separa cumple / no cumple / revisión / no evaluable / sin evaluar |
 | 23 | Transversal: **autorización y aislamiento** | RF-02/03; docs/07 | RBAC versionado | I `rbac` + pruebas por módulo · **I recorrido** (organización ajena) | Elevación de SUPER_ADMIN **y concesiones entre organizaciones** (los dos criterios abiertos de P0-003) | **D-04** · contrato de concesiones (ADR-0002, P1-001) |
 
 ## Lo que el recorrido integral demostró de una sola pasada

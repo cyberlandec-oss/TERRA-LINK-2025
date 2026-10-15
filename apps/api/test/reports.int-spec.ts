@@ -19,7 +19,7 @@ describeDb('P0-030 reportes: indicadores con denominador, período y permisos', 
   const ADMIN = 'admin-a@test.local';
   const AUD = 'auditor@test.local';
 
-  type Ind = { code: string; status: string; value: string | null; numerator: number | null; denominator: number | null; observed: Record<string, number> | null; reason: string | null; kind: string; unit: string; date_basis: string | null; requires: string };
+  type Ind = { code: string; status: string; value: string | null; numerator: number | null; denominator: number | null; observed: Record<string, number> | null; criterion?: { id: string; version_current: string; versions_counted: string[]; mixed_versions: boolean; note: string }; reason: string | null; kind: string; unit: string; date_basis: string | null; requires: string };
   type Body = {
     indicators: Ind[]; can_export: boolean; period: { from: string | null; to: string | null };
     coverage: { status: string; event_date: string; note: string; not_reconstructed: string; reference: string };
@@ -142,17 +142,72 @@ describeDb('P0-030 reportes: indicadores con denominador, período y permisos', 
     expect(b.time_basis.civil_dates).toMatch(/created_at/);
   });
 
-  it('un criterio sin definición aprobada no es cero ni «no calculable» a secas: CRITERION_UNDEFINED con lo observado', async () => {
+  it('criterio definido pero sin ejecutar: UNKNOWN, no cero ni CRITERION_UNDEFINED, y con el perfil identificado', async () => {
     const b = await report(ADMIN);
-    // GIS: 1 parcela tiene versión vigente y está sin evaluar, porque el criterio depende de D-05. La otra no tiene
-    // versión: queda fuera del denominador y se declara aparte, no se cuenta como incumplimiento.
+    // GIS: 1 parcela tiene versión vigente y NO se ha evaluado con el perfil. La otra no tiene versión: queda fuera
+    // del denominador y se declara aparte, no se cuenta como incumplimiento.
     const pv = ind(b, 'plots_valid');
-    expect(pv).toMatchObject({ status: 'CRITERION_UNDEFINED', value: null, denominator: 0 });
-    expect(pv.reason).toMatch(/D-05/);
-    expect(pv.reason).toMatch(/ninguna ha sido evaluada/i);
-    expect(pv.observed).toMatchObject({ con_version_vigente: 1, sin_evaluar: 1 }); // lo contable se cuenta igual
+    // Desde D-05.A el criterio EXISTE: lo que falta es ejecutarlo. Son dos estados distintos y no se confunden.
+    expect(pv).toMatchObject({ status: 'UNKNOWN', value: null, denominator: 0 });
+    expect(pv.reason).toMatch(/El criterio existe y tiene versión/i);
+    expect(pv.reason).toMatch(/ninguna de las 1 parcela\(s\) con versión vigente ha sido evaluada/i);
+    expect(pv.reason).toMatch(/Desconocido no es cero/i);
+    // El indicador declara CONTRA QUÉ criterio cuenta, con su versión.
+    expect(pv.criterion).toMatchObject({ id: 'EUDR_GEO_V1', version_current: '1.0.0', versions_counted: [], mixed_versions: false });
+    expect(pv.criterion!.note).toMatch(/no es conformidad EUDR/i);
+    // Lo contable se cuenta igual, con las cuatro situaciones separadas.
+    expect(pv.observed).toMatchObject({ con_version_vigente: 1, evaluadas: 0, sin_evaluar: 1, cumple_perfil: 0, no_cumple: 0, en_revision: 0, no_evaluable: 0 });
     // Ningún indicador sin estado OK publica un valor.
     for (const i of b.indicators) if (i.status !== 'OK') expect(i.value).toBeNull();
+  });
+
+  it('plots_valid cuenta el perfil de la versión VIGENTE y separa cumple / no cumple / revisión / no evaluable', async () => {
+    // Se construye en la organización B, no en la fixture de A: así esta prueba no mueve los conteos que
+    // comprueban las demás y deja de importar en qué orden se ejecute.
+    const B = 'admin-b@test.local';
+    const prod = (await http().post(`${api(orgB)}/producers`).set(as(B)).send({ producer_code: 'PV-1', legal_name: 'Finca Perfil' }).expect(201)).body.id;
+    const ring = (pts: number[][]) => [...pts, pts[0]];
+    const sq = (x: number, y: number, d = 0.01) => ({ type: 'Polygon', coordinates: [ring([[x, y], [x + d, y], [x + d, y + d], [x, y + d]])] });
+    const mk = async (code: string, geometry: unknown, declared?: number) => {
+      const id = (await http().post(`${api(orgB)}/plots`).set(as(B)).send({ producer_id: prod, plot_code: code, crop: 'Cacao' }).expect(201)).body.id;
+      const body: Record<string, unknown> = { expected_version: 1, survey_method: 'MANUAL_COORDINATES', geometry };
+      if (declared !== undefined) body.area_declared_ha = declared;
+      await http().post(`${api(orgB)}/plots/${id}/geometry-versions`).set(as(B)).send(body).expect(201);
+      return id;
+    };
+    const evaluar = (plot: string) =>
+      http().post(`${api(orgB)}/plots/${plot}/geo-profile/evaluations`).set(as(B)).send({ operation_id: randomUUID() }).expect(201);
+
+    const cumple = await mk('PV-OK', sq(-75.5, -1.0));
+    const noCumple = await mk('PV-BAD', { type: 'Point', coordinates: [-75.4, -1.0] }, 9); // punto por encima del umbral
+    const noEvaluable = await mk('PV-NOEV', { type: 'Point', coordinates: [-75.3, -1.0] }); // punto sin superficie
+    const sinEvaluar = await mk('PV-SKIP', sq(-75.2, -1.0));
+    await evaluar(cumple); await evaluar(noCumple); await evaluar(noEvaluable);
+
+    const pv = ind(await report(B, '', orgB), 'plots_valid');
+    expect(pv.status).toBe('OK');
+    expect(pv.observed).toMatchObject({ evaluadas: 3, cumple_perfil: 1, no_cumple: 1, no_evaluable: 1, en_revision: 0 });
+    expect(pv).toMatchObject({ value: '1', numerator: 1, denominator: 3 });
+    // Las no evaluadas NO entran en el denominador: desconocido no es incumplimiento.
+    expect(pv.observed!.sin_evaluar).toBe(1); // PV-SKIP
+    expect(pv.reason).toMatch(/NO entran en el denominador/i);
+    expect(pv.criterion).toMatchObject({ versions_counted: ['EUDR_GEO_V1@1.0.0'], mixed_versions: false });
+    expect(pv.reason).toMatch(/no es conformidad regulatoria/i);
+
+    // Una versión geométrica NUEVA deja la parcela sin dictamen vigente: el dictamen anterior NO se hereda.
+    await http().post(`${api(orgB)}/plots/${cumple}/geometry-versions`).set(as(B))
+      .send({ expected_version: 2, survey_method: 'MANUAL_COORDINATES', geometry: sq(-75.1, -1.0) }).expect(201);
+    const despues = ind(await report(B, '', orgB), 'plots_valid');
+    expect(despues.observed).toMatchObject({ evaluadas: 2, cumple_perfil: 0 });
+    expect(despues.value).toBe('0');
+    expect(despues.reason).toMatch(/Cero observado/i);
+    void sinEvaluar;
+  });
+
+  it('plots_valid respeta el permiso del dominio: sin plot:read no se calcula ni se informa parcialmente', async () => {
+    const pv = ind(await report('exportacion@test.local'), 'plots_valid'); // EXPORT_MANAGER: report:read sin plot:read
+    expect(pv).toMatchObject({ status: 'RESTRICTED', value: null, numerator: null, denominator: null, observed: null });
+    expect(pv.reason).toMatch(/plot:read/);
   });
 
   it('sin sujetos evaluados el riesgo es NO_DENOMINATOR, no cero: la ausencia de evaluaciones es un hecho observado', async () => {

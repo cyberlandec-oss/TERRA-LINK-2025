@@ -370,7 +370,10 @@ export class GeoProfileService {
       areaBasis = 'DECLARED'; areaValue = g.area_declared_ha;
       checks.push(chk('AREA_BASIS', 'PASS', 'AREA_FROM_DECLARED', { area_ha: areaValue, source: 'DECLARED' }));
     } else if (!polygonal) {
-      checks.push(chk('AREA_BASIS', 'FAIL', 'AREA_UNKNOWN_FOR_POINT'));
+      // Falta el dato, no falla la regla: no se puede situar el punto respecto del umbral. Decir DOES_NOT_MEET
+      // afirmaría que se comprobó y no cumple; lo cierto es que no se pudo comprobar. Queda NOT_EVALUABLE, y
+      // tampoco se exporta.
+      checks.push(chk('AREA_BASIS', 'NOT_EXECUTED', 'AREA_UNKNOWN_FOR_POINT'));
     } else {
       checks.push(chk('AREA_BASIS', 'NOT_EXECUTED', 'REQUIRES_VALID_GEOMETRY'));
     }

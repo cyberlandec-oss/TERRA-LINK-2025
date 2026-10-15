@@ -748,16 +748,23 @@ test('P0-030 reportes: indicadores con definición y denominador; no calculable 
   // muestre el estado que corresponde a los datos y lo explique; las cinco situaciones se fijan una a una en
   // apps/api/test/reports.int-spec.ts, con fixtures construidas para cada caso.
   const gis = table.locator('tbody tr', { hasText: 'plots_valid' });
-  await expect(gis).toContainText(/Criterio sin definir|Sin denominador/);
-  if (/Criterio sin definir/.test(await gis.innerText())) {
-    // Hay parcelas con versión vigente, pero el criterio de validez no está aprobado.
-    await expect(gis).toContainText('D-05');
+  // Desde D-05.A el criterio EXISTE y tiene versión: ya no es «criterio sin definir». Lo que puede faltar es
+  // haberlo ejecutado (Desconocido) o que no haya denominador.
+  await expect(gis).toContainText(/Desconocido|Sin denominador|OK/);
+  await expect(gis).not.toContainText('Criterio sin definir');
+  if (/Desconocido/.test(await gis.innerText())) {
+    // Hay parcelas con versión vigente y ninguna se ha evaluado con el perfil. Desconocido no es cero.
+    await expect(gis).toContainText(/El criterio existe y tiene versión/i);
+    await expect(gis).toContainText(/Desconocido no es cero/i);
     await expect(gis).toContainText(/sin evaluar/i);
-  } else {
+  } else if (/Sin denominador/.test(await gis.innerText())) {
     // Ninguna parcela tiene versión vigente: no hay denominador, que no es lo mismo que «ninguna cumple».
     await expect(gis).toContainText(/no hay denominador/i);
     await expect(gis).toContainText(/No es 0 ni 100 %/);
   }
+  // En cualquier caso, la pantalla dice CONTRA QUÉ criterio cuenta, con su versión, y que no es conformidad.
+  await expect(gis).toContainText('EUDR_GEO_V1');
+  await expect(gis).toContainText(/no es conformidad EUDR/i);
   await expect(gis).not.toContainText(/^0$/);
   // Riesgo: o no hay sujetos evaluados (sin denominador) o están evaluados sin severidad (desconocido). Nunca 0.
   const riesgo = table.locator('tbody tr', { hasText: 'risk_high' });

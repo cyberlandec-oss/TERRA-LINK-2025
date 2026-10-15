@@ -275,6 +275,62 @@ correspondencia que esta misma sesión había documentado unas horas antes.
 demás compuertas: **intactos**. El recorrido integral sigue cortándose en el mismo punto, con un motivo más
 preciso: `LEGAL_APPLICABILITY_NOT_DECIDED → D-05.B` en vez de `DESTINATION_PROFILE_NOT_EVALUATED → D-05`.
 
+## 5.7 Consolidación GIS: `plots_valid` y la correspondencia de la corrida
+
+### `plots_valid`, integrado de verdad
+
+Hasta ahora el indicador devolvía `CRITERION_UNDEFINED`: no había criterio que aplicar. Con D-05.A el criterio
+existe, y el indicador **se conectó al perfil**:
+
+| Qué | Cómo quedó |
+| --- | --- |
+| Qué cuenta | El dictamen `EUDR_GEO_V1` de la versión **vigente** de cada parcela. No el `validation_status` estructural ni `TL_GIS_TECH`: son tres cosas distintas |
+| Identidad del criterio | Campo propio `criterion` con id, versión actual y **versiones realmente contadas**. Si hay **mezcla de versiones**, lo avisa: un total calculado con dos reglas distintas no es comparable consigo mismo |
+| Desglose | **cumple · no cumple · en revisión · no evaluable · sin evaluar**, las cinco separadas |
+| Denominador | Solo las **evaluadas**. Las sin evaluar quedan fuera y se declaran: desconocido no es incumplimiento |
+| Estado cuando nadie evaluó | **`UNKNOWN`**, no `CRITERION_UNDEFINED`. El criterio existe; lo que falta es ejecutarlo, y son dos cosas distintas |
+| Versiones | Un dictamen de una versión geométrica anterior **no se hereda**: crear una versión nueva deja la parcela sin dictamen vigente |
+| Permisos | Sin `plot:read`, `RESTRICTED`: sin valor y **sin desglose parcial** |
+
+**P0-030 sigue ABIERTA**, y eso no cambió: la distribución de riesgo depende de **D-07** y del catálogo
+`NOT_APPROVED`.
+
+Una corrección de método durante esto: la primera versión de la prueba construía su material en la organización de
+la fixture y **rompía otras cinco pruebas** al mover los conteos. Se movió a una organización propia. Es el mismo
+error de aislamiento que esta sesión había corregido por la mañana en las pruebas de navegador.
+
+Y una corrección de criterio: un **punto sin superficie declarada** devolvía `DOES_NOT_MEET`. Ahora devuelve
+**`NOT_EVALUABLE`**. Decir «no cumple» afirma que se comprobó; lo cierto es que **no se pudo comprobar**. Sigue sin
+ser exportable, que era lo importante, pero por el motivo correcto.
+
+**Ejecutado**: `reports.int-spec.ts` **18/18**, suites `geo-profile` + `recorrido-integral` + `reports`
+**80/80**, `productos.spec.ts` + `geojson.spec.ts` en navegador **31/31**, `typecheck` y `lint`. **No se repitió
+`validate` completa**: el cambio funcional está acotado a estas suites.
+
+### Correspondencia de la corrida con `70c52fb`
+
+La validación aprobada (`validation-results/2026-10-15T18-33-43-757Z`: **61 suites, 545 pruebas, 62 E2E**) se
+ejecutó **antes** del commit, como siempre. Su resumen anota `commit: b9b94cf` y **18 archivos sin confirmar**, que
+es el contenido que se guardó como **`70c52fb`**.
+
+Lo que **sí** se puede afirmar:
+
+| Comprobación | Resultado |
+| --- | --- |
+| La corrida partió del commit **padre** de `70c52fb` | `b9b94cf`, el mismo que anota `resumen.json` |
+| La corrida ejecutó archivos que **solo existen** en `70c52fb` | `geo-profile.int-spec.ts` aparece entre las 61 suites |
+| La corrida ejecutó la prueba de navegador nueva | `geojson.spec.ts` con el caso del perfil, dentro de las 62 E2E |
+
+Lo que **no** se puede afirmar, y queda dicho:
+
+- **No es una igualdad demostrada.** Git no guarda el árbol de trabajo tal como estaba durante la corrida: esto es
+  **evidencia de correspondencia**, no prueba de identidad. Mientras `validate` no registre un **hash del árbol
+  probado** —mejora anotada y no hecha—, seguirá siendo así.
+- **Durante la corrida se editó un comentario** de `apps/api/src/plots/geo-profile.ts` y **se revirtió de
+  inmediato**, antes de que terminara. El archivo confirmado es idéntico al que la corrida probó, pero el episodio
+  se registra porque debilita la cadena y porque es exactamente el problema que esta misma sesión documentó horas
+  antes.
+
 ## 6. Qué NO se hizo
 
 - **No** se aprobó D-05 ni ninguna otra decisión. **D-05.A** queda completa y lista para revisarse; **D-05.B** no
@@ -286,11 +342,42 @@ preciso: `LEGAL_APPLICABILITY_NOT_DECIDED → D-05.B` en vez de `DESTINATION_PRO
   recorrido integral (10/10), `productos.spec.ts` completo dos veces (24/24 cada una), `typecheck` y `lint`.
 - **No** se encendió `SATELLITE_LIVE_CALLS` ni se tocaron datos, volúmenes, credenciales, respaldos ni APK.
 
+## 6.bis Propuesta D-07 preparada (NO APROBADA)
+
+`docs/decisiones/D-07-PROPUESTA.md`. Es un **contrato para decidir**, no un cambio de motor: **no se aprobó ningún
+catálogo, no se retiró ningún `CHECK` y no se propusieron pesos ni umbrales**.
+
+Lo que fija:
+
+- **Cuatro dimensiones separadas**: hallazgo técnico observable · calidad y completitud del dato · severidad ·
+  conclusión regulatoria. Y las cuatro reglas que no deben romperse, incluida que **la clasificación de país no es
+  el riesgo de un sujeto**: Ecuador en riesgo estándar **no** rellena ninguna dimensión de una parcela o un lote.
+- **Qué dice cada fuente y qué no.** El único sitio con números es el **ejemplo ilustrativo** de S1 §37
+  (`+25/+30/+15/+10`): adoptarlo sería una decisión de producto presentada como derivación de la fuente.
+- **Los ocho factores publicados** y las **cuatro categorías sin ninguna regla**. No se proponen reglas nuevas:
+  inventarlas sería fabricar criterios de riesgo.
+- **`GEOLOCATION_PROFILE` sigue en `NOT_ASSESSED`** pese a D-05.A. Convertir `MEETS_PROFILE` en factor favorable
+  sería justo el salto que D-05 prohíbe.
+- **Ausencia, antigüedad y contradicción**: un dato ausente **nunca** da resultado favorable; se propone
+  distinguir *por qué* falta; la antigüedad **no está decidida** y poner un número sin fuente sería inventarlo; y
+  una contradicción **no se resuelve eligiendo**, va a revisión con las dos cifras a la vista.
+- **Precedencia ratificada tal cual**: `BLOCKED > REVIEW_REQUIRED > INCOMPLETE > NO_FINDINGS_IN_EVALUATED_RULES`.
+  Un bloqueante **no se diluye** y ese último nombre **no se acorta**: no significa «sin riesgo».
+- **Qué hace de verdad una mitigación verificada**: habilita **reevaluar**. No cambia el hallazgo, no concluye
+  nada y no cierra la revisión por sí sola.
+- **Seis decisiones mínimas**, cada una con qué cambia, qué criterio desbloquea y qué prueba lo demostraría. Y la
+  separación que evita el bloqueo general: **D-07.2 (vía de severidad) no depende de la conclusión regulatoria**,
+  así que **una sola decisión de producto desbloquea dos indicadores de reportes** sin tocar el expediente.
+- **Qué revisión especializada hace falta y para qué exactamente**: un responsable regulatorio para D-07.5 y
+  D-07.6; para elegir la vía de severidad **no hace falta un jurista**.
+- **Conservación**: publicar un catálogo nuevo **no reescribe ni recalcula** evaluaciones anteriores, que siguen
+  ligadas a su versión.
+
 ## 7. Siguiente paso
 
-**D-05.A** (perfil técnico) está lista para que producto/GIS ratifique sus 20 reglas, fije la banda
-`NEAR_THRESHOLD` y decida `ProducerName`. En paralelo, cuatro incertidumbres se resuelven **preguntando al
-contacto técnico** que publica la propia documentación del destino.
+**D-07**, con la propuesta de §6.bis sobre la mesa. Lo más barato primero: **D-07.1** (quién aprueba un catálogo) y
+**D-07.2** (vía de severidad), que son decisiones de producto y desbloquean dos indicadores de reportes sin tocar
+la conclusión regulatoria ni el expediente.
 
 **D-05.B** (aplicabilidad jurídica) necesita un responsable regulatorio: qué actor es cada usuario de Terra Link,
 la clasificación de riesgo de Ecuador bajo el Art. 29, las condiciones del Art. 2(15a) una por una, y el Anexo III

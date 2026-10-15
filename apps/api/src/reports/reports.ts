@@ -4,6 +4,7 @@ import type { Response } from 'express';
 import { Kysely, Transaction, sql } from 'kysely';
 import { createHash } from 'crypto';
 import { DB } from '../db/database';
+import { GEO_PROFILE } from '../plots/geo-profile';
 import type { Database } from '../db/schema';
 import { AuthorizationService, type TenantContext } from '../authz/authorization.service';
 import type { Permission } from '../authz/catalog';
@@ -28,7 +29,9 @@ import { severityBucket } from './reports-risk';
 //       OK                  -> valor calculado desde la base. Un 0 aquí es CERO OBSERVADO y se publica como tal.
 //       NO_DENOMINATOR      -> el denominador es cero: el cociente no existe. Ni 0 % ni 100 %.
 //       UNKNOWN             -> el universo se conoce, pero la condición no ha sido evaluada en ningún sujeto.
-//       CRITERION_UNDEFINED -> el criterio carece de definición aprobada (D-05): todavía no puede evaluarse.
+//       CRITERION_UNDEFINED -> el criterio carece de definición aprobada: todavía no puede evaluarse.
+//                              (`plots_valid` salió de este estado el 2026-10-15 con D-05.A: el criterio ya
+//                              existe y tiene versión. Lo que falta es EJECUTARLO, que es UNKNOWN, no esto.)
 //       RESTRICTED          -> el lector no tiene el permiso de ese dominio.
 //  3. Un resultado desfavorable NO es motivo para declarar nada «no calculable»: si se puede contar, se cuenta.
 //     Por eso `due_diligence_ready` publica su cero observado y el desglose de expedientes BLOCKED, que sí es calculable.
@@ -53,6 +56,12 @@ export interface Indicator {
   denominator: number | null;
   /** Conteos que SÍ son observables aunque el indicador principal no lo sea. Nunca se usan para rellenar `value`. */
   observed: Record<string, number> | null;
+  /**
+   * Qué criterio versionado se contó, cuando el indicador depende de uno. Va aparte de `observed` a propósito:
+   * `observed` son conteos, esto es la identidad de la regla con la que se contaron. Sin él, dos lecturas del
+   * mismo indicador podrían no ser comparables y nadie lo sabría.
+   */
+  criterion?: { id: string; version_current: string; versions_counted: string[]; mixed_versions: boolean; note: string };
   reason: string | null;
 }
 
@@ -96,8 +105,8 @@ export class ReportsController {
     const sum = (o: Record<string, number>) => Object.values(o).reduce((a, b) => a + b, 0);
 
     const out: Indicator[] = [];
-    type Base = Omit<Indicator, 'status' | 'value' | 'numerator' | 'denominator' | 'observed' | 'reason'>;
-    type Rest = Pick<Indicator, 'status' | 'value' | 'numerator' | 'denominator' | 'observed' | 'reason'>;
+    type Base = Omit<Indicator, 'status' | 'value' | 'numerator' | 'denominator' | 'observed' | 'reason' | 'criterion'>;
+    type Rest = Pick<Indicator, 'status' | 'value' | 'numerator' | 'denominator' | 'observed' | 'reason'> & Pick<Indicator, 'criterion'>;
     const push = (b: Base, rest: Rest) => out.push({ ...b, ...rest });
     /** Sin el permiso del dominio: sin valor, sin numerador, sin denominador, sin desglose y sin conteo. */
     const restricted = (b: Base) => push(b, {
@@ -124,27 +133,71 @@ export class ReportsController {
       push(b2, { status: 'OK', value: String(n), numerator: n, denominator: null, observed: null, reason: PERIOD_NOTE });
     }
 
-    // ---- Parcelas válidas (estado) — criterio sin definición aprobada mientras D-05 no cierre ----
-    const b3: Base = { code: 'plots_valid', name: 'Parcelas válidas (GIS)', definition: 'Parcelas cuya versión vigente tiene validation_status = VALID, sobre las parcelas con versión vigente evaluada.', unit: 'count', kind: 'STATE', date_basis: null, requires: 'plot:read' };
+    // ---- Parcelas que cumplen el PERFIL TÉCNICO de destino (estado) ----
+    // Desde D-05.A (2026-10-15) el criterio existe y tiene nombre y versión: `EUDR_GEO_V1`. Antes este indicador
+    // devolvía CRITERION_UNDEFINED porque no había criterio que aplicar.
+    //
+    // Qué cuenta y qué NO:
+    // - Cuenta el dictamen del **perfil de destino** de la versión VIGENTE de cada parcela, no el `validation_status`
+    //   estructural ni la evaluación técnica `TL_GIS_TECH`: son tres cosas distintas.
+    // - **No es un indicador de conformidad.** Cumplir el perfil técnico significa «bien formado para una versión
+    //   documentada del destino»; la aplicabilidad jurídica es D-05.B y sigue pendiente.
+    // - Una evaluación de una versión ANTERIOR no cuenta para la vigente: el join es por `plot_version_id`.
+    const b3: Base = {
+      code: 'plots_valid', name: 'Parcelas que cumplen el perfil técnico de destino',
+      definition: `Parcelas cuya versión vigente tiene dictamen ${GEO_PROFILE.id} = MEETS_PROFILE, sobre las parcelas cuya versión vigente ha sido evaluada con ese perfil. No es conformidad regulatoria (D-05.B pendiente).`,
+      unit: 'count', kind: 'STATE', date_basis: null, requires: 'plot:read',
+    };
     if (!can('plot:read')) restricted(b3);
     else {
-      // Se consulta de verdad: si algún día hubiera versiones evaluadas, el motivo deja de aplicarse y el fallo se ve.
-      const porEstado = await group(sql<{ k: string | null; n: string }>`
-        SELECT v.validation_status AS k, count(*)::text AS n FROM plots p JOIN plot_versions v ON v.id = p.current_version_id
-        WHERE p.organization_id = ${org} AND p.deleted_at IS NULL GROUP BY v.validation_status`);
-      const conVersion = sum(porEstado);
-      const sinEvaluar = porEstado.NOT_VALIDATED ?? 0;
+      // Dictamen vigente por parcela, con la versión de perfil que lo produjo. `NULL` = sin evaluar.
+      const filas = (await sql<{ estado: string | null; perfil: string | null; version: string | null; n: string }>`
+        SELECT e.status AS estado, e.profile_id AS perfil, e.profile_version AS version, count(*)::text AS n
+        FROM plots p
+        JOIN plot_versions v ON v.id = p.current_version_id AND v.organization_id = p.organization_id
+        LEFT JOIN LATERAL (
+          SELECT ge.status, ge.profile_id, ge.profile_version
+          FROM geo_profile_evaluations ge
+          WHERE ge.organization_id = p.organization_id AND ge.plot_version_id = v.id
+          ORDER BY ge.evaluated_at DESC LIMIT 1) e ON true
+        WHERE p.organization_id = ${org} AND p.deleted_at IS NULL
+        GROUP BY e.status, e.profile_id, e.profile_version`.execute(db)).rows;
+
+      const cuenta = (estado: string) => filas.filter((f) => f.estado === estado).reduce((t, f) => t + Number(f.n), 0);
+      const conVersion = filas.reduce((t, f) => t + Number(f.n), 0);
+      const sinEvaluar = filas.filter((f) => f.estado === null).reduce((t, f) => t + Number(f.n), 0);
+      const cumple = cuenta('MEETS_PROFILE');
+      const noCumple = cuenta('DOES_NOT_MEET');
+      const enRevision = cuenta('REVIEW_REQUIRED');
+      const noEvaluable = cuenta('NOT_EVALUABLE');
       const evaluadas = conVersion - sinEvaluar;
+      // Las versiones de perfil presentes entre los dictámenes vigentes. Si hay más de una, se dice: un indicador
+      // calculado con dos criterios distintos no es comparable consigo mismo.
+      const versiones = [...new Set(filas.filter((f) => f.version).map((f) => `${f.perfil}@${f.version}`))].sort();
+      const criterio = {
+        id: GEO_PROFILE.id, version_current: GEO_PROFILE.version,
+        versions_counted: versiones,
+        mixed_versions: versiones.length > 1,
+        note: 'Cumplir el perfil TÉCNICO no es conformidad EUDR: dice que la geometría está bien formada para una versión documentada del sistema de destino. La aplicabilidad jurídica es D-05.B y sigue pendiente.',
+      };
+      const desglose = {
+        con_version_vigente: conVersion, evaluadas, sin_evaluar: sinEvaluar,
+        cumple_perfil: cumple, no_cumple: noCumple, en_revision: enRevision, no_evaluable: noEvaluable,
+      };
+
       if (conVersion === 0) {
-        push(b3, { status: 'NO_DENOMINATOR', value: null, numerator: null, denominator: 0, observed: { con_version_vigente: 0 },
+        push(b3, { status: 'NO_DENOMINATOR', value: null, numerator: null, denominator: 0, observed: { con_version_vigente: 0 }, criterion: criterio,
           reason: 'Ninguna parcela tiene versión vigente: no hay denominador. No es 0 ni 100 %.' });
       } else if (evaluadas === 0) {
-        push(b3, { status: 'CRITERION_UNDEFINED', value: null, numerator: null, denominator: 0, observed: { con_version_vigente: conVersion, sin_evaluar: sinEvaluar },
-          reason: `El criterio de validez GIS no tiene definición aprobada: exige el umbral y el perfil de destino de D-05, pendientes (P0-010). Las ${conVersion} parcela(s) con versión vigente están SIN evaluar. «0 válidas» insinuaría que ninguna cumple, cuando lo cierto es que ninguna ha sido evaluada.` });
+        // El criterio YA existe: lo que falta es ejecutarlo. Por eso no es CRITERION_UNDEFINED, que diría otra cosa.
+        push(b3, { status: 'UNKNOWN', value: null, numerator: null, denominator: 0, observed: desglose, criterion: criterio,
+          reason: `El criterio existe y tiene versión (${GEO_PROFILE.id}@${GEO_PROFILE.version}, D-05.A), pero ninguna de las ${conVersion} parcela(s) con versión vigente ha sido evaluada con él. Desconocido no es cero: «0 cumplen» insinuaría que ninguna cumple, cuando lo cierto es que ninguna se ha evaluado.` });
       } else {
-        const validas = porEstado.VALID ?? 0;
-        push(b3, { status: 'OK', value: String(validas), numerator: validas, denominator: evaluadas, observed: { ...porEstado, con_version_vigente: conVersion, sin_evaluar: sinEvaluar },
-          reason: `${validas === 0 ? 'Cero observado: ninguna de las parcelas evaluadas resultó VALID. ' : ''}Sobre ${evaluadas} parcela(s) evaluada(s); las ${sinEvaluar} sin evaluar no entran en el denominador y siguen siendo desconocidas.` });
+        const partes = [
+          `${noCumple} no cumple(n)`, `${enRevision} pendiente(s) de revisión humana`, `${noEvaluable} no evaluable(s) por falta de datos`,
+        ].join(', ');
+        push(b3, { status: 'OK', value: String(cumple), numerator: cumple, denominator: evaluadas, observed: desglose, criterion: criterio,
+          reason: `${cumple === 0 ? 'Cero observado: ninguna de las parcelas evaluadas cumple el perfil. ' : ''}Sobre ${evaluadas} parcela(s) evaluada(s) con ${versiones.join(' y ') || `${GEO_PROFILE.id}@${GEO_PROFILE.version}`}: ${partes}. Las ${sinEvaluar} sin evaluar NO entran en el denominador y siguen siendo desconocidas.${criterio.mixed_versions ? ' AVISO: hay dictámenes de más de una versión de perfil; el total no es comparable consigo mismo hasta reevaluar.' : ''} Cumplir el perfil técnico no es conformidad regulatoria.` });
       }
     }
 

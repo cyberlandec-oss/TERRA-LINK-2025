@@ -162,10 +162,15 @@ Ninguno es una avería. Son decisiones que faltan, y el sistema prefiere detener
 
 | Lo que no se puede hacer | Por qué | Quién lo desbloquea |
 | --- | --- | --- |
-| Obtener severidad o conclusión de riesgo | El catálogo de reglas no está aprobado | **D-07** |
+| Obtener severidad o conclusión de riesgo | El catálogo de reglas no está aprobado, y **antes de aprobarlo hay que decidir qué puede concluir el motor** | **D-07** (contrato en `docs/decisiones/D-07-PROPUESTA.md`) |
 | Llegar a `READY` en el expediente | Seis requisitos no evaluables: perfil de geolocalización (**D-05.B**: el perfil **técnico** ya existe y no basta), análisis de deforestación (**D-09 parte B**), perfil jurídico (**P1-005**), catálogo de riesgo aprobado y conclusión regulatoria (**D-07**), vínculo con embarque (**D-34**/P0-029) | Las cinco decisiones citadas |
 | Despachar un embarque | Preflight y compuerta `SHIPMENT_DISPATCH` | **D-34** |
 | Encargar un análisis satelital real | El adaptador existe, su uso real no está autorizado | **D-09 parte B** |
+
+**En Reportes, «Parcelas que cumplen el perfil técnico de destino»** (antes «Parcelas válidas (GIS)») dice ahora
+**contra qué criterio y qué versión** cuenta, y separa cinco situaciones: cumple, no cumple, en revisión, no
+evaluable y **sin evaluar**. Las sin evaluar **no cuentan como incumplimiento**: quedan fuera del denominador y se
+informan aparte. Si nadie ha evaluado todavía, el indicador dice **«Desconocido»**, que no es cero.
 
 **Lo que cambió con el perfil de destino (2026-10-15).** La ficha de parcela muestra ahora **dos dictámenes**: la
 evaluación técnica de siempre y el **perfil técnico de destino**. Pueden **discrepar**, y eso no es un fallo: una

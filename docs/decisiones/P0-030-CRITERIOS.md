@@ -95,12 +95,26 @@ organización, con el mismo permiso `plot:read_geometry`, la misma ausencia de r
 4. **Qué parcelas quedan calificadas** → las que el perfil marca `MEETS_PROFILE`; el resto **se lista con su
    motivo**, y «no evaluada» tiene código propio.
 
-**Sigue dependiendo de D-05.B**, la aplicabilidad jurídica:
+**`plots_valid` ya se calcula** (2026-10-15). Cuenta el dictamen del perfil `EUDR_GEO_V1` de la versión
+**vigente** de cada parcela, y:
 
-- Qué **significa** el resultado: cumplir el perfil técnico **no es conformidad** ni habilita presentar nada.
-- `plots_valid`: puede pasar a contarse contra un criterio nombrado y versionado, pero **seguirá sin ser un
-  indicador de conformidad**.
-- Y nada de esto se ha probado contra el **servicio real** del destino.
+- **declara contra qué criterio cuenta**, con su versión, en un campo propio (`criterion`), separado de los
+  conteos; si hay dictámenes de **más de una versión** lo avisa, porque entonces el total no es comparable consigo
+  mismo;
+- separa las cinco situaciones: **cumple**, **no cumple**, **en revisión**, **no evaluable** y **sin evaluar**;
+- **las sin evaluar no entran en el denominador**: desconocido no es incumplimiento;
+- un dictamen de una versión geométrica **anterior no se hereda** a la vigente;
+- salió de `CRITERION_UNDEFINED` —el criterio ya existe y tiene versión— y pasa a **`UNKNOWN`** mientras no se
+  haya ejecutado. Son dos cosas distintas y el indicador no las confunde;
+- respeta el permiso del dominio: sin `plot:read` queda `RESTRICTED`, **sin valor y sin desglose parcial**.
+
+**Sigue dependiendo de D-05.B**, la aplicabilidad jurídica: qué **significa** el resultado. Cumplir el perfil
+técnico **no es conformidad** ni habilita presentar nada, y el propio indicador lo dice. Nada de esto se ha
+probado contra el **servicio real** del destino.
+
+**P0-030 sigue ABIERTA.** Que `plots_valid` se calcule no cierra la historia: la **distribución de riesgo**
+(`risk_high` / `risk_medium` / `risk_low`) sigue bloqueada por **D-07** y por el catálogo `NOT_APPROVED`, con su
+`CHECK` en el esquema.
 
 Lo que **no** se hace mientras tanto: inventar una geometría para las parcelas que solo tienen superficie declarada. Se
 excluyen del archivo y su número se declara en el propio GeoJSON (`counts.solo_superficie_declarada`), de modo que nadie

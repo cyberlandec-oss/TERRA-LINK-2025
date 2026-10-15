@@ -15,6 +15,8 @@ interface Indicator {
   code: string; name: string; definition: string; unit: 'count' | 'percent'; kind: 'STATE' | 'ACTIVITY' | 'BALANCE_AT';
   date_basis: string | null; requires: string; status: Status;
   value: string | null; numerator: number | null; denominator: number | null; observed: Record<string, number> | null; reason: string | null;
+  /** Identidad del criterio versionado con el que se contó, cuando el indicador depende de uno. */
+  criterion?: { id: string; version_current: string; versions_counted: string[]; mixed_versions: boolean; note: string };
 }
 interface Coverage { status: string; event_date: string; note: string; not_reconstructed: string; reference: string }
 interface TimeBasis { as_of: string; as_of_note: string; period_bounds: string; civil_dates: string }
@@ -58,6 +60,21 @@ const BADGE: Record<Exclude<Status, 'OK'>, { tone: 'neutral' | 'review'; label: 
   CRITERION_UNDEFINED: { tone: 'review', label: 'Criterio sin definir' },
   RESTRICTED: { tone: 'neutral', label: 'Sin permiso' },
 };
+
+/**
+ * Con qué criterio se contó. Va aparte de los conteos a propósito: sin esto, dos lecturas del mismo indicador
+ * podrían haberse calculado con reglas distintas y nadie lo sabría.
+ */
+function Criterion({ criterion }: { criterion: NonNullable<Indicator['criterion']> }) {
+  return (
+    <div className="muted">
+      Criterio: {criterion.id} · versión {criterion.version_current}
+      {criterion.versions_counted.length > 0 && <> · contado con {criterion.versions_counted.join(' y ')}</>}
+      {criterion.mixed_versions && <strong> · AVISO: hay dictámenes de más de una versión; el total no es comparable consigo mismo hasta reevaluar.</strong>}
+      <div>{criterion.note}</div>
+    </div>
+  );
+}
 
 function Observed({ observed }: { observed: Record<string, number> | null }) {
   if (!observed || !Object.keys(observed).length) return null;
@@ -240,6 +257,7 @@ export default function ReportsPage() {
                         <div className="muted">{i.numerator ?? '—'} / {i.denominator ?? '—'}</div>
                       )}
                       <Observed observed={i.observed} />
+                      {i.criterion && <Criterion criterion={i.criterion} />}
                     </td>
                     <td>{i.definition}
                       {i.date_basis && <div className="muted">Fecha usada: {i.date_basis}</div>}
