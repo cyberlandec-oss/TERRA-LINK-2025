@@ -590,10 +590,11 @@ export type SatelliteProviderKind = 'EXTERNAL_HTTP' | 'SYNTHETIC_FIXTURE';
 export type SatelliteOperation = 'FOREST_COVER' | 'DEFORESTATION_ALERTS' | 'HISTORICAL_ANALYSIS';
 export type SatelliteJobStatus = 'REQUESTED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 export type SatelliteOutcome =
-  | 'RESULT_AVAILABLE' | 'NO_PROVIDER_SELECTED' | 'NO_COVERAGE' | 'TIMEOUT' | 'RATE_LIMITED'
+  | 'RESULT_AVAILABLE' | 'NO_PROVIDER_SELECTED' | 'LIVE_CALLS_DISABLED' | 'NO_COVERAGE' | 'TIMEOUT' | 'RATE_LIMITED'
   | 'PROVIDER_ERROR' | 'EGRESS_BLOCKED' | 'GEOMETRY_UNSUPPORTED' | 'SUPERSEDED_GEOMETRY' | 'CANCELLED';
 export interface SatelliteProvidersTable {
-  code: string; name: string; kind: SatelliteProviderKind; selection_status: 'PROPOSED' | 'SELECTED' | 'TEST_ONLY' | 'RETIRED';
+  code: string; name: string; kind: SatelliteProviderKind;
+  selection_status: 'PROPOSED' | 'SELECTED_FOR_DEVELOPMENT' | 'SELECTED' | 'TEST_ONLY' | 'RETIRED';
   allowed_hosts: string[]; supported_operations: string[]; docs_url: string; license: string; cost_note: string; coverage_note: string; limits_note: string;
   data_sent_note: string; source: string; selected_by: string | null; decision_reference: string | null; registered_at: Generated<Timestamp>;
 }

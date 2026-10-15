@@ -12,6 +12,8 @@ import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { EVENT_STORE, type EventStore } from '../events/events';
 import { PlotsService } from '../plots/plots';
 import { ADAPTER_CONTRACT_VERSION, FIXTURE_SCENARIOS, OPERATIONS, requestFingerprint, type FixtureScenario } from './provider';
+import { liveCallsEnabled } from './runner';
+import { DEVELOPMENT_ONLY_NOTE } from './whisp';
 
 // P0-028 Primer proveedor satelital (RF-28, QA-15). Contrato: docs/decisiones/P0-028-SATELITE.md.
 //
@@ -76,6 +78,7 @@ type Db = Kysely<Database> | Transaction<Database>;
 export const OUTCOME_NOTES: Record<string, string> = {
   RESULT_AVAILABLE: 'Resultado disponible con su procedencia. Es un insumo con límites declarados, no una conclusión.',
   NO_PROVIDER_SELECTED: 'No hay proveedor satelital seleccionado (D-09): no evaluable.',
+  LIVE_CALLS_DISABLED: 'Las llamadas reales al proveedor estan deshabilitadas por configuracion (D-09 parte B pendiente): no evaluable. No se envio ninguna geometria.',
   NO_COVERAGE: 'El proveedor no cubre esta geometría o este periodo: no evaluable. «Sin alertas» no equivale a «sin deforestación».',
   TIMEOUT: 'El proveedor no respondió dentro del plazo: no evaluable.',
   RATE_LIMITED: 'Cupo del proveedor agotado: no evaluable.',
@@ -108,12 +111,16 @@ export class SatelliteService {
     await this.ctxFor(user, orgId, SATELLITE_READ);
     const rows = await this.db.selectFrom('satellite_providers').selectAll().orderBy('selection_status').orderBy('code').execute();
     const selected = rows.find((r) => r.selection_status === 'SELECTED') ?? null;
+    const development = rows.find((r) => r.selection_status === 'SELECTED_FOR_DEVELOPMENT') ?? null;
     return {
       selection: selected
-        ? { status: 'SELECTED', provider_code: selected.code, decision_reference: selected.decision_reference }
-        : { status: 'NOT_SELECTED', decision: 'D-09', note: 'Ningún proveedor satelital está seleccionado. Sin esa decisión no se envía ninguna coordenada a un tercero y el análisis de deforestación no es evaluable.' },
+        ? { status: 'SELECTED', provider_code: selected.code, decision_reference: selected.decision_reference, live_calls_enabled: liveCallsEnabled() }
+        : development
+          ? { status: 'SELECTED_FOR_DEVELOPMENT', provider_code: development.code, decision: 'D-09 parte A', decision_reference: development.decision_reference, note: DEVELOPMENT_ONLY_NOTE, live_calls_enabled: liveCallsEnabled() }
+          : { status: 'NOT_SELECTED', decision: 'D-09', note: 'Ningún proveedor satelital está seleccionado. Sin esa decisión no se envía ninguna coordenada a un tercero y el análisis de deforestación no es evaluable.' },
       adapter_contract_version: ADAPTER_CONTRACT_VERSION,
       fixture_enabled: satelliteFixtureEnabled(),
+      live_calls_enabled: liveCallsEnabled(),
       providers: rows.map((r) => ({
         code: r.code, name: r.name, kind: r.kind, selection_status: r.selection_status,
         supported_operations: r.supported_operations,
@@ -125,14 +132,28 @@ export class SatelliteService {
     };
   }
 
-  /** Proveedor efectivo para encargar un análisis: el seleccionado, o la fixture si el interruptor está activo. */
+  /**
+   * Proveedor efectivo para encargar un análisis, y por qué no lo hay cuando no lo hay. Las dos aprobaciones de D-09
+   * son estados distintos y la pantalla dice cuál falta:
+   * - `SELECTED` (parte B) + interruptor de llamadas reales → se puede encargar;
+   * - `SELECTED` sin el interruptor → no se encarga, y se dice que falta la configuración;
+   * - `SELECTED_FOR_DEVELOPMENT` (parte A) → el adaptador existe, pero su uso real no está autorizado;
+   * - ninguno → D-09 sin decidir. La fixture sintética solo entra con su propio interruptor.
+   */
   private async effectiveProvider(db: Db) {
     const selected = await db.selectFrom('satellite_providers').selectAll().where('selection_status', '=', 'SELECTED').executeTakeFirst();
-    if (selected) return selected;
-    if (satelliteFixtureEnabled()) {
-      return await db.selectFrom('satellite_providers').selectAll().where('code', '=', 'FIXTURE_SYNTHETIC').executeTakeFirst();
+    if (selected) {
+      return liveCallsEnabled()
+        ? { provider: selected, blocked: null as string | null }
+        : { provider: undefined, blocked: `Las llamadas reales al proveedor ${selected.code} están deshabilitadas por configuración (D-09 parte B).` };
     }
-    return undefined;
+    if (satelliteFixtureEnabled()) {
+      const fixture = await db.selectFrom('satellite_providers').selectAll().where('code', '=', 'FIXTURE_SYNTHETIC').executeTakeFirst();
+      if (fixture) return { provider: fixture, blocked: null as string | null };
+    }
+    const dev = await db.selectFrom('satellite_providers').selectAll().where('selection_status', '=', 'SELECTED_FOR_DEVELOPMENT').executeTakeFirst();
+    if (dev) return { provider: undefined, blocked: dev.code === 'WHISP' ? DEVELOPMENT_ONLY_NOTE : `${dev.code} está seleccionado solo como adaptador de desarrollo (D-09 parte A).` };
+    return { provider: undefined, blocked: null as string | null };
   }
 
   async request(user: AuthUser, orgId: string, plotId: string, dto: RequestAnalysisDto, requestId?: string) {
@@ -150,10 +171,11 @@ export class SatelliteService {
       return { replayed: true, job: await this.jobView(this.db, ctx, prior.id) };
     }
 
-    const provider = await this.effectiveProvider(this.db);
+    const { provider, blocked } = await this.effectiveProvider(this.db);
     if (!provider) {
-      await this.audit.record(this.db, { organizationId: orgId, actorUserId: user.id, action: 'satellite.request', entityType: 'plot', entityId: plotId, requestId, result: 'FAILED', reason: 'NO_PROVIDER_SELECTED' });
-      throw conflict('SATELLITE_PROVIDER_NOT_SELECTED', 'No hay proveedor satelital seleccionado (D-09). No se encarga ningún análisis ni sale ninguna coordenada del equipo.');
+      const code = blocked ? 'SATELLITE_REQUESTS_NOT_AUTHORIZED' : 'SATELLITE_PROVIDER_NOT_SELECTED';
+      await this.audit.record(this.db, { organizationId: orgId, actorUserId: user.id, action: 'satellite.request', entityType: 'plot', entityId: plotId, requestId, result: 'FAILED', reason: code });
+      throw conflict(code, blocked ?? 'No hay proveedor satelital seleccionado (D-09). No se encarga ningún análisis ni sale ninguna coordenada del equipo.');
     }
     if (!provider.supported_operations.includes(dto.operation)) {
       throw new AppError(422, 'SATELLITE_OPERATION_NOT_SUPPORTED', `El proveedor ${provider.code} no declara soportar la operación ${dto.operation}.`);
@@ -227,7 +249,11 @@ export class SatelliteService {
     const plot = await this.plots.load(this.db, ctx, plotId, 'read');
     const jobs = await this.db.selectFrom('satellite_jobs').selectAll()
       .where('organization_id', '=', orgId).where('plot_id', '=', plotId).orderBy('requested_at', 'desc').limit(50).execute();
-    const provider = await this.effectiveProvider(this.db);
+    const { provider, blocked: providerBlocked } = await this.effectiveProvider(this.db);
+    // La pantalla informa del estado REAL del registro, no solo de si se puede encargar: un adaptador seleccionado
+    // para desarrollo no es «ningún proveedor seleccionado», y decirlo así sería engañoso en los dos sentidos.
+    const development = await this.db.selectFrom('satellite_providers').select(['code', 'decision_reference'])
+      .where('selection_status', '=', 'SELECTED_FOR_DEVELOPMENT').executeTakeFirst();
     const views = [];
     for (const j of jobs) views.push(await this.jobView(this.db, ctx, j.id));
     const applicable = views.find((v) => v.outcome === 'RESULT_AVAILABLE' && v.applies_to_current_version && !v.result?.is_synthetic) ?? null;
@@ -236,7 +262,7 @@ export class SatelliteService {
     const blocked = !ctx.permissions.includes(SATELLITE_REQUEST as never) ? 'Tu rol no encarga análisis satelitales.'
       : !this.plots.has(ctx, 'plot:read_geometry') ? 'Encargar un análisis envía la geometría exacta fuera del equipo: requiere acceso a coordenadas.'
       : ctx.organizationStatus !== 'ACTIVE' ? 'La organización está suspendida; no admite nuevas operaciones.'
-      : !provider ? 'No hay proveedor satelital seleccionado (D-09).'
+      : !provider ? (providerBlocked ?? 'No hay proveedor satelital seleccionado (D-09).')
       : !plot.current_version_id ? 'La parcela no tiene versión geométrica que analizar.'
       : null;
     return {
@@ -245,7 +271,9 @@ export class SatelliteService {
       request_blocked_reason: blocked,
       provider_selection: selected
         ? { status: 'SELECTED', provider_code: provider!.code }
-        : { status: 'NOT_SELECTED', decision: 'D-09', note: OUTCOME_NOTES.NO_PROVIDER_SELECTED },
+        : development
+          ? { status: 'SELECTED_FOR_DEVELOPMENT', provider_code: development.code, decision: 'D-09 parte A', note: providerBlocked ?? DEVELOPMENT_ONLY_NOTE }
+          : { status: 'NOT_SELECTED', decision: 'D-09', note: providerBlocked ?? OUTCOME_NOTES.NO_PROVIDER_SELECTED },
       analysis_status: applicable ? 'RESULT_AVAILABLE' : views.some((v) => v.status === 'REQUESTED' || v.status === 'RUNNING') ? 'IN_PROGRESS' : 'NOT_EVALUATED',
       jobs: views,
       limits: [

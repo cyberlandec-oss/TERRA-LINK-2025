@@ -3,7 +3,7 @@
   "casos": [
     {
       "cuenta": "admin.cooperativa (ORG_ADMIN)",
-      "resultado": "tarjeta=1; botones de solicitud=0; estado=NO EVALUADO; razón=«No hay proveedor satelital seleccionado (D-09).»",
+      "resultado": "tarjeta=1; botones de solicitud=0; estado=NO EVALUADO; razón=«»",
       "ok": true
     },
     {

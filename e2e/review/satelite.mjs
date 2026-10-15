@@ -8,8 +8,9 @@
 // auditor (lee, no encarga), técnico sin el permiso (la tarjeta NO existe: ausencia, no «sin datos»),
 // estado de error, teclado y 390 px.
 //
-// NO habilita la fixture sintética: el entorno de revisión debe mostrar exactamente lo que hay, que hoy es
-// «sin proveedor seleccionado (D-09)». La revisión solo lee; no encarga ningún análisis.
+// NO habilita la fixture sintética ni las llamadas reales: el entorno de revisión muestra exactamente lo que hay,
+// que hoy es «Whisp como ADAPTADOR DE DESARROLLO (D-09 parte A)», sin autorización para llamar al servicio real.
+// La revisión solo lee; no encarga ningún análisis.
 import { chromium } from '@playwright/test';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -47,11 +48,13 @@ export async function reviewSatellite({ browser, BASE, accounts, DEMO_ORGS, orgI
     const visible = await card.count();
     const text = visible ? await card.innerText() : '';
     const botones = visible ? await card.getByRole('button', { name: /Solicitar/ }).count() : 0;
-    await page.screenshot({ path: join(shots, 'satelite--admin-sin-proveedor.png'), fullPage: true });
+    await page.screenshot({ path: join(shots, 'satelite--admin-adaptador-desarrollo.png'), fullPage: true });
     const ok = visible === 1 && botones === 0
       && /NO EVALUADO/.test(text)
-      && /No hay proveedor satelital seleccionado/.test(text)
-      && /D-09/.test(text)
+      && /Adaptador en desarrollo: WHISP/.test(text)
+      && /ADAPTADOR DE DESARROLLO/.test(text)
+      && /D-09 parte A/.test(text)
+      && /parte B/.test(text)
       && /no es una conclusión jurídica/.test(text)
       && /«Sin alertas» no equivale a «sin deforestación»/.test(text)
       && !/-79\.|-80\.|coordenad/i.test(text);
@@ -123,8 +126,8 @@ export async function reviewSatellite({ browser, BASE, accounts, DEMO_ORGS, orgI
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     await page.screenshot({ path: join(shots, 'satelite--error-recuperado-390.png'), fullPage: true });
     const ok = /Servicio temporalmente no disponible/.test(conError) && enfocado === 'Reintentar' && !outline.startsWith('none')
-      && /No hay proveedor satelital seleccionado/.test(recuperado) && !overflow;
-    casos.push({ cuenta: 'admin.cooperativa (error 503, teclado, 390 px)', resultado: `panel de error=${/Servicio temporalmente no disponible/.test(conError)}; foco en «${enfocado}» con contorno ${outline}; tras Enter muestra el estado real=${/No hay proveedor satelital seleccionado/.test(recuperado)}; desborde=${overflow}`, ok });
+      && /ADAPTADOR DE DESARROLLO/.test(recuperado) && !overflow;
+    casos.push({ cuenta: 'admin.cooperativa (error 503, teclado, 390 px)', resultado: `panel de error=${/Servicio temporalmente no disponible/.test(conError)}; foco en «${enfocado}» con contorno ${outline}; tras Enter muestra el estado real=${/ADAPTADOR DE DESARROLLO/.test(recuperado)}; desborde=${overflow}`, ok });
     await ctx.close();
   }
 

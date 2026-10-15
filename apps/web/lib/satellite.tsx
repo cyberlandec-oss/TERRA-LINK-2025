@@ -42,7 +42,7 @@ interface Job {
 interface PlotSatellite {
   can_request: boolean;
   request_blocked_reason: string | null;
-  provider_selection: { status: 'SELECTED' | 'NOT_SELECTED'; provider_code?: string; decision?: string; note?: string };
+  provider_selection: { status: 'SELECTED' | 'SELECTED_FOR_DEVELOPMENT' | 'NOT_SELECTED'; provider_code?: string; decision?: string; note?: string };
   analysis_status: 'RESULT_AVAILABLE' | 'IN_PROGRESS' | 'NOT_EVALUATED';
   jobs: Job[];
   limits: string[];
@@ -119,10 +119,17 @@ export function SatelliteAnalysis({ orgId, plotId }: { orgId: string; plotId: st
             <StatusBadge tone={ANALYSIS[data.analysis_status].tone}>{ANALYSIS[data.analysis_status].label}</StatusBadge>{' '}
             {data.provider_selection.status === 'SELECTED'
               ? <span className="muted">Proveedor: {data.provider_selection.provider_code}</span>
-              : <span className="muted">Sin proveedor seleccionado ({data.provider_selection.decision})</span>}
+              : data.provider_selection.status === 'SELECTED_FOR_DEVELOPMENT'
+                ? <span className="muted">Adaptador en desarrollo: {data.provider_selection.provider_code}</span>
+                : <span className="muted">Sin proveedor seleccionado ({data.provider_selection.decision})</span>}
           </p>
           {data.provider_selection.status !== 'SELECTED' && (
-            <Alert tone="info" title="No hay proveedor satelital seleccionado.">
+            <Alert
+              tone="info"
+              title={data.provider_selection.status === 'SELECTED_FOR_DEVELOPMENT'
+                ? 'El adaptador existe, pero su uso real no está autorizado.'
+                : 'No hay proveedor satelital seleccionado.'}
+            >
               <p>{data.provider_selection.note}</p>
             </Alert>
           )}
@@ -135,7 +142,9 @@ export function SatelliteAnalysis({ orgId, plotId }: { orgId: string; plotId: st
               ))}
             </p>
           ) : (
-            data.request_blocked_reason && <p className="muted">No se puede solicitar un análisis: {data.request_blocked_reason}</p>
+            // Si el aviso de arriba ya explica el motivo, no se repite la misma frase dos veces.
+            data.request_blocked_reason && data.request_blocked_reason !== data.provider_selection.note
+              && <p className="muted">No se puede solicitar un análisis: {data.request_blocked_reason}</p>
           )}
 
           {data.jobs.length === 0 ? (

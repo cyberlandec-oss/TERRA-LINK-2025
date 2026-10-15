@@ -49,7 +49,9 @@ export interface ProviderResult {
 
 export type ProviderOutcome =
   | { kind: 'RESULT'; result: ProviderResult }
-  | { kind: Exclude<SatelliteOutcome, 'RESULT_AVAILABLE' | 'NO_PROVIDER_SELECTED' | 'SUPERSEDED_GEOMETRY' | 'CANCELLED' | 'GEOMETRY_UNSUPPORTED'>; errorCode: string; note: string };
+  // Un adapter puede terminar en cualquier desenlace salvo los que decide Terra Link: que haya resultado, que no
+  // haya proveedor, que la geometría quedara superada o que se cancelara.
+  | { kind: Exclude<SatelliteOutcome, 'RESULT_AVAILABLE' | 'NO_PROVIDER_SELECTED' | 'SUPERSEDED_GEOMETRY' | 'CANCELLED'>; errorCode: string; note: string };
 
 export interface SatelliteProviderPort {
   readonly code: string;

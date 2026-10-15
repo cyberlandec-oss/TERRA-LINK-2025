@@ -4,6 +4,7 @@ import { PASSWORD, describeDb, setupHarness } from './helpers';
 import { ROLE_PERMISSIONS } from '../src/authz/catalog';
 import { FixtureSatelliteProvider } from '../src/satellite/provider';
 import { SatelliteRunner } from '../src/satellite/runner';
+import { PiiCipher } from '../src/crypto/pii';
 
 // Integración P0-028 (primer proveedor satelital), base real. Contrato: docs/decisiones/P0-028-SATELITE.md.
 // Lo que estas pruebas acreditan: el contrato, los permisos, los desenlaces y los candados de honestidad.
@@ -60,33 +61,64 @@ describeDb('P0-028 satélite: contrato, desenlaces y candados', () => {
 
   // ---------------------------------------------------------------- registro y decisión pendiente
 
-  it('el registro documenta candidatos y declara que NINGUNO está seleccionado (D-09)', async () => {
+  it('el registro distingue las dos aprobaciones de D-09: Whisp es adaptador de DESARROLLO, no proveedor autorizado', async () => {
     const r = await http().get(`${org()}/satellite/providers`).set(as(ADMIN)).expect(200);
-    expect(r.body.selection).toMatchObject({ status: 'NOT_SELECTED', decision: 'D-09' });
-    expect(r.body.selection.note).toMatch(/no se envía ninguna coordenada/);
+    expect(r.body.selection).toMatchObject({ status: 'SELECTED_FOR_DEVELOPMENT', provider_code: 'WHISP', decision: 'D-09 parte A' });
+    expect(r.body.selection.note).toMatch(/ADAPTADOR DE DESARROLLO/);
+    expect(r.body.selection.decision_reference).toMatch(/NO autoriza llamadas reales/);
+    // El interruptor de llamadas reales es independiente de la selección y está apagado.
+    expect(r.body.live_calls_enabled).toBe(false);
     const codes = r.body.providers.map((p: { code: string }) => p.code).sort();
     expect(codes).toEqual(['EU_FOREST_OBSERVATORY', 'FIXTURE_SYNTHETIC', 'GFW', 'WHISP']);
     const whisp = r.body.providers.find((p: { code: string }) => p.code === 'WHISP');
-    // Cada candidato declara licencia, coste, cobertura, límites y QUÉ DATOS saldrían del equipo.
-    expect(whisp).toMatchObject({ selection_status: 'PROPOSED', license: expect.stringContaining('MIT') });
+    expect(whisp).toMatchObject({ selection_status: 'SELECTED_FOR_DEVELOPMENT', license: expect.stringContaining('MIT') });
     expect(whisp.data_sent_outside).toMatch(/Geometría de la parcela/);
     expect(whisp.allowed_hosts).toEqual(['whisp.openforis.org']);
-    // Ningún candidato declara operaciones soportadas: eso se determina al seleccionar y probar el canal.
-    expect(whisp.supported_operations).toEqual([]);
+    // Solo la operación que el contrato del proveedor respalda; las otras dos exigirían interpretar indicadores (D-07).
+    expect(whisp.supported_operations).toEqual(['FOREST_COVER']);
+    expect(whisp.limits).toMatch(/OpenAPI 2\.3\.0 consultado el 2026-10-15/);
+    expect(whisp.coverage).toMatch(/NO declara cobertura por resultado/);
+    // Los otros dos candidatos siguen siendo solo propuestas documentadas.
+    expect(r.body.providers.filter((p: { selection_status: string }) => p.selection_status === 'PROPOSED').map((p: { code: string }) => p.code).sort())
+      .toEqual(['EU_FOREST_OBSERVATORY', 'GFW']);
   });
 
-  it('la base impide que una fixture sintética sea el proveedor seleccionado', async () => {
+  it('la base impide que una fixture sintética sea seleccionada, ni para uso real ni para desarrollo', async () => {
     const uid = (await h.db.selectFrom('users').select('id').where('email', '=', ADMIN).executeTakeFirstOrThrow()).id;
     await expect(sql`UPDATE satellite_providers SET selection_status = 'SELECTED', selected_by = ${uid}, decision_reference = 'D-09' WHERE code = 'FIXTURE_SYNTHETIC'`.execute(h.db))
       .rejects.toThrow(/satellite_providers_fixture/);
+    await expect(sql`UPDATE satellite_providers SET selection_status = 'SELECTED_FOR_DEVELOPMENT', decision_reference = 'D-09 parte A' WHERE code = 'FIXTURE_SYNTHETIC'`.execute(h.db))
+      .rejects.toThrow(/satellite_providers_fixture/);
   });
 
-  it('sin proveedor seleccionado no se encarga nada y no sale ninguna coordenada', async () => {
+  it('la parte B exige responsable: no se puede marcar SELECTED sin quién lo decidió', async () => {
+    await expect(sql`UPDATE satellite_providers SET selection_status = 'SELECTED', decision_reference = 'D-09 parte B' WHERE code = 'WHISP'`.execute(h.db))
+      .rejects.toThrow(/satellite_providers_selection/);
+  });
+
+  it('un adaptador de desarrollo NO habilita encargar: no se crea trabajo ni sale ninguna coordenada', async () => {
     fixtureOn(false);
     const r = await ask(plotA).expect(409);
-    expect(r.body.error.code).toBe('SATELLITE_PROVIDER_NOT_SELECTED');
-    expect(r.body.error.message).toMatch(/D-09/);
+    expect(r.body.error.code).toBe('SATELLITE_REQUESTS_NOT_AUTHORIZED');
+    expect(r.body.error.message).toMatch(/ADAPTADOR DE DESARROLLO \(D-09 parte A\)/);
+    expect(r.body.error.message).toMatch(/parte B/);
     expect(await h.db.selectFrom('satellite_jobs').select('id').where('plot_id', '=', plotA).execute()).toHaveLength(0);
+    // La pantalla dice lo mismo que la API, sin ofrecer un botón que el servidor va a rechazar.
+    const v = await http().get(`${org()}/plots/${plotA}/satellite`).set(as(ADMIN)).expect(200);
+    expect(v.body).toMatchObject({ can_request: false, provider_selection: { status: 'SELECTED_FOR_DEVELOPMENT', provider_code: 'WHISP', decision: 'D-09 parte A' } });
+    expect(v.body.request_blocked_reason).toMatch(/ADAPTADOR DE DESARROLLO/);
+  });
+
+  it('sin ningún proveedor seleccionado la razón es la decisión pendiente, no un adaptador', async () => {
+    fixtureOn(false);
+    await sql`UPDATE satellite_providers SET selection_status = 'PROPOSED', decision_reference = NULL WHERE code = 'WHISP'`.execute(h.db);
+    try {
+      const r = await ask(plotA).expect(409);
+      expect(r.body.error.code).toBe('SATELLITE_PROVIDER_NOT_SELECTED');
+      expect(r.body.error.message).toMatch(/D-09/);
+    } finally {
+      await sql`UPDATE satellite_providers SET selection_status = 'SELECTED_FOR_DEVELOPMENT', decision_reference = 'D-09 parte A (2026-10-15): adaptador de desarrollo. NO autoriza llamadas reales, envío de geometrías, claves reales, contratación ni aceptación de términos (parte B pendiente).' WHERE code = 'WHISP'`.execute(h.db);
+    }
   });
 
   // ---------------------------------------------------------------- permisos y clasificación de coordenadas
@@ -249,9 +281,47 @@ describeDb('P0-028 satélite: contrato, desenlaces y candados', () => {
     expect(usable.rows).toHaveLength(0);
   });
 
+  it('la credencial de un proveedor no cruza organizaciones: el corredor usa la de la organización del trabajo', async () => {
+    // Trabajo de la organización A contra un proveedor EXTERNO, insertado directamente: el objetivo aquí es el
+    // corredor, no la API. Cada organización registra SU credencial cifrada; el adaptador solo debe ver la suya.
+    const cipher = new PiiCipher(h.config.pii);
+    const uid = (await h.db.selectFrom('users').select('id').where('email', '=', ADMIN).executeTakeFirstOrThrow()).id;
+    const version = await h.db.selectFrom('plot_versions').select(['id', 'geometry_hash', 'geometry_type'])
+      .where('plot_id', '=', plotA).where('geometry_hash', 'is not', null).orderBy('version_number', 'desc').executeTakeFirstOrThrow();
+    for (const [org, secreto] of [[orgA, 'clave-sintetica-de-A-0001'], [orgB, 'clave-sintetica-de-B-0002']] as const) {
+      await h.db.insertInto('satellite_credentials').values({
+        organization_id: org, provider_code: 'WHISP',
+        secret_ciphertext: cipher.encrypt(secreto, `satellite_credentials:${org}:WHISP`), created_by: uid,
+      }).onConflict((oc) => oc.columns(['organization_id', 'provider_code']).doNothing()).execute();
+    }
+    const jobId = randomUUID();
+    await h.db.insertInto('satellite_jobs').values({
+      id: jobId, organization_id: orgA, plot_id: plotA, plot_version_id: version.id, geometry_hash: version.geometry_hash!,
+      geometry_type: version.geometry_type as 'POLYGON', provider_code: 'WHISP', provider_kind: 'EXTERNAL_HTTP',
+      adapter_contract_version: 'TL_SAT_ADAPTER 0.1.0', operation: 'FOREST_COVER', request_fingerprint: 'b'.repeat(64),
+      status: 'REQUESTED', requested_by: uid, operation_id: randomUUID(),
+    }).execute();
+
+    const vistas: Array<string | null> = [];
+    const espia = { code: 'WHISP', kind: 'EXTERNAL_HTTP' as const,
+      analyze: async (r: { credential: string | null }) => { vistas.push(r.credential); return { kind: 'NO_COVERAGE' as const, errorCode: 'ESPIA', note: 'no se llama a nadie' }; } };
+    await new SatelliteRunner(h.db, [espia], { cipher }, { maxAttempts: 1, backoffBaseMs: 1 }).runOnce();
+
+    expect(vistas).toEqual(['clave-sintetica-de-A-0001']);
+    expect(vistas).not.toContain('clave-sintetica-de-B-0002');
+    const row = await jobRow(jobId);
+    expect(row).toMatchObject({ status: 'FAILED', outcome: 'NO_COVERAGE' });
+    // Ni la credencial ni las coordenadas quedan en el trabajo ni en sus eventos.
+    const eventos = await h.db.selectFrom('domain_events').selectAll().where('aggregate_id', '=', jobId).execute();
+    const texto = JSON.stringify({ row, eventos });
+    expect(texto).not.toContain('clave-sintetica');
+    expect(texto).not.toContain('-79.5');
+  });
+
   it('la pantalla de parcela muestra el estado con sus límites escritos y sin coordenadas', async () => {
     const r = await http().get(`${org()}/plots/${plotA}/satellite`).set(as(ADMIN)).expect(200);
-    expect(r.body.provider_selection).toMatchObject({ status: 'NOT_SELECTED', decision: 'D-09' });
+    expect(r.body.provider_selection).toMatchObject({ status: 'SELECTED_FOR_DEVELOPMENT', provider_code: 'WHISP', decision: 'D-09 parte A' });
+    expect(r.body.provider_selection.note).toMatch(/ADAPTADOR DE DESARROLLO/);
     // Hay resultados sintéticos de pruebas anteriores: el estado sigue siendo NO EVALUADO.
     expect(r.body.analysis_status).toBe('NOT_EVALUATED');
     expect(r.body.limits.join(' ')).toMatch(/no es una conclusión jurídica/);

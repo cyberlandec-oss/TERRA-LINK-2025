@@ -5,6 +5,7 @@ import type { PiiCipher } from '../crypto/pii';
 import { EventStore } from '../events/events';
 import { sha256, type ObjectStore } from '../storage/object-store';
 import { FixtureSatelliteProvider, type AnalysisRequest, type ProviderOutcome, type SatelliteProviderPort } from './provider';
+import { WhispSatelliteProvider } from './whisp';
 
 // P0-028 · corredor de trabajos satelitales. S1 §54: «No bloquear una petición HTTP durante un análisis satelital».
 // Vive en el proceso worker, igual que el outbox, y con la misma semántica de arrendamiento:
@@ -202,9 +203,18 @@ export class SatelliteRunner {
 }
 
 /**
- * Adapters registrados. Hoy solo la FIXTURE SINTÉTICA, y únicamente con el interruptor de desarrollo/prueba: no
- * existe ningún adapter real porque no hay proveedor seleccionado (D-09).
+ * Adapters registrados.
+ * - **Whisp** siempre está registrado (D-09 parte A: adaptador de desarrollo), pero con las llamadas reales
+ *   gobernadas por un interruptor explícito, `SATELLITE_LIVE_CALLS=enabled`. Registrarlo sin ese interruptor es
+ *   deliberado: así un trabajo termina diciendo `LIVE_CALLS_DISABLED` —un desenlace explícito y no favorable— en vez
+ *   de «adapter no registrado», que confundiría una decisión pendiente con una avería.
+ * - La **fixture sintética** solo con `SATELLITE_FIXTURE_ENABLED=true`.
  */
 export function registeredProviders(env: NodeJS.ProcessEnv = process.env): SatelliteProviderPort[] {
-  return env.SATELLITE_FIXTURE_ENABLED === 'true' ? [new FixtureSatelliteProvider()] : [];
+  const list: SatelliteProviderPort[] = [new WhispSatelliteProvider({ liveCalls: liveCallsEnabled(env) })];
+  if (env.SATELLITE_FIXTURE_ENABLED === 'true') list.push(new FixtureSatelliteProvider());
+  return list;
 }
+
+/** Interruptor explícito de llamadas reales. Seleccionar un proveedor o tener credencial NO lo activa. */
+export const liveCallsEnabled = (env: NodeJS.ProcessEnv = process.env) => env.SATELLITE_LIVE_CALLS === 'enabled';
