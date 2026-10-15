@@ -331,6 +331,115 @@ Lo que **no** se puede afirmar, y queda dicho:
   se registra porque debilita la cadena y porque es exactamente el problema que esta misma sesión documentó horas
   antes.
 
+## 5.8 D-07: mecanismos adoptados e implementados
+
+El responsable de producto adoptó los **mecanismos** D-07.1, D-07.2 y D-07.4. **No se aprobó ningún catálogo.**
+
+### D-07.1 — Aprobación con ámbito
+
+Las definiciones de reglas son **globales** (`risk_rule_sets` no lleva organización), así que se separaron dos
+actos que estaban confundidos en una sola columna:
+
+| Acto | Dónde | Quién |
+| --- | --- | --- |
+| **Publicación global** | `risk_rule_sets.approval_status` | Acto de **migración**. Nadie publica reglas desde la API |
+| **Adopción de uso por organización** | `risk_rule_set_adoptions`, append-only | Usuario con `risk:approve_rules`, con fecha, motivo y auditoría |
+
+Una adopción en la organización A **no aprueba reglas en B**, y no se puede adoptar una versión que el proyecto no
+haya publicado. **No se amplió `SUPER_ADMIN` ni se resolvió D-04**: el permiso es de ámbito de organización y hoy
+solo lo tiene `ORG_ADMIN`.
+
+El actor sale de la sesión. El cuerpo **ni siquiera admite** un campo de actor: enviarlo devuelve `400`, en vez de
+ignorarlo en silencio.
+
+### D-07.2 — Severidad
+
+Declarada **por regla y por versión**, agregada por **máximo**. Sin promedio, sin suma y sin score: **D-07.3 no
+aplica** y el modelo no los admite.
+
+- **Sin adopción no hay severidad**, y el `CHECK` lo impide: `risk_evaluations_severity_backed`.
+- **A.2**: sin hallazgos, `NOT_ASSESSED`. **No se asigna «bajo» por ausencia.**
+- Un `HIT` cuya regla no declara severidad **no clasifica**, y se dice cuál.
+- La severidad **viaja siempre con su cobertura**: reglas evaluadas, no evaluables, hallazgos sin severidad
+  declarada y **categorías sin ninguna regla**. Una clasificación parcial **se declara parcial**.
+- **Un hallazgo conocido no desaparece** porque otra regla no se pudiera evaluar: se clasifica igual, y la
+  cobertura dice qué quedó fuera.
+- **No sustituye al resultado técnico**: la precedencia sigue mandando y un bloqueante no se diluye.
+
+### D-07.4 — Vigencia
+
+Desactualización por cambio de los datos de la instantánea o de la versión de reglas. **La evaluación no se
+modifica**: reevaluar crea un registro nuevo y los anteriores quedan intactos con su severidad y su versión. Se
+conservan las caducidades documentales y **no se inventaron plazos generales**.
+
+### El candado, más preciso en vez de retirado
+
+El `CHECK` único de la migración 0025 bloqueaba conclusión **y** severidad a la vez. Se sustituyó por **dos**:
+
+| Antes | Ahora |
+| --- | --- |
+| `conclusion = 'UNDETERMINED' AND severity = 'NOT_ASSESSED'` | `risk_evaluations_conclusion_undetermined`: la conclusión sigue clavada |
+| | `risk_evaluations_severity_backed`: severidad **solo** si hay una adopción que la respalde |
+
+**No es una relajación**: lo que antes era «nunca», ahora es «nunca sin que alguien lo haya adoptado». Y la propia
+migración **falla** si encuentra una evaluación con severidad o una regla con severidad declarada: nada se migra.
+
+### Matriz del catálogo, para revisar y NO aprobada
+
+`docs/decisiones/D-07-MATRIZ-CATALOGO.md`: las ocho reglas con condición, categoría, severidad propuesta y
+**justificación**, datos necesarios, comportamiento cuando faltan, efecto y casos de prueba.
+
+Separa lo que tiene respaldo de lo que no:
+
+| Respaldo | Reglas |
+| --- | --- |
+| **FUENTE** | `MATERIAL_OF_UNKNOWN_ORIGIN` y `MASS_BALANCE_INCONSISTENT` (`CRITICAL`), y las tres que proponen **no** clasificar |
+| **PRODUCTO — hay que firmarlas** | `DATA_MISSING_ORIGIN` (`HIGH`), `GEOMETRY_INVALID` (`HIGH`), `DOCUMENT_EXPIRED` (`MEDIUM`) |
+
+Tres reglas **no clasificarían nunca** con esta propuesta: `MITIGATION_UNVERIFIED` (es trabajo pendiente, no un
+hallazgo sobre el cacao), `SATELLITE_COVERAGE_UNKNOWN` (D-09.B) y `GEOLOCATION_PROFILE` (D-05.B: cumplir el perfil
+técnico no acredita el requisito regulatorio). Y con cuatro categorías sin reglas, **toda clasificación será
+parcial** y el sistema lo dirá.
+
+### En pantalla: la severidad nunca sola
+
+La ficha de riesgo mostraba la severidad **sin su cobertura**. Hoy no engañaba —siempre es `NOT_ASSESSED`—, pero
+el día que alguien adopte un catálogo habría mostrado «Alto» a secas, que es justo lo que no debe hacerse. Ahora
+la pantalla muestra **«Severidad de los hallazgos evaluados»** con: el motivo, cuántas reglas se evaluaron de
+cuántas, cuáles no se pudieron evaluar, qué hallazgos no tienen severidad declarada y **qué categorías no tienen
+ninguna regla**. Si la clasificación es parcial, lo dice en negrita antes del dato.
+
+### Verificación
+
+| Qué | Resultado |
+| --- | --- |
+| `d07-mecanismos.int-spec.ts` | **16/16** |
+| Suites relacionadas (`risk`, `reports`, `dd`, `recorrido-integral`, `mitigations`, `d07`) | **94/94** |
+| `productos.spec.ts` en navegador | **24/24** |
+| `npm run validate` | **APROBADA** (`validation-results/2026-10-15T20-04-51-326Z`): **62 suites, 563 pruebas**, **62 E2E**, OpenAPI **193 rutas** |
+
+**Dos corridas, y por qué.** La primera (`2026-10-15T19-47-14-688Z`) aprobó con las mismas 62/563/62 sobre el árbol
+que ya tenía el backend y las pruebas. Después se corrigió la **pantalla** de riesgo —la severidad sin su
+cobertura— y se lanzó una **segunda** corrida, que es la que certifica el árbol que se confirma. La segunda fue
+**notablemente más lenta** al principio (8 suites en ~25 min frente a 62 en ~12 min), consistente con la
+inestabilidad del disco USB ya diagnosticada (`docs/qa/DIAGNOSTICO_VALIDACION_INESTABLE_2026-10-13.md`); recuperó
+ritmo y terminó sin un solo fallo. **No se cortó ni se subió ningún timeout.**
+
+**Correspondencia con el commit.** La corrida anota `commit: 2430053` + 24 archivos sin confirmar, que es el
+contenido de esta entrega. Como siempre, es **anterior** al commit: evidencia de correspondencia, no igualdad
+demostrada.
+
+Una prueba que ya existía cambió de expectativa y conviene decir por qué: comprobaba el candado por su nombre
+(`risk_evaluations_no_conclusion`). Ese `CHECK` ya no existe **porque se partió en dos más precisos**, así que la
+prueba ahora comprueba **los dos**: que la severidad sin adopción se rechaza y que la conclusión no se puede
+escribir de ninguna manera. Es una comprobación más fuerte, no una relajada.
+
+### Lo que NO cambió
+
+`0.1.0` y `0.2.0` siguen `NOT_APPROVED`, **sin severidades** y **sin adopción**. La conclusión regulatoria sigue
+`UNDETERMINED`. El expediente **no** se acerca a `READY` y el despacho sigue detenido. La distribución de riesgo de
+**P0-030 sigue en `UNKNOWN`**, porque ninguna organización ha adoptado un catálogo que clasifique.
+
 ## 6. Qué NO se hizo
 
 - **No** se aprobó D-05 ni ninguna otra decisión. **D-05.A** queda completa y lista para revisarse; **D-05.B** no

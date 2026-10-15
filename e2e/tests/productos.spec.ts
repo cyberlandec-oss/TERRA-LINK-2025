@@ -652,6 +652,14 @@ test('P0-020 riesgo: evaluar un lote, dimensiones separadas, no evaluable visibl
   await expect(page.getByRole('heading', { name: 'Evaluación 1' })).toBeVisible();
   await expect(page.getByText('Incompleto: hay reglas no evaluables o datos faltantes', { exact: true })).toBeVisible(); // nunca favorable por defecto
   await expect(page.getByText('Indeterminada')).toBeVisible();
+  // D-07.2: la severidad se presenta como severidad de los hallazgos EVALUADOS y NUNCA sin su cobertura.
+  // Hoy sale «Sin clasificar» porque esta organización no ha adoptado ningún catálogo que declare severidades.
+  await expect(page.getByText('Severidad de los hallazgos evaluados')).toBeVisible();
+  await expect(page.getByText('Sin clasificar')).toBeVisible();
+  await expect(page.getByText(/no ha adoptado el catálogo/i)).toBeVisible();
+  // Las categorías sin ninguna regla quedan a la vista: la cobertura no se oculta.
+  await expect(page.getByText(/categorías SIN ninguna regla/i)).toBeVisible();
+  await expect(page.getByText(/no es conclusión regulatoria/i).first()).toBeVisible();
   await expect(page.getByRole('list', { name: 'No evaluable o faltante' })).toContainText('GEOLOCATION_PROFILE');
   await expect(page.getByRole('list', { name: 'No evaluable o faltante' })).toContainText('D-05');
   await expect(page.getByText(/no prueba ausencia de deforestación/).first()).toBeVisible();

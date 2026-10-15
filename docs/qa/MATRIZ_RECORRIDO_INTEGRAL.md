@@ -49,7 +49,7 @@ Que el despacho se rechace no acredita que un despacho vaya a funcionar cuando s
 | 9 | Lote → **proceso** (fermentación cerrada con merma) | RF-16; QA-06 | P0-016 **DONE_LOCAL** | I `lots` · **I recorrido** (480 = 430 + 50, rendimiento en masa) | — | — |
 | 10 | Proceso → **secado cerrado** | RF-16; D-39.3; D-32 | P0-016 **DONE_LOCAL** (desde el 2026-10-15) | **I recorrido** (sin humedad no cierra; con 7,2 %BH sí: 100 = 90 + 10) · I `d32-d33`, `lots` · N `productos` | Secado real con medidor en campo | — (D-32 adoptada el 2026-10-15; siguen sin definirse los **límites de aceptación**, las **unidades de peso adicionales** y la **comprobación con operadores reales**) |
 | 11 | Proceso → **inventario** (ledger única fuente) | RF-17; QA-06 | P0-017 | I `inventory` · R `inventario` · **I recorrido** (conciliación sin diferencias) | Concurrencia bajo carga de piloto | — |
-| 12 | Lote → **evaluación de riesgo** | RF-20; docs/13 | P0-020, catálogo `0.1.0` **NO APROBADO** | I `risk` · R `riesgo` · **I recorrido** | Severidad y conclusión | **D-07** + catálogo aprobado |
+| 12 | Lote → **evaluación de riesgo** | RF-20; docs/13 | P0-020; **mecanismos D-07 adoptados** (2026-10-15); catálogos `0.1.0`/`0.2.0` **sin adoptar y sin severidades** | I `risk` · **I `d07-mecanismos` (16)** · R `riesgo` · **I recorrido** | Severidad real (exige publicar y adoptar un catálogo) y conclusión regulatoria | **Matriz del catálogo** (no aprobada) · **D-07.5 y D-07.6** |
 | 13 | Riesgo → **mitigación** | RF-21; docs/13 | P0-021 | I `mitigations` · R `mitigaciones` · **I recorrido** (causa no accionable rechazada) | Verificación con soportes reales | — (las causas de D-05/D-09B no se mitigan a propósito) |
 | 14 | Lote → **expediente DD** (instantánea y revisión) | RF-22; docs/13 | P0-022 | I `dd` · R `diligencia` · **I recorrido** (readiness BLOCKED) | READY con datos reales | **Seis requisitos no evaluables**: `GEOLOCATION_PROFILE` (D-05), `DEFORESTATION_ANALYSIS` (D-09 parte B), `LEGAL_PROFILE` (P1-005), `RISK_CATALOG_APPROVED` y `REGULATORY_CONCLUSION` (D-07), `SHIPMENT_LINK` (D-34/P0-029) |
 | 15 | Expediente → **paquete DD exportado** | RF-22; docs/13 | Generador probado con fixture | I `dd` | Exportar un paquete de un expediente READY | Los **seis** de la fila 14 |
@@ -108,7 +108,7 @@ La adopción de **D-05.A** no cambió el número: **sustituyó** el bloqueo de g
 | Bloqueo | Código observado | Decisión |
 | --- | --- | --- |
 | Perfil técnico → conclusión regulatoria | `LEGAL_APPLICABILITY_NOT_DECIDED` | **D-05.B** |
-| Riesgo → severidad y conclusión | `RULE_SET_NOT_APPROVED` (catálogo `NOT_APPROVED`) | **D-07** |
+| Riesgo → severidad y conclusión | Sin catálogo **adoptado** por la organización: `NOT_ASSESSED` con su motivo | **D-07**: mecanismos adoptados (2026-10-15), **catálogo no**. La conclusión sigue `UNDETERMINED` por D-07.5/D-07.6 |
 | Riesgo → factor satelital | `SATELLITE_COVERAGE_UNKNOWN` | **D-09 parte B** |
 | Expediente → READY y paquete | `READINESS_NOT_MET` (`GEOLOCATION_PROFILE`, `DEFORESTATION_ANALYSIS`) | **D-05.B** y D-09 parte B |
 | Embarque → despacho | `DISPATCH_BLOCKED` (`DD_PACKAGE`, `EVIDENCE`, `GATE`) | **D-34** |

@@ -279,9 +279,11 @@ describeDb('P0-030 reportes: indicadores con denominador, período y permisos', 
   });
 
   it('la base IMPIDE que exista una severidad: el caso mixto no es alcanzable hoy, y el candado se comprueba', async () => {
-    // `risk_evaluations` lleva CHECK (conclusion = 'UNDETERMINED' AND severity = 'NOT_ASSESSED') desde la migración
-    // 0025: sin perfil jurídico aprobado no hay conclusión ni severidad. No es solo que el motor escriba NOT_ASSESSED;
-    // el esquema rechaza cualquier otra cosa, venga de donde venga.
+    // Desde la migración 0042 (mecanismos D-07) el candado único de 0025 son DOS, más precisos, y ninguno es una
+    // relajación: la severidad exige una ADOPCIÓN de catálogo que la respalde (`risk_evaluations_severity_backed`)
+    // y la conclusión regulatoria sigue clavada en UNDETERMINED (`risk_evaluations_conclusion_undetermined`),
+    // porque D-07.5 y D-07.6 siguen pendientes. No es solo que el motor escriba NOT_ASSESSED: el esquema rechaza
+    // cualquier otra cosa, venga de donde venga.
     const lotes = (await sql<{ id: string }>`SELECT id FROM lots WHERE organization_id = ${orgA} ORDER BY lot_code`.execute(h.db)).rows;
     const segundo = lotes.find((l) => l.id !== primerLote)!;
     const insertar = sql`
@@ -291,7 +293,17 @@ describeDb('P0-030 reportes: indicadores con denominador, período y permisos', 
       SELECT gen_random_uuid(), organization_id, subject_type, ${segundo.id}, 1, rule_set_version, parameters, snapshot,
              snapshot_hash, factors, categories, technical_result, 'HIGH', conclusion, evaluated_by, gen_random_uuid()
       FROM risk_evaluations WHERE organization_id = ${orgA} ORDER BY evaluated_at LIMIT 1`.execute(h.db);
-    await expect(insertar).rejects.toThrow(/risk_evaluations_no_conclusion/);
+    // Sin adopción que la respalde, la severidad no se puede escribir.
+    await expect(insertar).rejects.toThrow(/risk_evaluations_severity_backed/);
+    // Y la conclusión regulatoria no se puede escribir de ninguna manera, con o sin adopción.
+    const concluir = sql`
+      INSERT INTO risk_evaluations (id, organization_id, subject_type, subject_id, evaluation_number, rule_set_version,
+                                    parameters, snapshot, snapshot_hash, factors, categories, technical_result, severity,
+                                    conclusion, evaluated_by, operation_id)
+      SELECT gen_random_uuid(), organization_id, subject_type, ${segundo.id}, 2, rule_set_version, parameters, snapshot,
+             snapshot_hash, factors, categories, technical_result, 'NOT_ASSESSED', 'NEGLIGIBLE', evaluated_by, gen_random_uuid()
+      FROM risk_evaluations WHERE organization_id = ${orgA} ORDER BY evaluated_at LIMIT 1`.execute(h.db);
+    await expect(concluir).rejects.toThrow(/risk_evaluations_conclusion_undetermined/);
     // Y la fila existente sigue sin severidad: nada quedó a medias.
     const sev = (await sql<{ severity: string; n: string }>`SELECT severity, count(*)::text AS n FROM risk_evaluations WHERE organization_id = ${orgA} GROUP BY severity`.execute(h.db)).rows;
     expect(sev).toEqual([{ severity: 'NOT_ASSESSED', n: '1' }]);

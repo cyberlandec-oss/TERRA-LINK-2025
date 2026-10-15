@@ -5855,6 +5855,70 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/risk/rule-sets/adoptions": {
+      "get": {
+        "operationId": "RiskController_adoptions",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "risk"
+        ]
+      },
+      "post": {
+        "operationId": "RiskController_adopt",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdoptRuleSetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "risk"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/risk/evaluations/{id}/reviews": {
       "post": {
         "operationId": "RiskController_review",
@@ -10208,6 +10272,35 @@
           "lot_id",
           "location_id",
           "quantity",
+          "reason"
+        ]
+      },
+      "AdoptRuleSetDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "rule_set_version": {
+            "type": "string",
+            "description": "Versión publicada globalmente que esta organización decide usar"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "ADOPT",
+              "WITHDRAW"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Motivo de la decisión; queda en auditoría"
+          }
+        },
+        "required": [
+          "operation_id",
+          "rule_set_version",
+          "decision",
           "reason"
         ]
       },

@@ -63,7 +63,27 @@ export default function LotRiskPage() {
           <h2 id="rk-res">Evaluación {e.evaluation_number}</h2>
           <dl className="props">
             <dt>Resultado técnico</dt><dd><StatusBadge tone={RESULT_TONE[e.technical_result.status]}>{e.technical_result.label}</StatusBadge></dd>
-            <dt>Severidad</dt><dd>{e.risk_result.severity === 'NOT_ASSESSED' ? 'No evaluada' : e.risk_result.severity}</dd>
+            {/* La severidad NUNCA se muestra sola: va con su cobertura, y una clasificación parcial se declara
+                parcial. Sin esto, un «Alto» se leería como si se hubiera evaluado todo. */}
+            <dt>Severidad de los hallazgos evaluados</dt>
+            <dd>
+              {e.risk_result.severity === 'NOT_ASSESSED' ? 'Sin clasificar' : (e.risk_result.severity_label ?? e.risk_result.severity)}
+              {e.risk_result.severity_coverage && (
+                <div className="field-help">
+                  {e.risk_result.severity !== 'NOT_ASSESSED' && !e.risk_result.severity_coverage.complete && (
+                    <strong>Clasificación PARCIAL: no es una evaluación completa del riesgo del lote. </strong>
+                  )}
+                  {e.risk_result.severity_coverage.reason}
+                  <div>
+                    Reglas evaluadas {e.risk_result.severity_coverage.evaluated} de {e.risk_result.severity_coverage.rules_total}
+                    {e.risk_result.severity_coverage.not_evaluable > 0 && <> · sin poder evaluar: {e.risk_result.severity_coverage.not_evaluable_codes.join(', ')}</>}
+                    {e.risk_result.severity_coverage.hits_without_declared_severity.length > 0 && <> · hallazgos sin severidad declarada: {e.risk_result.severity_coverage.hits_without_declared_severity.join(', ')}</>}
+                    {e.risk_result.severity_coverage.categories_without_rules.length > 0 && <> · categorías SIN ninguna regla: {e.risk_result.severity_coverage.categories_without_rules.join(', ')}</>}
+                  </div>
+                  <div>{e.risk_result.severity_coverage.note}</div>
+                </div>
+              )}
+            </dd>
             <dt>Conclusión regulatoria</dt><dd>{e.risk_result.conclusion === 'UNDETERMINED' ? 'Indeterminada' : e.risk_result.conclusion}<div className="field-help">{e.risk_result.note}</div></dd>
             <dt>Revisión humana</dt><dd>{PROCESS[e.review.process_status]}</dd>
             <dt>Evaluada</dt><dd>{new Date(e.evaluated_at).toLocaleString('es-EC')}</dd>

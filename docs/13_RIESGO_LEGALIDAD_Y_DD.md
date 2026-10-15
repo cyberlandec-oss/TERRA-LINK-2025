@@ -33,6 +33,44 @@ DEFORESTATION, LEGALITY, MIXING, SUPPLY_CHAIN, DOCUMENT_CREDIBILITY, TRACEABILIT
 
 No se aprueban pesos, umbrales ni lista jurídica definitiva en este paquete. Probar que sumar factores y limitar un score no oculta un factor crítico; bloqueos se evalúan independientemente del promedio.
 
+## Mecanismos D-07 adoptados para el MVP local (2026-10-15)
+
+**Mecanismos, no catálogo.** Se adopta **cómo** se aprueban y clasifican las reglas; **no se aprueba ninguna
+regla ni se asigna ninguna severidad**. `0.1.0` y `0.2.0` siguen `NOT_APPROVED`, sin severidades y sin adopción.
+
+**Aprobación en dos actos distintos (D-07.1).** Las definiciones son globales, así que se separan:
+
+| Acto | Dónde | Quién |
+| --- | --- | --- |
+| **Publicación global** | `risk_rule_sets.approval_status` | Acto de migración. **Nadie publica reglas desde la API** |
+| **Adopción de uso por organización** | `risk_rule_set_adoptions`, append-only | Usuario con `risk:approve_rules` (hoy solo `ORG_ADMIN`), con fecha, motivo y auditoría |
+
+Una adopción en una organización **no aprueba reglas en otra**, y no se puede adoptar una versión que el proyecto
+no haya publicado. **No se amplía `SUPER_ADMIN` ni se resuelve D-04**: el permiso es de ámbito de organización.
+
+**Severidad (D-07.2).** Declarada **por regla y por versión**; la del sujeto es el **máximo** de los hallazgos
+evaluados. Sin promedio, sin suma y sin score: **D-07.3 no aplica** y el modelo no admite pesos ni cortes.
+
+- Solo cuentan los `HIT`. Un `NOT_EVALUABLE` **no aporta**: no se sabe qué habría dado.
+- **A.2**: sin hallazgos, `NOT_ASSESSED`. **No se asigna «bajo» por ausencia** — evaluar todas las reglas
+  publicadas no demuestra cobertura completa mientras cuatro categorías no tengan ninguna regla.
+- Un `HIT` cuya regla no declara severidad **no clasifica**, y se dice cuál.
+- **Sin adopción no hay severidad**, y el `CHECK` lo impide estructuralmente.
+- La severidad **viaja siempre con su cobertura**: reglas evaluadas, no evaluables, hallazgos sin severidad
+  declarada y categorías sin reglas. Una clasificación **parcial se declara parcial**; un hallazgo conocido **no
+  desaparece** porque otra regla no se pudiera evaluar.
+- **No sustituye al resultado técnico.** La precedencia sigue mandando, y un bloqueante no se diluye.
+
+**Vigencia (D-07.4).** Una evaluación queda `STALE` cuando cambian los datos de su instantánea o la versión de
+reglas, **sin modificarse**. Reevaluar **crea un registro nuevo**; los anteriores quedan intactos con su severidad
+y su versión. Se conservan las caducidades documentales existentes y **no se inventan plazos generales**.
+
+**Lo que sigue bloqueado.** La **conclusión regulatoria** sigue `UNDETERMINED` por `CHECK`: **D-07.5** (perfil
+jurídico) y **D-07.6** (quién concluye) siguen pendientes. Nada de esto habilita `READY` ni despacho.
+
+Matriz a revisar antes de publicar un catálogo con severidades: `docs/decisiones/D-07-MATRIZ-CATALOGO.md`
+(**no aprobada**). Contrato completo: `docs/decisiones/D-07-PROPUESTA.md`.
+
 ## Evaluación reproducible
 
 Fijar sujeto y alcance → snapshot de productores/parcelas/entregas/lotes → seleccionar reglas aprobadas → resolver evidencias/versiones/cobertura → calcular factores y resultado → almacenar hash/versión/explicación → crear tareas → revisión autorizada. Reevaluación crea nueva evaluación enlazada a anterior, no UPDATE destructivo.

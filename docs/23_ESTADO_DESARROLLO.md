@@ -7,6 +7,13 @@ reportadas DONE_LOCAL con sus límites de evidencia · **8** abiertas con implem
 bloqueados · **1** (P0-031) cuyo piloto real sigue **sin ejecutar**. El bloqueo central que queda es **D-07**;
 de D-05 solo sigue abierta la parte **B** (aplicabilidad jurídica).
 
+**D-07 — mecanismos adoptados el 2026-10-15** (migración `0042`), **sin aprobar ningún catálogo**: aprobación con
+permiso propio y **adopción por organización** separada de la publicación global; **severidad por regla agregada
+por máximo**, siempre con su **cobertura**, y `NOT_ASSESSED` cuando no hay hallazgos; desactualización por cambio
+de datos o de reglas. **D-07.3 no aplica** (sin pesos). `0.1.0` y `0.2.0` siguen `NOT_APPROVED`, sin severidades y
+sin adopción. **D-07.5 y D-07.6 siguen pendientes**: la conclusión regulatoria sigue `UNDETERMINED` por `CHECK` y
+el expediente **no** se acerca a `READY`.
+
 > Resultados ajenos a este proyecto: la auditoría inicial del repo `cacao` no aplica a Terra Link 2025.
 
 ## Criterio vigente: validación local
@@ -14,9 +21,14 @@ de D-05 solo sigue abierta la parte **B** (aplicabilidad jurídica).
 GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/github-actions-ci.yml`). La facturación de GitHub **no es un bloqueo**. **DONE_LOCAL** = criterios de la historia cumplidos con evidencia local (`npm run validate` aprobado + suites de la historia). DONE_LOCAL no acredita producción, Android real ni conformidad EUDR.
 
 Última validación: `npm run validate` **APROBADA** el 2026-10-15, corrida
-`validation-results/2026-10-15T18-33-43-757Z` (no versionada): 7 pasos — servicios, typecheck, lint, build, OpenAPI
-validado (**192 rutas**), **61 suites y 545 pruebas** de unitarias + integración y **62 pruebas** E2E de navegador.
-Acredita **D-05.A** (perfil técnico `EUDR_GEO_V1`, migración `0041`) y el cierre de **P0-009** y **P0-010**.
+`validation-results/2026-10-15T20-04-51-326Z` (no versionada): 7 pasos — servicios, typecheck, lint, build, OpenAPI
+validado (**193 rutas**), **62 suites y 563 pruebas** de unitarias + integración y **62 pruebas** E2E de navegador.
+Acredita los **mecanismos D-07** (migración `0042`) y la presentación de la severidad con su cobertura.
+Su resumen anota `commit: 2430053` + 24 archivos sin confirmar: la corrida es **anterior** al commit, como siempre.
+
+Anteriores del mismo día: `2026-10-15T19-47-14-688Z` (62/563 + 62 E2E, antes de corregir la pantalla de riesgo) y
+`2026-10-15T18-33-43-757Z` (61 suites, 545 pruebas, 62 E2E, 192 rutas), que acreditó **D-05.A** (perfil
+`EUDR_GEO_V1`, migración `0041`) y el cierre de **P0-009** y **P0-010**.
 
 Su resumen anota `commit: b9b94cf` + 18 archivos sin confirmar, que es el contenido de esta entrega: la corrida es
 **anterior** al commit, como siempre. Durante la corrida se editó por error un comentario de
@@ -67,7 +79,7 @@ mediciones en `docs/qa/DIAGNOSTICO_VALIDACION_INESTABLE_2026-10-13.md`.
 | P0-023 Captura offline | **ABIERTA**: sesión sin ventana extra, cifrado obligatorio en build nativo y fotos en la base probados en Node; sin ensayo Android real ni SQLCipher en dispositivo | Ver criterios abajo |
 | P0-022 Diligencia y paquete | **ABIERTA**: capacidades independientes DONE_LOCAL; aprobación READY y `DD_PACKAGE` con datos reales no demostrables (requisitos dependientes de decisiones y capacidades inexistentes, sin rebajar) | Ver criterios abajo |
 | P0-021 Mitigación | **DONE_LOCAL** (criterios originales demostrados); causas que dependen de D-05 o del proveedor satelital no se mitigan (no se simula su resolución) | Ver criterios abajo |
-| P0-020 Riesgo | **DONE_LOCAL** para sus criterios originales con reglas técnicas **no aprobadas**: severidad NOT_ASSESSED y conclusión UNDETERMINED por diseño; reglas dependientes de D-05, P0-028 y P0-021 no evaluables | Ver criterios abajo |
+| P0-020 Riesgo | **DONE_LOCAL** para sus criterios originales. Desde el 2026-10-15 el **mecanismo** de severidad existe (D-07.2: por regla, por máximo, con cobertura), pero **ningún catálogo la declara ni está adoptado**, así que toda evaluación sigue saliendo `NOT_ASSESSED` **con su motivo**. La conclusión sigue `UNDETERMINED` por `CHECK` (D-07.5/D-07.6). Reglas dependientes de D-05.B y P0-028 siguen no evaluables | Ver criterios abajo y `docs/decisiones/D-07-PROPUESTA.md` |
 | P0-017 Inventario y balance de masa | **Criterios demostrados localmente excepto despacho**; STORAGE integrada (CTE 1.3.0); reserva para embarques demostrada con P0-029 (2026-10-12). **Historia abierta**: el despacho sigue bloqueado (P0-029, D-34) | Ver criterios abajo |
 | P0-016 Lotes y procesos | **DONE_LOCAL (2026-10-15)**: criterios originales demostrados localmente; FERMENTATION integrada (CTE 1.2.0) y **DRYING integrada** (CTE 1.6.0) tras adoptar D-32 (humedad en %BH con método y responsable). Siguen pendientes, fuera de los criterios de la historia, los **límites de aceptación** de la humedad y las unidades adicionales de peso (D-32) | Ver criterios abajo y «2026-10-15» |
 | P0-012 Entregas y recepción | **DONE_LOCAL (2026-10-15)**: el criterio «diferencias con causa» queda demostrado con el cierre de entregas (D-33 adoptada). Antes: **Capacidades demostradas: verificadas localmente** (entrega, peso recibido, parciales, vínculos, calidad básica como decisión humana, no duplicación). **Historia completa: ABIERTA**, pendiente del criterio «diferencias con causa» (cierre y tolerancias sin política, D-33). Evidencia por criterio abajo (entrega, recepción física parcial, pesaje, soportes, calidad separada, correcciones, compuertas por transición) con decisiones de diseño MVP D-33/34/35 no validadas en campo; cierre por debajo de lo declarado, tolerancias, catálogo de límites, centros asignados e inventario (P0-017) pendientes | Ver criterios abajo |

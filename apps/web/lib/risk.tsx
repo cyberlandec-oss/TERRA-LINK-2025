@@ -9,7 +9,15 @@ export interface RiskEvaluation {
   technical_findings: RiskFactor[]; data_quality: RiskFactor[]; factors: RiskFactor[];
   categories: Array<{ category: string; rules: number; status: string; note: string | null }>;
   technical_result: { status: string; label: string };
-  risk_result: { severity: string; conclusion: string; note: string };
+  risk_result: {
+    severity: string; severity_label?: string; severity_scope?: string; conclusion: string; note: string;
+    /** La severidad NUNCA se muestra sin esto: sola se leería como si la evaluación hubiera sido completa. */
+    severity_coverage?: {
+      rules_total: number; evaluated: number; not_evaluable: number; not_evaluable_codes: string[];
+      hits: number; hits_without_declared_severity: string[]; categories_without_rules: string[];
+      complete: boolean; reason?: string; note?: string;
+    } | null;
+  };
   provenance: { mode: string; trigger_kind: string | null; triggered_by: string; executed_by: string; reviewed_by: string | null; review_status: string };
   review: { process_status: 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED'; history: Array<{ action: string; reason: string; at: string; reviewer: string }>; note: string };
   evaluated_at: string; evaluated_by: string;

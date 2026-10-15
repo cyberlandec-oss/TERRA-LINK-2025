@@ -1,8 +1,24 @@
 # D-07 — Qué puede concluir el motor de riesgo, y con qué reglas. Contrato para decidir (NO APROBADO)
 
-Estado: **PROPUESTA**. **Nada de este documento está activo en el código.** El catálogo `risk_rule_sets` sigue
-`NOT_APPROVED`, `risk_evaluations` sigue con su `CHECK (conclusion = 'UNDETERMINED' AND severity = 'NOT_ASSESSED')`,
-y el expediente sigue sin poder llegar a `READY`. **Este documento no retira ninguna restricción.**
+| | Estado |
+| --- | --- |
+| **D-07.1 · aprobación** | **MECANISMO ADOPTADO** para el MVP local (2026-10-15): usuario autenticado, permiso `risk:approve_rules`, fecha, motivo y auditoría. **Publicación global** y **adopción por organización** quedan separadas |
+| **D-07.2 · severidad** | **MECANISMO ADOPTADO**: declarada por regla y versión, agregada por **máximo**, presentada **con su cobertura**. **A.2**: sin hallazgos, `NOT_ASSESSED` |
+| **D-07.3 · score** | **NO APLICA.** No hay pesos, cortes ni puntuaciones, y el modelo no los admite |
+| **D-07.4 · vigencia** | **MECANISMO ADOPTADO**: desactualización por cambio de datos o de reglas; una evaluación `STALE` no sostiene un requisito satisfecho |
+| **D-07.5 y D-07.6** | **PENDIENTES.** La conclusión regulatoria sigue `UNDETERMINED` por `CHECK` |
+
+**Lo que la adopción de los mecanismos NO hace:**
+
+- **No aprueba ningún catálogo.** `0.1.0` y `0.2.0` siguen **`NOT_APPROVED`** en publicación global, **sin
+  severidades** y **sin adopción en ninguna organización**.
+- **No asigna ninguna severidad.** La matriz que habría que revisar para hacerlo está en
+  `docs/decisiones/D-07-MATRIZ-CATALOGO.md` y **tampoco está aprobada**.
+- **No migra ninguna evaluación anterior.** La migración falla si encuentra una con severidad.
+- **No habilita `READY` ni despacho**, y **no toca** ningún otro requisito del expediente.
+- **No amplía `SUPER_ADMIN` ni resuelve D-04**: el permiso nuevo es de ámbito de organización.
+
+El resto de este documento es el análisis que sostiene esas decisiones.
 
 Revisión 2 — 2026-10-15. §7 desarrollado: cada decisión con su pregunta, sus alternativas, la recomendación y su
 fundamento, qué comportamiento cambiaría, qué desbloquea y qué seguiría pendiente.
@@ -284,8 +300,9 @@ cambiaría la etiqueta del requisito `RISK_CATALOG_APPROVED`, que es justamente 
 
 ### D-07.2 — Cómo se define la severidad
 
-**Pregunta concreta.** Hoy `risk_evaluations.severity` es siempre `NOT_ASSESSED`, forzado por
-`CHECK (conclusion = 'UNDETERMINED' AND severity = 'NOT_ASSESSED')`, y `risk_rules.severity` está forzada a
+**Pregunta concreta.** *(Redactada antes de adoptar el mecanismo; se conserva como el análisis que lo sostuvo.)*
+Entonces `risk_evaluations.severity` era siempre `NOT_ASSESSED`, forzado por
+`CHECK (conclusion = 'UNDETERMINED' AND severity = 'NOT_ASSESSED')`, y `risk_rules.severity` estaba forzada a
 `NULL`. ¿De dónde sale la severidad de un lote: de cada regla, de una suma de pesos, o de ningún sitio?
 
 #### Las alternativas
@@ -499,8 +516,8 @@ perfil** aplicó; sin él, sigue `NOT_EVALUABLE` con motivo.
 
 ### D-07.6 — Quién concluye, y bajo qué condiciones
 
-**Pregunta concreta.** Hoy `risk_evaluations` lleva
-`CHECK (conclusion = 'UNDETERMINED' AND severity = 'NOT_ASSESSED')`: **ninguna fila puede llevar conclusión**.
+**Pregunta concreta.** `risk_evaluations` lleva hoy `risk_evaluations_conclusion_undetermined` (migración `0042`,
+antes parte del `CHECK` único de 0025): **ninguna fila puede llevar conclusión**.
 ¿Quién puede afirmar `NEGLIGIBLE` o `NON_NEGLIGIBLE`, y con qué condiciones previas?
 
 **Alternativas.**

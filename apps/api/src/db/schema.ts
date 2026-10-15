@@ -585,9 +585,24 @@ export interface ShipmentReservationsTable {
 }
 
 // P0-020 riesgo
+export interface RiskRuleSetAdoptionsTable {
+  id: string;
+  organization_id: string;
+  rule_set_version: string;
+  decision: 'ADOPT' | 'WITHDRAW';
+  reason: string;
+  decided_by: string;
+  decided_at: ColumnType<Date, Date | string | undefined, Date | string>;
+  operation_id: string;
+}
+
 export interface RiskEvaluationsTable {
   id: string; organization_id: string; subject_type: 'LOT'; subject_id: string; evaluation_number: number; rule_set_version: string; parameters: unknown; snapshot: unknown; snapshot_hash: string;
   factors: unknown; categories: unknown; technical_result: string; severity: string; conclusion: string; evaluated_by: string; evaluated_at: Generated<Timestamp>; operation_id: string; trigger: unknown | null;
+  /** Cobertura de la severidad: sin ella, una severidad se lee como si la evaluación hubiera sido completa. */
+  severity_coverage: unknown | null;
+  /** Adopción que respalda la severidad. Sin adopción no hay severidad (CHECK estructural). */
+  severity_adoption_id: string | null;
 }
 export interface RiskReviewsTable { id: string; organization_id: string; evaluation_id: string; action: 'START_REVIEW' | 'RESOLVE'; reason: string; reviewer_id: string; reviewed_at: Generated<Timestamp>; operation_id: string }
 
@@ -775,6 +790,7 @@ export interface Database {
   process_outputs: ProcessOutputsTable;
   stock_movements: StockMovementsTable;
   stock_entries: StockEntriesTable;
+  risk_rule_set_adoptions: RiskRuleSetAdoptionsTable;
   risk_evaluations: RiskEvaluationsTable;
   risk_reviews: RiskReviewsTable;
   mitigation_actions: MitigationActionsTable;

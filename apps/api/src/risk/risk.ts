@@ -1,11 +1,11 @@
 import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, IsUUID, Length } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator';
 import { createHash, randomUUID } from 'crypto';
 import { sql, type Kysely, type Transaction } from 'kysely';
 import { DB } from '../db/database';
 import type { Database } from '../db/schema';
-import { conflict, forbidden, notFound } from '../common/errors';
+import { AppError, conflict, forbidden, notFound } from '../common/errors';
 import { AuditService } from '../audit/audit.service';
 import { AuthorizationService, type TenantContext } from '../authz/authorization.service';
 import type { Permission } from '../authz/catalog';
@@ -33,6 +33,14 @@ class EvaluateDto {
   @ApiProperty() @IsUUID() operation_id!: string;
   @ApiPropertyOptional({ description: 'Última evaluación conocida por quien solicita: si ya hay una posterior, se rechaza (un trabajo antiguo no pisa uno nuevo)' }) @IsOptional() @IsUUID() based_on_evaluation_id?: string;
 }
+/** D-07.1 — Adoptar o retirar un catálogo DENTRO de una organización. El actor sale de la sesión, nunca del cuerpo. */
+class AdoptRuleSetDto {
+  @ApiProperty() @IsUUID() operation_id!: string;
+  @ApiProperty({ description: 'Versión publicada globalmente que esta organización decide usar' })
+  @IsString() @Matches(/^[0-9]+\.[0-9]+\.[0-9]+$/) rule_set_version!: string;
+  @ApiProperty({ enum: ['ADOPT', 'WITHDRAW'] }) @IsIn(['ADOPT', 'WITHDRAW']) decision!: 'ADOPT' | 'WITHDRAW';
+  @ApiProperty({ description: 'Motivo de la decisión; queda en auditoría' }) @IsString() @Length(3, 500) reason!: string;
+}
 class ReviewDto {
   @ApiProperty() @IsUUID() operation_id!: string;
   @ApiProperty({ enum: ['START_REVIEW', 'RESOLVE'] }) @IsIn(['START_REVIEW', 'RESOLVE']) action!: 'START_REVIEW' | 'RESOLVE';
@@ -40,6 +48,14 @@ class ReviewDto {
 }
 
 const CATEGORIES = ['DEFORESTATION', 'LEGALITY', 'MIXING', 'SUPPLY_CHAIN', 'DOCUMENT_CREDIBILITY', 'TRACEABILITY', 'EVASION', 'HUMAN_RIGHTS', 'INDIGENOUS_RIGHTS', 'DATA_QUALITY'];
+/** Etiquetas de severidad. «Bajo» NO significa «insignificante» en sentido jurídico (S1 §35). */
+const SEVERITY_LABEL: Record<string, string> = {
+  NOT_ASSESSED: 'Sin clasificar',
+  LOW: 'Bajo (de los hallazgos evaluados)',
+  MEDIUM: 'Medio (de los hallazgos evaluados)',
+  HIGH: 'Alto (de los hallazgos evaluados)',
+  CRITICAL: 'Crítico (de los hallazgos evaluados)',
+};
 const RESULT_LABEL: Record<string, string> = {
   BLOCKED: 'Bloqueado por un hallazgo', REVIEW_REQUIRED: 'Requiere revisión', INCOMPLETE: 'Incompleto: hay reglas no evaluables o datos faltantes',
   NO_FINDINGS_IN_EVALUATED_RULES: 'Sin hallazgos en las reglas evaluadas',
@@ -68,8 +84,10 @@ export class RiskService {
 
   private async currentRuleSet(db: Db) {
     const rs = (await sql<{ version: string; approval_status: string; notes: string }>`SELECT version, approval_status, notes FROM risk_rule_sets ORDER BY published_at DESC, version DESC LIMIT 1`.execute(db)).rows[0];
-    const rules = (await sql<{ code: string; category: string; condition_kind: string; effect: string; explanation: string; limit_note: string; source: string; depends_on: string | null; inputs: string[]; evidence_required: string }>`
-      SELECT code, category, condition_kind, effect, explanation, limit_note, source, depends_on, inputs, evidence_required FROM risk_rules WHERE rule_set_version = ${rs.version} ORDER BY code`.execute(db)).rows;
+    // `severity` se lee desde el catálogo (D-07.2): es un dato DE LA REGLA y de SU versión, no del motor.
+    // Cambiar una severidad es publicar otra versión, no editar la vigente.
+    const rules = (await sql<{ code: string; category: string; condition_kind: string; effect: string; explanation: string; limit_note: string; source: string; depends_on: string | null; inputs: string[]; evidence_required: string; severity: string | null }>`
+      SELECT code, category, condition_kind, effect, explanation, limit_note, source, depends_on, inputs, evidence_required, severity FROM risk_rules WHERE rule_set_version = ${rs.version} ORDER BY code`.execute(db)).rows;
     return { ...rs, rules };
   }
 
@@ -149,12 +167,163 @@ export class RiskService {
     });
   }
 
+  /**
+   * D-07.2 — Severidad de los hallazgos evaluados. Mecanismo adoptado para el MVP local (2026-10-15).
+   *
+   * Reglas, y por qué cada una:
+   * - **Máximo, nunca promedio ni suma.** Un hallazgo grave no se compensa con varios leves. Sin pesos, sin
+   *   cortes y sin puntuación: D-07.3 **no aplica** y el modelo no los admite.
+   * - **Solo cuentan los `HIT`.** Un `NOT_HIT` no aporta, y un `NOT_EVALUABLE` tampoco: no se sabe qué habría
+   *   dado, y suponerlo sería inventar.
+   * - **A.2: sin hallazgos, `NOT_ASSESSED`.** No se asigna `LOW` por ausencia. Evaluar todas las reglas
+   *   publicadas no demuestra cobertura completa mientras haya categorías sin ninguna regla.
+   * - **Un `HIT` cuya regla no declara severidad no clasifica**, y se dice cuál.
+   * - **No sustituye al resultado técnico.** La precedencia sigue mandando sobre qué se puede hacer con el lote;
+   *   esto es una etiqueta de los hallazgos, no una conclusión.
+   */
+  private severityOf(factors: Factor[], rules: Array<{ code: string; severity: string | null }>, categories: Array<{ category: string; rules: number }>) {
+    const ORDER = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+    const sev = new Map(rules.map((r) => [r.code, r.severity]));
+    const hits = factors.filter((f) => f.result === 'HIT');
+    const noEvaluables = factors.filter((f) => f.result === 'NOT_EVALUABLE');
+    const sinDeclarar = hits.filter((f) => !sev.get(f.code)).map((f) => f.code);
+    const clasificables = hits.map((f) => sev.get(f.code)).filter((x): x is string => !!x);
+    const categoriasSinReglas = categories.filter((c) => c.rules === 0).map((c) => c.category);
+
+    const coverage = {
+      rules_total: factors.length,
+      evaluated: factors.length - noEvaluables.length,
+      not_evaluable: noEvaluables.length,
+      not_evaluable_codes: noEvaluables.map((f) => f.code),
+      hits: hits.length,
+      hits_without_declared_severity: sinDeclarar,
+      categories_without_rules: categoriasSinReglas,
+      complete: noEvaluables.length === 0 && sinDeclarar.length === 0 && categoriasSinReglas.length === 0,
+      note:
+        'La severidad resume los hallazgos EVALUADOS, no el riesgo del lote. No es conclusión regulatoria ' +
+        '(sigue UNDETERMINED) y no se deriva de ella: D-07.5 y D-07.6 siguen pendientes.',
+    };
+
+    if (!clasificables.length) {
+      const motivo = hits.length
+        ? `Hay ${hits.length} hallazgo(s), pero ninguna de sus reglas declara severidad en este catálogo (${sinDeclarar.join(', ')}): no se clasifica.`
+        : noEvaluables.length
+          ? `Sin hallazgos entre las reglas evaluadas, y ${noEvaluables.length} regla(s) no se pudieron evaluar: no se clasifica. Un dato ausente no produce un resultado favorable.`
+          : 'Sin hallazgos entre las reglas evaluadas. NO se asigna «bajo» por ausencia: evaluar todas las reglas publicadas no demuestra cobertura completa (A.2).';
+      return { severity: 'NOT_ASSESSED', coverage: { ...coverage, reason: motivo } };
+    }
+    const max = ORDER[Math.max(...clasificables.map((x) => ORDER.indexOf(x)))];
+    // Un hallazgo conocido NO desaparece porque otra regla no se pudiera evaluar: se clasifica igual y la
+    // cobertura dice qué quedó fuera. Lo que no se hace es presentarlo como evaluación completa.
+    const parcial = !coverage.complete;
+    return {
+      severity: max,
+      coverage: {
+        ...coverage,
+        reason:
+          `Severidad de los hallazgos evaluados: ${max}, el máximo de ${clasificables.length} hallazgo(s) clasificado(s). ` +
+          (parcial
+            ? 'Clasificación PARCIAL: ' + [
+              noEvaluables.length ? `${noEvaluables.length} regla(s) no evaluable(s)` : null,
+              sinDeclarar.length ? `${sinDeclarar.length} hallazgo(s) sin severidad declarada` : null,
+              categoriasSinReglas.length ? `${categoriasSinReglas.length} categoría(s) sin ninguna regla` : null,
+            ].filter(Boolean).join(', ') + '. No es una evaluación completa del riesgo del lote.'
+            : 'Todas las reglas del catálogo se evaluaron y todas las categorías tienen reglas.'),
+      },
+    };
+  }
+
+  /** Adopción vigente del catálogo en ESTA organización (D-07.1). Una adopción de otra organización no cuenta. */
+  async currentAdoption(db: Db, orgId: string, version: string) {
+    const r = (await sql<{ id: string; decision: string; reason: string; decided_at: Date; decided_by: string }>`
+      SELECT id, decision, reason, decided_at, decided_by FROM risk_rule_set_adoptions
+      WHERE organization_id = ${orgId} AND rule_set_version = ${version}
+      ORDER BY decided_at DESC, id DESC LIMIT 1`.execute(db)).rows[0];
+    return r && r.decision === 'ADOPT' ? r : null;
+  }
+
   /** Resultado técnico por precedencia (un bloqueante no se diluye); faltantes nunca dan un resultado favorable. */
   private technicalResult(factors: Factor[]) {
     if (factors.some((f) => f.result === 'HIT' && f.effect === 'BLOCKING')) return 'BLOCKED';
     if (factors.some((f) => f.result === 'HIT')) return 'REVIEW_REQUIRED';
     if (factors.some((f) => f.result === 'NOT_EVALUABLE')) return 'INCOMPLETE';
     return 'NO_FINDINGS_IN_EVALUATED_RULES';
+  }
+
+  /**
+   * D-07.1 — Adoptar o retirar un catálogo de reglas **en esta organización**.
+   *
+   * Lo que este caso de uso NO hace, a propósito:
+   * - **No publica nada global.** `risk_rule_sets` no se toca: publicar una versión sigue siendo un acto de
+   *   migración, no una operación de usuario. Nadie puede crear reglas desde la API.
+   * - **No aprueba reglas para otras organizaciones.** La fila lleva `organization_id` y toda lectura lo filtra.
+   * - **No recalcula nada.** Las evaluaciones anteriores quedan intactas, con su severidad y su versión. Para
+   *   que la adopción surta efecto hay que **reevaluar**, que crea un registro nuevo.
+   * - **No concluye nada.** La conclusión regulatoria sigue `UNDETERMINED` por `CHECK`.
+   */
+  async decideAdoption(user: AuthUser, orgId: string, dto: AdoptRuleSetDto, requestId?: string) {
+    // Autoriza, exige organización activa y acota al tenant. El actor sale de aquí, nunca del cuerpo.
+    await this.ctx(user, orgId, 'risk:approve_rules', true);
+    const prior = await this.db.selectFrom('risk_rule_set_adoptions').selectAll()
+      .where('organization_id', '=', orgId).where('operation_id', '=', dto.operation_id).executeTakeFirst();
+    if (prior) {
+      if (prior.rule_set_version !== dto.rule_set_version || prior.decision !== dto.decision) {
+        throw conflict('OPERATION_ID_REUSED', 'Ese identificador de operación ya se usó con otro contenido.');
+      }
+      return { replayed: true, adoption: this.adoptionView(prior) };
+    }
+    // Solo se adopta lo que el proyecto ha publicado globalmente: un tenant no se autoconcede reglas propias.
+    const rs = (await sql<{ version: string; approval_status: string }>`
+      SELECT version, approval_status FROM risk_rule_sets WHERE version = ${dto.rule_set_version}`.execute(this.db)).rows[0];
+    if (!rs) throw new AppError(422, 'RULE_SET_NOT_PUBLISHED', 'Esa versión de reglas no está publicada: no se puede adoptar lo que no existe.', [{ field: 'rule_set_version', reason: 'NOT_PUBLISHED' }]);
+
+    const row = await this.db.transaction().execute(async (trx) => {
+      await sql`SELECT pg_advisory_xact_lock(hashtext(${'risk-adoption:' + orgId}))`.execute(trx);
+      const vigente = await this.currentAdoption(trx, orgId, dto.rule_set_version);
+      if (dto.decision === 'ADOPT' && vigente) throw conflict('ALREADY_ADOPTED', 'Esta organización ya tiene adoptada esa versión.');
+      if (dto.decision === 'WITHDRAW' && !vigente) throw conflict('NOT_ADOPTED', 'Esta organización no tiene adoptada esa versión: no hay nada que retirar.');
+      const id = randomUUID();
+      const inserted = await trx.insertInto('risk_rule_set_adoptions').values({
+        id, organization_id: orgId, rule_set_version: dto.rule_set_version, decision: dto.decision,
+        reason: dto.reason.trim(), decided_by: user.id, operation_id: dto.operation_id,
+      }).returningAll().executeTakeFirstOrThrow();
+      await this.events.append(trx, {
+        organizationId: orgId, eventType: dto.decision === 'ADOPT' ? 'RiskRuleSetAdopted' : 'RiskRuleSetWithdrawn', schemaVersion: 1,
+        aggregateType: 'RISK_RULE_SET_ADOPTION', aggregateId: id, aggregateVersion: 1, actorId: user.id, correlationId: requestId,
+        payload: { adoption_id: id, rule_set_version: dto.rule_set_version, decision: dto.decision, global_publication: rs.approval_status },
+      });
+      await this.audit.record(trx, {
+        organizationId: orgId, actorUserId: user.id, action: dto.decision === 'ADOPT' ? 'risk.rule_set_adopt' : 'risk.rule_set_withdraw',
+        entityType: 'risk_rule_set', entityId: null, requestId, result: 'SUCCESS', reason: dto.reason.trim(),
+        after: { adoption_id: id, rule_set_version: dto.rule_set_version, decision: dto.decision },
+      });
+      return inserted;
+    });
+    return { replayed: false, adoption: this.adoptionView(row) };
+  }
+
+  private adoptionView(r: { id: string; rule_set_version: string; decision: string; reason: string; decided_at: Date | string }) {
+    return {
+      id: r.id, rule_set_version: r.rule_set_version, decision: r.decision, reason: r.reason, decided_at: r.decided_at,
+      note: 'Adopción DE ESTA ORGANIZACIÓN. No publica reglas globales, no afecta a otras organizaciones y no recalcula evaluaciones anteriores: para que surta efecto hay que reevaluar.',
+    };
+  }
+
+  /** Historial de adopciones de esta organización, y qué versión está vigente ahora. */
+  async adoptions(user: AuthUser, orgId: string) {
+    // Autoriza y acota al tenant: leer adopciones es leer riesgo de ESTA organización.
+    await this.ctx(user, orgId, 'risk:read', false);
+    const rows = await this.db.selectFrom('risk_rule_set_adoptions').selectAll()
+      .where('organization_id', '=', orgId).orderBy('decided_at', 'desc').execute();
+    const rs = await this.currentRuleSet(this.db);
+    const vigente = await this.currentAdoption(this.db, orgId, rs.version);
+    return {
+      current_rule_set: { version: rs.version, global_publication: rs.approval_status },
+      adopted: !!vigente,
+      adoption: vigente ? this.adoptionView(vigente as never) : null,
+      history: rows.map((r) => this.adoptionView(r)),
+      note: 'Publicación global y adopción por organización son actos distintos (D-07.1). Adoptar NO aprueba nada en términos regulatorios y NO habilita conclusión: D-07.5 y D-07.6 siguen pendientes.',
+    };
   }
 
   async evaluate(user: AuthUser, orgId: string, lotId: string, dto: EvaluateDto, requestId?: string) {
@@ -186,16 +355,34 @@ export class RiskService {
       return { category: c, rules: fs.length, status: !fs.length ? 'NO_RULES' : fs.some((f) => f.result === 'HIT') ? 'FINDINGS' : fs.some((f) => f.result === 'NOT_EVALUABLE') ? 'NOT_ASSESSED' : 'NO_FINDINGS',
         note: !fs.length ? 'Sin reglas en las fuentes del proyecto: no evaluada (requiere perfil aprobado).' : null };
     });
+    // D-07.1 + D-07.2: la severidad solo existe si ESTA organización ha adoptado la versión de reglas. Sin
+    // adopción, NOT_ASSESSED y el motivo lo dice: no es que no haya riesgo, es que no hay catálogo adoptado.
+    const adoption = await this.currentAdoption(trx, orgId, rs.version);
+    const sv = adoption
+      ? this.severityOf(factors, rs.rules, categories)
+      : {
+        severity: 'NOT_ASSESSED',
+        coverage: {
+          rules_total: factors.length, evaluated: factors.length - factors.filter((f) => f.result === 'NOT_EVALUABLE').length,
+          not_evaluable: factors.filter((f) => f.result === 'NOT_EVALUABLE').length, not_evaluable_codes: [],
+          hits: factors.filter((f) => f.result === 'HIT').length, hits_without_declared_severity: [],
+          categories_without_rules: categories.filter((c) => c.rules === 0).map((c) => c.category), complete: false,
+          reason: `Esta organización no ha adoptado el catálogo ${rs.version} (${rs.approval_status} en publicación global): sin adopción no se clasifica. Es la decisión D-07.1, no una afirmación sobre el lote.`,
+          note: 'La severidad resume los hallazgos EVALUADOS, no el riesgo del lote. No es conclusión regulatoria (sigue UNDETERMINED).',
+        },
+      };
     const hash = createHash('sha256').update(canonical(snap)).digest('hex');
     const eid = randomUUID();
     await trx.insertInto('risk_evaluations').values({
       id: eid, organization_id: orgId, subject_type: 'LOT', subject_id: lotId, evaluation_number: (last?.n ?? 0) + 1, rule_set_version: rs.version,
       parameters: JSON.stringify({ weights: null, thresholds: null, note: 'Sin pesos ni umbrales aprobados' }), snapshot: JSON.stringify(snap), snapshot_hash: hash,
-      factors: JSON.stringify(factors), categories: JSON.stringify(categories), technical_result: technical, severity: 'NOT_ASSESSED', conclusion: 'UNDETERMINED', evaluated_by: p.actorId, operation_id: p.operationId,
+      factors: JSON.stringify(factors), categories: JSON.stringify(categories), technical_result: technical, severity: sv.severity, conclusion: 'UNDETERMINED', evaluated_by: p.actorId, operation_id: p.operationId,
       trigger: p.trigger ? JSON.stringify(p.trigger) : null,
+      severity_coverage: JSON.stringify(sv.coverage), severity_adoption_id: sv.severity === 'NOT_ASSESSED' ? null : adoption!.id,
     }).execute();
     await this.events.append(trx, { organizationId: orgId, eventType: 'RiskEvaluationRecorded', schemaVersion: 1, aggregateType: 'RISK_SUBJECT', aggregateId: lotId, aggregateVersion: (last?.n ?? 0) + 1, actorId: p.actorId, correlationId: p.requestId,
-      payload: { evaluation_id: eid, subject_type: 'LOT', subject_id: lotId, rule_set_version: rs.version, snapshot_hash: hash, technical_result: technical, severity: 'NOT_ASSESSED', conclusion: 'UNDETERMINED',
+      payload: { evaluation_id: eid, subject_type: 'LOT', subject_id: lotId, rule_set_version: rs.version, snapshot_hash: hash, technical_result: technical, severity: sv.severity, conclusion: 'UNDETERMINED',
+        severity_adopted_from: adoption?.id ?? null, severity_complete: sv.coverage.complete,
         trigger: p.trigger, factors: factors.map((f) => ({ code: f.code, result: f.result })) } });
     await this.audit.record(trx, { organizationId: orgId, actorUserId: p.actorId, action: p.trigger ? 'risk.reevaluate_after_mitigation' : 'risk.evaluate', entityType: 'lot', entityId: lotId, requestId: p.requestId, result: 'SUCCESS',
       after: { code: snap.lot.code, reason: `${technical}; reglas ${rs.version} (no aprobadas)` } });
@@ -229,8 +416,8 @@ export class RiskService {
 
   async view(db: Db, ctx: TenantContext, id: string) {
     const e = (await sql<{ trigger: unknown; id: string; subject_id: string; evaluation_number: number; rule_set_version: string; parameters: unknown; snapshot: { lot: { code: string } }; snapshot_hash: string; factors: Factor[]; categories: unknown;
-      technical_result: string; severity: string; conclusion: string; evaluated_at: string; first_name: string | null; last_name: string | null; approval_status: string }>`
-      SELECT e.trigger, e.id, e.subject_id, e.evaluation_number, e.rule_set_version, e.parameters, e.snapshot, e.snapshot_hash, e.factors, e.categories, e.technical_result, e.severity, e.conclusion, e.evaluated_at,
+      technical_result: string; severity: string; severity_coverage: unknown; severity_adoption_id: string | null; conclusion: string; evaluated_at: string; first_name: string | null; last_name: string | null; approval_status: string }>`
+      SELECT e.trigger, e.id, e.subject_id, e.evaluation_number, e.rule_set_version, e.parameters, e.snapshot, e.snapshot_hash, e.factors, e.categories, e.technical_result, e.severity, e.severity_coverage, e.severity_adoption_id, e.conclusion, e.evaluated_at,
              u.first_name, u.last_name, rs.approval_status
       FROM risk_evaluations e LEFT JOIN users u ON u.id = e.evaluated_by JOIN risk_rule_sets rs ON rs.version = e.rule_set_version
       WHERE e.organization_id = ${ctx.organizationId} AND e.id = ${id}`.execute(db)).rows[0];
@@ -247,12 +434,25 @@ export class RiskService {
     return {
       id: e.id, subject: { type: 'LOT', id: e.subject_id, code: e.snapshot.lot.code }, evaluation_number: e.evaluation_number, is_latest: latest.id === e.id,
       freshness: { status: stale ? 'STALE' : 'CURRENT', reason: stale ? (rs.version !== e.rule_set_version ? 'Hay una versión de reglas más reciente.' : 'Cambiaron datos o evidencias del grafo de origen desde esta evaluación: reevalúa (esta evaluación no se modifica).') : null },
-      rules: { version: e.rule_set_version, approval_status: e.approval_status, note: 'Reglas técnicas de docs/13 sin aprobación: sin pesos, umbrales ni severidades.' },
+      rules: {
+        version: e.rule_set_version, approval_status: e.approval_status,
+        // Publicación global y adopción por organización son actos distintos (D-07.1).
+        global_publication: e.approval_status,
+        adopted_by_organization: !!e.severity_adoption_id,
+        note: 'La publicación global dice que la versión existe y está respaldada por el proyecto. La ADOPCIÓN la decide cada organización por separado, y es la que habilita clasificar. Sin pesos ni umbrales: D-07.3 no aplica.',
+      },
       parameters: e.parameters, snapshot: { hash: e.snapshot_hash, data: e.snapshot },
       technical_findings: findings, data_quality: notEvaluable,
       factors: e.factors, categories: e.categories,
       technical_result: { status: e.technical_result, label: RESULT_LABEL[e.technical_result] },
-      risk_result: { severity: e.severity, conclusion: e.conclusion, note: 'Severidad NOT_ASSESSED y conclusión UNDETERMINED: no hay perfil jurídico ni pesos aprobados. Un resultado técnico no es conclusión regulatoria ni cumplimiento EUDR.' },
+      risk_result: {
+        // La severidad NUNCA viaja sin su cobertura: una severidad sola se lee como si la evaluación fuera completa.
+        severity: e.severity, severity_label: SEVERITY_LABEL[e.severity] ?? e.severity,
+        severity_scope: 'EVALUATED_FINDINGS',
+        severity_coverage: e.severity_coverage,
+        conclusion: e.conclusion,
+        note: 'La severidad resume los HALLAZGOS EVALUADOS y su cobertura, no el riesgo del lote. La conclusión regulatoria sigue UNDETERMINED y NO se deriva de la severidad: D-07.5 (perfil jurídico) y D-07.6 (quién concluye) siguen pendientes. Un resultado técnico no es conformidad EUDR.',
+      },
       review: { process_status: process, history: reviews.map((r) => ({ action: r.action, reason: r.reason, at: r.reviewed_at, reviewer: `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim() || 'Miembro' })),
         note: 'La revisión humana registra el trabajo (iniciar, resolver con motivo). Resolver no cambia la evaluación ni la vuelve favorable; mitigaciones: P0-021.' },
       trigger: e.trigger,
@@ -312,5 +512,7 @@ export class RiskController {
   @Get('risk/lots/:lotId') lot(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('lotId', ParseUUIDPipe) l: string) { return this.service.lotRisk(u, o, l); }
   @Post('risk/lots/:lotId/evaluations') evaluate(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('lotId', ParseUUIDPipe) l: string, @Body() dto: EvaluateDto, @Req() req: AuthedRequest) { return this.service.evaluate(u, o, l, dto, req.requestId); }
   @Get('risk/evaluations/:id') evaluation(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string) { return this.service.evaluation(u, o, id); }
+  @Get('risk/rule-sets/adoptions') adoptions(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string) { return this.service.adoptions(u, o); }
+  @Post('risk/rule-sets/adoptions') adopt(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Body() dto: AdoptRuleSetDto, @Req() req: AuthedRequest) { return this.service.decideAdoption(u, o, dto, req.requestId); }
   @Post('risk/evaluations/:id/reviews') review(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ReviewDto, @Req() req: AuthedRequest) { return this.service.review(u, o, id, dto, req.requestId); }
 }

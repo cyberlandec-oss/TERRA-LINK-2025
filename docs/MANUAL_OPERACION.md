@@ -162,10 +162,18 @@ Ninguno es una avería. Son decisiones que faltan, y el sistema prefiere detener
 
 | Lo que no se puede hacer | Por qué | Quién lo desbloquea |
 | --- | --- | --- |
-| Obtener severidad o conclusión de riesgo | El catálogo de reglas no está aprobado, y **antes de aprobarlo hay que decidir qué puede concluir el motor** | **D-07** (contrato en `docs/decisiones/D-07-PROPUESTA.md`) |
+| Obtener **severidad** de riesgo | El **mecanismo** existe desde el 2026-10-15, pero **ninguna organización ha adoptado un catálogo que declare severidades**. Sin eso, toda evaluación sale «sin clasificar» con su motivo | Revisar y firmar la **matriz del catálogo** (`docs/decisiones/D-07-MATRIZ-CATALOGO.md`) y luego **adoptarlo** |
+| Obtener **conclusión regulatoria** | No hay perfil jurídico ni revisor autorizado definidos | **D-07.5 y D-07.6** |
 | Llegar a `READY` en el expediente | Seis requisitos no evaluables: perfil de geolocalización (**D-05.B**: el perfil **técnico** ya existe y no basta), análisis de deforestación (**D-09 parte B**), perfil jurídico (**P1-005**), catálogo de riesgo aprobado y conclusión regulatoria (**D-07**), vínculo con embarque (**D-34**/P0-029) | Las cinco decisiones citadas |
 | Despachar un embarque | Preflight y compuerta `SHIPMENT_DISPATCH` | **D-34** |
 | Encargar un análisis satelital real | El adaptador existe, su uso real no está autorizado | **D-09 parte B** |
+
+**Riesgo, desde el 2026-10-15.** La ficha de un lote puede mostrar ahora una **severidad**, pero solo si la
+organización ha **adoptado** un catálogo que la declare — y hoy ninguna lo ha hecho, así que verás «Sin
+clasificar» con el motivo. Cuando aparezca, léela como lo que es: **severidad de los hallazgos evaluados**, con su
+**cobertura** al lado. Si la cobertura dice que la clasificación es **parcial**, lo es: hay reglas que no se
+pudieron evaluar o categorías sin ninguna regla. **Una severidad no es una conclusión regulatoria**, y «bajo»
+nunca significa «insignificante» en sentido legal.
 
 **En Reportes, «Parcelas que cumplen el perfil técnico de destino»** (antes «Parcelas válidas (GIS)») dice ahora
 **contra qué criterio y qué versión** cuenta, y separa cinco situaciones: cumple, no cumple, en revisión, no
