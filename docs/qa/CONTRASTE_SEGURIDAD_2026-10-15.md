@@ -4,6 +4,9 @@
 escribió el código, ejecutadas en el equipo local. Una revisión de ciberseguridad externa sigue **pendiente** y es un
 gate aparte (docs/16 §Definition of Done).
 
+Validación de referencia: `validation-results/2026-10-15T01-45-25-586Z` — **APROBADA** sobre `a779ab3`
+(59 suites, 504 pruebas, 58 E2E), que incluye la corrección descrita abajo y su prueba.
+
 Exigencia contrastada: docs/16 §«Comprobaciones críticas de seguridad», QA-01/02/09/13/15, docs/07 (autorización),
 docs/12 (archivos privados), docs/15 §«Seguridad de llamadas externas» y docs/17.
 

@@ -16,7 +16,7 @@ Unitarias para invariantes; integración con PostgreSQL/PostGIS reales para tran
 | QA-04 | GPS/polígono/CRS/área/umbral/precisión desconocida/GeoJSON | Validación con motivos/regla, no superficie inventada de punto |
 | QA-05 | Entrega 500 kg, recepción parcial/completa, evento repetido, corrección | Peso declarado/real separados; hito/KDE y un único efecto |
 | QA-06 | Inputs 500 + 300 kg, pérdida 50, output 750; intento output 850; consumos/reservas concurrentes | Conservación; exceso rechazado; transacción impide saldo negativo/doble consumo |
-| QA-07 | Parcela → entrega → lote → proceso → output → embarque y recorrido inverso | Todos los orígenes conservados, cantidades/unidades, sin ciclos ni datos ocultos filtrados |
+| QA-07 | Parcela → entrega → lote → proceso → output → embarque y recorrido inverso | Todos los orígenes conservados, cantidades/unidades, sin ciclos ni datos ocultos filtrados. **Ejecutado** en `apps/api/test/recorrido-integral.int-spec.ts` (base aislada, datos sintéticos); alcance y bloqueos en `docs/qa/MATRIZ_RECORRIDO_INTEGRAL.md` |
 | QA-08 | Captura offline, cierre forzado, reboot, 7 días simulados, retry, adjunto interrumpido y conflicto | Persistencia sin pérdida, misma operación una vez, dependencias/conflicto visibles |
 | QA-09 | Archivo limpio/malicioso/MIME engañoso, escáner caído, nueva versión y vencimiento | Cuarentena/estado correcto, descarga autorizada y evidencia vigente explícita |
 | QA-10 | Inputs faltantes, score bajo con factor crítico, regla/dataset/geometría nueva, job antiguo | No conclusion automática; evaluación versionada reproducible, resultado antiguo no pisa nuevo |

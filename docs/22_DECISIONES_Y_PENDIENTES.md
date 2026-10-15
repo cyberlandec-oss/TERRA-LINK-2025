@@ -2,6 +2,9 @@
 
 Estas cuestiones no bloquean la lectura ni preparación del paquete. Bloquean únicamente la implementación que dependa de ellas. Resolver primero mediante repositorio/evidencia; preguntar al responsable solo lo que no se pueda determinar.
 
+Resumen ordenado por lo que bloquea criterios originales, con qué historia desbloquea cada decisión:
+**`docs/decisiones/DECISIONES-MINIMAS-PARA-CERRAR.md`** (recomendaciones, ninguna aprobada).
+
 | ID | Decisión/diferencia | Responsable propuesto | Evidencia de cierre |
 | --- | --- | --- | --- |
 | D-01 | Stack NestJS/Next vs antecedente FastAPI/React | Tech lead | Manifiestos/commit y ADR-0001 |

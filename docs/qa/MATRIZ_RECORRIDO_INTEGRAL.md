@@ -3,6 +3,9 @@
 Preparación de **P0-031**. Esto **no inicia ni completa el piloto**: no hay operadores reales, ni dataset de piloto,
 ni Android real, ni restauración de respaldo. Preparar documentos y ejecutar pruebas sintéticas no es operar.
 
+Validación de referencia: `validation-results/2026-10-15T01-45-25-586Z` — **APROBADA** sobre `a779ab3`:
+**59 suites, 504 pruebas** de integración y **58 E2E**.
+
 ## Cómo leer la columna «evidencia»
 
 | Tipo | Qué acredita | Dónde |
