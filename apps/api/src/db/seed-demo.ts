@@ -523,8 +523,11 @@ async function main(): Promise<void> {
         await call('POST', `${o}/risk/rule-sets/adoptions`, t, { operation_id: randomUUID(), rule_set_version: '1.0.0', decision: 'ADOPT',
           reason: 'Ensayo local del MVP en la Cooperativa DEMO: clasificar hallazgos para revisión por rol. No es aprobación regulatoria.' });
       }
-      const risk = (await call<Array<{ lot_id: string; lot_code: string; evaluation_id: string | null }>>('GET', `${o}/risk/lots`, t)).data;
-      for (const r of risk.filter((x) => !x.evaluation_id && ['LOT-2026-00001', 'LOT-2026-00002'].includes(x.lot_code))) {
+      // Idempotente: evalúa los lotes sin evaluación y **reevalúa** los que quedaron `STALE` al adoptar el
+      // catálogo. Adoptar NO recalcula nada por sí solo (D-07.4): hay que pedir la evaluación nueva, y esa crea un
+      // registro aparte sin tocar el anterior. Sin este paso, un DEMO ya sembrado nunca mostraría una severidad.
+      const risk = (await call<Array<{ lot_id: string; lot_code: string; evaluation_id: string | null; freshness: string | null }>>('GET', `${o}/risk/lots`, t)).data;
+      for (const r of risk.filter((x) => (!x.evaluation_id || x.freshness === 'STALE') && ['LOT-2026-00001', 'LOT-2026-00002'].includes(x.lot_code))) {
         await call('POST', `${o}/risk/lots/${r.lot_id}/evaluations`, t, { operation_id: randomUUID() });
       }
     }
