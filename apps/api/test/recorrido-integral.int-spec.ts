@@ -127,7 +127,37 @@ describeDb('Recorrido integral de la cadena (preparación P0-031, datos sintéti
     expect(quality.status).toBe('RELEASED');
     expect(quality.note).toMatch(/No es liberación jurídica/);
     anota('entrega → recepción → calidad', '500 kg declarados y 480 recibidos conservados por separado; calidad liberada por decisión humana (no jurídica)');
-    corta('recepción → cierre de entrega con diferencia', 'SIN_POLITICA_DE_CIERRE', 'D-33 (cierre y tolerancias de entregas)');
+
+    // Cierre de la entrega con diferencia (D-33, adoptada el 2026-10-15). Hasta esa fecha este tramo se anotaba como
+    // bloqueo «SIN_POLITICA_DE_CIERRE». Ahora se recorre de verdad: faltan 20 kg respecto de lo declarado y el cierre
+    // EXIGE motivo, cosa que se comprueba antes de darlo.
+    const sinMotivo = await http().post(`${A()}/deliveries/${d.id}/close`).set(as(ADMIN))
+      .send({ operation_id: op(), expected_version: vista.row_version }).expect(422);
+    expect(sinMotivo.body.error.details.map((x: { field: string }) => x.field)).toEqual(expect.arrayContaining(['reason']));
+    // Y quien solo confirma recepciones no puede cerrar con diferencia: afirmar una pérdida no es rutina de recepción.
+    await http().post(`${A()}/deliveries/${d.id}/close`).set(as(REC))
+      .send({ operation_id: op(), expected_version: vista.row_version, reason: 'Intento sin delivery:correct.' }).expect(403);
+
+    await http().post(`${A()}/deliveries/${d.id}/close`).set(as(ADMIN)).send({
+      operation_id: op(), expected_version: vista.row_version,
+      reason: 'Merma de transporte verificada en el centro de acopio (dato sintético del recorrido).',
+    }).expect(200);
+    const cierre = (await http().get(`${A()}/deliveries/${d.id}`).set(as(ADMIN)).expect(200)).body;
+    expect(cierre.totals.closure.status).toBe('CLOSED');
+    expect(cierre.status).toBe('CLOSED');
+    // La diferencia es declarado − recibido: positiva significa que faltó material respecto de lo declarado.
+    expect(kg(cierre.totals.closure.current.difference)).toEqual({ valor: 20, unit: 'KG' });
+    expect(cierre.totals.closure.justifications[0].reason).toMatch(/Merma de transporte/);
+    // Una entrega cerrada no admite recepciones nuevas y no hay transición de reapertura.
+    await http().post(`${A()}/deliveries/${d.id}/receptions`).set(as(REC)).send({
+      operation_id: op(), location_id: ctx.centro, received_at: now(),
+      weighing: { method: 'Báscula sintética', quantity: '20', unit: 'KG', weighed_on: today },
+    }).expect(409);
+    expect(cierre.actions.receive).toBe(false);
+    // Las cifras declarada y recibida siguen intactas: cerrar explica la diferencia, no la corrige.
+    expect(kg(cierre.quantity_declared)).toEqual({ valor: 500, unit: 'KG' });
+    expect(kg(cierre.totals.received)).toEqual({ valor: 480, unit: 'KG' });
+    anota('recepción → cierre de entrega con diferencia', '500 declarados − 480 recibidos = 20 kg faltantes; motivo obligatorio y delivery:correct exigido (D-33); sin reapertura ni ajuste de lo declarado; recepción posterior rechazada');
   });
 
   // ---------------------------------------------------------------- 3. lote → proceso → inventario

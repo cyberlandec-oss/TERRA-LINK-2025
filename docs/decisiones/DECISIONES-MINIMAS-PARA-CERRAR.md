@@ -6,14 +6,22 @@ no decisión aprobada: ninguna de estas líneas debe leerse como que ya se decid
 Estado de origen: `docs/22_DECISIONES_Y_PENDIENTES.md` (texto completo de cada decisión) y
 `docs/qa/MATRIZ_RECORRIDO_INTEGRAL.md` (dónde se detiene la cadena hoy).
 
+## Adoptadas el 2026-10-15 (ya no bloquean)
+
+| Decisión | Qué se adoptó | Qué desbloqueó | Qué sigue pendiente de ella |
+| --- | --- | --- | --- |
+| **D-32** · humedad del secado | Medición en **`%BH`** con método y responsable, **obligatoria para cerrar**; 6 decimales conservados y más precisión **rechazada**, nunca redondeada; tope 100 **estructural** | **P0-016 DONE_LOCAL**; `DRYING` INTEGRATED; transición 10 de la matriz | **Límites de aceptación**, **unidades de peso adicionales** con sus factores y **comprobación con operadores reales** |
+| **D-33** · cierre de entregas | Cierre **explícito**; **toda** diferencia exige motivo (lo que no prohíbe cerrar con diferencia); con diferencia exige `delivery:correct`; cerrada **no se reabre** ni admite recepciones; una corrección posterior **añade** justificación y conserva la anterior | **P0-012 DONE_LOCAL**; transiciones 5–6b de la matriz | **Tolerancias** y **límites de aceptación de calidad**; **comprobación con operadores reales** |
+
+Ambas son **reglas provisionales del MVP local**: aprobación **para desarrollo**, no validación en campo ni para
+producción.
+
 ## Las que bloquean la cadena operativa
 
 | Decisión | Qué hay que decidir, en concreto | Desbloquea | Recomendación (no aprobada) |
 | --- | --- | --- | --- |
-| **D-32** · unidad y definición de humedad (**propuesta escrita**: `docs/decisiones/D-32-PROPUESTA-HUMEDAD.md`) | Qué unidad (% base húmeda/seca), con qué método de medición y qué precisión; si el cierre de secado la exige siempre o admite «no medida» | **P0-016** (cerrar secado) y con ello el estado `CACAO_SECO` en la cadena · desatasca la transición 10 de la matriz | Adoptar **% en base húmeda** con método declarado por muestra, exigida para cerrar; sin ella el cierre sigue bloqueado |
-| **D-33** · cierre de entregas y diferencias con causa (**propuesta escrita**: `docs/decisiones/D-33-PROPUESTA-CIERRE-ENTREGAS.md`) | Cuándo una entrega queda cerrada; si se admite cerrar por debajo de lo declarado y con qué tolerancia; qué causas son válidas | **P0-012** (criterio «diferencias con causa») · transiciones 5–7 | Cerrar por recepción confirmada, con diferencia registrada y **causa obligatoria**; tolerancia 0 hasta tener datos de campo |
 | **D-34** · condición de `dd_package_id` y `dispatch_at` | Qué exige exactamente despachar: paquete DD aprobado y vigente, y qué fecha es `dispatch_at` | **P0-029** y **P0-017** (despacho) · transición 17 | No despachar sin paquete DD aprobado, vigente y exportado; `dispatch_at` = salida física registrada |
-| **D-05** · perfil GIS y umbral | Umbral de superficie (incluido el caso exacto de 4 ha), precisión y **formato del sistema de destino** | **P0-010**, **P0-009** (perfil destino), 2 indicadores de **P0-030**, requisito `GEOLOCATION_PROFILE` de **P0-022** · transiciones 4, 14, 22 | Partir de la propuesta ya escrita (`docs/decisiones/D-05-PROPUESTA.md`) y ratificarla con el responsable regulatorio |
+| **D-05** · perfil GIS y umbral (**propuesta en revisión 2**: `docs/decisiones/D-05-PROPUESTA.md`) | Umbral de superficie (incluido el caso exacto de 4 ha), superficie de referencia, precisión y **formato del sistema de destino** | **P0-010**, **P0-009** (perfil destino), 2 indicadores de **P0-030**, requisito `GEOLOCATION_PROFILE` de **P0-022** · transiciones 4, 14, 22 | La **especificación técnica del destino ya está verificada** y resuelve el umbral exacto (4,000000 ha con punto **se acepta**), tipos, CRS, truncamiento a 6 decimales y propiedades. **Falta el texto literal de la norma** y aclarar la vía de dirección postal de 2025/2650: hasta entonces **no se aprueba** |
 | **D-07** · severidad, proceso y conclusión de riesgo | Enums reales, mapeo de factores a severidad y **quién aprueba** el catálogo de reglas | **P0-020** (severidad), distribución de riesgo de **P0-030**, `RISK_CATALOG_APPROVED` de **P0-022** · transición 12 | Aprobar primero el catálogo `0.1.0` tal cual (sin pesos) y decidir severidad por regla, no por promedio |
 
 ## Las que bloquean el satélite y la evidencia
@@ -45,8 +53,13 @@ Estado de origen: `docs/22_DECISIONES_Y_PENDIENTES.md` (texto completo de cada d
 
 ## Orden sugerido
 
-1. **D-32 y D-33** — son las más baratas, no dependen de nadie externo y desatascan la parte operativa de la cadena.
-2. **D-05 y D-07** — tienen propuesta escrita; desbloquean GIS, riesgo, dos indicadores y dos requisitos del expediente.
+~~1. **D-32 y D-33**~~ — **adoptadas el 2026-10-15** (ver la sección de arriba).
+
+1. **D-05** — propuesta en **revisión 2**. Lo técnico del destino ya está verificado; lo que falta es **lectura
+   literal de la norma** y el alcance de la vía de dirección postal de 2025/2650. Es trabajo de un responsable
+   regulatorio, no de desarrollo.
+2. **D-07** — propuesta escrita; **independiente de D-05**. Desbloquea severidad de riesgo, un indicador de reportes
+   y dos requisitos del expediente.
 3. **D-34** — depende de que exista un paquete DD aprobado, que a su vez depende de las anteriores.
 4. **D-09 parte B** (empezando por el ensayo sintético) y después **D-42**.
 5. **D-04** y el **contrato de concesiones** — los dos criterios que faltan para cerrar **P0-003**.

@@ -381,6 +381,176 @@ test('P0-012 entregas: registrar con periodo por mes, recibir sin documento con 
   await ctx.close();
 });
 
+// ---------------------------------------------------------------------------------------------------
+// D-32 y D-33 en pantalla. Estas tres pruebas preparan por API su PROPIO material —productor, centro de acopio y
+// productos exclusivos— y no tocan el productor ENT-E2E-1, el centro CA-E2E ni los productos CACAO_BABA_E2E /
+// CACAO_FERM_E2E que usan entregas, lotes e inventario. Por eso su posición en el archivo ya no cambia ningún
+// resultado: el secado consume solo el lote que él mismo formó, y los cierres solo cierran entregas suyas.
+// Las comprobaciones de inventario (750 kg de Cacao fermentado E2E en Centro E2E, traslado y merma) se conservan
+// intactas; lo que se elimina es la dependencia de orden, no la verificación. Hasta el 2026-10-15 este bloque iba
+// al final del archivo justamente para evitar ese choque; ahora va ANTES de lotes, inventario, riesgo y reportes,
+// que es la posición que antes lo rompía: si el archivo entero pasa aquí, el aislamiento está demostrado por
+// ejecución y no por argumento.
+// Material propio de este bloque, creado por cada prueba que lo necesita y nunca compartido con las anteriores.
+const SECADO = { producer: 'SEC-E2E-1', center: 'CA-SEC-E2E', input: 'CACAO_FERM_SEC_E2E', output: 'CACAO_SECO_E2E' };
+const CIERRE = { producer: 'CIE-E2E-1', center: 'CA-CIE-E2E', product: 'CACAO_BABA_CIE_E2E' };
+
+/** Crea (o recupera, si ya existe) productor, centro y producto propios de una prueba. Sin tocar los de otras. */
+async function materialPropio(
+  request: import('@playwright/test').APIRequestContext,
+  orgId: string,
+  spec: { producer: string; center: string; products: Array<{ code: string; name: string; product_state: string }> },
+) {
+  const h = { authorization: `Bearer ${token}` };
+  const o = `${API_URL}/api/v1/organizations/${orgId}`;
+  await request.post(`${o}/producers`, { headers: h, data: { producer_code: spec.producer, legal_name: `Finca ${spec.producer}` } });
+  await request.post(`${o}/locations`, { headers: h, data: { code: spec.center, name: `Centro ${spec.center}`, location_type: 'COLLECTION_CENTER' } });
+  for (const p of spec.products) await request.post(`${o}/products`, { headers: h, data: { ...p, unit: 'KG' } });
+  const producer = (await (await request.get(`${o}/producers?q=${spec.producer}`, { headers: h })).json()).items[0].id as string;
+  const center = (await (await request.get(`${o}/locations`, { headers: h })).json()).find((l: { code: string }) => l.code === spec.center).id as string;
+  const catalogo = (await (await request.get(`${o}/products?limit=100`, { headers: h })).json()).items as Array<{ id: string; code: string }>;
+  const products = Object.fromEntries(spec.products.map((p) => [p.code, catalogo.find((c) => c.code === p.code)!.id])) as Record<string, string>;
+  return { o, h, producer, center, products };
+}
+
+/** Entrega registrada con su recepción, por API. Devuelve la entrega para operarla en pantalla. */
+async function entregaRecibida(
+  request: import('@playwright/test').APIRequestContext,
+  m: { o: string; h: Record<string, string>; producer: string; center: string },
+  productId: string,
+  declarado: string,
+  recibido: string,
+) {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const delivery = (await (await request.post(`${m.o}/deliveries`, { headers: m.h, data: { operation_id: crypto.randomUUID(), producer_id: m.producer, product_id: productId, delivery_date: hoy, quantity_declared: declarado, unit: 'KG', register: true } })).json()).delivery as { id: string; delivery_code: string };
+  const reception = (await (await request.post(`${m.o}/deliveries/${delivery.id}/receptions`, { headers: m.h, data: { operation_id: crypto.randomUUID(), location_id: m.center, received_at: new Date().toISOString(), weighing: { method: 'Báscula E2E', quantity: recibido, unit: 'KG', weighed_on: hoy } } })).json()).reception_id as string;
+  return { delivery, reception };
+}
+test('D-32 secado en pantalla: la humedad se exige al cerrar, en %BH y con método; la medición queda visible; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  const orgId = orgUrl.split('/organizaciones/')[1];
+  // Material propio: productor, centro y productos exclusivos del secado. El lote que se seca lo forma esta misma
+  // prueba, así que no consume el cacao fermentado cuyos saldos comprueban inventario, riesgo y reportes.
+  const m = await materialPropio(page.request, orgId, {
+    producer: SECADO.producer, center: SECADO.center,
+    products: [
+      { code: SECADO.input, name: 'Cacao fermentado para secado E2E', product_state: 'CACAO_FERMENTADO' },
+      { code: SECADO.output, name: 'Cacao seco E2E', product_state: 'CACAO_SECO' },
+    ],
+  });
+  const { reception } = await entregaRecibida(page.request, m, m.products[SECADO.input], '100', '100');
+  const ferm = (await (await page.request.post(`${m.o}/lots`, { headers: m.h, data: { operation_id: crypto.randomUUID(), inputs: [{ reception_id: reception, quantity: '100' }] } })).json()).lot as { id: string; lot_code: string };
+
+  await page.goto(`${orgUrl}/procesos`);
+  await page.getByLabel('Tipo', { exact: true }).selectOption('DRYING');
+  await page.getByLabel('Producto de salida').selectOption({ label: 'Cacao seco E2E (CACAO_SECO_E2E)' });
+  await page.getByRole('button', { name: 'Preparar proceso' }).click();
+  await expect(page.getByRole('heading', { name: /Secado PRC-/ })).toBeVisible();
+  // El aviso del secado ya no dice «bloqueado por una decisión pendiente»: dice qué dato hace falta.
+  await expect(page.getByText(/exige la humedad final medida en %BH, con método y responsable/)).toBeVisible();
+  await page.getByLabel(`Reservar de ${ferm.lot_code}`).fill('100');
+  await page.getByRole('button', { name: 'Iniciar proceso' }).click();
+  await expect(page.getByText('En curso (entradas reservadas)')).toBeVisible();
+
+  // Cerrar sin humedad: el formulario la exige, así que ni siquiera se envía.
+  await page.getByLabel('Salida (kg)').fill('90');
+  await page.getByLabel('Pérdida (kg)').fill('10');
+  await page.getByRole('button', { name: 'Cerrar proceso' }).click();
+  await expect(page.getByText('Cerrado', { exact: true })).toHaveCount(0);
+
+  // Más precisión de la que se conserva: el servidor la RECHAZA con su motivo, no la redondea.
+  await page.getByLabel('Humedad final (% en base húmeda)').fill('7.1234567');
+  await page.getByLabel('Método de medición').fill('Medidor portátil E2E');
+  await page.getByRole('button', { name: 'Cerrar proceso' }).click();
+  await expect(page.getByText(/No se redondea/)).toBeVisible();
+
+  await page.getByLabel('Humedad final (% en base húmeda)').fill('7.25');
+  await page.getByRole('button', { name: 'Cerrar proceso' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Cerrado', { exact: true })).toBeVisible();
+  // La medición queda a la vista con su método y su responsable; un decimal es presentación, no el dato guardado.
+  await expect(page.getByText(/7\.3 %BH/)).toBeVisible();
+  await expect(page.getByText(/valor registrado: 7\.25/)).toBeVisible();
+  await expect(page.getByText('Medidor portátil E2E')).toBeVisible();
+  await expect(page.getByText(/No hay límites de aceptación/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+
+  // El secado solo movió su propio material: en inventario, el lote secado aparece en SU centro y el cacao
+  // fermentado de las otras pruebas no figura en él. No se comprueba aquí el saldo de Centro E2E: esa cifra la
+  // mueve el traslado de P0-017 y comprobarla desde aquí reintroduciría la dependencia de orden que se elimina.
+  await page.goto(`${orgUrl}/inventario`);
+  const propias = page.getByRole('table', { name: 'Existencias por lote y centro' }).locator('tbody tr').filter({ hasText: `Centro ${SECADO.center}` });
+  await expect(propias.filter({ hasText: 'Cacao seco E2E' }).first()).toContainText('90 kg');
+  await expect(propias.filter({ hasText: 'Cacao fermentado E2E' })).toHaveCount(0);
+  await ctx.close();
+});
+
+test('D-33 cierre de entrega en pantalla: toda diferencia exige motivo, lo cerrado no se reabre y la justificación se conserva; 390 px y teclado', async ({ browser }) => {
+  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
+  const orgId = orgUrl.split('/organizaciones/')[1];
+  // Productor, centro y producto propios: las entregas que esta prueba crea y cierra no entran en los saldos ni en
+  // las listas que comprueban entregas, lotes e inventario, y da igual dónde se ejecute el archivo.
+  const m = await materialPropio(page.request, orgId, {
+    producer: CIERRE.producer, center: CIERRE.center,
+    products: [{ code: CIERRE.product, name: 'Cacao en baba para cierre E2E', product_state: 'CACAO_BABA' }],
+  });
+  const producto = m.products[CIERRE.product];
+  const { delivery: conDiferencia } = await entregaRecibida(page.request, m, producto, '100', '90');
+
+  await page.goto(`${orgUrl}/entregas/${conDiferencia.id}`);
+  const cierre = page.getByRole('region', { name: 'Cierre de la entrega' });
+  await expect(cierre).toContainText('Abierta');
+  await expect(cierre).toContainText('10 kg');
+  await expect(cierre).toContainText('faltó respecto de lo declarado');
+  await cierre.getByText('Cerrar la entrega', { exact: true }).click();
+  await expect(page.getByText(/el motivo es obligatorio/)).toBeVisible();
+  await page.getByLabel('Motivo de la diferencia').fill('Merma de transporte verificada en el centro');
+  await page.getByRole('button', { name: 'Cerrar entrega' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(cierre).toContainText('Cerrada y justificada');
+  await expect(cierre).toContainText('Merma de transporte verificada en el centro');
+  // Cerrada: ni se registran recepciones nuevas ni hay forma de reabrir en pantalla.
+  await expect(page.getByRole('button', { name: 'Revisar recepción' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /reabrir/i })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+
+  // Sin diferencia no se pide motivo alguno: cerrar es rutina.
+  const { delivery: sinDiferencia } = await entregaRecibida(page.request, m, producto, '50', '50');
+  await page.goto(`${orgUrl}/entregas/${sinDiferencia.id}`);
+  await page.getByRole('region', { name: 'Cierre de la entrega' }).getByText('Cerrar la entrega', { exact: true }).click();
+  await expect(page.getByText('No hay diferencia que explicar.')).toBeVisible();
+  await expect(page.getByLabel('Motivo de la diferencia')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Cerrar entrega' }).click();
+  await expect(page.getByRole('region', { name: 'Cierre de la entrega' })).toContainText('Cerrada y justificada');
+  await ctx.close();
+});
+
+test('D-33: un rol sin lectura de entregas no ve ni la pantalla ni el cierre; la negación se explica', async ({ browser }) => {
+  // Entrega cerrada propia, creada y cerrada por API con la cuenta administradora: la prueba ya no depende de que
+  // otra haya dejado una entrega en CLOSED, así que tampoco se salta en silencio cuando no la encuentra.
+  const admin = await browser.newContext();
+  const orgId = orgUrl.split('/organizaciones/')[1];
+  const m = await materialPropio(admin.request, orgId, {
+    producer: CIERRE.producer, center: CIERRE.center,
+    products: [{ code: CIERRE.product, name: 'Cacao en baba para cierre E2E', product_state: 'CACAO_BABA' }],
+  });
+  const { delivery: cerrada } = await entregaRecibida(admin.request, m, m.products[CIERRE.product], '40', '40');
+  const detalle = await (await admin.request.get(`${m.o}/deliveries/${cerrada.id}`, { headers: m.h })).json() as { row_version: number };
+  const cierre = await admin.request.post(`${m.o}/deliveries/${cerrada.id}/close`, { headers: m.h, data: { operation_id: crypto.randomUUID(), expected_version: detalle.row_version } });
+  expect(cierre.status()).toBe(200);
+  await admin.close();
+
+  const login = await (await browser.newContext()).request.post(`${API_URL}/api/v1/auth/login`, { data: { email: BUYER.email, password: BUYER.password } });
+  expect(login.ok()).toBe(true); // la cuenta de comprador se crea en «usuario sin permiso», al principio del archivo
+  const t = (await login.json()).access_token as string;
+  const { ctx, page } = await open(browser, t, { width: 390, height: 844 });
+  await page.goto(`${orgUrl}/entregas/${cerrada.id}`);
+  await expect(page.getByText('Tu rol no permite consultar entregas.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Cerrar entrega' })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await ctx.close();
+});
+
 test('P0-016 lotes y fermentación: formar lote, reservar, rechazo de balance, cierre 800 → 750 + 50 con rendimiento; 390 px y teclado', async ({ browser }) => {
   const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
   const orgId = orgUrl.split('/organizaciones/')[1];
@@ -720,121 +890,3 @@ test('P0-030 reportes: sin permiso no hay menú ni acceso; la exportación exige
   await ctx.close();
 });
 
-// ---------------------------------------------------------------------------------------------------
-// D-32 y D-33 en pantalla. Van al FINAL del archivo a propósito: el secado consume 100 kg del lote
-// fermentado y el cierre de entregas crea entregas nuevas; colocarlas antes movería los saldos que
-// comprueban inventario, riesgo y reportes, y esas pruebas dejarían de medir lo que medían.
-test('D-32 secado en pantalla: la humedad se exige al cerrar, en %BH y con método; la medición queda visible; 390 px y teclado', async ({ browser }) => {
-  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
-  const orgId = orgUrl.split('/organizaciones/')[1];
-  const h = { authorization: `Bearer ${token}` };
-  const o = `${API_URL}/api/v1/organizations/${orgId}`;
-  await page.request.post(`${o}/products`, { headers: h, data: { code: 'CACAO_SECO_E2E', name: 'Cacao seco E2E', product_state: 'CACAO_SECO', unit: 'KG' } });
-  // Lote propio para esta prueba: los lotes de las pruebas anteriores quedaron repartidos entre centros por los
-  // traslados de inventario, y un proceso exige su entrada en un solo centro. Preparar el material por API mantiene
-  // la prueba centrada en lo que verifica: la pantalla del secado.
-  const products = await (await page.request.get(`${o}/products?limit=100`, { headers: h })).json() as { items: Array<{ id: string; code: string }> };
-  const ferment = products.items.find((x) => x.code === 'CACAO_FERM_E2E')!.id;
-  const producer = (await (await page.request.get(`${o}/producers?q=ENT-E2E-1`, { headers: h })).json()).items[0].id;
-  const center = (await (await page.request.get(`${o}/locations`, { headers: h })).json()).find((l: { code: string }) => l.code === 'CA-E2E').id;
-  const hoy = new Date().toISOString().slice(0, 10);
-  const entrega = (await (await page.request.post(`${o}/deliveries`, { headers: h, data: { operation_id: crypto.randomUUID(), producer_id: producer, product_id: ferment, delivery_date: hoy, quantity_declared: '100', unit: 'KG', register: true } })).json()).delivery;
-  const recepcion = (await (await page.request.post(`${o}/deliveries/${entrega.id}/receptions`, { headers: h, data: { operation_id: crypto.randomUUID(), location_id: center, received_at: new Date().toISOString(), weighing: { method: 'Báscula E2E', quantity: '100', unit: 'KG', weighed_on: hoy } } })).json()).reception_id;
-  const ferm = (await (await page.request.post(`${o}/lots`, { headers: h, data: { operation_id: crypto.randomUUID(), inputs: [{ reception_id: recepcion, quantity: '100' }] } })).json()).lot as { id: string; lot_code: string };
-
-  await page.goto(`${orgUrl}/procesos`);
-  await page.getByLabel('Tipo', { exact: true }).selectOption('DRYING');
-  await page.getByLabel('Producto de salida').selectOption({ label: 'Cacao seco E2E (CACAO_SECO_E2E)' });
-  await page.getByRole('button', { name: 'Preparar proceso' }).click();
-  await expect(page.getByRole('heading', { name: /Secado PRC-/ })).toBeVisible();
-  // El aviso del secado ya no dice «bloqueado por una decisión pendiente»: dice qué dato hace falta.
-  await expect(page.getByText(/exige la humedad final medida en %BH, con método y responsable/)).toBeVisible();
-  await page.getByLabel(`Reservar de ${ferm.lot_code}`).fill('100');
-  await page.getByRole('button', { name: 'Iniciar proceso' }).click();
-  await expect(page.getByText('En curso (entradas reservadas)')).toBeVisible();
-
-  // Cerrar sin humedad: el formulario la exige, así que ni siquiera se envía.
-  await page.getByLabel('Salida (kg)').fill('90');
-  await page.getByLabel('Pérdida (kg)').fill('10');
-  await page.getByRole('button', { name: 'Cerrar proceso' }).click();
-  await expect(page.getByText('Cerrado', { exact: true })).toHaveCount(0);
-
-  // Más precisión de la que se conserva: el servidor la RECHAZA con su motivo, no la redondea.
-  await page.getByLabel('Humedad final (% en base húmeda)').fill('7.1234567');
-  await page.getByLabel('Método de medición').fill('Medidor portátil E2E');
-  await page.getByRole('button', { name: 'Cerrar proceso' }).click();
-  await expect(page.getByText(/No se redondea/)).toBeVisible();
-
-  await page.getByLabel('Humedad final (% en base húmeda)').fill('7.25');
-  await page.getByRole('button', { name: 'Cerrar proceso' }).focus();
-  await page.keyboard.press('Enter');
-  await expect(page.getByText('Cerrado', { exact: true })).toBeVisible();
-  // La medición queda a la vista con su método y su responsable; un decimal es presentación, no el dato guardado.
-  await expect(page.getByText(/7\.3 %BH/)).toBeVisible();
-  await expect(page.getByText(/valor registrado: 7\.25/)).toBeVisible();
-  await expect(page.getByText('Medidor portátil E2E')).toBeVisible();
-  await expect(page.getByText(/No hay límites de aceptación/)).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
-  await ctx.close();
-});
-
-test('D-33 cierre de entrega en pantalla: toda diferencia exige motivo, lo cerrado no se reabre y la justificación se conserva; 390 px y teclado', async ({ browser }) => {
-  const { ctx, page } = await open(browser, token, { width: 390, height: 844 });
-  const orgId = orgUrl.split('/organizaciones/')[1];
-  const h = { authorization: `Bearer ${token}` };
-  const o = `${API_URL}/api/v1/organizations/${orgId}`;
-  const producer = (await (await page.request.get(`${o}/producers?q=ENT-E2E-1`, { headers: h })).json()).items[0].id;
-  const products = (await (await page.request.get(`${o}/products?limit=100`, { headers: h })).json()).items as Array<{ id: string; code: string }>;
-  const baba = products.find((x) => x.code === 'CACAO_BABA_E2E')!.id;
-  const center = (await (await page.request.get(`${o}/locations`, { headers: h })).json()).find((l: { code: string }) => l.code === 'CA-E2E').id;
-  const today = new Date().toISOString().slice(0, 10);
-  const crear = async (declarado: string, recibido: string) => {
-    const d = (await (await page.request.post(`${o}/deliveries`, { headers: h, data: { operation_id: crypto.randomUUID(), producer_id: producer, product_id: baba, delivery_date: today, quantity_declared: declarado, unit: 'KG', register: true } })).json()).delivery;
-    await page.request.post(`${o}/deliveries/${d.id}/receptions`, { headers: h, data: { operation_id: crypto.randomUUID(), location_id: center, received_at: new Date().toISOString(), weighing: { method: 'Báscula E2E', quantity: recibido, unit: 'KG', weighed_on: today } } });
-    return d;
-  };
-  const conDiferencia = await crear('100', '90');
-
-  await page.goto(`${orgUrl}/entregas/${conDiferencia.id}`);
-  const cierre = page.getByRole('region', { name: 'Cierre de la entrega' });
-  await expect(cierre).toContainText('Abierta');
-  await expect(cierre).toContainText('10 kg');
-  await expect(cierre).toContainText('faltó respecto de lo declarado');
-  await cierre.getByText('Cerrar la entrega', { exact: true }).click();
-  await expect(page.getByText(/el motivo es obligatorio/)).toBeVisible();
-  await page.getByLabel('Motivo de la diferencia').fill('Merma de transporte verificada en el centro');
-  await page.getByRole('button', { name: 'Cerrar entrega' }).focus();
-  await page.keyboard.press('Enter');
-  await expect(cierre).toContainText('Cerrada y justificada');
-  await expect(cierre).toContainText('Merma de transporte verificada en el centro');
-  // Cerrada: ni se registran recepciones nuevas ni hay forma de reabrir en pantalla.
-  await expect(page.getByRole('button', { name: 'Revisar recepción' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /reabrir/i })).toHaveCount(0);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
-
-  // Sin diferencia no se pide motivo alguno: cerrar es rutina.
-  const sinDiferencia = await crear('50', '50');
-  await page.goto(`${orgUrl}/entregas/${sinDiferencia.id}`);
-  await page.getByRole('region', { name: 'Cierre de la entrega' }).getByText('Cerrar la entrega', { exact: true }).click();
-  await expect(page.getByText('No hay diferencia que explicar.')).toBeVisible();
-  await expect(page.getByLabel('Motivo de la diferencia')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Cerrar entrega' }).click();
-  await expect(page.getByRole('region', { name: 'Cierre de la entrega' })).toContainText('Cerrada y justificada');
-  await ctx.close();
-});
-
-test('D-33: un rol sin lectura de entregas no ve ni la pantalla ni el cierre; la negación se explica', async ({ browser }) => {
-  const login = await (await browser.newContext()).request.post(`${API_URL}/api/v1/auth/login`, { data: { email: BUYER.email, password: BUYER.password } });
-  test.skip(!login.ok(), 'requiere la cuenta de comprador creada en las pruebas anteriores');
-  const t = (await login.json()).access_token as string;
-  const { ctx, page } = await open(browser, t, { width: 390, height: 844 });
-  const orgId = orgUrl.split('/organizaciones/')[1];
-  const lista = await (await browser.newContext()).request.get(`${API_URL}/api/v1/organizations/${orgId}/deliveries?status=CLOSED`, { headers: { authorization: `Bearer ${token}` } });
-  const cerrada = (await lista.json() as Array<{ id: string }>)[0];
-  test.skip(!cerrada, 'requiere una entrega cerrada de la prueba anterior');
-  await page.goto(`${orgUrl}/entregas/${cerrada.id}`);
-  await expect(page.getByText('Tu rol no permite consultar entregas.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Cerrar entrega' })).toHaveCount(0);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
-  await ctx.close();
-});

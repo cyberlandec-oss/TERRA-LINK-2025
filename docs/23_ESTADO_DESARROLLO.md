@@ -1,6 +1,11 @@
 # Estado compartido de desarrollo
 
-Última actualización: 2026-10-10. Repositorio `cyberlandec-oss/TERRA-LINK-2025`, rama de trabajo `feat/tech-001-ci-p0-002` (PR #1 abierto como respaldo y revisión; `main` en `03bb2f6`).
+Última actualización: **2026-10-15**. Repositorio `cyberlandec-oss/TERRA-LINK-2025`, rama de trabajo `feat/tech-001-ci-p0-002` (PR #1 abierto como respaldo y revisión; `main` en `03bb2f6`).
+
+**Seguimiento por historias al 2026-10-15** (cuenta **historias**, no esfuerzo): **21** reportadas DONE_LOCAL con sus
+límites de evidencia · **10** abiertas con implementación parcial o criterios bloqueados · **1** (P0-031) cuyo piloto
+real sigue **sin ejecutar**. Los dos bloqueos centrales que siguen son **D-05** y **D-07**: afectan GIS, reportes y la
+preparación del expediente.
 
 > Resultados ajenos a este proyecto: la auditoría inicial del repo `cacao` no aplica a Terra Link 2025.
 
@@ -8,11 +13,24 @@
 
 GitHub Actions no es requisito en esta etapa (workflow inactivo en `infra/ci/github-actions-ci.yml`). La facturación de GitHub **no es un bloqueo**. **DONE_LOCAL** = criterios de la historia cumplidos con evidencia local (`npm run validate` aprobado + suites de la historia). DONE_LOCAL no acredita producción, Android real ni conformidad EUDR.
 
-Última validación: `npm run validate` **APROBADA** el 2026-10-14 sobre el commit `c5e44da`
-(`validation-results/2026-10-14T04-25-23-695Z`, no versionado): 7 pasos — servicios 1,1 s, typecheck 27,6 s, lint 11,2 s,
-build 31,7 s, OpenAPI validado 27,4 s, **50 suites y 389 pruebas** de unitarias + integración (520,7 s) y **57 pruebas**
-E2E de navegador (124,5 s). La anterior, sobre `ad03b80` (`2026-10-14T02-21-43-641Z`), acreditó P0-029 con 49 suites y
-381 pruebas.
+Última validación: `npm run validate` **APROBADA** el 2026-10-15, corrida
+`validation-results/2026-10-15T04-25-29-508Z` (no versionada): 7 pasos — servicios, typecheck, lint, build, OpenAPI
+validado, **60 suites y 519 pruebas** de unitarias + integración y **61 pruebas** E2E de navegador.
+
+**Qué código acredita esa corrida.** Se ejecutó **antes** del commit final: su resumen anota `commit: 7e62c74` y 31
+entradas sin confirmar. El código probado es el que después se guardó como **`2c1ab60`**, y esa correspondencia se
+comprobó —padre del commit, 31 segundos de diferencia, y los registros de la corrida mostrando las suites y los
+títulos de prueba que solo existen en ese commit— con su límite declarado, en
+`docs/qa/EVIDENCIA_D32_D33_2026-10-15.md` §«Correspondencia entre la corrida y el commit». **A la corrida no se le
+atribuye un SHA que aún no existía.**
+
+El 2026-10-15, después de esa validación, se ejecutaron además —sin repetir `validate` completa, por tratarse de
+código de prueba y documentación— el recorrido integral (**10/10**) y `e2e/tests/productos.spec.ts` completo
+**dos veces, en dos ordenaciones distintas** (**24/24** cada una).
+
+La anterior aprobada fue `a779ab3` (`2026-10-15T01-45-25-586Z`, 59 suites / 504 pruebas + 58 E2E). La corrida
+intermedia `2026-10-15T03-42-23-936Z` se **conserva FALLIDA**: una expectativa de prueba desactualizada por la
+publicación del catálogo `1.6.0`, no un defecto del producto.
 
 **Pendiente de entorno, abierto**: entre el 2026-10-12 y el 2026-10-14 cinco corridas seguidas fallaron, cada una con una
 suite distinta superando el timeout de 60 s. La causa no está confirmada; la hipótesis principal es la latencia del disco
@@ -31,7 +49,7 @@ mediciones en `docs/qa/DIAGNOSTICO_VALIDACION_INESTABLE_2026-10-13.md`.
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
 | P0-007 Punto GPS | **DONE_LOCAL** con evidencia **simulada**; captura real pendiente de comprobación humana | Ver criterios abajo |
-| P0-031 Piloto y operación reproducible | **NO INICIADA** como piloto. Preparación hecha: **recorrido integral** de la cadena en base aislada (10 casos: nueve transiciones encadenadas y **seis bloqueos** con su decisión); **QA-16 COMPLETA en sus dos mitades**: respaldo y restauración verificados sobre las 39 migraciones actuales (cotejo de 25 tablas, 265 FK, descifrado 18+21 campos sin fallos, objetos 2/2 por clave, tamaño y hash) **y la aplicación operando sobre la copia** en instancia aislada con API y web propias (9 comprobaciones correctas, 3 bloqueos esperados, 0 fallas); **manual de operación y guion de capacitación escritos**. **Sin ejecutar**: volumen de piloto (20–50 productores), Android real, **RPO/RTO con volumen real** y **capacitación impartida** | Ver `docs/qa/MATRIZ_RECORRIDO_INTEGRAL.md`, `docs/qa/EVIDENCIA_QA16_RESTAURACION_2026-10-15.md`, `docs/MANUAL_OPERACION.md`, `docs/qa/CONTRASTE_SEGURIDAD_2026-10-15.md` y `docs/decisiones/DECISIONES-MINIMAS-PARA-CERRAR.md` |
+| P0-031 Piloto y operación reproducible | **NO INICIADA** como piloto. Preparación hecha: **recorrido integral** de la cadena en base aislada (10 casos: **once transiciones encadenadas** —incluido el **cierre de entrega con diferencia**, desde el 2026-10-15— y **cinco bloqueos** con su decisión: D-05, D-07, D-09 parte B, expediente y despacho); **QA-16 COMPLETA en sus dos mitades**: respaldo y restauración verificados sobre las 39 migraciones de entonces (hoy el despliegue lleva **40**) (cotejo de 25 tablas, 265 FK, descifrado 18+21 campos sin fallos, objetos 2/2 por clave, tamaño y hash) **y la aplicación operando sobre la copia** en instancia aislada con API y web propias (9 comprobaciones correctas, 3 bloqueos esperados, 0 fallas); **manual de operación y guion de capacitación escritos**. **Sin ejecutar**: volumen de piloto (20–50 productores), Android real, **RPO/RTO con volumen real** y **capacitación impartida** | Ver `docs/qa/MATRIZ_RECORRIDO_INTEGRAL.md`, `docs/qa/EVIDENCIA_QA16_RESTAURACION_2026-10-15.md`, `docs/MANUAL_OPERACION.md`, `docs/qa/CONTRASTE_SEGURIDAD_2026-10-15.md` y `docs/decisiones/DECISIONES-MINIMAS-PARA-CERRAR.md` |
 | P0-028 Primer proveedor satelital | **ABIERTA** (2026-10-14): contrato, persistencia, trabajo asíncrono, desenlaces, defensa de salida, permisos y ficha de parcela implementados y probados **sin proveedor seleccionado**. Ningún resultado puede guardarse con conclusión (`CHECK conclusion = 'NOT_EVALUATED'`) y los resultados de fixture quedan marcados `is_synthetic` y no satisfacen ningún requisito. **D-09 parte A adoptada (2026-10-15)**: adaptador Whisp de desarrollo, probado contra servidores controlados, con llamadas reales cerradas por configuración. Bloqueado por **D-09 parte B** (uso real), **D-07** (regla de riesgo evaluable) y **D-42** (contrato de resultado→evidencia; **no** es D-37, que decide la autoverificación). Validación vigente: `e9ffb9f` (57 suites, 472 pruebas, 58 E2E) | Ver `docs/decisiones/P0-028-SATELITE.md` y `docs/qa/EVIDENCIA_P0-028_2026-10-14.md` |
 | P0-030 Reportes e indicadores | **ABIERTA** (2026-10-14, revisión 3; `validate` APROBADA sobre `ebb8368`). Demostrado: 11 KPI de §60 con **cinco estados** y conteos `observed`; **seis reportes por entidad de §97** con permiso de **cada dominio del que publican datos**, probado en memoria con permisos arbitrarios; paginación por cursor (520 filas, sin duplicados ni omisiones) y exportación del conjunto completo hasta 20 000 filas, con el tope declarado; **GeoJSON técnico**; **comparación de actividad** por fecha operativa; cobertura histórica corregida; consistencia por instantánea declarada con su alcance exacto. Bloqueado: `plots_valid` (D-05), distribución de riesgo (**D-07** + catálogo NOT_APPROVED + `CHECK` del esquema) y perfil regulatorio del GeoJSON (D-05) | Ver `docs/decisiones/P0-030-CRITERIOS.md`, `docs/decisiones/P0-030-REPORTES.md` y `docs/qa/EVIDENCIA_P0-030_2026-10-14.md` |
 | P0-029 Movimientos y embarque | **ABIERTA**: reserva/liberación/cancelación en el ledger, preflight y destino en el Lot Hub demostrados; **despacho no demostrado** (bloqueado por D-34, DD READY inalcanzable y calidad pendiente; mecánica probada solo con preflight sintético). `npm run validate` **APROBADA** el 2026-10-14 sobre `ad03b80` (`2026-10-14T02-21-43-641Z`): es la primera completa que incluye esta historia, y no cierra el pendiente funcional. CTE `SHIPMENT` figura INTEGRATED en su sentido de contrato —la operación y su evento existen—, no como despacho acreditado | Ver `docs/decisiones/P0-029-EMBARQUES.md` y `docs/qa/EVIDENCIA_P0-029_2026-10-12.md` |
@@ -560,7 +578,15 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 - Android/offline, integraciones, despliegue: no iniciados.
 - Logotipo oficial y verificación de licencia de Inter (UX-D01/UX-D02). Evaluación de accesibilidad completa (lector de pantalla, zoom 200 %) no realizada: solo foco por teclado y móvil comprobados.
 
-## Próxima acción: decisiones D-33/D-34/D-35 para P0-012 (propuesta en `docs/decisiones/D-33-34-35-PROPUESTA-ENTREGAS.md`); trabajo independiente: P0-020 Risk engine (revisar dependencias)
+## Próxima acción (2026-10-15)
+
+**D-05** — perfil de destino geoespacial. Revisión 2 de la propuesta escrita y **no aprobada** en
+`docs/decisiones/D-05-PROPUESTA.md`: con la especificación técnica del sistema de destino **verificada directamente**
+y la **fuente legal pendiente de lectura literal**. Después, **D-07** (severidad de riesgo), que sigue siendo
+independiente. Lista completa y ordenada en `docs/decisiones/DECISIONES-MINIMAS-PARA-CERRAR.md`.
+
+Histórico: la acción anterior era «decisiones D-33/D-34/D-35 para P0-012». D-33 quedó **adoptada como regla
+provisional del MVP local** el 2026-10-15 (no validada en campo ni para producción); D-34 y D-35 siguen abiertas.
 
 ## Anterior: P0-006 Parcela
 

@@ -68,9 +68,24 @@ conserva.
 | Registrar entrega | Entregas → Nueva → productor, producto, cantidad declarada, parcela de origen | La entrega queda registrada con su origen |
 | Confirmar recepción | Entrega → Recibir → centro, fecha, pesaje | **Declarado y recibido se conservan por separado**: 500 declarados con 480 recibidos son dos datos, no un error |
 | Tomar muestra | En la recepción, añadir muestra | La calidad queda **«Pendiente de evaluación»** |
+| **Cerrar la entrega** | Entrega → «Cerrar la entrega» → motivo si hay diferencia | La entrega pasa a **«Cerrada y justificada»** |
 
-**Bloqueo vigente**: **no se puede cerrar una entrega con diferencia** ni fijar tolerancias. Falta la política
-(**D-33**). Mientras tanto, la diferencia queda registrada y la entrega sigue abierta.
+**Cómo funciona el cierre** (**D-33**, regla provisional del MVP local desde el 2026-10-15):
+
+- El cierre es **explícito**. Recibir no cierra nada: una entrega sigue abierta hasta que alguien la cierra.
+- **Toda** diferencia exige **motivo**, falte o sobre material. Lo que la regla pide es **explicarla**, no evitarla:
+  se puede cerrar con diferencia.
+- Cerrar **con diferencia** necesita permiso de corrección de entregas, no solo el de confirmar recepciones:
+  afirmar una pérdida no es rutina de mostrador. Quien solo recibe verá el cierre **denegado y explicado**.
+- **Sin diferencia** no se pide motivo: cerrar es rutina.
+- Una entrega cerrada **no admite recepciones nuevas y no se reabre**. Si llega más material, es **otra entrega**.
+- Cerrar **no ajusta** lo declarado: 500 declarados y 480 recibidos siguen siendo dos cifras conservadas.
+- Si una corrección admitida cambia la diferencia después del cierre, la entrega **sigue cerrada**, el motivo
+  anterior **se conserva** y se **añade** uno nuevo. Ningún motivo se reemplaza jamás.
+
+**Lo que aún no hay**: **tolerancias** ni límites de aceptación. El sistema no decide si una diferencia es
+aceptable; registra quién la explicó y cómo. Y **nadie que reciba cacao de verdad ha usado todavía este cierre**:
+está probado con datos sintéticos.
 
 ### 2.4 Operador de calidad (QUALITY_OPERATOR)
 
@@ -87,11 +102,23 @@ conserva.
 | --- | --- | --- |
 | Formar lote | Lotes → Nuevo → recepciones | El lote hereda el origen. Si algún insumo no lo declara, queda **«Origen incompleto»** y no se mezcla con origen conocido |
 | Fermentación | Procesos → Nuevo (FERMENTATION) → iniciar con insumos → cerrar con salidas y merma | Conservación: lo consumido = lo producido + la merma documentada |
-| Secado | Procesos → Nuevo (DRYING) → iniciar | **Se prepara y se inicia, pero NO se cierra** |
+| Secado | Procesos → Nuevo (DRYING) → iniciar con insumos → cerrar con salidas, merma **y humedad** | Conservación igual que en fermentación, más la medición de humedad |
 | Traslados y mermas | Inventario → movimiento | El saldo sale del ledger, que es la única fuente |
 
-**Bloqueo vigente**: cerrar un secado exige la **unidad de humedad** (**D-32**). El material queda reservado por el
-proceso abierto —no se pierde— y el proceso puede cancelarse.
+**Cómo se cierra un secado** (**D-32**, regla provisional del MVP local desde el 2026-10-15):
+
+- La humedad final es una **medición**, en **`%BH`** (porcentaje en base húmeda), con **método** y **responsable**.
+  Es **obligatoria para cerrar**: sin ella el formulario no deja enviar y el servidor tampoco lo acepta.
+- Se conservan hasta **seis decimales**. Si se escribe más precisión, **se rechaza con su motivo**: no se redondea
+  al guardar. En pantalla se presenta con un decimal, y el valor registrado se muestra al lado.
+- El tope de **100** es **estructural** (un porcentaje no pasa de 100), **no** un criterio de calidad.
+- La humedad **no convierte masas**: el balance sigue siendo en kg. Lo consumido = lo producido + la merma.
+
+**Lo que aún no hay**: **límites de aceptación**. El sistema **no decide si una humedad es buena**; registra la
+medición, quién la tomó y con qué método. Tampoco hay **unidades de peso adicionales**: hoy solo kg. Y **ningún
+operador real ha medido un secado con esto**: está probado con datos sintéticos.
+
+Mientras el proceso está abierto, el material queda **reservado** —no se pierde— y el proceso puede cancelarse.
 
 ### 2.6 Responsable EUDR (EUDR_MANAGER)
 
@@ -135,12 +162,15 @@ Ninguno es una avería. Son decisiones que faltan, y el sistema prefiere detener
 
 | Lo que no se puede hacer | Por qué | Quién lo desbloquea |
 | --- | --- | --- |
-| Cerrar un secado | No está definida la unidad de humedad | **D-32** |
-| Cerrar una entrega con diferencia | No hay política de cierre ni tolerancias | **D-33** |
 | Obtener severidad o conclusión de riesgo | El catálogo de reglas no está aprobado | **D-07** |
 | Llegar a `READY` en el expediente | Seis requisitos no evaluables: perfil de geolocalización (**D-05**), análisis de deforestación (**D-09 parte B**), perfil jurídico (**P1-005**), catálogo de riesgo aprobado y conclusión regulatoria (**D-07**), vínculo con embarque (**D-34**/P0-029) | Las cinco decisiones citadas |
 | Despachar un embarque | Preflight y compuerta `SHIPMENT_DISPATCH` | **D-34** |
 | Encargar un análisis satelital real | El adaptador existe, su uso real no está autorizado | **D-09 parte B** |
+
+**Dos que ya NO están bloqueados** (desde el 2026-10-15): **cerrar un secado** y **cerrar una entrega con
+diferencia**. D-32 y D-33 se adoptaron como reglas provisionales del MVP local y ambas operaciones se ejecutan. Ver
+§2.3 y §2.5. Que se ejecuten **no** significa que estén validadas en campo ni que haya límites de aceptación: lo
+que sigue sin decidirse se dice en cada una de esas secciones.
 
 ## 4. Guion de capacitación (para dictar, 2 h)
 
@@ -149,8 +179,8 @@ Ninguno es una avería. Son decisiones que faltan, y el sistema prefiere detener
 | 1. Qué es y qué no es | 10 | Trazabilidad y preparación de debida diligencia. **No** certifica ni presenta nada ante la UE | Que cada quien diga una cosa que el sistema **no** hace |
 | 2. Entrar y rol | 10 | Acceso, organización, menú por permiso | Cada quien identifica qué secciones ve y por qué |
 | 3. Origen | 25 | Productor → parcela → ubicación o polígono | Registrar un productor y una parcela con geometría |
-| 4. Recepción y calidad | 25 | Entrega → recepción → pesaje → muestra → decisión | Recibir con una diferencia y explicar por qué la entrega no cierra |
-| 5. Lote y proceso | 25 | Lote → fermentación → merma → inventario | Cerrar una fermentación y leer el saldo en el ledger |
+| 4. Recepción, calidad y cierre | 25 | Entrega → recepción → pesaje → muestra → decisión → **cierre con motivo** | Recibir con diferencia, cerrarla con su motivo y explicar por qué no se reabre |
+| 5. Lote y procesos | 25 | Lote → fermentación → **secado con humedad** → merma → inventario | Cerrar una fermentación y un secado, y leer el saldo en el ledger |
 | 6. Riesgo y expediente | 20 | Evaluar, leer factores, instantánea | Explicar por qué la conclusión es `UNDETERMINED` |
 | 7. Embarque | 15 | Comprador, ítems, reserva, preflight | Reservar y leer por qué el despacho no procede |
 | 8. Errores y bloqueos | 10 | §1 y §3 de este manual | Distinguir «no tengo permiso» de «falta una decisión» |
@@ -162,7 +192,9 @@ despacho, paquete DD exportado y cualquier presentación ante una autoridad.
 
 ## 5. Antes de operar de verdad
 
-1. Decidir **D-32** y **D-33**: sin ellas, dos tareas cotidianas se detienen a media cadena.
+1. **Validar con operadores reales** el cierre de entregas y el cierre del secado (D-32/D-33). Están adoptadas
+   **para desarrollo** y probadas con datos sintéticos; nadie que reciba cacao o mida humedad las ha usado.
+   Pendientes además: **límites de aceptación** de calidad y humedad, y **unidades de peso** distintas de kg.
 2. Ensayar en **Android real** si se va a capturar en campo.
 3. Tener el respaldo verificado del día (`docs/20` §Respaldo y restauración) **antes** de cargar datos reales.
 4. Acordar quién responde cuando algo se bloquea: hoy no hay soporte definido.
