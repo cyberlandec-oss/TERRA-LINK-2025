@@ -64,7 +64,6 @@ describeDb('Recorrido integral de la cadena (preparación P0-031, datos sintéti
   }, 120_000);
   afterAll(async () => {
     // El recorrido deja por escrito su propio alcance: qué quedó demostrado y dónde se detuvo.
-    // eslint-disable-next-line no-console
     console.log(`Recorrido integral · transiciones demostradas: ${demostrado.length}; bloqueos comprobados: ${bloqueado.length}\n` +
       demostrado.map((d) => `  OK      ${d.transicion}: ${d.resultado}`).join('\n') + '\n' +
       bloqueado.map((b) => `  BLOQUEO ${b.transicion}: ${b.codigo} → ${b.decision}`).join('\n'));
