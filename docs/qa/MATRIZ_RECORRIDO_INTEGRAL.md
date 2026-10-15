@@ -79,12 +79,11 @@ compuerta. Antes de este recorrido, la evidencia disponible dejaba las cuatro ju
 
 1. **Volumen de piloto** (QA-17): 20–50 productores, 20–100 parcelas, 1–3 lotes operados por personas, sin cambios
    manuales en la base. Es el criterio central de P0-031 y **no está ejecutado**.
-2. **Recorrido sobre una copia restaurada** (segunda mitad de QA-16). El respaldo y la restauración **sí están
-   verificados**: el 2026-10-13 sobre 37 migraciones y el **2026-10-15 sobre las 39 actuales**, en un contenedor y un
-   volumen propios, con cotejo de 25 tablas, descifrado y objetos por hash
-   (`docs/qa/EVIDENCIA_QA16_RESTAURACION_2026-10-15.md`). Lo que falta es **levantar la aplicación contra la copia y
-   repetir el recorrido**, y medir RPO/RTO con volumen de piloto: los tiempos actuales (3 s de volcado, 14 s de
-   restauración) son de un conjunto mínimo y no se extrapolan.
+2. **RPO/RTO con volumen real.** QA-16 está **completa en sus dos mitades**: respaldo y restauración verificados
+   (13-oct sobre 37 migraciones; **15-oct sobre las 39 actuales**) y **la aplicación operando sobre la copia** en una
+   instancia aislada —API y web propias— con 9 comprobaciones correctas, 3 bloqueos esperados y 0 fallas
+   (`docs/qa/EVIDENCIA_QA16_RESTAURACION_2026-10-15.md`). Lo que **no** está medido son RPO/RTO: los tiempos (3 s de
+   volcado, 13 s de restauración) son de un conjunto mínimo y no se extrapolan.
 3. **Android real** (QA-08): captura, offline y sincronización en dispositivo físico. Hay evidencia de **emulador**,
    que es otra cosa y así está registrada.
 4. **Capacitación y manual** de operación. No existen.

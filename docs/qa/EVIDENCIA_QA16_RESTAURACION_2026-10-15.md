@@ -85,16 +85,100 @@ Contra **`estado-actual.txt`, capturado por el propio respaldo** con las escritu
 desarrollo, que volvió a admitir escrituras al reanudar los servicios. Comparar contra una base viva habría producido
 diferencias que no dirían nada sobre el respaldo.
 
+## Segunda mitad de QA-16: la aplicación operando sobre la copia
+
+Lo anterior demuestra que **los datos se recuperan**. QA-16 pide además **ejecutar un recorrido**, es decir, que la
+aplicación pueda **operar** con lo restaurado. Eso es lo que sigue.
+
+### La instancia de ensayo
+
+`infra/qa16/docker-compose.ensayo.yml`, proyecto Compose **`tl-ensayo-qa16`**: red y volúmenes propios
+(`ensayo-postgres-data`, `ensayo-object-data`), puertos propios (**5450 / 6390 / 9010 / 4010 / 3010**) y
+**sin `migrate` ni `worker`**: la copia se restaura y se usa, no se migra ni se procesa.
+
+Los secretos llegan por `--env-file` desde un archivo temporal generado a partir del **`claves.env` del respaldo**
+—ninguna variable sale de el `.env` de desarrollo— y ese archivo nunca se escribe en el repositorio. Ninguna variable
+del compose tiene valor por defecto: si faltara una, el arranque falla en vez de caer silenciosamente en la
+configuración de desarrollo.
+
+### Configuración efectiva comprobada ANTES de arrancar
+
+| Variable | Valor efectivo |
+| --- | --- |
+| `DATABASE_URL` | `postgres://terra_link:[REDACTADO]@postgres:5432/`**`terra_link_restaurada`** (servicio del proyecto de ensayo) |
+| `S3_ENDPOINT` / `S3_BUCKET` | `http://object-storage:9000` (del ensayo) / **`terra-link-private`** restaurado del `tar` |
+| `PII_ACTIVE_KEY_ID` | `k1` — la del respaldo. Las claves están presentes y **no se imprimen** |
+| `SATELLITE_LIVE_CALLS` | **`disabled`** |
+| `SATELLITE_FIXTURE_ENABLED` | **`false`** |
+| `TL_INSTANCIA` | **`ENSAYO_DE_RESTAURACION_QA16`** |
+| Referencias a desarrollo | **0** coincidencias de `localhost:5440`, `/terra_link`, `terra-link_postgres-data` o `terra-link_object-data` en la configuración resuelta |
+
+Al arrancar, `GET /health/ready` devolvió `database: ok`, **`schema: ok`** —la copia está en la versión de esquema
+que el código espera—, `redis: ok` y `scanner: unavailable` con `document_analysis: UNAVAILABLE`: el escáner
+antimalware **no forma parte del ensayo**, así que las **subidas** de documentos no se ejercitaron (las descargas sí).
+
+### Comprobaciones por la API real de esa instancia
+
+| Comprobación | Resultado |
+| --- | --- |
+| Acceso y organización | Cuatro sesiones abiertas contra la copia; «DEMO · Cooperativa Río Verde» legible |
+| Permisos de dos roles | ORG_ADMIN **77** permisos frente a AUDITOR **20**; solo del admin: `producer:create`, `producer:read_identity`, `lot:create`; compartidos: `producer:read`, `plot:read`, `report:read` |
+| Denegación entre organizaciones | La administración de «DEMO · Acopio San Isidro» pide productores de la cooperativa → **404 sin datos** |
+| Lectura del dato restaurado | 8 productores activos (de 9: uno está de baja y la lista por omisión no lo incluye), 6 parcelas, 3 entregas, 3 lotes; **conciliación de inventario con 0 diferencias** |
+| **Descifrado con permiso** | El administrador lee la identidad restaurada —descifrada con las claves del respaldo— y **el auditor no la recibe** |
+| **Documentos restaurados** | **2/2** descargados del almacén restaurado con **sha256 y tamaño exactos** |
+| Historial, riesgo, expediente y reportes | Lote con su historial y su grafo legibles; 1 expediente restaurado; **11 indicadores** (7 `OK`, 3 `UNKNOWN`, 1 `CRITERION_UNDEFINED`) |
+
+### Recorrido operativo sobre la copia
+
+Creado **por la API de la instancia de ensayo**, usando los catálogos **restaurados** (producto y centro de acopio):
+productor → parcela → entrega de **120 kg declarados** → recepción de **115 recibidos** → lote con **115 kg en el
+ledger**. Todo rotulado **`ENSAYO-QA16`**, incluido el nombre del productor («productor sintético posterior a la
+restauración»), de modo que ningún registro del ensayo pueda confundirse con contenido del respaldo.
+
+Que se pueda **formar un lote nuevo a partir de un producto y un centro restaurados** es la prueba de que la copia no
+solo se lee: se opera.
+
+### Los bloqueos siguen vigentes en la copia (no se forzó ninguno)
+
+| Bloqueo | Resultado en la copia |
+| --- | --- |
+| Riesgo | Evaluación `INCOMPLETE`, severidad `NOT_ASSESSED`, conclusión `UNDETERMINED`, catálogo `NOT_APPROVED` |
+| Satélite | Encargar un análisis → **409 `SATELLITE_REQUESTS_NOT_AUTHORIZED`**; no se llamó a ningún proveedor |
+| Expediente | `readiness BLOCKED` con **7 requisitos no evaluables**: `GEOLOCATION_PROFILE`, `DEFORESTATION_ANALYSIS`, `LEGAL_PROFILE`, `RISK_NO_BLOCKING_FINDINGS`, `RISK_CATALOG_APPROVED`, `REGULATORY_CONCLUSION`, `SHIPMENT_LINK` |
+
+(El séptimo, `RISK_NO_BLOCKING_FINDINGS`, aparece porque el lote del ensayo aún no tiene evaluación vinculada: es
+coherente, no un bloqueo nuevo.)
+
+### La interfaz web, sobre la copia
+
+Instancia web del ensayo en `http://localhost:3010`, construida apuntando a la API del ensayo (4010). Con sesión de
+administrador: la lista de parcelas muestra las **6 restauradas más la del ensayo**, correctamente rotulada; la ficha
+abre con «Ubicación y superficie», «Evaluación GIS (técnica)» y «Análisis satelital» con su aviso de **adaptador en
+desarrollo**; **0 errores de página**. Capturas: `qa16-ensayo--parcelas-restauradas.png` y
+`qa16-ensayo--ficha-parcela.png`.
+
+### Resultado
+
+**9 comprobaciones correctas, 3 bloqueos esperados, 0 fallas.** Detalle en `docs/qa/ensayo-qa16-resultados.json`.
+
+Tiempos de esta mitad: infraestructura aislada 8 s · restauración de objetos 3 s · restauración de base 13 s ·
+API operativa 7 s · interfaz web (con construcción de imagen) 31 s.
+
 ## Límites de esta verificación
 
-- **No se ejecutó un recorrido operativo sobre la copia restaurada.** QA-16 lo pide («y ejecutar recorrido»). Falta
-  levantar una API contra la copia y repetir el recorrido integral ahí. **Pendiente declarado.**
-- **RPO/RTO no están medidos**: estos tiempos son de un conjunto de datos mínimo. Medirlos exige volumen de piloto.
-- **No se probó la restauración del VHDX completo** (el respaldo de octubre lo incluye). Hoy solo base + objetos.
-- **No se verificó el bucket `terra-link-private` frente a objetos no referenciados antiguos**: el inventario
-  comparado es el de `document_versions`. Los buckets de test y e2e se respaldan pero no se cotejan: son desechables.
-- La base y los volúmenes de desarrollo **no se tocaron**: la copia vivió en un contenedor y un volumen propios, ya
-  destruidos.
+- **El escáner antimalware no formó parte del ensayo**: las **subidas** de documentos no se ejercitaron. Las
+  descargas de los documentos restaurados sí, con su hash.
+- **Las tablas satelitales estaban vacías en el respaldo** (`satellite_jobs`, `satellite_results` y
+  `satellite_credentials` en 0). Restaurar su **estructura** y el registro de proveedores **no demuestra** que se
+  recuperen trabajos, resultados ni credenciales **poblados**: eso no se ha probado y no se puede afirmar.
+- **RPO/RTO no están medidos**: los tiempos son de un conjunto mínimo (dump de 538 KB, 2 objetos). No se extrapolan.
+- **No se probó la restauración del VHDX completo** (el respaldo de octubre lo incluye). Aquí solo base + objetos.
+- **El cotejo de objetos es contra `document_versions`**: los buckets de test y e2e se respaldan pero no se cotejan,
+  por desechables.
+- **No se ejercitó el worker** (outbox ni corredor satelital) sobre la copia: no forma parte de la instancia.
+- La base y los volúmenes de desarrollo **no se tocaron** en ningún momento; el entorno de ensayo se destruyó al
+  terminar.
 
 ## Comandos reproducibles
 

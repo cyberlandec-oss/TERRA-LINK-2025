@@ -51,9 +51,21 @@ recibir **más** de lo declarado también necesita explicación.
 | B. Tolerancia fija (p. ej. 0,5 %) | Cómodo, pero **inventa un número que ninguna fuente aprueba** y crea un margen en el que la pérdida deja de registrarse |
 | C. Tolerancia configurable por organización | Flexible; abre la puerta a configurarla para que nunca haya diferencias |
 
-**Propuesta: A, tolerancia 0**, hasta tener datos de campo. La adopción de 2026-10-10 ya dijo «sin tolerancias»; esta
-propuesta la mantiene y simplemente le da un final a la entrega. Si el piloto demuestra que la báscula produce ruido
-sistemático, se revisa **con mediciones**, no con una intuición.
+**Propuesta: A, tolerancia 0**, hasta tener datos de campo.
+
+**Aclaración, porque «tolerancia cero» se presta a dos lecturas y la primera versión no las separaba:**
+
+| Lo que SÍ significa | Lo que NO significa |
+| --- | --- |
+| Que **cualquier** diferencia distinta de cero —por pequeña que sea— **exige motivo escrito** para poder cerrar | Que esté **prohibido cerrar** con diferencia |
+| Que no hay ningún margen en el que la diferencia se considere «cero» y deje de registrarse | Que haya que rechazar la entrega, corregir el pesaje o cuadrar las cifras |
+| Que el dato de la pérdida (o del excedente) queda **siempre** en el registro | Que la diferencia sea un error: puede ser merma legítima, humedad o un pesaje en otro punto |
+
+Cerrar con diferencia es **normal y previsto**; lo único que se exige es que alguien diga por qué. La adopción de
+2026-10-10 dijo «sin tolerancias ni cierre por debajo de lo declarado»: esta propuesta mantiene «sin tolerancias» y
+**propone cambiar** lo segundo, que es justamente lo que hoy deja las entregas sin final.
+
+Si el piloto demuestra que la báscula produce ruido sistemático, se revisa **con mediciones**, no con una intuición.
 
 ### 4. ¿El motivo es obligatorio?
 
@@ -63,14 +75,27 @@ define y un catálogo prematuro empuja a elegir «Otro» siempre.
 
 ### 5. ¿Qué pasa después de cerrar?
 
-**Propuesta**:
+**Propuesta**, con el detalle que faltaba sobre correcciones y material ya comprometido:
 
-- Una entrega **cerrada no admite recepciones nuevas**. Si llega más material, es **otra entrega** que referencia a
-  la anterior. Así el peso declarado original no se reescribe.
-- Las **correcciones de recepciones ya existentes siguen permitidas** con sus guardas actuales (motivo obligatorio,
-  bloqueadas si el material está asignado, reservado o consumido). Corregir no reabre la entrega: crea un registro
-  nuevo relacionado, como el resto del sistema.
-- **Reabrir** no existe. Si el cierre fue un error, se corrige con un registro nuevo que lo explique.
+**a) Recepciones nuevas.** Una entrega cerrada **no las admite**. Si llega más material, es **otra entrega** que
+referencia a la anterior. Así el peso declarado original no se reescribe nunca.
+
+**b) Correcciones de recepciones ya existentes.** Siguen permitidas **con las guardas que ya existen hoy** (D-39.2),
+que no cambian por cerrar la entrega:
+
+| Situación del material recibido | ¿Se puede corregir el peso? | Qué pasa con la diferencia de la entrega |
+| --- | --- | --- |
+| Sin asignar a ningún lote | **Sí**, con motivo obligatorio | Se **recalcula** y el motivo de cierre queda **desactualizado**: hay que registrarlo de nuevo |
+| **Asignado** a un lote (sin consumir) | **No**, hasta liberar la asignación por completo | — |
+| **Reservado** para un embarque | **No** | — |
+| **Consumido** por un proceso o despachado | **No**, nunca | — |
+
+Es decir: **cerrar una entrega no afloja ninguna guarda y tampoco añade una nueva**. Lo que sí propone esta decisión
+es que, si una corrección admisible cambia la diferencia, el cierre quede marcado como **«motivo desactualizado»** y
+exija registrarlo otra vez; de lo contrario quedaría un motivo explicando una cifra que ya no existe.
+
+**c) Reabrir.** No existe. Si el cierre fue un error, se corrige con un registro nuevo que lo explique, como todo lo
+demás en el sistema. Un estado que se puede deshacer deja de ser un cierre.
 
 ## Qué desbloquea cada elección
 
@@ -84,5 +109,8 @@ Lo que **no** desbloquea: nada del expediente ni del despacho. Una entrega cerra
 
 ## Decisión mínima que hace falta
 
-Tres líneas: **(1)** quién cierra con diferencia, **(2)** si la tolerancia sigue en cero, **(3)** si una entrega
-cerrada admite recepciones nuevas. Con eso se implementa el cierre y se cierra el criterio pendiente de P0-012.
+Tres líneas: **(1)** quién cierra con diferencia, **(2)** si la tolerancia sigue en cero —entendida como «toda
+diferencia necesita motivo», no como «no se puede cerrar con diferencia»—, y **(3)** si una entrega cerrada admite
+recepciones nuevas. Con eso se implementa el cierre y se cierra el criterio pendiente de P0-012.
+
+**Estas aclaraciones no son una aprobación.** D-33 sigue siendo una propuesta: nada de lo anterior está decidido.

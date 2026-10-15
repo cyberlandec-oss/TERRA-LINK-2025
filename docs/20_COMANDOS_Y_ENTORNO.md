@@ -141,6 +141,25 @@ Comprobar: migraciones y sus marcas, conteos por tabla contra `estado-actual.txt
 descifrado de identidad con las claves del respaldo (**sin imprimir valores**) y objetos por clave, tamaño y sha256.
 Al terminar: `docker rm -f tl-restore && docker volume rm tl-restore-data`.
 
+**Levantar la aplicación contra la copia** (segunda mitad de QA-16): `infra/qa16/docker-compose.ensayo.yml`,
+proyecto `tl-ensayo-qa16`, puertos 5450/6390/9010/4010/3010, **sin `migrate` ni `worker`**.
+
+```
+# 1) archivo de variables en una carpeta temporal, a partir del claves.env del respaldo (nunca en el repositorio)
+# 2) infraestructura aislada
+docker compose -p tl-ensayo-qa16 -f infra/qa16/docker-compose.ensayo.yml --env-file <tmp>/ensayo.env   up -d postgres redis object-storage --wait
+# 3) objetos: desplegar el tar en el volumen del ensayo con el servicio detenido
+# 4) base: pg_restore dentro del postgres del ensayo
+# 5) aplicación
+docker compose -p tl-ensayo-qa16 -f infra/qa16/docker-compose.ensayo.yml --env-file <tmp>/ensayo.env up -d api web --wait
+# 6) al terminar
+docker compose -p tl-ensayo-qa16 -f infra/qa16/docker-compose.ensayo.yml --env-file <tmp>/ensayo.env down -v
+```
+
+Antes de arrancar, comprobar la configuración resuelta (`... config`) y que **no** aparecen `localhost:5440`,
+`/terra_link` ni los volúmenes de desarrollo. Evidencia completa:
+`docs/qa/EVIDENCIA_QA16_RESTAURACION_2026-10-15.md`.
+
 **Nunca** restaurar sobre `terra_link` ni sobre los volúmenes de desarrollo.
 
 ## Ejecución segura

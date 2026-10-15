@@ -38,8 +38,20 @@ qué **método**, con qué **precisión**, y si su ausencia **bloquea** el cierr
 ### 2. ¿Qué método y qué precisión?
 
 **Propuesta**: el método se **declara por muestra** (texto libre controlado: medidor portátil, estufa, laboratorio),
-igual que ya se hace con el resto de mediciones, y el valor se guarda con **un decimal**. No se inventa un método
-obligatorio porque las fuentes no lo fijan y el equipamiento varía por asociación.
+igual que ya se hace con el resto de mediciones. No se inventa un método obligatorio: las fuentes no lo fijan y el
+equipamiento varía por asociación.
+
+**Precisión — aclaración, porque la primera versión de esta propuesta decía «un decimal» sin precisar y eso podía
+leerse como truncar el dato:**
+
+| | Qué se hace |
+| --- | --- |
+| **Almacenamiento** | **La precisión que informó el instrumento, íntegra.** La columna ya es `numeric(20,6)`: un `7,23 %` se guarda como `7,23`, no como `7,2`. **Nunca se redondea al escribir**: el dato original de una medición no se descarta |
+| **Presentación** | **Un decimal** en pantallas y exportaciones de lectura rápida (`7,2 %`), que es como se lee en campo y como lo muestra la fuente (S4: «Humedad 7,2 %») |
+| **Comparaciones** | Siempre sobre el valor almacenado, nunca sobre el presentado |
+
+Dicho de otro modo: «un decimal» es una **regla de presentación**, no de almacenamiento. Si alguna vez se definen
+límites de aceptación (pregunta 4), se evaluarán contra el valor íntegro.
 
 **Lo que no se propone**: deducir la humedad del peso perdido en el secado. Es tentador —hay cantidades de entrada y
 salida— pero mezclaría merma con evaporación y produciría un número que parece medido sin serlo.
@@ -83,3 +95,5 @@ hace falta el factor exacto y la regla de redondeo, y es una decisión distinta 
 
 Tres líneas: **(1)** unidad y base, **(2)** si bloquea el cierre, **(3)** quién puede registrarla. Con eso se
 implementa el cierre de secado y se cierra la transición 10. Los límites de aceptación pueden esperar.
+
+**Estas aclaraciones no son una aprobación.** D-32 sigue siendo una propuesta: nada de lo anterior está decidido.
