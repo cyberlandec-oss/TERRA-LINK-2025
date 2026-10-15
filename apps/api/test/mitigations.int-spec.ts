@@ -79,7 +79,7 @@ describeDb('P0-021 mitigaciones: causa, soportes por versión, separación de fu
     await create(evaluation.id, {}, TRAZ).expect(403);
     const m = (await create(evaluation.id).expect(201)).body.mitigation;
     expect(m).toMatchObject({ status: 'OPEN', cause: { evaluation_id: evaluation.id, factor_code: 'DATA_MISSING_ORIGIN', subject: { id: lot }, factor: { result: 'HIT' } }, assignee: { membership_id: mids[E1] }, due_date: '2026-12-31',
-      evidence_required: 'Declaración de origen (parcela) de la entrega' });
+      evidence_required: 'Origen declarado de cada entrega' }); // texto del catálogo 1.0.0 (D-07, migración 0043)
     expect(JSON.stringify(m)).not.toMatch(/Finca Mitigación|latitude|coordinates/);
     await http().get(`${base(orgA)}/mitigations/${m.id}`).set(as('auditor@test.local')).expect(200);
     await http().get(`${base(orgA)}/mitigations`).set(as('tecnico@test.local')).expect(403);
@@ -139,7 +139,8 @@ describeDb('P0-021 mitigaciones: causa, soportes por versión, separación de fu
     expect(reev.factors.find((f: { code: string }) => f.code === 'DATA_MISSING_ORIGIN').result).toBe('HIT');
     expect(reev.factors.find((f: { code: string }) => f.code === 'MITIGATION_UNVERIFIED').result).toBe('NOT_HIT');
     expect(reev.risk_result).toMatchObject({ severity: 'NOT_ASSESSED', conclusion: 'UNDETERMINED' });
-    expect(reev.rules.approval_status).toBe('NOT_APPROVED');
+    // Verificar una mitigación no cambia el catálogo ni lo adopta: la reevaluación sigue sin clasificar.
+    expect(reev.rules).toMatchObject({ adopted_by_organization: false, regulatory_profile: null });
     // reproceso del outbox: no duplica la reevaluación
     await drain();
     expect((await sql<{ n: number }>`SELECT count(*)::int AS n FROM risk_evaluations WHERE subject_id = ${lot}`.execute(h.db)).rows[0].n).toBe(2);

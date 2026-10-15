@@ -1,25 +1,37 @@
 // P0-030 — Reparto por severidad de riesgo. Módulo PURO, para poder probar con conjuntos sintéticos los tres casos,
-// incluido el MIXTO (lotes clasificados y sin clasificar a la vez), que hoy la base no permite construir:
-// `risk_evaluations` lleva `CHECK (conclusion = 'UNDETERMINED' AND severity = 'NOT_ASSESSED')` (migración 0025), de modo
-// que mientras el catálogo de reglas no esté aprobado NINGUNA fila puede llevar severidad. Probar la lógica aquí evita
-// dejar sin cubrir la rama que se activará el día que D-07 cierre.
+// incluido el MIXTO (lotes clasificados y sin clasificar a la vez).
 //
-// La dependencia real es **D-07** (enums, mapping y regla aprobada) junto con el catálogo `risk_rule_sets`, que hoy está
-// NOT_APPROVED y declara no tener pesos, umbrales ni severidades. NO depende de cerrar P0-021 —implementada— ni P0-028:
-// verificar una mitigación entra en el resultado TÉCNICO de su factor y no asigna severidad ni concluye a favor.
+// Desde D-07 la severidad de una evaluación depende de DOS cosas, en este orden:
+//  1. que exista un catálogo **publicado** globalmente (acto de migración, no de usuario), y
+//  2. que ESTA organización lo haya **adoptado** (D-07.1). Publicar no es adoptar: sin adopción que la respalde, el
+//     `CHECK risk_evaluations_severity_backed` (migración 0042) impide escribir cualquier severidad.
+// Adoptado el catálogo, una evaluación puede seguir saliendo sin severidad: por A.2 (ningún hallazgo en las reglas
+// evaluadas) o porque los hallazgos pertenecen a reglas sin severidad declarada.
+//
+// Nada de esto depende de cerrar P0-021 —implementada— ni P0-028: verificar una mitigación entra en el resultado
+// TÉCNICO de su factor y no asigna severidad ni concluye a favor. La conclusión regulatoria sigue UNDETERMINED
+// (`CHECK risk_evaluations_conclusion_undetermined`) mientras D-07.5 y D-07.6 sigan pendientes.
 import type { IndicatorStatus } from './reports-shared';
 
 export interface SeverityInput {
-  /** Severidad de este indicador. */
-  sev: 'HIGH' | 'MEDIUM' | 'LOW';
+  /** Severidad de este indicador. `CRITICAL` es extensión de Terra Link, no de la lista de S1 §60. */
+  sev: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
   /** Etiqueta en español para los mensajes («alto», «medio», «bajo»). */
   label: string;
   /** Lotes del tenant: el universo, que se conoce aunque no esté evaluado. */
   lotesTotal: number;
   /** Conteo por severidad de la ÚLTIMA evaluación de cada sujeto. */
   porSeveridad: Record<string, number>;
-  /** Catálogo de reglas vigente, para citar su versión y estado reales en vez de una lista de historias. */
-  catalogo: { version: string; approval_status: string } | null;
+  /** Catálogo de reglas: lo publicado globalmente y lo adoptado por ESTA organización, para citar hechos reales. */
+  catalogo: CatalogState | null;
+}
+
+/** Estado real del catálogo para una organización: publicación global y adopción propia son cosas distintas (D-07.1). */
+export interface CatalogState {
+  /** Última versión publicada globalmente, con su estado de aprobación. `null` si no hay ninguna publicada. */
+  publicada: { version: string; approval_status: string } | null;
+  /** Versión que ESTA organización tiene adoptada hoy, o `null` si no ha adoptado ninguna. */
+  adoptada: string | null;
 }
 
 export interface SeverityResult {
@@ -31,12 +43,27 @@ export interface SeverityResult {
   reason: string;
 }
 
-export function catalogNote(catalogo: SeverityInput['catalogo']): string {
-  if (!catalogo) return 'No hay catálogo de reglas de riesgo publicado.';
+const NO_DEPENDE =
+  'Es la decisión D-07, no un efecto de cerrar otras historias: verificar una mitigación (P0-021, implementada) entra en el ' +
+  'resultado técnico de su factor y no asigna severidad.';
+
+/** Por qué no hay severidad, citando el catálogo real leído de la base y no una lista de historias pendientes. */
+export function catalogNote(catalogo: CatalogState | null): string {
+  if (!catalogo?.publicada) return `No hay catálogo de reglas de riesgo publicado. ${NO_DEPENDE}`;
+  const pub = catalogo.publicada;
+  if (!catalogo.adoptada) {
+    return (
+      `El último catálogo publicado es ${pub.version} (${pub.approval_status}), pero esta organización NO lo ha adoptado: publicar ` +
+      'globalmente y adoptar en una organización son actos distintos (D-07.1), y sin una adopción que la respalde el motor escribe ' +
+      `NOT_ASSESSED en TODA evaluación. ${NO_DEPENDE}`
+    );
+  }
+  const mas = pub.version === catalogo.adoptada ? ''
+    : ` Hay una versión más reciente publicada (${pub.version}) que esta organización no ha adoptado: no se aplica sola.`;
   return (
-    `El catálogo de reglas vigente es ${catalogo.version} (${catalogo.approval_status}): mientras no esté APROBADO no define pesos, ` +
-    'umbrales, puntuaciones ni severidades, y el motor escribe NOT_ASSESSED en TODA evaluación. Es la decisión D-07, no un efecto de ' +
-    'cerrar otras historias: verificar una mitigación (P0-021, implementada) entra en el resultado técnico de su factor y no asigna severidad.'
+    `Esta organización tiene adoptado el catálogo ${catalogo.adoptada}.${mas} Que una evaluación salga sin severidad significa que no ` +
+    'hubo hallazgos en las reglas evaluadas (NOT_ASSESSED, A.2) o que los hallazgos pertenecen a reglas sin severidad declarada; cada ' +
+    `evaluación lo detalla en su cobertura. ${NO_DEPENDE}`
   );
 }
 
@@ -72,6 +99,8 @@ export function severityBucket(i: SeverityInput): SeverityResult {
       `${n === 0 ? 'Cero observado: ninguno de los lotes clasificados quedó en esta severidad. ' : ''}` +
       `Sobre los ${conSeveridad} lote(s) CON severidad asignada, que es el denominador. Quedan ${sinSeveridad} evaluado(s) sin severidad y ` +
       `${sinEvaluar} sin evaluar: siguen siendo desconocidos, no se cuentan como riesgo ${i.label} y esta cifra NO es la distribución de ` +
-      `los ${i.lotesTotal} lote(s) del tenant.`,
+      `los ${i.lotesTotal} lote(s) del tenant. Clasifica los HALLAZGOS EVALUADOS del catálogo adoptado` +
+      `${i.catalogo?.adoptada ? ` (${i.catalogo.adoptada})` : ''}, que puede no cubrir todas las categorías de riesgo, y NO es una ` +
+      'conclusión regulatoria: esa sigue UNDETERMINED.',
   };
 }

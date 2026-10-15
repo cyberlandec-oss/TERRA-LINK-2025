@@ -77,9 +77,10 @@ const PROFILE_STATUS_LABEL: Record<string, string> = {
 };
 
 const GEOJSON_REGULATORY =
-  'El PERFIL DE DESTINO REGULATORIO sigue pendiente de D-05: qué geometría exige cada caso (punto o polígono y su umbral de superficie), ' +
-  'qué precisión y redondeo admite el destino, qué propiedades espera y qué parcelas quedan calificadas. Nada de eso se decide aquí: esta ' +
-  'exportación entrega lo registrado, sin recortar ni reproyectar, y declara lo que falta.';
+  'Desde el 2026-10-15 existe un PERFIL TÉCNICO provisional, EUDR_GEO_V1 1.0.0 (D-05.A): fija qué geometría admite cada caso (punto o ' +
+  'polígono y su umbral de superficie), qué precisión y redondeo, y qué parcelas quedan calificadas. Lo que sigue PENDIENTE es D-05.B, la ' +
+  'APLICABILIDAD JURÍDICA: qué significa cumplir ese perfil frente al destino regulatorio y qué puede afirmarse con ello. Esta exportación ' +
+  'no decide ninguna de las dos cosas: entrega lo registrado, sin recortar ni reproyectar, y declara lo que falta.';
 
 @ApiTags('reports')
 @ApiBearerAuth()
@@ -709,7 +710,7 @@ export class EntityReportsController {
         omitted_note: 'Las parcelas sin geometría NO se exportan y NO se inventan: una superficie declarada no es una ubicación. Su número se declara arriba.',
         validation_note: 'validation_status = NOT_VALIDATED significa SIN EVALUAR, no inválida. technically_valid es el dictamen geométrico de PostGIS, no la validación GIS de negocio (P0-010, pendiente de D-05).',
         notice: GEOJSON_NOTICE,
-        regulatory_profile: { status: 'PENDING', depends_on: 'D-05', note: GEOJSON_REGULATORY },
+        regulatory_profile: { status: 'PENDING', depends_on: 'D-05.B', technical_profile: 'EUDR_GEO_V1 1.0.0 (D-05.A, provisional)', note: GEOJSON_REGULATORY },
         snapshot: SNAPSHOT_NOTE,
         recalculation: EXPORT_RECALC_NOTE,
         coverage: COVERAGE,

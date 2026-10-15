@@ -44,6 +44,7 @@ import * as m0039 from './migrations/0039_satellite_whisp_development';
 import * as m0040 from './migrations/0040_d32_humedad_d33_cierre_entregas';
 import * as m0041 from './migrations/0041_eudr_geo_profile';
 import * as m0042 from './migrations/0042_d07_mecanismos';
+import * as m0043 from './migrations/0043_catalogo_riesgo_1_0_0';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -89,6 +90,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0040_d32_humedad_d33_cierre_entregas': m0040,
   '0041_eudr_geo_profile': m0041,
   '0042_d07_mecanismos': m0042,
+  '0043_catalogo_riesgo_1_0_0': m0043,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

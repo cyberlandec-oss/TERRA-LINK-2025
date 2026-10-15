@@ -505,11 +505,24 @@ async function main(): Promise<void> {
       }
     }
 
-    // 4h) Evaluaciones técnicas de riesgo DEMO (P0-020) de los lotes de recepciones: reglas sin aprobar; sin revisión humana.
-    // Idempotente: solo lotes sin evaluación.
+    // 4h) Riesgo DEMO (P0-020 + D-07). Dos pasos deliberados, en este orden:
+    //
+    //   1. **Adoptar el catálogo `1.0.0` SOLO en la Cooperativa DEMO**, rotulado como ensayo local. Es lo que
+    //      permite que la revisión por rol vea una severidad de verdad —incluido un lote CRÍTICO— en vez de un
+    //      «sin clasificar» permanente. La adopción es **de esta organización**: no toca a ninguna otra, ni
+    //      siquiera a las demás del propio seed, y el administrador de cada una decide la suya (D-07.1).
+    //   2. Evaluar los lotes de recepciones. Sin revisión humana y sin conclusión: sigue `UNDETERMINED`.
+    //
+    // Lo que esto NO significa: el catálogo no está aprobado bajo ningún perfil jurídico (D-07.5), así que el
+    // expediente sigue BLOCKED y nada de esto acerca a `READY` ni a un despacho.
     if (passwords.has(coopAdmin)) {
       const t = await tokenOf(coopAdmin);
       const o = `/api/v1/organizations/${orgIds.get('coop')!}`;
+      const adopciones = (await call<{ adopted: boolean }>('GET', `${o}/risk/rule-sets/adoptions`, t)).data;
+      if (!adopciones.adopted) {
+        await call('POST', `${o}/risk/rule-sets/adoptions`, t, { operation_id: randomUUID(), rule_set_version: '1.0.0', decision: 'ADOPT',
+          reason: 'Ensayo local del MVP en la Cooperativa DEMO: clasificar hallazgos para revisión por rol. No es aprobación regulatoria.' });
+      }
       const risk = (await call<Array<{ lot_id: string; lot_code: string; evaluation_id: string | null }>>('GET', `${o}/risk/lots`, t)).data;
       for (const r of risk.filter((x) => !x.evaluation_id && ['LOT-2026-00001', 'LOT-2026-00002'].includes(x.lot_code))) {
         await call('POST', `${o}/risk/lots/${r.lot_id}/evaluations`, t, { operation_id: randomUUID() });
@@ -534,8 +547,8 @@ async function main(): Promise<void> {
       }
     }
 
-    // 4j) Expediente DEMO (P0-022) de LOT-2026-00002 con una instantánea: queda BLOCKED (catálogo de riesgo no aprobado,
-    // conclusión UNDETERMINED, perfil jurídico/D-05/satélite/embarques no evaluables). No se revisa, aprueba ni exporta en el
+    // 4j) Expediente DEMO (P0-022) de LOT-2026-00002 con una instantánea: queda BLOCKED (catálogo de riesgo sin
+    // aprobación bajo perfil jurídico aunque esté adoptado, conclusión UNDETERMINED, perfil jurídico/D-05/satélite/embarques no evaluables). No se revisa, aprueba ni exporta en el
     // seed; no se inventan datos para alcanzar READY. Idempotente: solo si el lote no tiene expediente.
     if (passwords.has(coopAdmin)) {
       const t = await tokenOf(coopAdmin);

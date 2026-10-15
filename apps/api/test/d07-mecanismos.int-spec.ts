@@ -107,12 +107,16 @@ describeDb('D-07 mecanismos: adopción por organización y severidad por regla',
   it('una adopción en una organización NO aprueba reglas en otra', async () => {
     const a = (await http().get(`${api(orgA)}/risk/rule-sets/adoptions`).set(as(ADMIN)).expect(200)).body;
     const b = (await http().get(`${api(orgB)}/risk/rule-sets/adoptions`).set(as(ADMIN_B)).expect(200)).body;
-    expect(a.adopted).toBe(true);
-    expect(b.adopted).toBe(false); // la organización B no ha adoptado nada
-    expect(b.history).toHaveLength(0);
-    // Y la publicación global es la misma para las dos: son actos distintos.
-    expect(a.current_rule_set.global_publication).toBe('NOT_APPROVED');
-    expect(b.current_rule_set.global_publication).toBe('NOT_APPROVED');
+    expect(a.history.length).toBeGreaterThanOrEqual(1); // A adoptó algo
+    expect(b.history).toHaveLength(0); // B no ha adoptado nada: la adopción de A no cruza
+    expect(b.adopted).toBe(false);
+    // Cada organización ve el catálogo que ELLA adoptó: A el suyo, B el último publicado por no haber adoptado
+    // ninguno. Publicar y adoptar son actos distintos, y una adopción no se propaga.
+    // A ve lo que ELLA adoptó; B, que no ha adoptado nada, ve el último publicado. Son distintos: la adopción
+    // de A no cruza a B.
+    expect(a.adoption?.rule_set_version).toBe(a.current_rule_set.version);
+    expect(a.current_rule_set.version).not.toBe(b.current_rule_set.version);
+    expect(b.adopted).toBe(false); // aunque haya catálogos publicados globalmente, B no usa ninguno
     expect(b.note).toMatch(/Publicación global y adopción por organización son actos distintos/i);
   });
 
@@ -141,11 +145,11 @@ describeDb('D-07 mecanismos: adopción por organización y severidad por regla',
     expect(antes.risk_result.severity).toBe('NOT_ASSESSED'); // 0.2.0 no declara severidades
     const filaAntes = (await sql<{ severity: string; rule_set_version: string }>`SELECT severity, rule_set_version FROM risk_evaluations WHERE id = ${antes.id}`.execute(h.db)).rows[0];
     // Publicar y adoptar una versión con severidades no toca la evaluación anterior.
-    await publicar('0.3.0', [
+    await publicar('9.0.0', [
       { code: 'MATERIAL_OF_UNKNOWN_ORIGIN', category: 'MIXING', condition_kind: 'lot_origin_incomplete', effect: 'BLOCKING', severity: 'HIGH' },
       { code: 'DATA_MISSING_ORIGIN', category: 'TRACEABILITY', condition_kind: 'delivery_without_origin', effect: 'BLOCKING', severity: 'MEDIUM' },
     ]);
-    await adoptar(orgA, ADMIN, '0.3.0').expect(201);
+    await adoptar(orgA, ADMIN, '9.0.0').expect(201);
     // La evaluación anterior NO se recalcula ni se migra a la severidad nueva: queda tal cual, con su versión.
     const filaDespues = (await sql<{ severity: string; rule_set_version: string }>`SELECT severity, rule_set_version FROM risk_evaluations WHERE id = ${antes.id}`.execute(h.db)).rows[0];
     expect(filaDespues).toEqual(filaAntes);
@@ -155,7 +159,7 @@ describeDb('D-07 mecanismos: adopción por organización y severidad por regla',
     expect(nueva.id).not.toBe(antes.id);
     expect(nueva.risk_result.severity).toBe('HIGH');
     // Y se retira para no arrastrar esta adopción a las pruebas siguientes.
-    await adoptar(orgA, ADMIN, '0.3.0', 'WITHDRAW', 'Fin del caso de prueba').expect(201);
+    await adoptar(orgA, ADMIN, '9.0.0', 'WITHDRAW', 'Fin del caso de prueba').expect(201);
   });
 
   // ---------------------------------------------------------------- D-07.2 severidad
@@ -169,11 +173,11 @@ describeDb('D-07 mecanismos: adopción por organización y severidad por regla',
   });
 
   it('severidad por regla, agregada por MÁXIMO, y presentada como severidad de los hallazgos evaluados', async () => {
-    await publicar('1.0.0', [
+    await publicar('9.1.0', [
       { code: 'MATERIAL_OF_UNKNOWN_ORIGIN', category: 'MIXING', condition_kind: 'lot_origin_incomplete', effect: 'BLOCKING', severity: 'HIGH' },
       { code: 'DATA_MISSING_ORIGIN', category: 'TRACEABILITY', condition_kind: 'delivery_without_origin', effect: 'BLOCKING', severity: 'MEDIUM' },
     ]);
-    await adoptar(orgA, ADMIN, '1.0.0').expect(201);
+    await adoptar(orgA, ADMIN, '9.1.0').expect(201);
     const ev = (await evaluar(orgA, EUDR, loteA).expect(201)).body.evaluation;
     // Dos hallazgos, HIGH y MEDIUM: gana el mayor. Ni promedio ni suma.
     expect(ev.risk_result.severity).toBe('HIGH');
@@ -190,12 +194,12 @@ describeDb('D-07 mecanismos: adopción por organización y severidad por regla',
   });
 
   it('clasificación PARCIAL: un hallazgo conocido no desaparece porque otra regla no se pueda evaluar', async () => {
-    await publicar('1.1.0', [
+    await publicar('9.2.0', [
       { code: 'MATERIAL_OF_UNKNOWN_ORIGIN', category: 'MIXING', condition_kind: 'lot_origin_incomplete', effect: 'BLOCKING', severity: 'HIGH' },
       { code: 'SATELLITE_COVERAGE_UNKNOWN', category: 'DEFORESTATION', condition_kind: 'satellite_coverage', effect: 'NOT_ASSESSED', severity: 'CRITICAL' },
     ]);
-    await adoptar(orgA, ADMIN, '1.0.0', 'WITHDRAW', 'Se cambia de versión').expect(201);
-    await adoptar(orgA, ADMIN, '1.1.0').expect(201);
+    await adoptar(orgA, ADMIN, '9.1.0', 'WITHDRAW', 'Se cambia de versión').expect(201);
+    await adoptar(orgA, ADMIN, '9.2.0').expect(201);
     const ev = (await evaluar(orgA, EUDR, loteA).expect(201)).body.evaluation;
     const cov = ev.risk_result.severity_coverage;
     // El hallazgo conocido se clasifica: HIGH. La regla no evaluable NO aporta su CRITICAL (no se sabe qué daría).
@@ -214,9 +218,9 @@ describeDb('D-07 mecanismos: adopción por organización y severidad por regla',
     // Catálogo cuya única regla no se dispara en este lote.
     // `mitigation_status` da NOT_HIT cuando no hay mitigaciones abiertas: todas las reglas del catálogo evaluadas
     // y ningún hallazgo. Aun así NO se clasifica como «bajo».
-    await publicar('1.2.0', [{ code: 'MITIGATION_UNVERIFIED', category: 'SUPPLY_CHAIN', condition_kind: 'mitigation_status', effect: 'BLOCKING', severity: 'LOW' }]);
-    await adoptar(orgA, ADMIN, '1.1.0', 'WITHDRAW', 'Se cambia de versión').expect(201);
-    await adoptar(orgA, ADMIN, '1.2.0').expect(201);
+    await publicar('9.3.0', [{ code: 'MITIGATION_UNVERIFIED', category: 'SUPPLY_CHAIN', condition_kind: 'mitigation_status', effect: 'BLOCKING', severity: 'LOW' }]);
+    await adoptar(orgA, ADMIN, '9.2.0', 'WITHDRAW', 'Se cambia de versión').expect(201);
+    await adoptar(orgA, ADMIN, '9.3.0').expect(201);
     const ev = (await evaluar(orgA, EUDR, loteA).expect(201)).body.evaluation;
     expect(ev.risk_result.severity).toBe('NOT_ASSESSED');
     expect(ev.risk_result.severity_coverage.reason).toMatch(/NO se asigna «bajo» por ausencia/i);
@@ -224,9 +228,9 @@ describeDb('D-07 mecanismos: adopción por organización y severidad por regla',
   });
 
   it('un hallazgo cuya regla no declara severidad no clasifica, y se dice cuál', async () => {
-    await publicar('1.3.0', [{ code: 'MATERIAL_OF_UNKNOWN_ORIGIN', category: 'MIXING', condition_kind: 'lot_origin_incomplete', effect: 'BLOCKING', severity: null }]);
-    await adoptar(orgA, ADMIN, '1.2.0', 'WITHDRAW', 'Se cambia de versión').expect(201);
-    await adoptar(orgA, ADMIN, '1.3.0').expect(201);
+    await publicar('9.4.0', [{ code: 'MATERIAL_OF_UNKNOWN_ORIGIN', category: 'MIXING', condition_kind: 'lot_origin_incomplete', effect: 'BLOCKING', severity: null }]);
+    await adoptar(orgA, ADMIN, '9.3.0', 'WITHDRAW', 'Se cambia de versión').expect(201);
+    await adoptar(orgA, ADMIN, '9.4.0').expect(201);
     const ev = (await evaluar(orgA, EUDR, loteA).expect(201)).body.evaluation;
     expect(ev.risk_result.severity).toBe('NOT_ASSESSED');
     expect(ev.risk_result.severity_coverage.hits_without_declared_severity).toContain('MATERIAL_OF_UNKNOWN_ORIGIN');
@@ -263,28 +267,156 @@ describeDb('D-07 mecanismos: adopción por organización y severidad por regla',
 
   // ---------------------------------------------------------------- D-07.4 desactualización
 
-  it('una evaluación queda STALE cuando cambia la versión de reglas, sin modificarse', async () => {
+  it('publicar una versión que la organización no adopta NO desactualiza sus evaluaciones, pero se le avisa', async () => {
     const ev = (await evaluar(orgA, EUDR, loteA).expect(201)).body.evaluation;
     expect(ev.freshness.status).toBe('CURRENT');
-    await publicar('1.4.0', [{ code: 'MATERIAL_OF_UNKNOWN_ORIGIN', category: 'MIXING', condition_kind: 'lot_origin_incomplete', effect: 'BLOCKING', severity: 'HIGH' }]);
+    // Publicar algo que A no ha adoptado no le cambia las reglas a su espalda…
+    await publicar('9.5.0', [{ code: 'MATERIAL_OF_UNKNOWN_ORIGIN', category: 'MIXING', condition_kind: 'lot_origin_incomplete', effect: 'BLOCKING', severity: 'HIGH' }]);
+    const avisado = (await http().get(`${api(orgA)}/risk/evaluations/${ev.id}`).set(as(EUDR)).expect(200)).body;
+    expect(avisado.freshness.status).toBe('CURRENT');
+    // …pero sí se le dice que existe, para que decida si la adopta.
+    expect(avisado.freshness.newer_published).toBe('9.5.0');
+    expect(avisado.freshness.newer_published_note).toMatch(/NO se aplica sola/i);
+
+    // Lo que SÍ desactualiza es cambiar las reglas que le APLICAN: adoptar otra versión.
+    await adoptar(orgA, ADMIN, '9.5.0', 'ADOPT', 'Se adopta la versión nueva').expect(201);
     const releido = (await http().get(`${api(orgA)}/risk/evaluations/${ev.id}`).set(as(EUDR)).expect(200)).body;
     expect(releido.freshness.status).toBe('STALE');
-    expect(releido.freshness.reason).toMatch(/versión de reglas más reciente/i);
+    expect(releido.freshness.reason).toMatch(/le aplican ahora las 9\.5\.0/i);
     // La evaluación NO se modificó: mismo hash de instantánea y misma versión.
     expect(releido.snapshot.hash).toBe(ev.snapshot.hash);
     expect(releido.rules.version).toBe(ev.rules.version);
   });
 
+  // ---------------------------------------------------------------- catálogo 1.0.0 real (migración 0043)
+
+  describe('catálogo 1.0.0, publicado globalmente', () => {
+    // No hace falta tocar nada para que estas pruebas vean 1.0.0: el catálogo que aplica a una organización es el
+    // que ELLA ha adoptado, y si no ha adoptado ninguno, el último publicado. `risk_rule_sets` es append-only.
+
+    it('publica cinco severidades y tres reglas sin severidad, y deja los históricos intactos', async () => {
+      const reglas = (await sql<{ code: string; severity: string | null; effect: string }>`
+        SELECT code, severity, effect FROM risk_rules WHERE rule_set_version = '1.0.0' ORDER BY code`.execute(h.db)).rows;
+      expect(reglas).toHaveLength(8);
+      const sev = Object.fromEntries(reglas.map((r) => [r.code, r.severity]));
+      expect(sev).toEqual({
+        MATERIAL_OF_UNKNOWN_ORIGIN: 'CRITICAL',
+        MASS_BALANCE_INCONSISTENT: 'CRITICAL',
+        DATA_MISSING_ORIGIN: 'HIGH',
+        GEOMETRY_INVALID: 'HIGH',
+        DOCUMENT_EXPIRED: 'MEDIUM',
+        MITIGATION_UNVERIFIED: null,
+        SATELLITE_COVERAGE_UNKNOWN: null,
+        GEOLOCATION_PROFILE: null,
+      });
+      const efecto = Object.fromEntries(reglas.map((r) => [r.code, r.effect]));
+      expect(efecto.MITIGATION_UNVERIFIED).toBe('BLOCKING');
+      expect(efecto.SATELLITE_COVERAGE_UNKNOWN).toBe('NOT_ASSESSED');
+      expect(efecto.GEOLOCATION_PROFILE).toBe('NOT_ASSESSED');
+      expect(efecto.DOCUMENT_EXPIRED).toBe('REVIEW_REQUIRED');
+      const hist = (await sql<{ n: string }>`SELECT count(*)::text AS n FROM risk_rules WHERE rule_set_version IN ('0.1.0','0.2.0') AND severity IS NOT NULL`.execute(h.db)).rows[0].n;
+      expect(hist).toBe('0');
+    });
+
+    it('la graduación se declara como decisión de producto, no como exigencia de la norma', async () => {
+      const filas = (await sql<{ code: string; source: string; limit_note: string }>`
+        SELECT code, source, limit_note FROM risk_rules WHERE rule_set_version = '1.0.0' AND severity IS NOT NULL`.execute(h.db)).rows;
+      expect(filas).toHaveLength(5);
+      for (const f of filas) {
+        expect(f.source).toMatch(/DECISIÓN DE PRODUCTO/);
+        expect(f.limit_note).toMatch(/decisión interna de producto/i);
+      }
+      const notas = (await sql<{ notes: string; approval_status: string }>`SELECT notes, approval_status FROM risk_rule_sets WHERE version = '1.0.0'`.execute(h.db)).rows[0];
+      expect(notas.approval_status).toBe('APPROVED');
+      expect(notas.notes).toMatch(/NO es aprobación regulatoria/i);
+      expect(notas.notes).toMatch(/DECISIONES INTERNAS DE PRODUCTO/);
+      expect(notas.notes).toMatch(/LEGALITY, EVASION, HUMAN_RIGHTS/);
+      expect(notas.notes).toMatch(/PUBLICAR NO ES ADOPTAR/);
+    });
+
+    it('MATERIAL_OF_UNKNOWN_ORIGIN se describe por su condición real, sin imputar mezcla ilegal ni fraude', async () => {
+      const r = (await sql<{ explanation: string; limit_note: string }>`
+        SELECT explanation, limit_note FROM risk_rules WHERE rule_set_version = '1.0.0' AND code = 'MATERIAL_OF_UNKNOWN_ORIGIN'`.execute(h.db)).rows[0];
+      expect(r.explanation).toMatch(/origen INCOMPLETO/i);
+      expect(r.limit_note).toMatch(/NO una mezcla ilegal, un fraude ni una irregularidad probada/i);
+      expect(r.limit_note).toMatch(/puede completarse/i);
+    });
+
+    it('publicar no adopta: sin adopción, el catálogo aprobado no clasifica nada', async () => {
+      // 1.0.0 está publicado globalmente y APROBADO…
+      const cat = (await sql<{ approval_status: string }>`SELECT approval_status FROM risk_rule_sets WHERE version = '1.0.0'`.execute(h.db)).rows[0];
+      expect(cat.approval_status).toBe('APPROVED');
+      // …y aun así B no clasifica nada, porque no ha adoptado ninguna versión.
+      const ev = (await evaluar(orgB, ADMIN_B, loteB).expect(201)).body.evaluation;
+      expect(ev.rules.adopted_by_organization).toBe(false);
+      expect(ev.risk_result.severity).toBe('NOT_ASSESSED');
+      expect(ev.risk_result.severity_coverage.reason).toMatch(/no ha adoptado el catálogo/i);
+    });
+
+    it('adoptado: el hallazgo CRÍTICO conocido permanece visible y la cobertura sigue incompleta', async () => {
+      await adoptar(orgB, ADMIN_B, '1.0.0', 'ADOPT', 'Ensayo técnico del MVP local').expect(201);
+      const ev = (await evaluar(orgB, ADMIN_B, loteB).expect(201)).body.evaluation;
+      const cov = ev.risk_result.severity_coverage;
+      expect(ev.risk_result.severity).toBe('CRITICAL');
+      expect(ev.risk_result.severity_label).toMatch(/de los hallazgos evaluados/i);
+      expect(cov.not_evaluable_codes).toEqual(expect.arrayContaining(['SATELLITE_COVERAGE_UNKNOWN', 'GEOLOCATION_PROFILE']));
+      expect(cov.complete).toBe(false);
+      expect(cov.reason).toMatch(/Clasificación PARCIAL/i);
+      expect(cov.reason).toMatch(/No es una evaluación completa del riesgo del lote/i);
+      expect(cov.categories_without_rules).toEqual(expect.arrayContaining(['LEGALITY', 'EVASION', 'HUMAN_RIGHTS', 'INDIGENOUS_RIGHTS']));
+      expect(ev.technical_result.status).toBe('BLOCKED');
+      expect(ev.risk_result.conclusion).toBe('UNDETERMINED');
+    });
+
+    it('una mitigación sin abrir no aporta severidad: la clasificación sale de los hallazgos clasificables', async () => {
+      const ev = (await evaluar(orgB, ADMIN_B, loteB).expect(201)).body.evaluation;
+      const factores = ev.factors as Array<{ code: string; result: string }>;
+      expect(factores.find((f) => f.code === 'MITIGATION_UNVERIFIED')!.result).toBe('NOT_HIT');
+      expect(ev.risk_result.severity).toBe('CRITICAL');
+      expect(ev.risk_result.severity_coverage.hits_without_declared_severity).not.toContain('MATERIAL_OF_UNKNOWN_ORIGIN');
+    });
+
+    it('retirar la adopción devuelve a sin clasificar, sin tocar las evaluaciones anteriores', async () => {
+      const antes = (await evaluar(orgB, ADMIN_B, loteB).expect(201)).body.evaluation;
+      expect(antes.risk_result.severity).toBe('CRITICAL');
+      await adoptar(orgB, ADMIN_B, '1.0.0', 'WITHDRAW', 'Fin del ensayo').expect(201);
+      const despues = (await evaluar(orgB, ADMIN_B, loteB).expect(201)).body.evaluation;
+      expect(despues.risk_result.severity).toBe('NOT_ASSESSED');
+      const fila = (await sql<{ severity: string }>`SELECT severity FROM risk_evaluations WHERE id = ${antes.id}`.execute(h.db)).rows[0];
+      expect(fila.severity).toBe('CRITICAL');
+    });
+  });
+
   // ---------------------------------------------------------------- lo que sigue bloqueado
 
-  it('nada de esto habilita READY ni conclusión regulatoria', async () => {
-    const ev = (await evaluar(orgA, EUDR, loteA).expect(201)).body.evaluation;
+  it('ninguna versión publicada declara perfil jurídico: publicar técnicamente no aprueba nada bajo la norma', async () => {
+    const conPerfil = (await sql<{ version: string }>`SELECT version FROM risk_rule_sets WHERE regulatory_profile IS NOT NULL`.execute(h.db)).rows;
+    expect(conPerfil).toEqual([]); // D-07.5 sigue pendiente, y la base lo refleja
+    const ev = (await evaluar(orgB, ADMIN_B, loteB).expect(201)).body.evaluation;
+    expect(ev.rules.regulatory_profile).toBeNull();
+    expect(ev.rules.note).toMatch(/APROBACIÓN BAJO PERFIL JURÍDICO \(D-07\.5, pendiente/);
+  });
+
+  it('nada de esto habilita READY ni conclusión regulatoria, ni siquiera con el catálogo ADOPTADO', async () => {
+    // Peor caso a propósito: la organización adopta 1.0.0, clasifica un CRÍTICO y aun así el expediente no avanza.
+    await adoptar(orgB, ADMIN_B, '1.0.0', 'ADOPT', 'Ensayo técnico del MVP local').expect(201);
+    const ev = (await evaluar(orgB, ADMIN_B, loteB).expect(201)).body.evaluation;
+    expect(ev.risk_result.severity).toBe('CRITICAL');
     expect(ev.risk_result.conclusion).toBe('UNDETERMINED');
-    const dd = (await http().post(`${api(orgA)}/dd/lots/${loteA}/snapshots`).set(as(EUDR)).send({ operation_id: randomUUID() })).body;
-    if (dd?.snapshot) {
-      expect(dd.snapshot.readiness.status).not.toBe('READY');
-      const porCodigo = Object.fromEntries((dd.snapshot.requirements as Array<{ code: string; status: string }>).map((r) => [r.code, r.status]));
-      expect(porCodigo.REGULATORY_CONCLUSION).not.toBe('MET');
-    }
+
+    const caso = (await http().post(`${api(orgB)}/dd-cases`).set(as(ADMIN_B))
+      .send({ operation_id: randomUUID(), lot_id: loteB, scope_note: 'Expediente de prueba del MVP local' }).expect(201)).body.case;
+    const dd = (await http().post(`${api(orgB)}/dd-cases/${caso.id}/snapshots`).set(as(ADMIN_B)).send({ operation_id: randomUUID() }).expect(201)).body;
+    expect(dd.snapshot.readiness).toMatchObject({ captured: 'BLOCKED', effective: 'BLOCKED' });
+    const req = Object.fromEntries((dd.snapshot.requirements as Array<{ code: string; status: string; detail: string }>).map((r) => [r.code, r]));
+    // El requisito del catálogo NO se cumple por haberlo publicado ni por haberlo adoptado: falta el perfil jurídico.
+    expect(req.RISK_CATALOG_APPROVED.status).toBe('NOT_EVALUABLE');
+    expect(req.RISK_CATALOG_APPROVED.detail).toMatch(/decisión TÉCNICA de producto/);
+    expect(req.RISK_CATALOG_APPROVED.detail).toMatch(/D-07\.5/);
+    expect(req.REGULATORY_CONCLUSION.status).not.toBe('MET');
+    // Y la severidad CRÍTICA no se convierte en una conclusión en contra: son dimensiones distintas.
+    expect(req.REGULATORY_CONCLUSION.status).toBe('NOT_EVALUABLE');
+
+    await adoptar(orgB, ADMIN_B, '1.0.0', 'WITHDRAW', 'Fin del ensayo').expect(201);
   });
 });

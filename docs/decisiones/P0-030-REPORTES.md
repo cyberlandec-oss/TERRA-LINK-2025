@@ -6,7 +6,7 @@ parcela, lote, riesgo, trazabilidad, DD y exportación GeoJSON), RF-30, docs/09,
 Validación local; no acredita producción ni conformidad EUDR.
 
 Estado por criterio, con lo demostrado, lo pendiente y lo bloqueado: **`docs/decisiones/P0-030-CRITERIOS.md`**.
-Catálogo vigente: **`2026-10-14.2`**.
+Catálogo vigente: **`2026-10-15.1`** (añade `risk_critical`, extensión declarada de Terra Link).
 
 ## 1. Regla que gobierna esta historia
 
@@ -42,7 +42,8 @@ Dos consecuencias que se vigilan en las pruebas:
 | `deliveries_total` | A | Entregas **registradas** con `delivery_date` dentro del período (límites inclusivos) | entregas | `deliveries.delivery_date` (**no** `created_at`) | — | `OK`. Observa borradores y entregas registradas **sin fecha**, que quedan fuera de todo período y no se descartan en silencio |
 | `lots_active` | E | Lotes en `OPEN` o `CLOSED_FOR_INPUT` | lotes | — | — | `OK`; observa el desglose por estado |
 | `traceability_completeness` | E | Lotes con `origin_status = COMPLETE` ÷ lotes del tenant | % | — | lotes del tenant | `OK`, o `NO_DENOMINATOR` sin lotes. Mide **origen declarado completo**, no conformidad ni verificación |
-| `risk_high` | E | Lotes cuya **última** evaluación tiene `severity = HIGH` | lotes | — | lotes **con severidad asignada** | `NO_DENOMINATOR` sin evaluaciones; `UNKNOWN` si las hay y ninguna tiene severidad; `OK` en cuanto haya un lote clasificado, **sobre la base de los clasificados** y nunca como distribución del tenant. La dependencia es **D-07** y el catálogo `risk_rule_sets` (hoy `NOT_APPROVED`), no otras historias: ver §6.bis |
+| `risk_critical` | E | Lotes cuya **última** evaluación tiene `severity = CRITICAL` | lotes | — | lotes **con severidad asignada** | **Extensión declarada de Terra Link, NO está en la lista de S1 §60**: viaja con `catalog: "TERRA_LINK"` y la pantalla lo rotula como extensión. Se publica porque sin él los lotes **críticos** no aparecerían en ningún indicador. Mismos estados y mismo denominador que los tres de la fuente |
+| `risk_high` | E | Lotes cuya **última** evaluación tiene `severity = HIGH` | lotes | — | lotes **con severidad asignada** | `NO_DENOMINATOR` sin evaluaciones; `UNKNOWN` si las hay y ninguna tiene severidad; `OK` en cuanto haya un lote clasificado, **sobre la base de los clasificados** y nunca como distribución del tenant. **No absorbe los `CRITICAL`**: cada severidad tiene su propio conteo. La dependencia es **D-07**: ver §6.bis |
 | `risk_medium` | E | ídem con `MEDIUM` | lotes | — | lotes con severidad asignada | ídem |
 | `risk_low` | E | ídem con `LOW` | lotes | — | lotes con severidad asignada | ídem |
 | `evidence_completeness` | E | Afirmaciones `VERIFIED` ÷ afirmaciones del tenant | % | — | afirmaciones del tenant | `OK`, o `NO_DENOMINATOR` sin afirmaciones. Mide **verificación interna**, no validez jurídica |
@@ -124,15 +125,28 @@ Los volúmenes de Docker se recrearon vacíos el 2026-10-13 y se perdieron los r
   combinan en una puntuación única.
 - **`NOT_VALIDATED` significa SIN EVALUAR**, no «inválida». El reporte de parcelas lo rotula así en la celda.
 
-## 6.bis Qué bloquea la severidad de riesgo
+## 6.bis Qué determina la severidad de riesgo
 
 **No** es cerrar P0-021 ni P0-028. P0-021 está **implementada**, y verificar una mitigación entra en el resultado
-**técnico** de su factor: no asigna severidad ni produce conclusión favorable. Lo que la determina es **D-07** (enums,
-mapping y regla aprobada) junto con el catálogo `risk_rule_sets`, hoy `NOT_APPROVED` y sin «pesos, umbrales, severidades
-ni lista jurídica». Y la base lo refuerza: `risk_evaluations` lleva
-`CHECK (conclusion = 'UNDETERMINED' AND severity = 'NOT_ASSESSED')` desde la migración `0025_risk.ts`, de modo que
-**ninguna fila puede llevar severidad** mientras eso no cambie. Por eso el reparto por severidad se prueba en memoria
-(`reports-risk.spec.ts`), incluido el caso mixto, y la integración comprueba el candado del esquema.
+**técnico** de su factor: no asigna severidad ni produce conclusión favorable. Lo que la determina es **D-07**, en
+dos pasos que el motivo del indicador cita leyendo la base, nunca una lista de historias pendientes:
+
+1. que exista un catálogo **publicado** globalmente — desde el 2026-10-15 lo hay: `1.0.0`, `APPROVED` —, y
+2. que **esa organización lo haya adoptado** (D-07.1). **Publicar no es adoptar**: sin una adopción que la
+   respalde, el `CHECK risk_evaluations_severity_backed` (migración `0042`) **impide escribir cualquier
+   severidad**, por mucho que el catálogo esté aprobado globalmente.
+
+Adoptado el catálogo, una evaluación todavía puede salir sin severidad: por **A.2** (ningún hallazgo en las reglas
+evaluadas) o porque los hallazgos pertenecen a reglas **sin severidad declarada**. El motivo del indicador dice
+cuál de las tres situaciones es.
+
+La **conclusión regulatoria** es otra dimensión y sigue clavada: `CHECK risk_evaluations_conclusion_undetermined`
+mientras D-07.5 y D-07.6 sigan pendientes. Clasificar hallazgos **no** concluye nada.
+
+Cuando sí hay clasificación, el indicador declara que es **parcial**: de qué catálogo adoptado sale, que ese
+catálogo puede no cubrir todas las categorías de riesgo y que no es una conclusión regulatoria. El reparto se
+prueba en memoria (`reports-risk.spec.ts`) con conjuntos sintéticos —incluido el caso mixto y el reparto
+`CRITICAL`/`HIGH`— y la integración lo comprueba contra la base, adoptando y retirando el catálogo `1.0.0`.
 
 ## 7. Reportes por entidad (S1 §97)
 

@@ -17,7 +17,7 @@ import {
   ASSIGNED_SCOPE_NOTE, COVERAGE, EXPORT_RECALC_NOTE, INTERPRETATION_NOTE, REPORT_CATALOG_VERSION, REPORT_EXPORT_FORMAT,
   SCOPE_NOTE, SNAPSHOT_NOTE, has, timeBasis, type IndicatorStatus, type Period,
 } from './reports-shared';
-import { severityBucket } from './reports-risk';
+import { severityBucket, type CatalogState } from './reports-risk';
 
 // P0-030 Reportes e indicadores (S1 §60 «construir los indicadores desde queries reales»; RF-30; QA-13/14).
 // Contrato completo, con definición, unidad, fecha usada y denominador de cada KPI: docs/decisiones/P0-030-REPORTES.md.
@@ -54,6 +54,11 @@ export interface Indicator {
   value: string | null;
   numerator: number | null;
   denominator: number | null;
+  /**
+   * De dónde sale el indicador: `S1_60` es la lista literal de la fuente (once); `TERRA_LINK` es una extensión
+   * nuestra, declarada como tal para no atribuirla a la fuente.
+   */
+  catalog: 'S1_60' | 'TERRA_LINK';
   /** Conteos que SÍ son observables aunque el indicador principal no lo sea. Nunca se usan para rellenar `value`. */
   observed: Record<string, number> | null;
   /**
@@ -105,9 +110,11 @@ export class ReportsController {
     const sum = (o: Record<string, number>) => Object.values(o).reduce((a, b) => a + b, 0);
 
     const out: Indicator[] = [];
-    type Base = Omit<Indicator, 'status' | 'value' | 'numerator' | 'denominator' | 'observed' | 'reason' | 'criterion'>;
+    // `catalog` por omisión es la lista de la fuente: solo las extensiones lo declaran, y así se ven de un vistazo.
+    type Base = Omit<Indicator, 'status' | 'value' | 'numerator' | 'denominator' | 'observed' | 'reason' | 'criterion' | 'catalog'>
+      & Partial<Pick<Indicator, 'catalog'>>;
     type Rest = Pick<Indicator, 'status' | 'value' | 'numerator' | 'denominator' | 'observed' | 'reason'> & Pick<Indicator, 'criterion'>;
-    const push = (b: Base, rest: Rest) => out.push({ ...b, ...rest });
+    const push = (b: Base, rest: Rest) => out.push({ catalog: 'S1_60', ...b, ...rest });
     /** Sin el permiso del dominio: sin valor, sin numerador, sin denominador, sin desglose y sin conteo. */
     const restricted = (b: Base) => push(b, {
       status: 'RESTRICTED', value: null, numerator: null, denominator: null, observed: null,
@@ -243,12 +250,21 @@ export class ReportsController {
     }
 
     // ---- Riesgo por severidad (estado) ----
-    // La severidad NO depende de cerrar otras historias: el motor (P0-020) la escribe SIEMPRE como NOT_ASSESSED porque
-    // el catálogo de reglas vigente no está aprobado y no define pesos, umbrales, puntuaciones ni severidades. Esa es la
-    // decisión D-07. Verificar una mitigación (P0-021, implementada) entra en el resultado TÉCNICO de su factor, no
-    // asigna severidad ni produce una conclusión favorable.
-    const catalogo = can('risk:read')
-      ? (await sql<{ version: string; approval_status: string }>`SELECT version, approval_status FROM risk_rule_sets ORDER BY published_at DESC, version DESC LIMIT 1`.execute(db)).rows[0] ?? null
+    // La severidad NO depende de cerrar otras historias, sino del catálogo (D-07) en dos pasos independientes:
+    // se publica globalmente y, por separado, CADA organización lo adopta (D-07.1). Sin adopción propia no hay
+    // severidad, aunque exista una versión publicada y aprobada. Verificar una mitigación (P0-021, implementada)
+    // entra en el resultado TÉCNICO de su factor, no asigna severidad ni produce una conclusión favorable.
+    const catalogo: CatalogState | null = can('risk:read')
+      ? {
+          publicada: (await sql<{ version: string; approval_status: string }>`SELECT version, approval_status FROM risk_rule_sets ORDER BY published_at DESC, version DESC LIMIT 1`.execute(db)).rows[0] ?? null,
+          // Última decisión de CADA versión; de las que siguen adoptadas, la adoptada más recientemente.
+          adoptada: (await sql<{ version: string }>`
+            SELECT version FROM (
+              SELECT DISTINCT ON (rule_set_version) rule_set_version AS version, decision, decided_at, id
+              FROM risk_rule_set_adoptions WHERE organization_id = ${org}
+              ORDER BY rule_set_version, decided_at DESC, id DESC
+            ) ultima WHERE decision = 'ADOPT' ORDER BY decided_at DESC, id DESC LIMIT 1`.execute(db)).rows[0]?.version ?? null,
+        }
       : null;
     // La ÚLTIMA evaluación de cada sujeto (no todas): DISTINCT ON por evaluation_number descendente.
     const ultimaPorSujeto = can('risk:read')
@@ -258,8 +274,16 @@ export class ReportsController {
             WHERE organization_id = ${org} ORDER BY subject_id, evaluation_number DESC
           ) ultima GROUP BY severity`)
       : {};
-    for (const [code, sev, label] of [['risk_high', 'HIGH', 'alto'], ['risk_medium', 'MEDIUM', 'medio'], ['risk_low', 'LOW', 'bajo']] as const) {
-      const b: Base = { code, name: `Lotes de riesgo ${label}`, definition: `Lotes cuya ÚLTIMA evaluación tiene severity = ${sev}, sobre los lotes con severidad asignada.`, unit: 'count', kind: 'STATE', date_basis: null, requires: 'risk:read' };
+    // `risk_critical` NO está en la lista de S1 §60: es una **extensión declarada** de Terra Link. Se añade porque
+    // sin ella los lotes CRÍTICOS no aparecerían en ningún indicador, y quedarían fuera de los tres de la fuente
+    // sin que nadie lo notara. Va marcado como extensión para no presentarlo como si lo exigiera la fuente.
+    for (const [code, sev, label] of [['risk_critical', 'CRITICAL', 'crítico'], ['risk_high', 'HIGH', 'alto'], ['risk_medium', 'MEDIUM', 'medio'], ['risk_low', 'LOW', 'bajo']] as const) {
+      const b: Base = {
+        code, name: `Lotes de riesgo ${label}`,
+        definition: `Lotes cuya ÚLTIMA evaluación tiene severity = ${sev}, sobre los lotes con severidad asignada. Severidad de los HALLAZGOS EVALUADOS, no conclusión regulatoria.`,
+        unit: 'count', kind: 'STATE', date_basis: null, requires: 'risk:read',
+        catalog: sev === 'CRITICAL' ? 'TERRA_LINK' : 'S1_60',
+      };
       if (!can('risk:read')) { restricted(b); continue; }
       // Los tres casos (sin evaluar, evaluado sin clasificar y MIXTO) viven en un módulo puro, probado con conjuntos
       // sintéticos: la base impide hoy construir el mixto (CHECK de la migración 0025), y aun así la rama está cubierta.

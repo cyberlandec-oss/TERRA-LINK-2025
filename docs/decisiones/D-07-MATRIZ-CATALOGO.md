@@ -1,16 +1,27 @@
-# D-07 — Matriz del catálogo de reglas, para revisar antes de publicar nada (NO APROBADA)
+# D-07 — Matriz del catálogo de reglas, APROBADA y publicada como `1.0.0`
 
-Archivo: `docs/decisiones/D-07-MATRIZ-CATALOGO.md` · Revisión **1** (2026-10-15) · **Versión de catálogo
-propuesta: ninguna todavía**. La matriz describe qué contendría una versión futura; **el número de versión se
-decide al publicarla** (D-07.1), y publicar y adoptar son dos actos posteriores y distintos.
+Archivo: `docs/decisiones/D-07-MATRIZ-CATALOGO.md` · Revisión **2** (2026-10-15) · **Versión publicada: `1.0.0`**
+(migración `0043`). La matriz describe lo que esa versión contiene.
 
-Estado: **PROPUESTA DE MATRIZ**. **Ningún catálogo nuevo se ha publicado ni adoptado.** Los catálogos `0.1.0` y
-`0.2.0` siguen **tal cual, como históricos**, con **todas sus reglas sin severidad** y **sin adopción en ninguna
-organización**.
+Estado: **APROBADA para el MVP local y PUBLICADA globalmente** (`risk_rule_sets.approval_status = 'APPROVED'`).
+Tres salvedades que no son matices de redacción:
 
-**Aprobar el mecanismo no aprueba estas asignaciones.** El 2026-10-15 se adoptaron los *mecanismos* D-07.1, D-07.2
-y D-07.4 (ver `docs/decisiones/D-07-PROPUESTA.md` §7). Esta matriz es lo que hay que revisar **antes** de publicar
-una versión que declare severidades, y **no se aprueba sola**.
+1. **Publicar no es adoptar.** `1.0.0` no está adoptado en ninguna organización, y sin adopción el motor no
+   escribe ninguna severidad (`CHECK risk_evaluations_severity_backed`). Adoptarlo es una decisión de cada
+   organización (D-07.1), y **no se adopta automáticamente en ninguna**.
+2. **Publicar no es aprobar bajo la norma.** `risk_rule_sets.regulatory_profile` es `NULL` en todas las versiones:
+   **D-07.5** (perfil jurídico) y **D-07.6** (quién concluye) siguen pendientes. El requisito
+   `RISK_CATALOG_APPROVED` del expediente sigue `NOT_EVALUABLE` **incluso con el catálogo adoptado**, y la
+   conclusión regulatoria sigue `UNDETERMINED` por `CHECK`. Esto **no habilita `READY` ni despacho**.
+3. **La versión es inmutable.** Cambiar una severidad es publicar otra versión, no editar esta. Los catálogos
+   `0.1.0` y `0.2.0` quedaron **intactos como históricos**, con todas sus reglas sin severidad.
+
+**Corrección de la revisión 1.** La revisión anterior clasificaba solo **tres** asignaciones como decisión de
+producto y presentaba las otras dos como derivadas de una fuente. **Era inexacto, y así se corrigió al aprobarla:
+las CINCO severidades son decisiones de producto.** Las fuentes sostienen el **hecho** (qué datos exige el
+Reglamento, qué significa un origen incompleto, qué bloquea) y el **límite** (qué no puede afirmarse), pero
+**ninguna fuente gradúa** el riesgo en crítico/alto/medio. Esa graduación la decide Terra Link, y cada regla
+publicada lo declara en su campo `source`.
 
 ---
 
@@ -18,8 +29,8 @@ una versión que declare severidades, y **no se aprueba sola**.
 
 | Columna | Qué significa |
 | --- | --- |
-| **Severidad propuesta** | Lo que esta matriz **sugiere**. No está en vigor |
-| **Respaldo** | **FUENTE** si la asignación se deriva de un texto citable · **PRODUCTO** si es una decisión que alguien tiene que tomar y firmar |
+| **Severidad propuesta** | La severidad **publicada** en `1.0.0` |
+| **Respaldo** | La fuente sostiene el **hecho** y el **límite** de la regla. La **graduación** es, en las cinco, **decisión de producto** |
 | **Si faltan datos** | Qué hace el motor cuando no puede evaluar la regla. **Nunca** un resultado favorable |
 | **Efecto** | `BLOCKING` impide avanzar · `REVIEW_REQUIRED` exige revisión humana · `NOT_ASSESSED` solo informa |
 
@@ -42,7 +53,7 @@ Dos cosas que la matriz **no** hace, por diseño:
 | **Si faltan datos** | No pueden faltar: el `origin_status` siempre existe. Si el grafo no se pudiera recorrer, `NOT_EVALUABLE` |
 | **Efecto** | `BLOCKING` (ya vigente) |
 | **Severidad propuesta** | **`CRITICAL`** |
-| **Respaldo** | **FUENTE.** docs/13: «Un saldo positivo no autoriza mezcla». El Art. 9(1)(d) exige la geolocalización de **todas** las parcelas: material de origen desconocido no puede declararse |
+| **Respaldo** | **El hecho y el límite son FUENTE**: el Art. 9(1)(d) exige la geolocalización de **todas** las parcelas, y docs/13 fija «Un saldo positivo no autoriza mezcla». **La graduación `CRITICAL` es PRODUCTO**: ninguna fuente gradúa. Motivo: un origen incompleto ya consumado impide declarar el lote, y eso no se corrige aportando un dato que no existe |
 | **Casos de prueba** | Lote con insumo de origen incompleto → `HIT` + `CRITICAL` · lote con todo el grafo completo → `NOT_HIT` · lote formado con dos lotes, uno incompleto → `HIT` y la referencia nombra **cuál** |
 
 ### 1.2 `DATA_MISSING_ORIGIN` — TRACEABILITY
@@ -78,7 +89,7 @@ Dos cosas que la matriz **no** hace, por diseño:
 | **Si faltan datos** | `NOT_EVALUABLE` |
 | **Efecto** | `BLOCKING` (ya vigente) |
 | **Severidad propuesta** | **`CRITICAL`** |
-| **Respaldo** | **FUENTE.** docs/13: «Bloqueo de consumo/despacho». Una inconsistencia de masa significa que las cantidades declaradas no cuadran: cualquier afirmación de trazabilidad sobre ese lote queda en el aire |
+| **Respaldo** | **El hecho y el efecto son FUENTE**: docs/13 fija «Bloqueo de consumo/despacho». **La graduación `CRITICAL` es PRODUCTO**: que un texto mande bloquear sostiene el EFECTO, no el GRADO. Motivo: si las cantidades no cuadran, cualquier afirmación de trazabilidad sobre ese lote queda en el aire |
 | **Casos de prueba** | Ledger conciliado → `NOT_HIT` · diferencia inyectada → `HIT` + `CRITICAL` · lote sin movimientos → `NOT_EVALUABLE` |
 
 ### 1.5 `DOCUMENT_EXPIRED` — DOCUMENT_CREDIBILITY
@@ -132,15 +143,20 @@ Dos cosas que la matriz **no** hace, por diseño:
 
 ---
 
-## 2. Resumen de respaldo
+## 2. Resumen de respaldo (corregido al aprobar)
 
-| Respaldo | Reglas |
+| Qué | Respaldo |
 | --- | --- |
-| **FUENTE** — derivable de un texto citable | `MATERIAL_OF_UNKNOWN_ORIGIN` (`CRITICAL`), `MASS_BALANCE_INCONSISTENT` (`CRITICAL`), y las tres que proponen **no** clasificar: `SATELLITE_COVERAGE_UNKNOWN`, `GEOLOCATION_PROFILE`, `MITIGATION_UNVERIFIED` |
-| **PRODUCTO** — hace falta decidir y firmar | `DATA_MISSING_ORIGIN` (`HIGH`), `GEOMETRY_INVALID` (`HIGH`), `DOCUMENT_EXPIRED` (`MEDIUM`) |
+| **El hecho**: qué condición detecta cada regla y por qué importa | **FUENTE** citable (Reglamento, docs/13) en las ocho |
+| **El límite**: qué NO puede afirmarse con el hallazgo | **FUENTE** citable en las ocho |
+| **La graduación**: por qué `CRITICAL` y no `HIGH` | **PRODUCTO en las CINCO.** Ninguna fuente gradúa el riesgo |
+| **No clasificar** (`MITIGATION_UNVERIFIED`, `SATELLITE_COVERAGE_UNKNOWN`, `GEOLOCATION_PROFILE`) | **PRODUCTO**, sostenido por el límite citable: no se clasifica lo que no se ha podido mirar ni lo que es trabajo pendiente |
 
-**Tres asignaciones son decisiones de producto, no derivaciones.** Están marcadas una por una y no deben aprobarse
-sin que alguien las firme como tales.
+**Las cinco severidades son decisiones de producto.** La revisión 1 decía «tres», tratando `CRITICAL` como
+derivable de la fuente: no lo es. Que un texto diga «bloqueo de consumo/despacho» sostiene el **efecto**
+`BLOCKING`, no el **grado** `CRITICAL`. Efecto y severidad son dimensiones distintas, y confundirlas presentaría
+como exigencia de la norma algo que decidió el equipo. Cada regla publicada cierra su `source` con
+«Graduación X: DECISIÓN DE PRODUCTO (2026-10-15)», y hay una prueba que lo comprueba regla por regla.
 
 ---
 
@@ -206,14 +222,15 @@ se dice cuál».
 
 ---
 
-## 4. Qué hace falta para aprobar esta matriz
+## 4. Qué se hizo al aprobarla, y qué sigue pendiente
 
-| # | Pendiente | De quién |
+| # | Paso | Estado |
 | --- | --- | --- |
-| 1 | Firmar las **tres asignaciones de PRODUCTO** (§2), o cambiarlas | Responsable de producto |
-| 2 | Confirmar que `MITIGATION_UNVERIFIED` **no** lleve severidad | Responsable de producto |
-| 3 | Decidir si se publica una versión con estas severidades, y con qué número | Responsable de producto |
-| 4 | Adoptarla en cada organización que vaya a usarla (D-07.1) | Administrador de cada organización |
+| 1 | Firmar las asignaciones de producto, corrigiendo que son **cinco** y no tres | **HECHO** (2026-10-15) |
+| 2 | Confirmar que `MITIGATION_UNVERIFIED` **no** lleve severidad | **HECHO**: sigue sin severidad y con efecto `BLOCKING` |
+| 3 | Publicar la versión, con número | **HECHO**: `1.0.0`, migración `0043`, inmutable |
+| 4 | Adoptarla en cada organización que vaya a usarla (D-07.1) | **NO HECHO.** Ninguna organización la ha adoptado, y **no se adopta automáticamente en ninguna** |
+| 5 | Aprobar una versión bajo **perfil jurídico** para poder concluir | **PENDIENTE: D-07.5 y D-07.6.** `regulatory_profile` es `NULL` en todas |
 
-**Nada de esto se ha hecho.** Publicar la versión y adoptarla son actos posteriores y deliberados, y esta matriz
-no los autoriza.
+Publicar esta versión **no** habilita `READY`, despacho ni conclusión regulatoria, y el paso 4 es de cada
+organización, no de esta matriz.

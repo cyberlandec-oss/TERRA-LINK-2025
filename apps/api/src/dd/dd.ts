@@ -118,6 +118,7 @@ export class DdService {
     if (latest) {
       const v = await this.risk.view(db, ctx, latest.id);
       risk = { evaluation_id: v.id, evaluation_number: v.evaluation_number, snapshot_hash: v.snapshot.hash, rule_set_version: v.rules.version, rule_set_approval: v.rules.approval_status,
+        rule_set_adopted: v.rules.adopted_by_organization, rule_set_regulatory_profile: v.rules.regulatory_profile,
         technical_result: v.technical_result.status, severity: v.risk_result.severity, conclusion: v.risk_result.conclusion, is_current: v.freshness.status === 'CURRENT', review_process: v.review.process_status,
         factors: v.factors.map((f) => ({ code: f.code, result: f.result, effect: f.effect })) };
     }

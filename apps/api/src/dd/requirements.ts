@@ -22,7 +22,12 @@ export interface DdContent {
   quality: Array<{ reception_id: string; delivery_code: string; decision: string }>;
   documents: Array<{ document_id: string; version_id: string; title: string; document_type: string; classification: string; version_number: number; sha256: string; file_name: string; expires_at: string | null; expired: boolean; scan: string | null; used_by: string; reference: string }>;
   evidence: Array<{ id: string; claim_type: string; entity_type: string; entity_id: string; status: string; row_version: string }>;
-  risk: null | { evaluation_id: string; evaluation_number: number; snapshot_hash: string; rule_set_version: string; rule_set_approval: string; technical_result: string; severity: string; conclusion: string; is_current: boolean; review_process: string; factors: Array<{ code: string; result: string; effect: string }> };
+  risk: null | { evaluation_id: string; evaluation_number: number; snapshot_hash: string; rule_set_version: string; rule_set_approval: string;
+    /** D-07.1: ¿esta organización adoptó el catálogo con el que se evaluó? Sin adopción no hay ni severidad. */
+    rule_set_adopted: boolean;
+    /** D-07.5: perfil jurídico bajo el que la versión fue aprobada para CONCLUIR. Hoy `null` en todas. */
+    rule_set_regulatory_profile: string | null;
+    technical_result: string; severity: string; conclusion: string; is_current: boolean; review_process: string; factors: Array<{ code: string; result: string; effect: string }> };
   mitigations: Array<{ id: string; factor_code: string; status: string; row_version: string; decision: string | null }>;
   profiles: { legal_profile: string | null; geolocation_profile: string | null; satellite_provider: string | null; shipment_link: string | null };
 }
@@ -91,7 +96,7 @@ export function evaluateRequirements(c: DdContent): Requirement[] {
     out.push(r('RISK_EVALUATION_CURRENT', 'Evaluación de riesgo vigente', 'PENDING', 'Sin evaluación de riesgo del lote.', 'docs/13 §Evaluación reproducible'));
     out.push(r('RISK_NO_BLOCKING_FINDINGS', 'Sin hallazgos de riesgo bloqueantes', 'NOT_EVALUABLE', 'Sin evaluación: no se presume ausencia de hallazgos.', 'docs/13'));
     out.push(r('RISK_REVIEW_RESOLVED', 'Revisión humana del riesgo resuelta', 'PENDING', 'Sin evaluación que revisar.', 'docs/13 §Dimensiones'));
-    out.push(r('RISK_CATALOG_APPROVED', 'Catálogo de reglas de riesgo aprobado', 'NOT_EVALUABLE', 'Sin evaluación vinculada a un catálogo; el catálogo vigente no está aprobado.', 'docs/13 §Registro de regla'));
+    out.push(r('RISK_CATALOG_APPROVED', 'Catálogo de reglas de riesgo aprobado bajo perfil jurídico', 'NOT_EVALUABLE', 'Sin evaluación vinculada a un catálogo.', 'docs/13 §Registro de regla'));
     out.push(r('REGULATORY_CONCLUSION', 'Conclusión regulatoria bajo perfil aprobado', 'NOT_EVALUABLE', 'Sin evaluación ni perfil jurídico: conclusión indeterminada.', 'docs/13 §Dimensiones'));
   } else {
     out.push(c.risk.is_current ? r('RISK_EVALUATION_CURRENT', 'Evaluación de riesgo vigente', 'MET', `Evaluación ${c.risk.evaluation_number} vigente (reglas ${c.risk.rule_set_version}).`, 'docs/13 §Evaluación reproducible')
@@ -105,8 +110,18 @@ export function evaluateRequirements(c: DdContent): Requirement[] {
           : r('RISK_NO_BLOCKING_FINDINGS', 'Sin hallazgos de riesgo bloqueantes', 'MET', 'Sin hallazgos en las reglas evaluadas.', 'docs/13'));
     out.push(c.risk.review_process === 'RESOLVED' ? r('RISK_REVIEW_RESOLVED', 'Revisión humana del riesgo resuelta', 'MET', 'Revisión resuelta con motivo (no vuelve favorable el riesgo).', 'docs/13 §Dimensiones')
       : r('RISK_REVIEW_RESOLVED', 'Revisión humana del riesgo resuelta', 'PENDING', `Revisión ${c.risk.review_process === 'UNDER_REVIEW' ? 'en curso' : 'sin iniciar'}.`, 'docs/13 §Dimensiones'));
-    out.push(c.risk.rule_set_approval === 'APPROVED' ? r('RISK_CATALOG_APPROVED', 'Catálogo de reglas de riesgo aprobado', 'MET', `Reglas ${c.risk.rule_set_version} aprobadas.`, 'docs/13 §Registro de regla')
-      : r('RISK_CATALOG_APPROVED', 'Catálogo de reglas de riesgo aprobado', 'NOT_EVALUABLE', `Reglas ${c.risk.rule_set_version} NO APROBADAS: no permiten afirmar preparación bajo un perfil regulatorio.`, 'docs/13 §Registro de regla'));
+    // Publicar un catálogo globalmente (`approval_status = APPROVED`) es una decisión TÉCNICA de producto: dice que
+    // las reglas existen y que el proyecto las respalda. Este requisito pide otra cosa, y pide las DOS:
+    //   · que la organización haya ADOPTADO el catálogo con el que se evaluó (D-07.1), y
+    //   · que esa versión esté aprobada bajo un PERFIL JURÍDICO (D-07.5), hoy `null` en todas.
+    // Si se cumpliera con la sola publicación, aprobar un catálogo técnico pondría el expediente en READY sin que
+    // nadie hubiera decidido bajo qué norma se concluye.
+    const cat = `Reglas ${c.risk.rule_set_version} (publicación global ${c.risk.rule_set_approval})`;
+    out.push(!c.risk.rule_set_adopted
+      ? r('RISK_CATALOG_APPROVED', 'Catálogo de reglas de riesgo aprobado bajo perfil jurídico', 'NOT_EVALUABLE', `${cat}: esta organización NO las ha adoptado (D-07.1); publicar no es adoptar.`, 'docs/13 §Registro de regla')
+      : !c.risk.rule_set_regulatory_profile
+        ? r('RISK_CATALOG_APPROVED', 'Catálogo de reglas de riesgo aprobado bajo perfil jurídico', 'NOT_EVALUABLE', `${cat}: adoptadas por la organización, pero su publicación es una decisión TÉCNICA de producto y no hay perfil jurídico aprobado (D-07.5). No permiten afirmar preparación regulatoria.`, 'docs/13 §Registro de regla')
+        : r('RISK_CATALOG_APPROVED', 'Catálogo de reglas de riesgo aprobado bajo perfil jurídico', 'MET', `${cat}: adoptadas y aprobadas bajo el perfil ${c.risk.rule_set_regulatory_profile}.`, 'docs/13 §Registro de regla'));
     out.push(c.risk.conclusion === 'NEGLIGIBLE' ? r('REGULATORY_CONCLUSION', 'Conclusión regulatoria bajo perfil aprobado', 'MET', 'Conclusión NEGLIGIBLE bajo perfil aprobado.', 'docs/13 §Dimensiones')
       : c.risk.conclusion === 'NON_NEGLIGIBLE' ? r('REGULATORY_CONCLUSION', 'Conclusión regulatoria bajo perfil aprobado', 'INVALID', 'Conclusión NON_NEGLIGIBLE.', 'docs/13 §Dimensiones')
         : r('REGULATORY_CONCLUSION', 'Conclusión regulatoria bajo perfil aprobado', 'NOT_EVALUABLE', 'Conclusión UNDETERMINED: no hay perfil jurídico ni reglas aprobadas.', 'docs/13 §Dimensiones'));

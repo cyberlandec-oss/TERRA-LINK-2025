@@ -746,8 +746,13 @@ test('P0-030 reportes: indicadores con definición y denominador; no calculable 
   await page.goto(`${orgUrl}/reportes`);
   const table = page.getByRole('table', { name: 'Indicadores' });
   await expect(table).toBeVisible();
-  // Los 11 KPI de S1 §60, ni uno más ni uno menos.
-  await expect(table.locator('tbody tr')).toHaveCount(11);
+  // Los 11 KPI de S1 §60, ni uno más ni uno menos, MÁS una extensión declarada: `risk_critical`. No se cuela sin
+  // decirlo: la fila se marca en pantalla como extensión de Terra Link y las otras tres de riesgo no llevan esa marca.
+  await expect(table.locator('tbody tr')).toHaveCount(12);
+  const critico = table.locator('tbody tr', { hasText: 'risk_critical' });
+  await expect(critico).toContainText(/Extensión de Terra Link: no está en la lista de S1 §60/);
+  await expect(table.locator('tbody tr', { hasText: 'risk_high' })).not.toContainText(/Extensión de Terra Link/);
+  await expect(table.locator('tbody tr').filter({ hasText: /Extensión de Terra Link/ })).toHaveCount(1);
   // Lo que se puede calcular, se calcula: esta organización tiene productores y parcelas de las pruebas anteriores.
   const productores = table.locator('tbody tr', { hasText: 'producers_total' });
   await expect(productores).toContainText('Estado actual');
@@ -778,6 +783,9 @@ test('P0-030 reportes: indicadores con definición y denominador; no calculable 
   const riesgo = table.locator('tbody tr', { hasText: 'risk_high' });
   await expect(riesgo).toContainText(/Desconocido|Sin denominador/);
   await expect(riesgo).toContainText(/NOT_ASSESSED|denominador es cero/);
+  // El crítico está en el mismo estado y con el mismo trato: no se publica como cero ni se esconde.
+  await expect(critico).toContainText(/Desconocido|Sin denominador/);
+  await expect(critico).toContainText(/NOT_ASSESSED|denominador es cero/);
   // La leyenda explica los cinco estados, para que «desconocido» no se confunda con «cero».
   await expect(page.getByRole('heading', { name: 'Qué significa cada estado' })).toBeVisible();
   await expect(page.getByText(/Un 0 es un cero observado/)).toBeVisible();
@@ -845,7 +853,7 @@ test('P0-030 reportes por entidad: §97 en pantalla, desconocidos visibles, GeoJ
   await expect(page).toHaveURL(/reporte=plots/);
   // La exportación GeoJSON vive aquí, con su aviso: exportación técnica, perfil regulatorio pendiente de D-05.
   await expect(page.getByRole('heading', { name: 'Exportación GeoJSON de parcelas' })).toBeVisible();
-  await expect(page.getByText(/Perfil de destino regulatorio pendiente \(D-05\)/)).toBeVisible();
+  await expect(page.getByText(/Aplicabilidad jurídica del perfil pendiente \(D-05\.B\)/)).toBeVisible();
   await expect(page.getByText(/no es un paquete de debida diligencia/i)).toBeVisible();
   // Las filas se paginan y los totales cubren el conjunto completo, no la página mostrada.
   const paginas = page.getByRole('navigation', { name: 'Páginas del reporte' });

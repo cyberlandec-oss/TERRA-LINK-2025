@@ -3,7 +3,10 @@
 import type { TenantContext } from '../authz/authorization.service';
 import type { Permission } from '../authz/catalog';
 
-export const REPORT_CATALOG_VERSION = '2026-10-14.2';
+// El catálogo de REPORTES cambia cuando cambia la LISTA de indicadores publicados; `2026-10-15.1` añade
+// `risk_critical`, que no está en S1 §60 y va marcado `catalog: 'TERRA_LINK'`. No tiene relación con el catálogo de
+// REGLAS DE RIESGO (`risk_rule_sets`, D-07): son dos versionados distintos y no deben confundirse.
+export const REPORT_CATALOG_VERSION = '2026-10-15.1';
 export const REPORT_EXPORT_FORMAT = 'TL_REPORT_CSV 0.1 (provisional)';
 export const GEOJSON_EXPORT_FORMAT = 'TL_PLOTS_GEOJSON 0.1 (provisional, RFC 7946)';
 

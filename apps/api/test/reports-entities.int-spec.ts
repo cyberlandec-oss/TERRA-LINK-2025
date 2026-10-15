@@ -343,7 +343,8 @@ describeDb('P0-030 reportes por entidad: alcance, desconocidos y exportación', 
     expect(fc.terra_link.omitted_note).toMatch(/no es una ubicación/i);
     expect(fc.terra_link.validation_note).toMatch(/SIN EVALUAR, no inválida/i);
     // Exportación técnica, no perfil regulatorio: lo que depende de D-05 se declara, no se da por resuelto.
-    expect(fc.terra_link.regulatory_profile).toMatchObject({ status: 'PENDING', depends_on: 'D-05' });
+    // El perfil TÉCNICO ya existe (D-05.A); lo pendiente es la APLICABILIDAD JURÍDICA (D-05.B). No se mezclan.
+    expect(fc.terra_link.regulatory_profile).toMatchObject({ status: 'PENDING', depends_on: 'D-05.B', technical_profile: expect.stringContaining('EUDR_GEO_V1') });
     expect(fc.terra_link.notice).toMatch(/no es un paquete de debida diligencia/i);
     expect(fc.terra_link.coverage.status).toBe('INCOMPLETE');
     // Auditada con el hash y el número de parcelas omitidas por no tener geometría.

@@ -130,8 +130,9 @@ Mientras el proceso está abierto, el material queda **reservado** —no se pier
 | Expediente | Debida diligencia → crear → capturar instantánea | Lista de requisitos con su estado real |
 | Análisis satelital | Parcela → Análisis satelital | Hoy: «adaptador en desarrollo». **No se puede encargar** |
 
-**Bloqueos vigentes**: severidad y conclusión (**D-07** y catálogo no aprobado); `READY` del expediente exige seis
-requisitos que hoy no son evaluables (ver §3); llamadas satelitales reales (**D-09 parte B**).
+**Bloqueos vigentes**: la severidad exige **adoptar** el catálogo `1.0.0` en tu organización (publicarlo no basta);
+la **conclusión** sigue bloqueada por **D-07.5 y D-07.6**; `READY` del expediente exige seis requisitos que hoy no
+son evaluables (ver §3); llamadas satelitales reales (**D-09 parte B**).
 
 ### 2.7 Responsable de exportación (EXPORT_MANAGER)
 
@@ -162,15 +163,16 @@ Ninguno es una avería. Son decisiones que faltan, y el sistema prefiere detener
 
 | Lo que no se puede hacer | Por qué | Quién lo desbloquea |
 | --- | --- | --- |
-| Obtener **severidad** de riesgo | El **mecanismo** existe desde el 2026-10-15, pero **ninguna organización ha adoptado un catálogo que declare severidades**. Sin eso, toda evaluación sale «sin clasificar» con su motivo | Revisar y firmar la **matriz del catálogo** (`docs/decisiones/D-07-MATRIZ-CATALOGO.md`) y luego **adoptarlo** |
+| Obtener **severidad** de riesgo | Desde el 2026-10-15 hay un catálogo técnico publicado (`1.0.0`, con cinco severidades), pero **ninguna organización lo ha adoptado**: **publicar no es adoptar**, y sin adopción toda evaluación sale «sin clasificar» con su motivo | El administrador de **tu** organización, adoptando `1.0.0` (D-07.1). No se adopta solo ni se activa en otras organizaciones |
 | Obtener **conclusión regulatoria** | No hay perfil jurídico ni revisor autorizado definidos | **D-07.5 y D-07.6** |
-| Llegar a `READY` en el expediente | Seis requisitos no evaluables: perfil de geolocalización (**D-05.B**: el perfil **técnico** ya existe y no basta), análisis de deforestación (**D-09 parte B**), perfil jurídico (**P1-005**), catálogo de riesgo aprobado y conclusión regulatoria (**D-07**), vínculo con embarque (**D-34**/P0-029) | Las cinco decisiones citadas |
+| Llegar a `READY` en el expediente | Seis requisitos no evaluables: perfil de geolocalización (**D-05.B**: el perfil **técnico** ya existe y no basta), análisis de deforestación (**D-09 parte B**), perfil jurídico (**P1-005**), catálogo de riesgo **aprobado bajo perfil jurídico** y conclusión regulatoria (**D-07.5 y D-07.6**: adoptar el catálogo técnico **no** cumple este requisito), vínculo con embarque (**D-34**/P0-029) | Las cinco decisiones citadas |
 | Despachar un embarque | Preflight y compuerta `SHIPMENT_DISPATCH` | **D-34** |
 | Encargar un análisis satelital real | El adaptador existe, su uso real no está autorizado | **D-09 parte B** |
 
-**Riesgo, desde el 2026-10-15.** La ficha de un lote puede mostrar ahora una **severidad**, pero solo si la
-organización ha **adoptado** un catálogo que la declare — y hoy ninguna lo ha hecho, así que verás «Sin
-clasificar» con el motivo. Cuando aparezca, léela como lo que es: **severidad de los hallazgos evaluados**, con su
+**Riesgo, desde el 2026-10-15.** La ficha de un lote puede mostrar ahora una **severidad**, pero solo si tu
+organización ha **adoptado** el catálogo `1.0.0` — y hoy ninguna lo ha hecho, así que verás «Sin clasificar» con
+el motivo. En Reportes, los lotes **críticos** tienen su propio contador y **no se suman a los altos**; ese
+contador es una **extensión de Terra Link**, está rotulado como tal y no viene de la lista de la fuente. Cuando aparezca, léela como lo que es: **severidad de los hallazgos evaluados**, con su
 **cobertura** al lado. Si la cobertura dice que la clasificación es **parcial**, lo es: hay reglas que no se
 pudieron evaluar o categorías sin ninguna regla. **Una severidad no es una conclusión regulatoria**, y «bajo»
 nunca significa «insignificante» en sentido legal.

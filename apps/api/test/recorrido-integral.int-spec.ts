@@ -239,12 +239,12 @@ describeDb('Recorrido integral de la cadena (preparación P0-031, datos sintéti
   it('lote → evaluación de riesgo: resultado técnico sí, severidad y conclusión NO', async () => {
     const e = (await http().post(`${A()}/risk/lots/${ctx.loteFermentado}/evaluations`).set(as(EUDR)).send({ operation_id: op() }).expect(201)).body.evaluation;
     ctx.evaluacion = e.id;
-    expect(e.rules.approval_status).toBe('NOT_APPROVED');
+    expect(e.rules).toMatchObject({ adopted_by_organization: false, regulatory_profile: null });
     expect(e.risk_result).toMatchObject({ severity: 'NOT_ASSESSED', conclusion: 'UNDETERMINED' });
     const noEvaluables = e.factors.filter((f: { result: string }) => f.result === 'NOT_EVALUABLE').map((f: { code: string }) => f.code);
     expect(noEvaluables).toEqual(expect.arrayContaining(['GEOLOCATION_PROFILE', 'SATELLITE_COVERAGE_UNKNOWN']));
-    anota('lote → riesgo', `resultado técnico ${e.technical_result.status} con catálogo NO APROBADO; severidad NOT_ASSESSED y conclusión UNDETERMINED por diseño`);
-    corta('riesgo → severidad y conclusión', 'RULE_SET_NOT_APPROVED', 'D-07 (severidad, proceso y conclusión) + catálogo aprobado');
+    anota('lote → riesgo', `resultado técnico ${e.technical_result.status} con el catálogo ${e.rules.version} publicado pero NO adoptado y sin perfil jurídico; severidad NOT_ASSESSED y conclusión UNDETERMINED por diseño`);
+    corta('riesgo → severidad y conclusión', 'RULE_SET_NOT_ADOPTED_NOR_UNDER_LEGAL_PROFILE', 'D-07.1 (adoptar el catálogo en la organización) + D-07.5/D-07.6 (perfil jurídico y quién concluye)');
     corta('riesgo → factor satelital', 'SATELLITE_COVERAGE_UNKNOWN', 'D-09 parte B (uso real del proveedor)');
   });
 

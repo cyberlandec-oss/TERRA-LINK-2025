@@ -19,7 +19,7 @@ describeDb('P0-030 reportes: indicadores con denominador, período y permisos', 
   const ADMIN = 'admin-a@test.local';
   const AUD = 'auditor@test.local';
 
-  type Ind = { code: string; status: string; value: string | null; numerator: number | null; denominator: number | null; observed: Record<string, number> | null; criterion?: { id: string; version_current: string; versions_counted: string[]; mixed_versions: boolean; note: string }; reason: string | null; kind: string; unit: string; date_basis: string | null; requires: string };
+  type Ind = { code: string; name: string; definition: string; catalog: string; status: string; value: string | null; numerator: number | null; denominator: number | null; observed: Record<string, number> | null; criterion?: { id: string; version_current: string; versions_counted: string[]; mixed_versions: boolean; note: string }; reason: string | null; kind: string; unit: string; date_basis: string | null; requires: string };
   type Body = {
     indicators: Ind[]; can_export: boolean; period: { from: string | null; to: string | null };
     coverage: { status: string; event_date: string; note: string; not_reconstructed: string; reference: string };
@@ -264,18 +264,41 @@ describeDb('P0-030 reportes: indicadores con denominador, período y permisos', 
   });
 
   it('la severidad depende del catálogo de reglas (D-07), no de cerrar otras historias', async () => {
-    const i = ind(await report(ADMIN), 'risk_high');
-    // El motivo cita el catálogo vigente y su estado real, leído de la base, no una lista de historias pendientes.
+    const b = await report(ADMIN);
+    // El motivo cita el catálogo real, leído de la base. Desde la migración 0043 hay una versión APROBADA publicada
+    // globalmente, y aun así esta organización no clasifica nada: la causa verdadera es que NO la ha adoptado (D-07.1).
     const catalogo = (await sql<{ version: string; approval_status: string }>`SELECT version, approval_status FROM risk_rule_sets ORDER BY published_at DESC, version DESC LIMIT 1`.execute(h.db)).rows[0];
-    expect(catalogo.approval_status).toBe('NOT_APPROVED');
-    expect(i.reason).toContain(catalogo.version);
-    expect(i.reason).toContain('NOT_APPROVED');
-    expect(i.reason).toMatch(/D-07/);
-    // P0-021 está implementada: verificar una mitigación NO asigna severidad ni concluye a favor.
-    expect(i.reason).toMatch(/P0-021, implementada/);
-    expect(i.reason).toMatch(/no asigna severidad/i);
-    // Y ya no se atribuye el bloqueo a cerrar el satélite ni las mitigaciones.
-    expect(i.reason).not.toMatch(/mientras.*P0-028.*no cierren/i);
+    expect(catalogo.approval_status).toBe('APPROVED');
+    const adopciones = (await sql<{ n: string }>`SELECT count(*)::text AS n FROM risk_rule_set_adoptions WHERE organization_id = ${orgA}`.execute(h.db)).rows[0].n;
+    expect(adopciones).toBe('0');
+    for (const code of ['risk_critical', 'risk_high', 'risk_medium', 'risk_low']) {
+      const i = ind(b, code);
+      expect(i.reason).toContain(catalogo.version);
+      expect(i.reason).toContain(catalogo.approval_status);
+      expect(i.reason).toMatch(/NO lo ha adoptado/);
+      expect(i.reason).toMatch(/actos distintos \(D-07\.1\)/);
+      expect(i.reason).toMatch(/D-07/);
+      // P0-021 está implementada: verificar una mitigación NO asigna severidad ni concluye a favor.
+      expect(i.reason).toMatch(/P0-021, implementada/);
+      expect(i.reason).toMatch(/no asigna severidad/i);
+      // Y no se atribuye el bloqueo a cerrar el satélite ni las mitigaciones.
+      expect(i.reason).not.toMatch(/mientras.*P0-028.*no cierren/i);
+    }
+  });
+
+  it('los CRÍTICOS tienen indicador propio, declarado como extensión de Terra Link y no como exigencia de la fuente', async () => {
+    const b = await report(ADMIN);
+    const critico = ind(b, 'risk_critical');
+    expect(critico.catalog).toBe('TERRA_LINK'); // la lista de S1 §60 no lo trae; se añade declarándolo
+    expect(critico.definition).toMatch(/severity = CRITICAL/);
+    expect(critico.definition).toMatch(/no conclusión regulatoria/i);
+    for (const code of ['risk_high', 'risk_medium', 'risk_low']) expect(ind(b, code).catalog).toBe('S1_60');
+    // Va junto al desglose existente y en el mismo orden de severidad: no está escondido al final del reporte.
+    const orden = b.indicators.map((i) => i.code).filter((c) => c.startsWith('risk_'));
+    expect(orden).toEqual(['risk_critical', 'risk_high', 'risk_medium', 'risk_low']);
+    // Sin permiso de riesgo, el crítico se restringe igual que los demás: no se filtra por una extensión.
+    const sinRiesgo = await report('exportacion@test.local'); // report:read sí, risk:read no
+    expect(ind(sinRiesgo, 'risk_critical')).toMatchObject({ status: 'RESTRICTED', value: null });
   });
 
   it('la base IMPIDE que exista una severidad: el caso mixto no es alcanzable hoy, y el candado se comprueba', async () => {
@@ -413,5 +436,77 @@ describeDb('P0-030 reportes: indicadores con denominador, período y permisos', 
     // Ningún indicador expone identidad ni geometría.
     const texto = JSON.stringify(b);
     for (const prohibido of ['document_number', 'phone_enc', 'geometry', 'latitude', 'longitude']) expect(texto).not.toContain(prohibido);
+  });
+
+  // ------------------------------------------------------------------ catálogo ADOPTADO (organización B, aislada)
+  // La organización A no adopta nada en todo el archivo: así se prueba el camino «publicado y no adoptado». Aquí se
+  // prueba el otro, en una organización distinta para no contaminar la fixture de A.
+  describe('con el catálogo 1.0.0 adoptado, los críticos se ven y la distribución sigue siendo parcial', () => {
+    const ADMIN_B = 'admin-b@test.local';
+    let loteB: string;
+
+    beforeAll(async () => {
+      const prod = (await http().post(`${api(orgB)}/products`).set(as(ADMIN_B)).send({ code: 'CACAO_BABA', name: 'Cacao en baba', product_state: 'CACAO_BABA', unit: 'KG' }).expect(201)).body.id;
+      const loc = (await http().post(`${api(orgB)}/locations`).set(as(ADMIN_B)).send({ code: 'CR-B', name: 'Centro B', location_type: 'COLLECTION_CENTER' }).expect(201)).body.id;
+      const prodor = (await http().post(`${api(orgB)}/producers`).set(as(ADMIN_B)).send({ producer_code: 'B-2', legal_name: 'Finca B' }).expect(201)).body.id;
+      // Entrega SIN parcela de origen declarada: el lote queda con origen INCOMPLETO, que es el hallazgo CRÍTICO.
+      const ent = (await http().post(`${api(orgB)}/deliveries`).set(as(ADMIN_B))
+        .send({ operation_id: randomUUID(), producer_id: prodor, product_id: prod, delivery_date: '2026-10-08', quantity_declared: '40', unit: 'KG', register: true }).expect(201)).body.delivery;
+      const rec = (await http().post(`${api(orgB)}/deliveries/${ent.id}/receptions`).set(as(ADMIN_B))
+        .send({ operation_id: randomUUID(), location_id: loc, received_at: new Date().toISOString(), weighing: { method: 'Báscula', quantity: '40', unit: 'KG', weighed_on: '2026-10-08' } }).expect(201)).body.reception_id;
+      loteB = (await http().post(`${api(orgB)}/lots`).set(as(ADMIN_B)).send({ operation_id: randomUUID(), inputs: [{ reception_id: rec, quantity: '40' }] }).expect(201)).body.lot.id;
+    });
+
+    it('antes de adoptar: evaluado y sin clasificar, con el motivo real (publicar no es adoptar)', async () => {
+      await http().post(`${api(orgB)}/risk/lots/${loteB}/evaluations`).set(as(ADMIN_B)).send({ operation_id: randomUUID() }).expect(201);
+      const i = ind(await report(ADMIN_B, '', orgB), 'risk_critical');
+      expect(i).toMatchObject({ status: 'UNKNOWN', value: null, denominator: 1 });
+      expect(i.observed).toMatchObject({ lotes_evaluados: 1, sin_severidad_asignada: 1, con_severidad_asignada: 0 });
+      expect(i.reason).toMatch(/NO lo ha adoptado/);
+    });
+
+    it('adoptado y reevaluado: el CRÍTICO aparece por sí mismo y no se mezcla con ALTO', async () => {
+      await http().post(`${api(orgB)}/risk/rule-sets/adoptions`).set(as(ADMIN_B))
+        .send({ operation_id: randomUUID(), rule_set_version: '1.0.0', decision: 'ADOPT', reason: 'Ensayo técnico del MVP local' }).expect(201);
+      // La adopción NO recalcula evaluaciones anteriores: hay que volver a evaluar para que la severidad exista.
+      const ev = (await http().post(`${api(orgB)}/risk/lots/${loteB}/evaluations`).set(as(ADMIN_B)).send({ operation_id: randomUUID() }).expect(201)).body.evaluation;
+      expect(ev.risk_result.severity).toBe('CRITICAL');
+
+      const b = await report(ADMIN_B, '', orgB);
+      // ÚLTIMA evaluación por sujeto: el lote cuenta una sola vez, con su severidad vigente, no dos.
+      expect(ind(b, 'risk_critical')).toMatchObject({ status: 'OK', value: '1', numerator: 1, denominator: 1 });
+      expect(ind(b, 'risk_high')).toMatchObject({ status: 'OK', value: '0', numerator: 0, denominator: 1 });
+      expect(ind(b, 'risk_high').reason).toMatch(/^Cero observado/); // cero observado, NO «no hay críticos»
+      expect(ind(b, 'risk_critical').observed).toMatchObject({ lotes_del_tenant: 1, lotes_evaluados: 1, con_severidad_asignada: 1, sin_severidad_asignada: 0 });
+      // Distribución PARCIAL declarada como tal: de qué catálogo sale y qué no acredita.
+      expect(ind(b, 'risk_critical').reason).toContain('HALLAZGOS EVALUADOS del catálogo adoptado (1.0.0)');
+      expect(ind(b, 'risk_critical').reason).toMatch(/NO es una conclusión regulatoria: esa sigue UNDETERMINED/);
+      // La organización A, que no ha adoptado, sigue sin clasificar: la adopción de B no cruza.
+      expect(ind(await report(ADMIN), 'risk_critical').status).toBe('UNKNOWN');
+    });
+
+    it('el crítico viaja al CSV con el mismo estado y valor que la pantalla', async () => {
+      const pantalla = await report(ADMIN_B, '', orgB);
+      const csv = (await http().get(`${api(orgB)}/reports/indicators/export`).set(as(ADMIN_B)).expect(200)).text as string;
+      const filas = new Map(csv.split('\r\n').filter((l) => l && !l.startsWith('#')).slice(1).map((l) => {
+        const celdas = l.split(',').map((c) => c.replace(/^"|"$/g, '').replace(/""/g, '"'));
+        return [celdas[0], { status: celdas[4], value: celdas[5] }] as const;
+      }));
+      expect(filas.get('risk_critical')).toEqual({ status: 'OK', value: '1' });
+      expect(filas.get('risk_critical')).toEqual({ status: ind(pantalla, 'risk_critical').status, value: ind(pantalla, 'risk_critical').value });
+    });
+
+    it('retirada la adopción, se vuelve a desconocido sin reescribir la evaluación anterior', async () => {
+      await http().post(`${api(orgB)}/risk/rule-sets/adoptions`).set(as(ADMIN_B))
+        .send({ operation_id: randomUUID(), rule_set_version: '1.0.0', decision: 'WITHDRAW', reason: 'Fin del ensayo local' }).expect(201);
+      // Lo ya escrito se conserva: la severidad histórica sigue en la fila.
+      const guardadas = (await sql<{ severity: string }>`SELECT severity FROM risk_evaluations WHERE organization_id = ${orgB} ORDER BY evaluation_number DESC LIMIT 1`.execute(h.db)).rows[0];
+      expect(guardadas.severity).toBe('CRITICAL');
+      // Pero una evaluación nueva ya no clasifica, y el reporte lo dice sin fingir que no hay críticos.
+      await http().post(`${api(orgB)}/risk/lots/${loteB}/evaluations`).set(as(ADMIN_B)).send({ operation_id: randomUUID() }).expect(201);
+      const i = ind(await report(ADMIN_B, '', orgB), 'risk_critical');
+      expect(i).toMatchObject({ status: 'UNKNOWN', value: null });
+      expect(i.reason).toMatch(/NO lo ha adoptado/);
+    });
   });
 });

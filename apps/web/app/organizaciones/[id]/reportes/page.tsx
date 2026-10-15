@@ -14,6 +14,8 @@ type Status = 'OK' | 'NO_DENOMINATOR' | 'UNKNOWN' | 'CRITERION_UNDEFINED' | 'RES
 interface Indicator {
   code: string; name: string; definition: string; unit: 'count' | 'percent'; kind: 'STATE' | 'ACTIVITY' | 'BALANCE_AT';
   date_basis: string | null; requires: string; status: Status;
+  /** De dónde sale el indicador: la lista de la fuente (S1 §60) o una extensión declarada de Terra Link. */
+  catalog: 'S1_60' | 'TERRA_LINK';
   value: string | null; numerator: number | null; denominator: number | null; observed: Record<string, number> | null; reason: string | null;
   /** Identidad del criterio versionado con el que se contó, cuando el indicador depende de uno. */
   criterion?: { id: string; version_current: string; versions_counted: string[]; mixed_versions: boolean; note: string };
@@ -172,7 +174,7 @@ export default function ReportsPage() {
   return (
     <>
       <Breadcrumb items={[{ label: ws.activeOrg.name, href: `/organizaciones/${orgId}` }, { label: 'Reportes' }]} />
-      <PageHeader title="Reportes e indicadores" meta={catalog ? `Catálogo ${catalog.catalog_version} · S1 §60 (indicadores) y §97 (por entidad)` : undefined} />
+      <PageHeader title="Reportes e indicadores" meta={catalog ? `Catálogo ${catalog.catalog_version} · S1 §60 (indicadores) y §97 (por entidad), más las extensiones marcadas como de Terra Link` : undefined} />
 
       {catalog && (
         <nav className="card" aria-label="Reportes disponibles">
@@ -248,7 +250,10 @@ export default function ReportsPage() {
               <tbody>
                 {data.indicators.map((i) => (
                   <tr key={i.code}>
-                    <td><strong>{i.name}</strong><div className="muted"><code>{i.code}</code></div><div className="muted">{KIND[i.kind]}</div></td>
+                    <td><strong>{i.name}</strong><div className="muted"><code>{i.code}</code></div><div className="muted">{KIND[i.kind]}</div>
+                      {i.catalog === 'TERRA_LINK' && (
+                        <div className="muted">Extensión de Terra Link: no está en la lista de S1 §60. Se publica para que los casos críticos no queden fuera del desglose.</div>
+                      )}</td>
                     <td>
                       {i.status === 'OK'
                         ? <strong>{i.unit === 'percent' ? `${i.value} %` : i.value}</strong>
@@ -387,7 +392,7 @@ export default function ReportsPage() {
         <section className="card" aria-labelledby="rp-geojson">
           <h2 id="rp-geojson">Exportación GeoJSON de parcelas</h2>
           <p className="field-help">{catalog.geojson.notice}</p>
-          <Alert tone="review" title="Perfil de destino regulatorio pendiente (D-05)">{catalog.geojson.regulatory_profile}</Alert>
+          <Alert tone="review" title="Aplicabilidad jurídica del perfil pendiente (D-05.B)">{catalog.geojson.regulatory_profile}</Alert>
           {catalog.geojson.available
             ? <button type="button" onClick={() => void download(`/api/v1/organizations/${orgId}/reports/entities/plots/geojson`, 'parcelas.geojson')} disabled={exporting}>{exporting ? 'Generando…' : 'Descargar GeoJSON'}</button>
             : <p className="muted">Tu rol no permite esta exportación: falta {catalog.geojson.missing.join(' y ')}. Entrega coordenadas exactas, por eso exige <code>plot:read_geometry</code>.</p>}

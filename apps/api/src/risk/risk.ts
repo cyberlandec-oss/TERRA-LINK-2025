@@ -82,8 +82,32 @@ export class RiskService {
     return ctx;
   }
 
-  private async currentRuleSet(db: Db) {
-    const rs = (await sql<{ version: string; approval_status: string; notes: string }>`SELECT version, approval_status, notes FROM risk_rule_sets ORDER BY published_at DESC, version DESC LIMIT 1`.execute(db)).rows[0];
+  /**
+   * Catálogo que aplica a ESTA organización (D-07.1).
+   *
+   * Si la organización ha **adoptado** una versión, se usa **esa**, aunque después se publique otra: adoptar es
+   * una decisión suya y una publicación global no se la cambia a su espalda. Lo que sí ocurre es que sus
+   * evaluaciones quedan `STALE` cuando hay una versión más reciente, para que decida si adopta.
+   *
+   * Si **no** ha adoptado ninguna, se usa la última publicada **solo para evaluar técnicamente**: los factores se
+   * calculan igual, pero sin adopción **no hay severidad** (lo impide un `CHECK`).
+   */
+  private async currentRuleSet(db: Db, orgId?: string) {
+    const adoptada = orgId
+      // Última decisión de CADA versión; de las que siguen adoptadas, la adoptada más recientemente.
+      ? (await sql<{ version: string }>`
+          SELECT version FROM (
+            SELECT DISTINCT ON (rule_set_version) rule_set_version AS version, decision, decided_at, id
+            FROM risk_rule_set_adoptions
+            WHERE organization_id = ${orgId}
+            ORDER BY rule_set_version, decided_at DESC, id DESC
+          ) ultima
+          WHERE decision = 'ADOPT'
+          ORDER BY decided_at DESC, id DESC LIMIT 1`.execute(db)).rows[0]?.version ?? null
+      : null;
+    const rs = adoptada
+      ? (await sql<{ version: string; approval_status: string; notes: string }>`SELECT version, approval_status, notes FROM risk_rule_sets WHERE version = ${adoptada}`.execute(db)).rows[0]
+      : (await sql<{ version: string; approval_status: string; notes: string }>`SELECT version, approval_status, notes FROM risk_rule_sets ORDER BY published_at DESC, version DESC LIMIT 1`.execute(db)).rows[0];
     // `severity` se lee desde el catálogo (D-07.2): es un dato DE LA REGLA y de SU versión, no del motor.
     // Cambiar una severidad es publicar otra versión, no editar la vigente.
     const rules = (await sql<{ code: string; category: string; condition_kind: string; effect: string; explanation: string; limit_note: string; source: string; depends_on: string | null; inputs: string[]; evidence_required: string; severity: string | null }>`
@@ -235,8 +259,8 @@ export class RiskService {
 
   /** Adopción vigente del catálogo en ESTA organización (D-07.1). Una adopción de otra organización no cuenta. */
   async currentAdoption(db: Db, orgId: string, version: string) {
-    const r = (await sql<{ id: string; decision: string; reason: string; decided_at: Date; decided_by: string }>`
-      SELECT id, decision, reason, decided_at, decided_by FROM risk_rule_set_adoptions
+    const r = (await sql<{ id: string; rule_set_version: string; decision: string; reason: string; decided_at: Date; decided_by: string }>`
+      SELECT id, rule_set_version, decision, reason, decided_at, decided_by FROM risk_rule_set_adoptions
       WHERE organization_id = ${orgId} AND rule_set_version = ${version}
       ORDER BY decided_at DESC, id DESC LIMIT 1`.execute(db)).rows[0];
     return r && r.decision === 'ADOPT' ? r : null;
@@ -315,7 +339,7 @@ export class RiskService {
     await this.ctx(user, orgId, 'risk:read', false);
     const rows = await this.db.selectFrom('risk_rule_set_adoptions').selectAll()
       .where('organization_id', '=', orgId).orderBy('decided_at', 'desc').execute();
-    const rs = await this.currentRuleSet(this.db);
+    const rs = await this.currentRuleSet(this.db, orgId);
     const vigente = await this.currentAdoption(this.db, orgId, rs.version);
     return {
       current_rule_set: { version: rs.version, global_publication: rs.approval_status },
@@ -346,7 +370,7 @@ export class RiskService {
     await sql`SELECT pg_advisory_xact_lock(hashtext(${'risk:' + lotId}))`.execute(trx);
     const last = (await sql<{ id: string; n: number }>`SELECT id, evaluation_number AS n FROM risk_evaluations WHERE organization_id = ${orgId} AND subject_id = ${lotId} ORDER BY evaluation_number DESC LIMIT 1`.execute(trx)).rows[0];
     if (p.basedOn && last && last.id !== p.basedOn) throw conflict('STALE_BASE', 'Ya existe una evaluación posterior a la que conocías: recarga antes de reevaluar (un trabajo antiguo no reemplaza uno nuevo).');
-    const rs = await this.currentRuleSet(trx);
+    const rs = await this.currentRuleSet(trx, orgId);
     const snap = await this.snapshot(trx, orgId, lotId);
     const factors = this.evaluateRules(rs.rules, snap);
     const technical = this.technicalResult(factors);
@@ -416,15 +440,19 @@ export class RiskService {
 
   async view(db: Db, ctx: TenantContext, id: string) {
     const e = (await sql<{ trigger: unknown; id: string; subject_id: string; evaluation_number: number; rule_set_version: string; parameters: unknown; snapshot: { lot: { code: string } }; snapshot_hash: string; factors: Factor[]; categories: unknown;
-      technical_result: string; severity: string; severity_coverage: unknown; severity_adoption_id: string | null; conclusion: string; evaluated_at: string; first_name: string | null; last_name: string | null; approval_status: string }>`
+      technical_result: string; severity: string; severity_coverage: unknown; severity_adoption_id: string | null; conclusion: string; evaluated_at: string; first_name: string | null; last_name: string | null; approval_status: string; regulatory_profile: string | null }>`
       SELECT e.trigger, e.id, e.subject_id, e.evaluation_number, e.rule_set_version, e.parameters, e.snapshot, e.snapshot_hash, e.factors, e.categories, e.technical_result, e.severity, e.severity_coverage, e.severity_adoption_id, e.conclusion, e.evaluated_at,
-             u.first_name, u.last_name, rs.approval_status
+             u.first_name, u.last_name, rs.approval_status, rs.regulatory_profile
       FROM risk_evaluations e LEFT JOIN users u ON u.id = e.evaluated_by JOIN risk_rule_sets rs ON rs.version = e.rule_set_version
       WHERE e.organization_id = ${ctx.organizationId} AND e.id = ${id}`.execute(db)).rows[0];
     if (!e) throw notFound();
     const latest = (await sql<{ id: string }>`SELECT id FROM risk_evaluations WHERE organization_id = ${ctx.organizationId} AND subject_id = ${e.subject_id} ORDER BY evaluation_number DESC LIMIT 1`.execute(db)).rows[0];
     const current = createHash('sha256').update(canonical(await this.snapshot(db, ctx.organizationId, e.subject_id))).digest('hex');
-    const rs = await this.currentRuleSet(db);
+    const rs = await this.currentRuleSet(db, ctx.organizationId);
+    // D-07.4 — Desactualización por cambios en los datos o en las REGLAS APLICADAS. Publicar una versión que esta
+    // organización no ha adoptado NO desactualiza sus evaluaciones: ella eligió su catálogo. Lo que sí se hace es
+    // decírselo, para que decida si lo adopta.
+    const ultimaPublicada = (await sql<{ version: string }>`SELECT version FROM risk_rule_sets ORDER BY published_at DESC, version DESC LIMIT 1`.execute(db)).rows[0]?.version ?? null;
     const stale = current !== e.snapshot_hash || rs.version !== e.rule_set_version;
     const reviews = (await sql<{ action: string; reason: string; reviewed_at: string; first_name: string | null; last_name: string | null }>`
       SELECT r.action, r.reason, r.reviewed_at, u.first_name, u.last_name FROM risk_reviews r LEFT JOIN users u ON u.id = r.reviewer_id WHERE r.evaluation_id = ${id} ORDER BY r.reviewed_at`.execute(db)).rows;
@@ -433,13 +461,29 @@ export class RiskService {
     const notEvaluable = e.factors.filter((f) => f.result === 'NOT_EVALUABLE');
     return {
       id: e.id, subject: { type: 'LOT', id: e.subject_id, code: e.snapshot.lot.code }, evaluation_number: e.evaluation_number, is_latest: latest.id === e.id,
-      freshness: { status: stale ? 'STALE' : 'CURRENT', reason: stale ? (rs.version !== e.rule_set_version ? 'Hay una versión de reglas más reciente.' : 'Cambiaron datos o evidencias del grafo de origen desde esta evaluación: reevalúa (esta evaluación no se modifica).') : null },
+      freshness: {
+        status: stale ? 'STALE' : 'CURRENT',
+        reason: stale
+          ? (rs.version !== e.rule_set_version
+            ? `Esta evaluación usó las reglas ${e.rule_set_version} y a esta organización le aplican ahora las ${rs.version}: reevalúa (esta evaluación no se modifica).`
+            : 'Cambiaron datos o evidencias del grafo de origen desde esta evaluación: reevalúa (esta evaluación no se modifica).')
+          : null,
+        // Informativo, no desactualiza: una versión publicada que la organización no ha adoptado no le cambia las
+        // reglas a su espalda.
+        newer_published: ultimaPublicada && ultimaPublicada !== rs.version ? ultimaPublicada : null,
+        newer_published_note: ultimaPublicada && ultimaPublicada !== rs.version
+          ? `Hay una versión de reglas más reciente publicada (${ultimaPublicada}). NO se aplica sola: esta organización decide si la adopta (D-07.1).`
+          : null,
+      },
       rules: {
         version: e.rule_set_version, approval_status: e.approval_status,
         // Publicación global y adopción por organización son actos distintos (D-07.1).
         global_publication: e.approval_status,
         adopted_by_organization: !!e.severity_adoption_id,
-        note: 'La publicación global dice que la versión existe y está respaldada por el proyecto. La ADOPCIÓN la decide cada organización por separado, y es la que habilita clasificar. Sin pesos ni umbrales: D-07.3 no aplica.',
+        // Tercera cosa distinta de las dos anteriores: bajo qué PERFIL JURÍDICO se aprobó la versión para concluir.
+        // Hoy es `null` en todas: D-07.5 sigue pendiente y por eso ninguna evaluación acredita preparación.
+        regulatory_profile: e.regulatory_profile,
+        note: 'Tres actos distintos: la PUBLICACIÓN global dice que la versión existe y está respaldada por el proyecto; la ADOPCIÓN la decide cada organización y es la que habilita clasificar hallazgos; la APROBACIÓN BAJO PERFIL JURÍDICO (D-07.5, pendiente: regulatory_profile = null) sería la que permitiría concluir. Sin pesos ni umbrales: D-07.3 no aplica.',
       },
       parameters: e.parameters, snapshot: { hash: e.snapshot_hash, data: e.snapshot },
       technical_findings: findings, data_quality: notEvaluable,
@@ -483,7 +527,7 @@ export class RiskService {
     const evals = (await sql<{ id: string }>`SELECT id FROM risk_evaluations WHERE organization_id = ${orgId} AND subject_id = ${lotId} ORDER BY evaluation_number DESC`.execute(this.db)).rows;
     const versions = [];
     for (const e of evals) versions.push(await this.view(this.db, ctx, e.id));
-    const rs = await this.currentRuleSet(this.db);
+    const rs = await this.currentRuleSet(this.db, orgId);
     return { lot, latest: versions[0] ?? null, history: versions.map((v) => ({ id: v.id, evaluation_number: v.evaluation_number, technical_result: v.technical_result, freshness: v.freshness, evaluated_at: v.evaluated_at, evaluated_by: v.evaluated_by, process_status: v.review.process_status })),
       rule_set: { version: rs.version, approval_status: rs.approval_status, notes: rs.notes, rules: rs.rules },
       can_evaluate: ctx.permissions.includes('risk:evaluate') };

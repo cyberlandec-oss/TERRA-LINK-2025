@@ -13,7 +13,9 @@ const SYNTHETIC: DdContent = {
   documents: [{ document_id: 'doc1', version_id: 'dv1', title: 'Nota sintética', document_type: 'DELIVERY_SUPPORT', classification: 'OPERATIONAL', version_number: 1, sha256: 'a'.repeat(64), file_name: 'n.pdf', expires_at: null, expired: false, scan: 'CLEAN', used_by: 'DELIVERY_SUPPORT', reference: 'ENT-SINT-1' },
     { document_id: 'doc2', version_id: 'dv2', title: 'Cédula sintética', document_type: 'ID', classification: 'PERSONAL_DATA', version_number: 1, sha256: 'b'.repeat(64), file_name: 'c.pdf', expires_at: null, expired: false, scan: 'CLEAN', used_by: 'MITIGATION_SUPPORT', reference: 'X' }],
   evidence: [],
-  risk: { evaluation_id: 'e1', evaluation_number: 1, snapshot_hash: 'c'.repeat(64), rule_set_version: 'SINT', rule_set_approval: 'APPROVED', technical_result: 'NO_FINDINGS_IN_EVALUATED_RULES', severity: 'LOW', conclusion: 'NEGLIGIBLE', is_current: true, review_process: 'RESOLVED', factors: [{ code: 'X', result: 'NOT_HIT', effect: 'BLOCKING' }] },
+  // Fixture SINTÉTICA de un futuro que todavía no existe: catálogo adoptado Y aprobado bajo un perfil jurídico
+  // (D-07.5). Hoy ninguna versión real lleva `regulatory_profile`, y la prueba de integración lo comprueba.
+  risk: { evaluation_id: 'e1', evaluation_number: 1, snapshot_hash: 'c'.repeat(64), rule_set_version: 'SINT', rule_set_approval: 'APPROVED', rule_set_adopted: true, rule_set_regulatory_profile: 'PERFIL SINTÉTICO DE PRUEBA', technical_result: 'NO_FINDINGS_IN_EVALUATED_RULES', severity: 'LOW', conclusion: 'NEGLIGIBLE', is_current: true, review_process: 'RESOLVED', factors: [{ code: 'X', result: 'NOT_HIT', effect: 'BLOCKING' }] },
   mitigations: [],
   profiles: { legal_profile: 'PERFIL SINTÉTICO DE PRUEBA', geolocation_profile: 'PERFIL SINTÉTICO DE PRUEBA', satellite_provider: 'PROVEEDOR SINTÉTICO DE PRUEBA', shipment_link: 'EMBARQUE SINTÉTICO DE PRUEBA' },
 };
@@ -27,7 +29,7 @@ describe('P0-022 guards por requisito', () => {
   });
 
   it('un solo requisito no cumplido bloquea aunque el porcentaje sea alto', () => {
-    const c = { ...SYNTHETIC, risk: { ...SYNTHETIC.risk!, rule_set_approval: 'NOT_APPROVED' } };
+    const c = { ...SYNTHETIC, risk: { ...SYNTHETIC.risk!, rule_set_regulatory_profile: null } };
     const reqs = evaluateRequirements(c);
     expect(summary(reqs).percent_met).toBeGreaterThanOrEqual(90);
     expect(readinessOf(reqs)).toBe('BLOCKED');
@@ -39,6 +41,19 @@ describe('P0-022 guards por requisito', () => {
     expect(st({ ...SYNTHETIC, quantities: { ...SYNTHETIC.quantities, physical: 'desconocido' } }, 'SUBJECT_QUANTITY')).toBe('NOT_EVALUABLE');
     expect(st({ ...SYNTHETIC, deliveries: [] }, 'ORIGIN_DECLARED')).toBe('NOT_EVALUABLE');
     expect(st({ ...SYNTHETIC, risk: { ...SYNTHETIC.risk!, factors: [{ code: 'Y', result: 'NOT_EVALUABLE', effect: 'BLOCKING' }] } }, 'RISK_NO_BLOCKING_FINDINGS')).toBe('NOT_EVALUABLE');
+  });
+
+  it('publicar un catálogo globalmente NO cumple el requisito: hacen falta adopción y perfil jurídico', () => {
+    // El estado real de hoy: 1.0.0 publicado y APROBADO globalmente, pero sin adoptar y sin perfil jurídico.
+    const publicado = { ...SYNTHETIC.risk!, rule_set_approval: 'APPROVED', rule_set_adopted: false, rule_set_regulatory_profile: null };
+    expect(st({ ...SYNTHETIC, risk: publicado }, 'RISK_CATALOG_APPROVED')).toBe('NOT_EVALUABLE');
+    expect(evaluateRequirements({ ...SYNTHETIC, risk: publicado }).find((r) => r.code === 'RISK_CATALOG_APPROVED')!.detail).toMatch(/NO las ha adoptado/);
+    // Adoptado pero sin perfil jurídico: sigue sin cumplirse, y el motivo lo dice sin culpar a la adopción.
+    const adoptado = { ...publicado, rule_set_adopted: true };
+    expect(st({ ...SYNTHETIC, risk: adoptado }, 'RISK_CATALOG_APPROVED')).toBe('NOT_EVALUABLE');
+    expect(evaluateRequirements({ ...SYNTHETIC, risk: adoptado }).find((r) => r.code === 'RISK_CATALOG_APPROVED')!.detail).toMatch(/decisión TÉCNICA de producto.*D-07\.5/s);
+    // Y el expediente entero queda BLOCKED: aprobar el catálogo técnico no abre READY por la puerta de atrás.
+    expect(readinessOf(evaluateRequirements({ ...SYNTHETIC, risk: adoptado }))).toBe('BLOCKED');
   });
 
   it('sin evaluación de riesgo, sus requisitos siguen listados (pendiente / no evaluable), nunca omitidos', () => {
@@ -60,7 +75,7 @@ describe('P0-022 guards por requisito', () => {
   });
 
   it('mitigaciones verificadas no equivalen a aprobación: sin catálogo aprobado sigue bloqueado', () => {
-    const c: DdContent = { ...SYNTHETIC, mitigations: [{ id: 'm', factor_code: 'DATA_MISSING_ORIGIN', status: 'VERIFIED', row_version: '3', decision: 'VERIFIED' }], risk: { ...SYNTHETIC.risk!, rule_set_approval: 'NOT_APPROVED', conclusion: 'UNDETERMINED' } };
+    const c: DdContent = { ...SYNTHETIC, mitigations: [{ id: 'm', factor_code: 'DATA_MISSING_ORIGIN', status: 'VERIFIED', row_version: '3', decision: 'VERIFIED' }], risk: { ...SYNTHETIC.risk!, rule_set_regulatory_profile: null, conclusion: 'UNDETERMINED' } };
     expect(st(c, 'MITIGATIONS_VERIFIED')).toBe('MET');
     expect(readinessOf(evaluateRequirements(c))).toBe('BLOCKED');
     expect(st({ ...c, mitigations: [{ ...c.mitigations[0], status: 'SUBMITTED' }] }, 'MITIGATIONS_VERIFIED')).toBe('PENDING');

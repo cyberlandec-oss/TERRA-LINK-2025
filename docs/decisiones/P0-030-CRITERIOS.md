@@ -1,4 +1,4 @@
-# P0-030 — Estado por criterio frente a las fuentes (2026-10-14, segunda revisión)
+# P0-030 — Estado por criterio frente a las fuentes (2026-10-15, tercera revisión)
 
 Contraste de **todos** los criterios de la historia con sus fuentes: **S1 §60** (dashboard técnico, los 11 KPI),
 **S1 §97** (Sprint 11 — Reporting: reportes por entidad y exportación GeoJSON), **RF-30** (`docs/03_REQUISITOS.md`),
@@ -7,8 +7,19 @@ Contraste de **todos** los criterios de la historia con sus fuentes: **S1 §60**
 Tres estados, sin terceras lecturas: **DEMOSTRADO** (hay código y prueba que lo acreditan), **PENDIENTE** (falta hacerlo,
 sin bloqueo externo) y **BLOQUEADO** (depende de una decisión o capacidad concreta que no está en esta historia).
 
-La historia **sigue ABIERTA**: quedan criterios pendientes y bloqueados. Lo demostrado es DONE_LOCAL; eso no acredita
-producción ni conformidad EUDR.
+La historia **sigue ABIERTA**. Lo demostrado es DONE_LOCAL; eso no acredita producción ni conformidad EUDR.
+
+### Qué quedaba bloqueado y qué queda hoy (contraste del 2026-10-15)
+
+| Criterio que estaba bloqueado | Antes | Hoy |
+| --- | --- | --- |
+| `plots_valid` | BLOQUEADO por D-05 (criterio inexistente) | **DEMOSTRADO**: el criterio existe y tiene versión (`EUDR_GEO_V1 1.0.0`, D-05.A) y el indicador lo cuenta |
+| Distribución por severidad de riesgo | BLOQUEADO por D-07 y por el catálogo `NOT_APPROVED` | **DEMOSTRADO**: con el catálogo `1.0.0` publicado y adoptado por una organización, el indicador clasifica y el lote **CRÍTICO** se publica aparte; sin adopción sigue `UNKNOWN` con su motivo real |
+| GeoJSON — perfil de destino regulatorio | BLOQUEADO por D-05 | **SIGUE BLOQUEADO**, pero por **D-05.B** (aplicabilidad jurídica), no por el perfil técnico |
+
+**Por eso la historia NO se cierra todavía.** Queda un criterio de la fuente (S1 §97) bloqueado: el perfil de
+destino regulatorio del GeoJSON depende de **D-05.B**. Cerrarla con ese criterio abierto sería declarar demostrado
+algo que no lo está.
 
 ## 1. S1 §60 — Dashboard técnico (11 KPI)
 
@@ -19,11 +30,11 @@ queries reales»— se cumple: los 11 salen de consultas SQL sobre la base, ning
 | --- | --- | --- |
 | `producers_total` | **DEMOSTRADO** | `reports.int-spec.ts` «conteos de estado»: 2 vigentes con 1 baja declarada aparte |
 | `plots_total` | **DEMOSTRADO** | ídem |
-| `plots_valid` | **BLOQUEADO** (criterio) | `CRITERION_UNDEFINED`: el umbral y el perfil de D-05 no están aprobados (P0-010). Lo observable —parcelas con versión vigente y sin evaluar— **sí se publica** |
+| `plots_valid` | **DEMOSTRADO** (2026-10-15) | Ya **no** es `CRITERION_UNDEFINED`: el criterio existe y tiene versión (`EUDR_GEO_V1 1.0.0`, D-05.A). Cuenta el dictamen de la versión **vigente** de cada parcela, declara el perfil y las versiones contadas, y separa cumple / no cumple / revisión / no evaluable / sin evaluar; las no evaluadas no entran en el denominador. **Qué significa cumplir el perfil frente al destino regulatorio sigue siendo D-05.B**, y es una dimensión distinta del indicador |
 | `deliveries_total` | **DEMOSTRADO** | Por `delivery_date`, límites inclusivos; probado con períodos de un solo día |
 | `lots_active` | **DEMOSTRADO** | Con desglose por estado |
 | `traceability_completeness` | **DEMOSTRADO** | 1 de 2 lotes = 50,0 % con numerador y denominador a la vista |
-| `risk_high` / `risk_medium` / `risk_low` | **BLOQUEADO** (dato) | `NO_DENOMINATOR` sin sujetos evaluados y `UNKNOWN` con sujetos evaluados sin severidad. La dependencia real es **D-07** y el catálogo `risk_rule_sets` (`NOT_APPROVED`), reforzada por el `CHECK` de la migración 0025. Ver §4.bis: **no** depende de P0-021, que está implementada |
+| `risk_critical` (**extensión declarada**, no es de S1 §60) / `risk_high` / `risk_medium` / `risk_low` | **DEMOSTRADO** (2026-10-15) | Los cuatro estados se prueban **contra la base**, no solo en memoria: `NO_DENOMINATOR` sin sujetos evaluados; `UNKNOWN` con sujetos evaluados sin severidad —citando si falta catálogo, si falta **adopción** (D-07.1) o si los hallazgos no llevan severidad—; y `OK` tras adoptar el catálogo `1.0.0`, con el lote **CRÍTICO** contado por sí mismo, **sin diluirse en HIGH**, sobre la base de los clasificados y declarando que la distribución es parcial. Retirar la adopción vuelve a `UNKNOWN` sin reescribir lo ya evaluado. Ver §4.bis |
 | `evidence_completeness` | **DEMOSTRADO** | Con desglose por estado de afirmación |
 | `due_diligence_ready` | **DEMOSTRADO** | Cero observado con desglose `READY/IN_PROGRESS/BLOCKED/sin instantánea`. Contar bloqueados **sí** es calculable; lo que no se deduce es conformidad |
 
@@ -43,7 +54,7 @@ su cero es observado y se publica, porque **un resultado desfavorable no es moti
 | Traceability report | **DEMOSTRADO** | `GET /reports/entities/traceability`. Completitud del origen declarado desde `lot_inputs.origin_known` |
 | DD report | **DEMOSTRADO** | `GET /reports/entities/dd`. Preparación de la última instantánea, con los BLOCKED contados |
 | GeoJSON export (técnico) | **DEMOSTRADO** | `GET /reports/entities/plots/geojson`. `FeatureCollection` RFC 7946 con la geometría guardada, sin reproyectar ni recortar; exige `plot:read_geometry` |
-| GeoJSON export (**perfil de destino regulatorio**) | **BLOQUEADO** | **D-05**. Ver §4 de este documento: qué depende realmente de esa decisión |
+| GeoJSON export (**perfil de destino regulatorio**) | **BLOQUEADO** | **D-05.B** (aplicabilidad jurídica), ya no D-05 entero: el perfil **técnico** existe desde el 2026-10-15 (`EUDR_GEO_V1 1.0.0`, D-05.A) y la respuesta lo nombra. Lo que falta es qué puede afirmarse frente al destino. Ver §4 |
 
 ## 3. RF-30, docs/09, docs/17, QA-13/14 y UX_UI §20.2
 
@@ -160,5 +171,12 @@ cuentan en un período de septiembre; y el texto de cobertura ya no afirma que l
 - **Conformidad EUDR**: ningún reporte la acredita. `READY` es preparación interna y `EXPORTED` es descarga.
 - **Producción**: todo es validación local sobre datos sintéticos.
 - **Volumen real**: los reportes no se han probado con el volumen de un piloto (P0-031).
-- **Riesgo clasificado**: mientras el motor devuelva `NOT_ASSESSED`, la distribución por severidad seguirá siendo
-  desconocida, por mucho que la consulta funcione.
+- **Riesgo clasificado para quien no adopta**: el catálogo `1.0.0` está publicado, pero una organización que no lo
+  adopte seguirá viendo `NOT_ASSESSED` y una distribución desconocida. Eso es la decisión D-07.1 funcionando, no un
+  defecto del indicador.
+- **Riesgo clasificado para quien sí adopta**: la clasificación es **de los hallazgos evaluados** y es **parcial**:
+  `LEGALITY`, `EVASION`, `HUMAN_RIGHTS` e `INDIGENOUS_RIGHTS` no tienen ninguna regla. Un lote sin severidad **no**
+  es un lote sin riesgo.
+- **Conclusión regulatoria**: sigue `UNDETERMINED` por `CHECK`. Clasificar severidades no concluye nada, y el
+  requisito `RISK_CATALOG_APPROVED` del expediente sigue `NOT_EVALUABLE` incluso con el catálogo adoptado, porque
+  ninguna versión está aprobada bajo perfil jurídico (D-07.5).

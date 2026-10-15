@@ -35,15 +35,23 @@ No se aprueban pesos, umbrales ni lista jurídica definitiva en este paquete. Pr
 
 ## Mecanismos D-07 adoptados para el MVP local (2026-10-15)
 
-**Mecanismos, no catálogo.** Se adopta **cómo** se aprueban y clasifican las reglas; **no se aprueba ninguna
-regla ni se asigna ninguna severidad**. `0.1.0` y `0.2.0` siguen `NOT_APPROVED`, sin severidades y sin adopción.
+**Mecanismos primero, catálogo después.** Primero se adoptó **cómo** se aprueban y clasifican las reglas
+(migración `0042`); después se publicó el catálogo técnico **`1.0.0`** (migración `0043`). `0.1.0` y `0.2.0`
+siguen `NOT_APPROVED`, sin severidades y sin adopción: no se migró ni se recalculó nada.
 
-**Aprobación en dos actos distintos (D-07.1).** Las definiciones son globales, así que se separan:
+**Aprobación en TRES actos distintos (D-07.1 y D-07.5).** Las definiciones son globales, así que se separan:
 
-| Acto | Dónde | Quién |
-| --- | --- | --- |
-| **Publicación global** | `risk_rule_sets.approval_status` | Acto de migración. **Nadie publica reglas desde la API** |
-| **Adopción de uso por organización** | `risk_rule_set_adoptions`, append-only | Usuario con `risk:approve_rules` (hoy solo `ORG_ADMIN`), con fecha, motivo y auditoría |
+| Acto | Dónde | Quién | Hoy |
+| --- | --- | --- | --- |
+| **Publicación global** | `risk_rule_sets.approval_status` | Acto de migración. **Nadie publica reglas desde la API** | `1.0.0` = `APPROVED` |
+| **Adopción de uso por organización** | `risk_rule_set_adoptions`, append-only | Usuario con `risk:approve_rules` (hoy solo `ORG_ADMIN`), con fecha, motivo y auditoría | Ninguna organización la ha adoptado |
+| **Aprobación bajo perfil jurídico** | `risk_rule_sets.regulatory_profile` | **D-07.5, pendiente** | `NULL` en todas las versiones |
+
+Los tres hacen cosas distintas: publicar dice que la versión existe y que el proyecto la respalda; adoptar es lo
+que habilita **clasificar hallazgos** en una organización; aprobar bajo perfil jurídico sería lo que permitiría
+**concluir**, y no ha ocurrido. Por eso el requisito `RISK_CATALOG_APPROVED` del expediente sigue `NOT_EVALUABLE`
+aunque el catálogo esté publicado y aunque una organización lo adopte: **publicar un catálogo técnico no abre
+`READY`**.
 
 Una adopción en una organización **no aprueba reglas en otra**, y no se puede adoptar una versión que el proyecto
 no haya publicado. **No se amplía `SUPER_ADMIN` ni se resuelve D-04**: el permiso es de ámbito de organización.
@@ -68,8 +76,35 @@ y su versión. Se conservan las caducidades documentales existentes y **no se in
 **Lo que sigue bloqueado.** La **conclusión regulatoria** sigue `UNDETERMINED` por `CHECK`: **D-07.5** (perfil
 jurídico) y **D-07.6** (quién concluye) siguen pendientes. Nada de esto habilita `READY` ni despacho.
 
-Matriz a revisar antes de publicar un catálogo con severidades: `docs/decisiones/D-07-MATRIZ-CATALOGO.md`
-(**no aprobada**). Contrato completo: `docs/decisiones/D-07-PROPUESTA.md`.
+### Catálogo `1.0.0` (publicado el 2026-10-15, migración `0043`)
+
+Ocho reglas; **cinco con severidad declarada y tres sin ella**. La versión es **inmutable**: cambiar una severidad
+es publicar otra versión, no editar esta.
+
+| Regla | Categoría | Efecto | Severidad |
+| --- | --- | --- | --- |
+| `MATERIAL_OF_UNKNOWN_ORIGIN` | MIXING | BLOCKING | **CRITICAL** |
+| `MASS_BALANCE_INCONSISTENT` | TRACEABILITY | BLOCKING | **CRITICAL** |
+| `DATA_MISSING_ORIGIN` | TRACEABILITY | BLOCKING | **HIGH** |
+| `GEOMETRY_INVALID` | GEOLOCATION | BLOCKING | **HIGH** |
+| `DOCUMENT_EXPIRED` | DOCUMENTATION | REVIEW_REQUIRED | **MEDIUM** |
+| `MITIGATION_UNVERIFIED` | MITIGATION | BLOCKING | — (sin declarar) |
+| `SATELLITE_COVERAGE_UNKNOWN` | DEFORESTATION | NOT_ASSESSED | — (sin declarar) |
+| `GEOLOCATION_PROFILE` | GEOLOCATION | NOT_ASSESSED | — (sin declarar) |
+
+**Las cinco severidades son DECISIONES DE PRODUCTO.** Las fuentes sostienen el **hecho** (qué datos exige el
+Reglamento, qué significa un origen incompleto) y el **límite** (qué no se puede afirmar), pero **ninguna fuente
+gradúa** el riesgo en crítico/alto/medio: esa graduación la decide Terra Link y así se declara en el campo
+`source` de cada regla y en las notas de la versión.
+
+`MATERIAL_OF_UNKNOWN_ORIGIN` se describe por su **condición real**: algún lote del grafo de origen tiene el origen
+`INCOMPLETE`. Eso **no** es una mezcla ilegal, un fraude ni una irregularidad probada; el origen puede completarse.
+
+**Cobertura declarada incompleta:** `LEGALITY`, `EVASION`, `HUMAN_RIGHTS` e `INDIGENOUS_RIGHTS` siguen **sin
+ninguna regla**. Una clasificación de este catálogo nunca es una evaluación completa del riesgo del lote.
+
+Matriz completa y razonamiento: `docs/decisiones/D-07-MATRIZ-CATALOGO.md`. Contrato de mecanismos:
+`docs/decisiones/D-07-PROPUESTA.md`.
 
 ## Evaluación reproducible
 
@@ -125,7 +160,7 @@ Catálogo `risk_rule_sets`/`risk_rules` 0.1.0 (**NO APROBADO**) con las reglas e
 
 ## Implementación P0-021 (2026-10-10)
 
-Mitigación = acción (evaluación, factor, lote, criterio, evidencia requerida, responsable, plazo) → soportes por versión exacta → entrega → VERIFIED/REJECTED con motivo por un verificador distinto del ejecutor (sin excepción). `MitigationVerified` dispara por outbox una reevaluación (reglas 0.2.0, NO aprobadas) que recalcula todas las reglas; `MITIGATION_UNVERIFIED` bloquea el cierre de la revisión. No hay criterios legales ni acciones correctivas predefinidas; el criterio concreto lo documenta quien crea la acción.
+Mitigación = acción (evaluación, factor, lote, criterio, evidencia requerida, responsable, plazo) → soportes por versión exacta → entrega → VERIFIED/REJECTED con motivo por un verificador distinto del ejecutor (sin excepción). `MitigationVerified` dispara por outbox una reevaluación (con el catálogo que le aplique a la organización) que recalcula todas las reglas; `MITIGATION_UNVERIFIED` bloquea el cierre de la revisión. No hay criterios legales ni acciones correctivas predefinidas; el criterio concreto lo documenta quien crea la acción.
 
 ## Implementación P0-022 (2026-10-10)
 
