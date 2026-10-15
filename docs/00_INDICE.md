@@ -31,6 +31,12 @@
 | [24_TRAZABILIDAD_REQUISITOS.md](24_TRAZABILIDAD_REQUISITOS.md) | Fuente → requisito → historia → prueba | Auditoría de alcance |
 | [25_PROMPTS_DE_TRABAJO.md](25_PROMPTS_DE_TRABAJO.md) | Instrucciones listas para pegar | Primer uso |
 
+## Continuidad
+
+- **[sesiones/REANUDAR_2026-10-15.md](sesiones/REANUDAR_2026-10-15.md): documento VIGENTE para retomar el trabajo**
+  —arranque del entorno, estado por historia, trampas conocidas, respaldos, siguiente paso y restricciones—.
+  Los `REANUDAR_` anteriores (2026-10-11 y 2026-10-14) son **históricos** y no deben usarse para reanudar.
+
 ## Operación
 
 - [MANUAL_OPERACION.md](MANUAL_OPERACION.md): manual por rol y guion de capacitación de las funciones existentes, con
