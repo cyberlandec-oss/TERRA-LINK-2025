@@ -20,7 +20,7 @@ docs/12 (archivos privados), docs/15 §«Seguridad de llamadas externas» y docs
 | **Archivos privados** | Contenido autorizado por clasificación; nada de claves de almacenamiento; análisis antimalware; barrido que no borra lo referenciado | `documents`, `scanner-limits`, `storage-sweeper`; descarga por id + clasificación (`PERSONAL_DATA` exige `producer:read_identity`); el barrido usa **lista blanca** de claves gestionadas | **Cubierto, con un defecto corregido hoy** (abajo) |
 | **Llamadas salientes** | Hosts/protocolos permitidos, redirecciones, SSRF/DNS, plazo, tamaño, redacción | QA-15 en niveles: decisión pura (13), transporte con servidores controlados (7), adaptador Whisp contra servidor controlado (18), desenlaces de extremo a extremo (25) | **Cubierto salvo el nivel de proveedor real** (D-09 parte B) |
 | **Elevación de SUPER_ADMIN** | «superadmin con elevación explícita» (QA-02) | Hoy **no existe** elevación: el acceso a una organización donde no es miembro responde `ELEVATION_REQUIRED`/404 | **Brecha abierta por decisión: D-04** |
-| **Concesiones entre organizaciones** | Buyer y auditor externos según grants | No implementadas (ADR-0002 propuesto, P1-001) | **Fuera de alcance actual, declarado** |
+| **Concesiones entre organizaciones** | Buyer y auditor externos según grants | No implementadas (ADR-0002 propuesto, P1-001). Es el **segundo criterio abierto de P0-003**, junto con la elevación | **Brecha abierta, declarada** |
 | **Revisión externa** | — | Ninguna | **PENDIENTE** |
 
 ## Defecto encontrado y corregido hoy
@@ -47,10 +47,10 @@ el patrón exista en otros módulos (se comprobó: ningún otro devuelve `object
 | Prioridad | Brecha | Por qué sigue abierta | Qué la cierra |
 | --- | --- | --- | --- |
 | **1** | **Ninguna revisión de seguridad independiente** | Nadie ajeno al código ha mirado | Encargar la revisión; es un gate aparte de P0-031 |
-| **2** | **Elevación de SUPER_ADMIN sin política** (QA-02 parcial) | **D-04** sin decidir: quién eleva, con qué aprobación, alcance, duración y notificación | D-04 |
+| **2** | **P0-003 incompleta en sus dos frentes** (QA-02 parcial): **elevación de SUPER_ADMIN** y **concesiones entre organizaciones** (buyer/auditor externos) | La elevación espera **D-04**; las concesiones no tienen contrato definido (ADR-0002 propuesto, P1-001). Son dos criterios distintos de la misma historia, no uno | D-04 · contrato de concesiones |
 | **3** | **Llamada saliente contra un proveedor real nunca ejecutada** | **D-09 parte B** sin aprobar | D-09 parte B (ver ensayo propuesto con geometría sintética) |
-| **4** | **Concesiones entre organizaciones** (buyer/auditor externos) | Sin contrato definido (ADR-0002, P1-001) | Decisión de producto + P1-001 |
-| **5** | **Restauración de respaldo (QA-16)** | No hay comandos de respaldo verificados | Definir y verificar respaldo/restauración; parte de P0-031 |
+| **4** | **Auditoría: formato y retención de la exportación** sin política | **D-38** provisional (`TL_AUDIT_CSV 0.1`, 5000 registros). **No reabre P0-025**, que está DONE_LOCAL: es una política pendiente, no un criterio incumplido | D-38 |
+| **5** | **QA-16 incompleto**: falta ejecutar un **recorrido operativo sobre la copia restaurada** y medir RPO/RTO con volumen real | El respaldo y la restauración **sí están verificados** (13-oct sobre 37 migraciones y **15-oct sobre las 39 actuales**, en contenedor aislado): `docs/qa/EVIDENCIA_QA16_RESTAURACION_2026-10-15.md`. Lo que falta es el recorrido sobre la copia | Levantar una API contra la copia restaurada y repetir el recorrido integral; medir tiempos con datos de piloto |
 | **6** | **Pruebas de mutación dirigidas** | docs/16 las admite como demostración puntual («mutación dirigida del tenant filter o del guard de stock»); no se han ejecutado | Ejercicio acotado sobre el filtro de tenant y el guard de stock |
 
 ## Lo que esta evidencia **no** dice

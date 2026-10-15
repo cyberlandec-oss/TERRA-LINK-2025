@@ -28,19 +28,27 @@ Un **polígono sintético** que cumpla tres condiciones, en este orden:
    proveedor **tenga algo que analizar**, no que el resultado signifique algo.
 3. **Rotulada como sintética** en todo lo que se conserve del ensayo.
 
-Conviene preparar **dos**: una que probablemente dé indicadores de cobertura forestal y otra sobre una zona sin
-bosque. Lo que interesa no es el veredicto, sino que **dos entradas distintas produzcan respuestas distintas** y que
-el adaptador las traduzca bien.
+Conviene preparar **dos geometrías distintas y separadas en el espacio**. Y aquí hay que ser preciso, porque la
+primera versión de esta propuesta lo decía mal: **dos entradas distintas no tienen por qué producir resultados
+ambientales distintos**. Pueden coincidir perfectamente —dos zonas con la misma cobertura dan los mismos
+indicadores—, y eso no sería ningún fallo.
+
+Lo que el ensayo comprueba con dos entradas es **correspondencia**: que cada respuesta corresponda a **su** entrada
+y no a la otra. Es decir, que el adaptador no mezcle resultados, que el identificador de cada análisis case con la
+geometría enviada y que el `request_fingerprint` de cada trabajo sea el suyo. Si además los indicadores difieren,
+es información; si coinciden, tampoco invalida nada.
 
 ## Qué demostraría (y qué no)
 
 | Demostraría | No demostraría |
 | --- | --- |
+| **Correspondencia**: cada respuesta corresponde a su entrada, sin mezclar análisis | Ningún resultado ambiental concreto; **no se espera ningún veredicto** |
 | Que el contrato implementado (OpenAPI 2.3.0, consultado 2026-10-15) **coincide con el servicio vivo**: rutas, campos, códigos | Nada sobre parcelas reales ni sobre deforestación |
 | Que el flujo `submit → status → descarga` funciona de verdad, con sus tiempos reales | Que el sistema pueda usar el resultado: eso es D-07 |
-| Que la autenticación por `x-api-key` y el TLS del proveedor funcionan con la defensa de salida puesta | Que el resultado sea evidencia: eso es D-42 |
-| Qué trae realmente `whisp_processing_metadata` y si hay `unavailable_datasets` en la práctica | Conformidad EUDR de nada |
-| Cuotas y plazos reales frente a los publicados | Que la parte B esté aprobada |
+| **Procedencia**: qué campos declara de verdad el proveedor y cuáles quedan nulos, frente a lo que el adaptador supone | Que el resultado sea evidencia: eso es D-42 |
+| **Estados incompletos**: si aparece `unavailable_datasets` o `risk_inputs_unavailable`, que el adaptador los conserve y guarde cobertura `PARTIAL` | Conformidad EUDR de nada |
+| Que la autenticación por `x-api-key` y el TLS del proveedor funcionan con la defensa de salida puesta | Que la parte B esté aprobada más allá del propio ensayo |
+| Cuotas y plazos reales frente a los publicados | Que el sistema esté listo para operar con el proveedor |
 
 El resultado del ensayo se guardaría con `is_synthetic` en **false** (procede de un proveedor real) pero sobre un
 sujeto que no existe en el dominio. Por eso el ensayo **no debe ejecutarse contra una parcela del sistema**: no habría
@@ -72,3 +80,9 @@ desenlace y límites. Más dos cosas propias de este ensayo:
 
 Si el ensayo revela que el contrato vivo difiere del publicado, el resultado del ensayo es **corregir el adaptador y
 la referencia fechada**, no «ajustar» la documentación para que encaje.
+
+**Criterio de éxito, escrito antes de ejecutar**: el ensayo es satisfactorio si cada entrada obtiene una respuesta
+que le corresponde, conforme al contrato, con su procedencia conservada y su incompletitud declarada si la hay.
+**No** hay ningún resultado ambiental esperado: si las dos geometrías dan indicadores iguales, el ensayo es
+igualmente satisfactorio. Fijar de antemano qué «debería» responder el proveedor convertiría la comprobación técnica
+en una profecía, que es justo lo que este proyecto evita en todo lo demás.

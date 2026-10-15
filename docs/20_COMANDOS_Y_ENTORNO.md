@@ -85,7 +85,63 @@ El workflow se movió a `infra/ci/github-actions-ci.yml` y **no se ejecuta**: en
 
 ## Pendiente (no ejecutado / no existe aún)
 
-Móvil/Android, backup/restauración (QA-16) y despliegue. Ningún comando de producción está definido.
+Móvil/Android y despliegue. Ningún comando de producción está definido. **Backup/restauración ya no está aquí**: el
+procedimiento está verificado y documentado abajo (QA-16); lo que sigue pendiente de QA-16 es ejecutar un **recorrido
+operativo sobre la copia restaurada** y medir RPO/RTO con volumen de piloto.
+
+## Respaldo y restauración verificada (QA-16)
+
+Verificado el 2026-10-13 (37 migraciones) y repetido el **2026-10-15 sobre el estado actual (39 migraciones)**:
+`docs/qa/EVIDENCIA_QA16_RESTAURACION_2026-10-15.md`. Los respaldos viven **fuera del repositorio**, en
+`D:\PROYECTOS CYBER LAND\TERRA LINK EUDR 2026\_respaldos\<fecha>-<motivo>\`, y **no se sobrescriben entre sí**.
+
+**1. Pausar las escrituras** (la base y los objetos deben corresponder al mismo instante; el worker es el único que
+escribe objetos fuera de una petición):
+
+```
+docker compose stop api web worker
+```
+
+**2. Volcar base y objetos** (desde la carpeta del respaldo nuevo):
+
+```
+docker exec terra-link-postgres-1 pg_dump -U terra_link -d terra_link -Fc -f /tmp/terra_link.dump
+docker cp terra-link-postgres-1:/tmp/terra_link.dump ./terra_link.dump
+docker exec terra-link-postgres-1 rm -f /tmp/terra_link.dump
+docker run --rm -v terra-link_object-data:/data -v "<carpeta del respaldo>":/out alpine \
+  sh -c "tar czf /out/object-data.tar.gz -C /data ."
+```
+
+En Git Bash, anteponer `MSYS_NO_PATHCONV=1` a los `docker exec/cp/run` con rutas `/tmp` o `/data`: si no, las
+convierte a rutas de Windows y `pg_dump` falla con «could not open output file».
+
+**3. Claves necesarias para poder descifrar después**: copiar de `.env` solo `POSTGRES_*`, `S3_*`, `JWT_SECRET`,
+`PII_KEYS`, `PII_ACTIVE_KEY_ID`, `PII_INDEX_KEY` a `claves.env` dentro del respaldo, y restringir el acceso
+(`icacls claves.env /inheritance:r /grant:r "%USERNAME%:(R,W)"`). **Nunca se versiona ni se imprime.** Sin estas
+claves la copia es ilegible: un respaldo sin ellas no es un respaldo.
+
+**4. Estado capturado y huellas**: guardar conteos por tabla, migraciones e inventario de objetos
+(`estado-actual.txt`) y `sha256sum * > SHA256SUMS.txt`. El cotejo posterior se hace **contra ese archivo**, no contra
+la base de desarrollo, que sigue cambiando.
+
+**5. Reanudar la aplicación**: `docker compose --profile app up -d --wait`.
+
+**Restaurar para verificar, en un entorno totalmente aislado** (contenedor y volumen propios; **sin seed y sin
+migraciones** sobre la copia):
+
+```
+docker run -d --name tl-restore --rm=false -e POSTGRES_USER=restore -e POSTGRES_PASSWORD=<local> \
+  -e POSTGRES_DB=restore_check -v tl-restore-data:/var/lib/postgresql/data postgis/postgis:16-3.4
+docker cp ./terra_link.dump tl-restore:/tmp/terra_link.dump
+docker exec tl-restore psql -U restore -d postgres -c "CREATE DATABASE terra_link_restaurada OWNER restore;"
+docker exec tl-restore pg_restore -U restore -d terra_link_restaurada --no-owner --no-privileges /tmp/terra_link.dump
+```
+
+Comprobar: migraciones y sus marcas, conteos por tabla contra `estado-actual.txt`, restricciones (FK/CHECK/UNIQUE),
+descifrado de identidad con las claves del respaldo (**sin imprimir valores**) y objetos por clave, tamaño y sha256.
+Al terminar: `docker rm -f tl-restore && docker volume rm tl-restore-data`.
+
+**Nunca** restaurar sobre `terra_link` ni sobre los volúmenes de desarrollo.
 
 ## Ejecución segura
 

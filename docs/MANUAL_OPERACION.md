@@ -1,0 +1,168 @@
+# Manual de operación y guion de capacitación (2026-10-15)
+
+**Esto es documentación preparada, no capacitación impartida.** Nadie ha sido formado todavía; el guion de abajo está
+escrito para dictarse, no ejecutado. Cubre **solo las funciones que existen hoy**, con sus bloqueos vigentes.
+
+Entorno: desarrollo local. No hay producción, ni despliegue, ni soporte.
+
+## 0. Tres superficies distintas, que no son lo mismo
+
+| Superficie | Qué es | Estado |
+| --- | --- | --- |
+| **Web** (`localhost:3000`) | La aplicación completa, por rol | **Operativa** para todo lo que describe este manual |
+| **Vista móvil simulada** (`localhost:3001`) | La app móvil **servida en un navegador** (Expo web). Sirve para ver pantallas y recorridos | **Vista previa**: no es un teléfono. No hay GPS real, ni cámara real, ni almacenamiento del dispositivo |
+| **Android nativo** | La app instalada en un teléfono | **No ensayada en dispositivo físico.** Hay evidencia de **emulador**, que es otra cosa |
+
+Cuando este manual dice «captura de ubicación», en web y en la vista simulada se usa la ubicación del **navegador**.
+Eso no es GPS de campo y el sistema lo registra como método distinto.
+
+## 1. Entrar y elegir organización
+
+1. Abrir `http://localhost:3000` → correo y contraseña → **Iniciar sesión**.
+2. Arriba a la izquierda, el selector de organización. Quien pertenece a varias, elige.
+3. El menú lateral **solo muestra lo que el rol permite**. Si falta una sección, no es un fallo: es el permiso.
+
+**Si algo falla**
+
+| Mensaje | Qué pasa | Qué hacer |
+| --- | --- | --- |
+| «Credenciales inválidas» | Correo o contraseña | Reintentar; tras varios intentos hay bloqueo temporal por minutos |
+| «No tienes permiso…» | El rol no incluye esa acción | Pedir el rol a quien administre la organización |
+| «El recurso no está disponible» | El dato es de otra organización | No es un error: no existe para quien lo pide |
+| «Sin conexión con el servidor» | La API no responde | Avisar; no reintentar en bucle |
+
+## 2. Por rol: qué hacer, qué esperar, qué hacer si falla
+
+### 2.1 Administrador de organización (ORG_ADMIN)
+
+| Tarea | Pasos | Resultado esperado |
+| --- | --- | --- |
+| Invitar a alguien | Miembros e invitaciones → Invitar → correo + rol | Enlace de invitación de un solo uso. **El correo no se envía solo**: hay que hacerlo llegar |
+| Cambiar roles | Miembros → fila → Roles | Permisos efectivos al instante; queda en la bitácora |
+| Dar de baja a un miembro | Miembros → Desactivar | Pierde acceso; su historial se conserva |
+| Importar desde Excel | Importar datos → plantilla → previsualizar → confirmar | La previsualización **no modifica nada**; los errores salen por fila |
+
+**Recuperación**: si la previsualización marca errores, corregir el archivo y volver a subir. Confirmar una
+importación con errores no es posible; no hay forma de «forzarla».
+
+### 2.2 Técnico de campo (FIELD_TECHNICIAN)
+
+Solo ve **los productores asignados a su membresía**. Que no aparezca un productor no es un fallo.
+
+| Tarea | Pasos | Resultado esperado |
+| --- | --- | --- |
+| Registrar productor | Productores → Nuevo | Código único en la organización. Si se repite, lo avisa |
+| Registrar parcela | Productor → Parcelas → Nueva | Parcela sin ubicación hasta capturarla |
+| Capturar ubicación | Parcela → Capturar ubicación | Punto con precisión informada. **Un punto no tiene superficie**: no la invente |
+| Capturar polígono | Parcela → Iniciar captura de polígono | Un vértice por esquina; el borrador se guarda en el servidor y se recupera al recargar |
+| Importar GeoJSON | Parcela → Importar GeoJSON | Un archivo por parcela, WGS84 lon/lat. Si no cumple, dice el motivo |
+
+**Recuperación**: la captura de polígono **no funciona sin conexión** en la web; si se corta, el borrador queda
+guardado y se retoma. Una geometría mal capturada **no se edita**: se crea una versión nueva y la anterior se
+conserva.
+
+### 2.3 Operador de recepción (RECEPTION_OPERATOR)
+
+| Tarea | Pasos | Resultado esperado |
+| --- | --- | --- |
+| Registrar entrega | Entregas → Nueva → productor, producto, cantidad declarada, parcela de origen | La entrega queda registrada con su origen |
+| Confirmar recepción | Entrega → Recibir → centro, fecha, pesaje | **Declarado y recibido se conservan por separado**: 500 declarados con 480 recibidos son dos datos, no un error |
+| Tomar muestra | En la recepción, añadir muestra | La calidad queda **«Pendiente de evaluación»** |
+
+**Bloqueo vigente**: **no se puede cerrar una entrega con diferencia** ni fijar tolerancias. Falta la política
+(**D-33**). Mientras tanto, la diferencia queda registrada y la entrega sigue abierta.
+
+### 2.4 Operador de calidad (QUALITY_OPERATOR)
+
+| Tarea | Pasos | Resultado esperado |
+| --- | --- | --- |
+| Registrar resultado | Recepción → muestra → Resultado | Mediciones con parámetro, valor y unidad |
+| Liberar o rechazar | Resultado → decisión | «Calidad liberada **por decisión humana**». **No es liberación jurídica** y así lo dice la pantalla |
+
+**Recuperación**: una decisión de calidad no se borra; se corrige con un registro nuevo que referencia al anterior.
+
+### 2.5 Responsable de trazabilidad (TRACEABILITY_MANAGER)
+
+| Tarea | Pasos | Resultado esperado |
+| --- | --- | --- |
+| Formar lote | Lotes → Nuevo → recepciones | El lote hereda el origen. Si algún insumo no lo declara, queda **«Origen incompleto»** y no se mezcla con origen conocido |
+| Fermentación | Procesos → Nuevo (FERMENTATION) → iniciar con insumos → cerrar con salidas y merma | Conservación: lo consumido = lo producido + la merma documentada |
+| Secado | Procesos → Nuevo (DRYING) → iniciar | **Se prepara y se inicia, pero NO se cierra** |
+| Traslados y mermas | Inventario → movimiento | El saldo sale del ledger, que es la única fuente |
+
+**Bloqueo vigente**: cerrar un secado exige la **unidad de humedad** (**D-32**). El material queda reservado por el
+proceso abierto —no se pierde— y el proceso puede cancelarse.
+
+### 2.6 Responsable EUDR (EUDR_MANAGER)
+
+| Tarea | Pasos | Resultado esperado |
+| --- | --- | --- |
+| Evaluar riesgo | Riesgo → lote → Evaluar | Resultado **técnico** por regla, con su explicación y su límite. **Severidad `NOT_ASSESSED` y conclusión `UNDETERMINED` por diseño** |
+| Crear mitigación | Riesgo → factor → Mitigar | Solo sobre causas accionables; las que dependen de una decisión ajena se rechazan a propósito |
+| Verificar mitigación | Mitigación → Verificar | **Quien ejecutó no verifica**: hacen falta dos personas |
+| Expediente | Debida diligencia → crear → capturar instantánea | Lista de requisitos con su estado real |
+| Análisis satelital | Parcela → Análisis satelital | Hoy: «adaptador en desarrollo». **No se puede encargar** |
+
+**Bloqueos vigentes**: severidad y conclusión (**D-07** y catálogo no aprobado); `READY` del expediente exige seis
+requisitos que hoy no son evaluables (ver §3); llamadas satelitales reales (**D-09 parte B**).
+
+### 2.7 Responsable de exportación (EXPORT_MANAGER)
+
+| Tarea | Pasos | Resultado esperado |
+| --- | --- | --- |
+| Registrar comprador | Embarques → Compradores → Nuevo | Comprador **declarado**, sin verificación externa |
+| Preparar embarque | Embarques → Nuevo → ítems por lote | Cantidades en KG desde el centro de salida |
+| Reservar | Embarque → Reservar | Reserva en el ledger. **Reservar no reduce la existencia**: la compromete |
+| Revisar preflight | Embarque → Preflight | Lista de comprobaciones con su estado |
+| Despachar | Embarque → Despachar | **Bloqueado hoy** |
+
+**Bloqueo vigente**: el despacho exige paquete DD aprobado y vigente, evidencia y la compuerta `SHIPMENT_DISPATCH`,
+cuya condición depende de **D-34**.
+
+### 2.8 Auditor (AUDITOR)
+
+Solo lectura. Ve productores **sin coordenadas exactas**, la bitácora y los reportes, y puede exportar.
+No encarga análisis, no evalúa, no decide.
+
+### 2.9 Roles sin experiencia propia todavía
+
+**PRODUCER** y **BUYER** existen como roles pero **sin permisos asignados**: sus pantallas están pendientes
+(UX-D08/UX-D09, y las concesiones entre organizaciones son P1-001). No incluirlos en una capacitación.
+
+## 3. Los bloqueos, explicados para quien opera
+
+Ninguno es una avería. Son decisiones que faltan, y el sistema prefiere detenerse a inventar.
+
+| Lo que no se puede hacer | Por qué | Quién lo desbloquea |
+| --- | --- | --- |
+| Cerrar un secado | No está definida la unidad de humedad | **D-32** |
+| Cerrar una entrega con diferencia | No hay política de cierre ni tolerancias | **D-33** |
+| Obtener severidad o conclusión de riesgo | El catálogo de reglas no está aprobado | **D-07** |
+| Llegar a `READY` en el expediente | Seis requisitos no evaluables: perfil de geolocalización (**D-05**), análisis de deforestación (**D-09 parte B**), perfil jurídico (**P1-005**), catálogo de riesgo aprobado y conclusión regulatoria (**D-07**), vínculo con embarque (**D-34**/P0-029) | Las cinco decisiones citadas |
+| Despachar un embarque | Preflight y compuerta `SHIPMENT_DISPATCH` | **D-34** |
+| Encargar un análisis satelital real | El adaptador existe, su uso real no está autorizado | **D-09 parte B** |
+
+## 4. Guion de capacitación (para dictar, 2 h)
+
+| Bloque | Minutos | Contenido | Comprobación de que se entendió |
+| --- | --- | --- | --- |
+| 1. Qué es y qué no es | 10 | Trazabilidad y preparación de debida diligencia. **No** certifica ni presenta nada ante la UE | Que cada quien diga una cosa que el sistema **no** hace |
+| 2. Entrar y rol | 10 | Acceso, organización, menú por permiso | Cada quien identifica qué secciones ve y por qué |
+| 3. Origen | 25 | Productor → parcela → ubicación o polígono | Registrar un productor y una parcela con geometría |
+| 4. Recepción y calidad | 25 | Entrega → recepción → pesaje → muestra → decisión | Recibir con una diferencia y explicar por qué la entrega no cierra |
+| 5. Lote y proceso | 25 | Lote → fermentación → merma → inventario | Cerrar una fermentación y leer el saldo en el ledger |
+| 6. Riesgo y expediente | 20 | Evaluar, leer factores, instantánea | Explicar por qué la conclusión es `UNDETERMINED` |
+| 7. Embarque | 15 | Comprador, ítems, reserva, preflight | Reservar y leer por qué el despacho no procede |
+| 8. Errores y bloqueos | 10 | §1 y §3 de este manual | Distinguir «no tengo permiso» de «falta una decisión» |
+
+**Material**: datos DEMO sintéticos. **Nunca** usar datos de productores reales en una capacitación.
+
+**Lo que este guion no cubre** porque no existe: captura en Android real, operación sin conexión en dispositivo,
+despacho, paquete DD exportado y cualquier presentación ante una autoridad.
+
+## 5. Antes de operar de verdad
+
+1. Decidir **D-32** y **D-33**: sin ellas, dos tareas cotidianas se detienen a media cadena.
+2. Ensayar en **Android real** si se va a capturar en campo.
+3. Tener el respaldo verificado del día (`docs/20` §Respaldo y restauración) **antes** de cargar datos reales.
+4. Acordar quién responde cuando algo se bloquea: hoy no hay soporte definido.
