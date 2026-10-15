@@ -2,6 +2,13 @@
 
 Base: S1 §§70–74, 98–99, 115; todas las pruebas de esta entrega están especificadas, NO EJECUTADAS. No inferir números históricos de suites ni aprobación del repositorio.
 
+## Orden de trabajo para un cambio funcional (acordado el 2026-10-15)
+
+**Código terminado → commit → `npm run validate` sobre ESE SHA → documentación de resultados en un commit
+posterior.** La corrida acredita entonces un **commit concreto**, y deja de hacer falta razonar sobre la
+correspondencia entre el árbol probado y el guardado. Las entregas anteriores se hicieron al revés —validar y
+después confirmar— y conservan su explicación de correspondencia; no se reescribe el historial.
+
 ## Estrategia
 
 Unitarias para invariantes; integración con PostgreSQL/PostGIS reales para transacciones/autorización; contratos API para serialización/errores; UI/E2E para workflows; dispositivo Android para persistencia/GPS/fotos/offline. Dobles de proveedores externos identificados como tales. Datos de prueba sintéticos y organización A/B separadas.

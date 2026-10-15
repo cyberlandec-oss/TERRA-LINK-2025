@@ -10,7 +10,7 @@ compuerta regulatoria.** D-07, D-09, D-34, D-37, D-38 y D-42 siguen exactamente 
 | Contenedores | 7, todos arriba; api/web/postgres/redis/scanner `healthy` |
 | `localhost:3000` · `4000/api/docs` · `3001` | **200**, **200**, **200** (3001 relanzado: es un proceso de Node, no un contenedor) |
 | Migraciones | **40** |
-| Marcas de migración | de `2026-10-13T15:14:19Z` a `2026-10-15T04:41:52Z` → **no se reejecutaron sobre almacenamiento nuevo**: los datos siguen |
+| Marcas de migración | de `2026-10-13T15:14:19Z` a `2026-10-15T04:41:52Z`: las primeras **no se reejecutaron**, luego el volumen **no se recreó vacío**. Es lo único que prueba: **no acredita que todos los datos se conserven** |
 | Catálogo CTE | `1.6.0`; `DRYING` v2 publicado en esa versión |
 | `delivery_closures` | **0** filas: la tabla existe y no se ha usado en la base de desarrollo |
 | Datos DEMO | 9 productores · 107 tablas |
@@ -264,7 +264,7 @@ correspondencia que esta misma sesión había documentado unas horas antes.
 | --- | --- |
 | 3000 · 4000/api/docs · 3001 | **200**, **200**, **200** |
 | Migraciones | **41** (la `0041` aplicada) |
-| Marcas de migración | de `2026-10-13T15:14:19Z` a `2026-10-15T18:52:00Z` → las primeras **no se reejecutaron**: sin pérdida de datos |
+| Marcas de migración | de `2026-10-13T15:14:19Z` a `2026-10-15T18:52:00Z`: las primeras **no se reejecutaron**, luego el volumen **no se recreó vacío**. **No demuestra por sí solo** que todos los datos se conserven: para eso haría falta cotejar conteos y contenido, como hace QA-16 |
 | `geo_profile_evaluations` | existe, **0 filas** (tabla nueva, sin uso en desarrollo) |
 | Datos DEMO | 9 productores, intactos |
 | `SATELLITE_LIVE_CALLS` | **apagado**, sin tocar |
@@ -421,9 +421,13 @@ ninguna regla**. Si la clasificación es parcial, lo dice en negrita antes del d
 **Dos corridas, y por qué.** La primera (`2026-10-15T19-47-14-688Z`) aprobó con las mismas 62/563/62 sobre el árbol
 que ya tenía el backend y las pruebas. Después se corrigió la **pantalla** de riesgo —la severidad sin su
 cobertura— y se lanzó una **segunda** corrida, que es la que certifica el árbol que se confirma. La segunda fue
-**notablemente más lenta** al principio (8 suites en ~25 min frente a 62 en ~12 min), consistente con la
-inestabilidad del disco USB ya diagnosticada (`docs/qa/DIAGNOSTICO_VALIDACION_INESTABLE_2026-10-13.md`); recuperó
-ritmo y terminó sin un solo fallo. **No se cortó ni se subió ningún timeout.**
+**notablemente más lenta** al principio (8 suites en ~25 min frente a 62 en ~12 min); recuperó ritmo y terminó sin
+un solo fallo. **No se cortó ni se subió ningún timeout.**
+
+**La causa de esa lentitud NO está confirmada.** Encaja con el patrón de la inestabilidad registrada en
+`docs/qa/DIAGNOSTICO_VALIDACION_INESTABLE_2026-10-13.md`, cuya hipótesis principal —picos de latencia del disco
+USB— **sigue sin demostrarse**. Que esta corrida fuera lenta y terminara bien **no confirma ni descarta** esa
+hipótesis: es un dato más, no una explicación. No se midió nada durante la corrida que permita atribuirla.
 
 **Correspondencia con el commit.** La corrida anota `commit: 2430053` + 24 archivos sin confirmar, que es el
 contenido de esta entrega. Como siempre, es **anterior** al commit: evidencia de correspondencia, no igualdad
@@ -481,6 +485,23 @@ Lo que fija:
   D-07.6; para elegir la vía de severidad **no hace falta un jurista**.
 - **Conservación**: publicar un catálogo nuevo **no reescribe ni recalcula** evaluaciones anteriores, que siguen
   ligadas a su versión.
+
+## 6.ter Dos precisiones corregidas y un cambio de método (2026-10-15)
+
+**La lentitud de la segunda corrida no tiene causa confirmada.** Escribí que era «consistente con la inestabilidad
+del disco USB ya diagnosticada», y eso insinúa una explicación que no existe: la hipótesis H1 de
+`docs/qa/DIAGNOSTICO_VALIDACION_INESTABLE_2026-10-13.md` **sigue sin demostrarse**, y una corrida lenta que
+termina bien **no la confirma ni la descarta**. Corregido en §5.7.
+
+**Conservar la marca inicial de migraciones no demuestra que se conserven todos los datos.** Escribí «sin pérdida
+de datos» apoyándome solo en que las primeras marcas no se reejecutaron. Eso prueba **una cosa más estrecha**: que
+el volumen **no se recreó vacío**. Acreditar la conservación exige conteos y cotejo de contenido, que es lo que
+hace el procedimiento de **QA-16**. Corregido en §0 y §5.6.
+
+**Cambio de método para el próximo cambio funcional**: **código terminado → commit → `validate` sobre ESE SHA →
+documentación de resultados en un commit posterior**. Así la corrida acredita un commit concreto y deja de hacer
+falta argumentar correspondencias entre árboles sin confirmar — que es el hilo que ha aparecido tres veces en esta
+sesión. Registrado en `docs/16_PLAN_QA.md` y en el REANUDAR.
 
 ## 7. Siguiente paso
 

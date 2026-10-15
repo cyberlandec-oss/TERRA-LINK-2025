@@ -1,5 +1,9 @@
 # D-07 — Matriz del catálogo de reglas, para revisar antes de publicar nada (NO APROBADA)
 
+Archivo: `docs/decisiones/D-07-MATRIZ-CATALOGO.md` · Revisión **1** (2026-10-15) · **Versión de catálogo
+propuesta: ninguna todavía**. La matriz describe qué contendría una versión futura; **el número de versión se
+decide al publicarla** (D-07.1), y publicar y adoptar son dos actos posteriores y distintos.
+
 Estado: **PROPUESTA DE MATRIZ**. **Ningún catálogo nuevo se ha publicado ni adoptado.** Los catálogos `0.1.0` y
 `0.2.0` siguen **tal cual, como históricos**, con **todas sus reglas sin severidad** y **sin adopción en ninguna
 organización**.
@@ -139,6 +143,54 @@ Dos cosas que la matriz **no** hace, por diseño:
 sin que alguien las firme como tales.
 
 ---
+
+## 2.bis El caso mixto: qué sale cuando se juntan las tres situaciones
+
+La pregunta que decide si la matriz es segura: **un lote con hallazgos clasificados, hallazgos sin severidad
+declarada y reglas que no se pudieron evaluar, ¿qué devuelve?**
+
+Con esta matriz y el mecanismo ya implementado:
+
+| Qué entra | Qué sale |
+| --- | --- |
+| Hallazgos **con** severidad declarada | **Se clasifican**: la severidad del lote es el **máximo** de ellos |
+| Hallazgos **sin** severidad declarada | **No aportan severidad**, pero **siguen siendo hallazgos**: cuentan para el resultado técnico y se listan en `hits_without_declared_severity` |
+| Reglas **no evaluables** | **No aportan nada**: no se sabe qué habrían dado. Se listan en `not_evaluable_codes` |
+| Categorías **sin ninguna regla** | Se listan en `categories_without_rules` |
+
+Y entonces:
+
+- **La severidad se emite igual.** Un hallazgo conocido **no desaparece** porque otra regla no se pudiera
+  evaluar. Callarlo sería peor que publicarlo con su contexto.
+- **La cobertura marca `complete: false`** y el motivo empieza por «**Clasificación PARCIAL**», enumerando qué
+  quedó fuera y cerrando con «**No es una evaluación completa del riesgo del lote**».
+- **El resultado técnico no cambia**: sigue decidido por precedencia
+  (`BLOCKED > REVIEW_REQUIRED > INCOMPLETE > NO_FINDINGS_IN_EVALUATED_RULES`), y un bloqueante **no se diluye**
+  por mucha severidad baja que haya alrededor.
+- **La conclusión regulatoria sigue `UNDETERMINED`**, pase lo que pase.
+
+**Ejemplo concreto con esta matriz.** Un lote con origen incompleto (`CRITICAL`), con `MITIGATION_UNVERIFIED`
+abierta (hallazgo **sin** severidad por decisión) y sin cobertura satelital (**no evaluable**):
+
+| Campo | Valor |
+| --- | --- |
+| Severidad | **`CRITICAL`** |
+| `hits` | 2 |
+| `hits_without_declared_severity` | `['MITIGATION_UNVERIFIED']` |
+| `not_evaluable_codes` | `['SATELLITE_COVERAGE_UNKNOWN', 'GEOLOCATION_PROFILE']` |
+| `categories_without_rules` | `['LEGALITY','EVASION','HUMAN_RIGHTS','INDIGENOUS_RIGHTS']` |
+| `complete` | **`false`** |
+| Resultado técnico | **`BLOCKED`** |
+| Conclusión | **`UNDETERMINED`** |
+
+**Caso límite que conviene mirar antes de aprobar**: si **todos** los hallazgos fueran de reglas sin severidad
+declarada, el lote sale **`NOT_ASSESSED`** aunque esté **bloqueado**. No es un error —no hay con qué
+clasificar—, pero significa que un lote puede estar `BLOCKED` y «sin clasificar» a la vez. **Severidad y
+resultado técnico son dimensiones distintas**, y la pantalla las muestra por separado precisamente por esto.
+
+**Probado en** `apps/api/test/d07-mecanismos.int-spec.ts`: «clasificación PARCIAL: un hallazgo conocido no
+desaparece porque otra regla no se pueda evaluar» y «un hallazgo cuya regla no declara severidad no clasifica, y
+se dice cuál».
 
 ## 3. Lo que esta matriz deja fuera, y hay que saberlo al aprobarla
 
