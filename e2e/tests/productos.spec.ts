@@ -662,7 +662,7 @@ test('P0-020 riesgo: evaluar un lote, dimensiones separadas, no evaluable visibl
   await expect(page.getByText(/no es conclusión regulatoria/i).first()).toBeVisible();
   await expect(page.getByRole('list', { name: 'No evaluable o faltante' })).toContainText('GEOLOCATION_PROFILE');
   await expect(page.getByRole('list', { name: 'No evaluable o faltante' })).toContainText('D-05');
-  await expect(page.getByText(/no prueba ausencia de deforestación/).first()).toBeVisible();
+  await expect(page.getByText(/no prueba ausencia de deforestación/i).first()).toBeVisible(); // el catálogo 1.0.0 lo escribe «NO prueba»
   await page.getByLabel('Motivo para iniciar la revisión').fill('Revisión de datos faltantes (E2E)');
   await page.getByRole('button', { name: 'Iniciar revisión' }).click();
   await expect(page.getByRole('list', { name: 'Historia de revisión' })).toContainText('Revisión iniciada');
