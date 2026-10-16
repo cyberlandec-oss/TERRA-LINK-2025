@@ -2,10 +2,22 @@
 
 Última actualización: **2026-10-15**. Repositorio `cyberlandec-oss/TERRA-LINK-2025`, rama de trabajo `feat/tech-001-ci-p0-002` (PR #1 abierto como respaldo y revisión; `main` en `03bb2f6`).
 
-**Seguimiento por historias al 2026-10-15** (cuenta **historias**, no esfuerzo ni porcentaje de avance): **23**
-reportadas DONE_LOCAL con sus límites de evidencia · **8** abiertas con implementación parcial o criterios
-bloqueados · **1** (P0-031) cuyo piloto real sigue **sin ejecutar**. El bloqueo central que queda es **D-07**;
-de D-05 solo sigue abierta la parte **B** (aplicabilidad jurídica).
+**Seguimiento por historias al 2026-10-16** (cuenta **historias del MVP**, no esfuerzo):
+
+| Estado | Historias |
+| --- | ---: |
+| **DONE_LOCAL**, con sus límites de evidencia | **24 de 32** (75 %) |
+| Abiertas, con implementación parcial | **7** — P0-003, P0-017, P0-022, P0-023, P0-024, P0-028, P0-029 |
+| Piloto **sin ejecutar** | **1** — P0-031 |
+
+**Qué mide y qué no ese 75 %.** Es el **cierre de historias del MVP** con evidencia local, y nada más. **No** es
+un porcentaje de cumplimiento de la documentación raíz, que incluye además requisitos de producción, seguridad,
+operación, conformidad EUDR y fases posteriores al MVP. Tampoco mide esfuerzo restante: las siete abiertas no son
+intercambiables entre sí ni con las cerradas. Y **DONE_LOCAL** sigue significando lo de siempre: criterios de la
+historia cumplidos con pruebas locales, sin acreditar producción, Android real ni conformidad.
+
+De D-05 solo sigue abierta la parte **B** (aplicabilidad jurídica). De D-07, las partes **5 y 6** (perfil jurídico
+y quién concluye).
 
 **D-07 — mecanismos adoptados el 2026-10-15** (migración `0042`): aprobación con permiso propio y **adopción por
 organización** separada de la publicación global; **severidad por regla agregada por máximo**, siempre con su

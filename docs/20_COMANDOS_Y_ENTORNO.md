@@ -302,6 +302,17 @@ organización, rol y el resultado proyectado de una consulta de la lista cerrada
 sensibles a cualquier profundidad. Añadir una consulta es añadir una entrada a `CONSULTAS` con su proyección
 explícita, nunca volcar la respuesta entera.
 
+**Rotación del SUPER_ADMIN de desarrollo**: `npm run seed:dev -w apps/api -- --rotar-admin`. Rota la cuenta de
+`SEED_ADMIN_EMAIL`, sustituye **solo** la línea `SEED_ADMIN_PASSWORD` de `.env`, invalida las sesiones y verifica
+contra la API si responde. **No crea cuentas** —si no existe, falla— y no toca las DEMO, que se rotan con
+`seed:demo -- --rotar=<cuenta>`.
+
+**Reconciliar `CREDENCIALES.csv` y `CREDENCIALES.pendiente.csv`**: manda el **más reciente**, y las herramientas
+ya lo resuelven solas. Cuando el principal deje de estar bloqueado, el pendiente lo **sustituye** (es el archivo
+completo, no un parche); el procedimiento paso a paso, con su vuelta atrás, está en
+`docs/qa/ROTACION_CREDENCIALES_DEMO_2026-10-16.md` §3. No se fusionan filas sueltas ni se abre el archivo «para
+comparar».
+
 **Secretos: qué no se imprime nunca.** Ni la columna `contrasena` de `CREDENCIALES.csv` —ni filtrada, ni «para
 comprobar que existe»: para eso está `estado_acceso`— ni **el contenido de `.env`**, entero o filtrado. Para saber
 si una variable está puesta se mira su **efecto** (por ejemplo `live_calls_enabled` en la respuesta de la API) o su

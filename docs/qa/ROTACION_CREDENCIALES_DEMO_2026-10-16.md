@@ -61,14 +61,47 @@ restauran los archivos.
 | Bitácora | 5 registros `user.password_rotated` |
 | Datos conservados | 4 organizaciones, 20 usuarios, 21 membresías, 6 parcelas, 9 productores, 3 lotes, 3 entregas, 4 evaluaciones — **sin cambios** |
 
-### Archivo vigente
+### Archivo vigente: `CREDENCIALES.pendiente.csv`
 
-**`CREDENCIALES.pendiente.csv` es el archivo vigente.** `CREDENCIALES.csv` sigue **abierto en otro programa**
-desde el 2026-10-14 (su última escritura es de ese día) y **conserva las credenciales anteriores de esas cinco
-cuentas, que ya no sirven**. Al cerrarlo, sustituirlo por el pendiente.
+| Archivo | Última escritura | Estado |
+| --- | --- | --- |
+| **`CREDENCIALES.pendiente.csv`** | 2026-10-16 | **VIGENTE.** Lleva las credenciales en uso, incluidas las cinco rotadas |
+| `CREDENCIALES.csv` | 2026-10-14 | **OBSOLETO y bloqueado** por otro programa. Conserva las credenciales **muertas** de esas cinco cuentas |
 
-El seed, la revisión por rol y la utilidad de consulta ya resuelven esto solos: todos toman el **más reciente** de
-los dos.
+**No se sobrescribe el principal bloqueado**, ni se fuerza la escritura, ni se imprime ninguno de los dos. Las
+herramientas ya resuelven la ambigüedad solas: el seed, `revision-por-rol.mjs` y `consulta-api.mjs` toman el **más
+reciente** de los dos, que es el pendiente.
+
+### Cómo reconciliarlos cuando se cierre Excel
+
+El pendiente es **el archivo completo**, no un parche: lleva todas las filas, no solo las rotadas. Por eso la
+reconciliación es una sustitución, no una fusión.
+
+```
+# 1. Comprobar que ya nadie lo tiene abierto (debe imprimir «escribible»)
+node -e "const{openSync,closeSync}=require('fs');try{closeSync(openSync('CREDENCIALES.csv','r+'));console.log('escribible')}catch{console.log('AUN BLOQUEADO')}"
+
+# 2. Comprobar que el pendiente es el más reciente y tiene al menos tantas filas (sin imprimir contenido)
+node -e "const{statSync,readFileSync}=require('fs');const n=f=>readFileSync(f,'utf8').split(/\r?\n/).filter(Boolean).length;console.log('principal',statSync('CREDENCIALES.csv').mtime.toISOString(),n('CREDENCIALES.csv'),'filas');console.log('pendiente',statSync('CREDENCIALES.pendiente.csv').mtime.toISOString(),n('CREDENCIALES.pendiente.csv'),'filas')"
+
+# 3. Conservar el obsoleto por si acaso, y sustituir
+mv CREDENCIALES.csv CREDENCIALES.obsoleto-2026-10-14.csv
+mv CREDENCIALES.pendiente.csv CREDENCIALES.csv
+
+# 4. Comprobar que las cuentas rotadas siguen entrando, sin imprimir secretos
+node e2e/review/consulta-api.mjs admin.cooperativa organizaciones
+node e2e/review/consulta-api.mjs superadmin.revision organizaciones
+
+# 5. Solo entonces, borrar el obsoleto
+rm CREDENCIALES.obsoleto-2026-10-14.csv
+```
+
+**Si el paso 4 falla**, el obsoleto sigue ahí: `mv CREDENCIALES.csv CREDENCIALES.pendiente.csv` y
+`mv CREDENCIALES.obsoleto-2026-10-14.csv CREDENCIALES.csv` deja todo como estaba. Los tres archivos están
+ignorados por git, así que ninguno de estos pasos versiona nada.
+
+**No hacer**: abrir el CSV para «comparar a ojo» —ahí está la columna que provocó las dos exposiciones— ni copiar
+filas sueltas entre archivos: una fila a medias deja una cuenta con una contraseña que no es la de la base.
 
 ## 4. La corrección de fondo: una utilidad en vez de una regla
 
@@ -81,14 +114,18 @@ node e2e/review/consulta-api.mjs eudr.cooperativa satelite
 ```
 
 - **Lee la credencial del archivo vigente y la usa**; ni la contraseña ni el token salen por consola.
-- La salida se limita a **cuenta, organización, rol y el resultado** de una consulta de una lista cerrada, cada
-  una con su **proyección explícita**: no se vuelca la respuesta entera.
-- Además, un **saneado por lista negra** recorre el resultado a cualquier profundidad y quita claves sensibles
-  (`contrasena`, `access_token`, `password_hash`, `document_number`, `phone_enc`, `email`…). Dos capas, porque la
-  proyección la escribe una persona y puede olvidarse.
-- Probada con **credenciales ficticias** en un directorio temporal (`e2e/tests/consulta-api.spec.ts`): que la
-  salida no lleva el secreto, que el saneado funciona dentro de listas y objetos anidados, que manda el archivo
-  más reciente y que una cuenta sin credencial se rechaza en vez de consultarse a ciegas.
+- **El filtro principal es una lista de PERMITIDOS por consulta** (`campos`): se publica lo que está en la lista y
+  nada más. Un campo nuevo que la API empiece a devolver mañana **se descarta por omisión**, que es justo lo que
+  una lista negra no puede hacer: esa solo detiene lo que alguien se acordó de prohibir.
+- Un campo permitido que **deje de ser escalar** —porque la API cambió de forma— se sustituye por
+  `[omitido: no escalar]`, de modo que un `status` que pase de texto a objeto no cuele su detalle interno.
+- La **lista negra se conserva como segunda barrera**, por si alguien amplía una lista de permitidos sin pensar.
+- **Los errores no vuelcan nada**: llevan ruta y código, nunca el cuerpo de la respuesta, las cabeceras ni la
+  configuración; y la CLI imprime el mensaje, no la traza, que podría llevar la credencial leída.
+- Probada con **secretos ficticios** (`e2e/tests/consulta-api.spec.ts`): un campo nuevo de nombre inocente, un
+  campo permitido que cambia de forma, secretos dentro de listas y de objetos anidados, una lista de permitidos
+  ampliada por error, campos ausentes que no se inventan, el archivo vigente por fecha, una cuenta sin credencial
+  y el mensaje de una consulta fallida.
 
 **A partir de ahora, para consultar la API con una cuenta DEMO se usa esta utilidad.** Queda prohibido el
 procedimiento manual de leer el CSV y pasar la contraseña a `curl`. Para *mirar* el archivo siguen valiendo solo
@@ -107,12 +144,43 @@ procedimiento:
 
 | Secreto | Qué protege | Qué haría falta |
 | --- | --- | --- |
-| `SEED_ADMIN_PASSWORD` | La cuenta `admin@terralink.local` del seed de **desarrollo** (SUPER_ADMIN) | Rotación sencilla: cambiar el valor y la contraseña del usuario. **Pendiente de autorización** |
+| `SEED_ADMIN_PASSWORD` | La cuenta `admin@terralink.local` del seed de **desarrollo** (SUPER_ADMIN) | **ROTADA el 2026-10-16** con `seed:dev -- --rotar-admin`: ver §7 |
 | `PII_KEYS` + `PII_ACTIVE_KEY_ID` | Cifrado AES-256-GCM de datos personales en reposo | El llavero **sí admite rotación**: añadir `k2`, activarla y seguir descifrando con `k1`. Pero `k1` quedó expuesta, así que lo ya cifrado sigue siendo legible para quien la tenga: remediarlo de verdad exige **re-cifrar** los campos existentes |
 | `PII_INDEX_KEY` | Índice ciego (HMAC) para búsqueda exacta sin descifrar | Cambiarla **invalida todos los índices existentes**: la búsqueda exacta deja de encontrar nada hasta reindexar. No se toca sin un procedimiento de reindexado |
 
 Los datos protegidos son **sintéticos y locales**. Aun así, la decisión es del responsable del proyecto, no de
-quien ejecuta la tarea, porque dos de las tres opciones pueden dejar datos ilegibles o búsquedas rotas.
+quien ejecuta la tarea, porque dos de las tres opciones pueden dejar datos ilegibles o búsquedas rotas. El
+procedimiento concreto, con su inventario, sus comprobaciones y su reversión, está en
+`docs/decisiones/D-43-ROTACION-CLAVES-PII.md` (**propuesta, no ejecutada**).
+
+**Precisión**: `PII_ACTIVE_KEY_ID` **no es un secreto**. Es el identificador de la clave activa y viaja en claro
+dentro de cada token cifrado (`v1.<kid>.…`), por diseño, para saber con qué clave descifrar. Que apareciera en la
+salida no añade exposición y no hay nada que rotar en él.
+
+## 7. Rotación del SUPER_ADMIN de desarrollo (2026-10-16)
+
+Autorizada aparte y ejecutada. **Es una cuenta distinta** de la de plataforma DEMO ya rotada, y se comprobó antes
+de tocar nada:
+
+| Cuenta | De dónde sale | Antes | Después |
+| --- | --- | --- | --- |
+| `admin@terralink.local` | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` de `.env` | `token_version = 0` | **`1`** |
+| `superadmin.revision@demo.terralink.local` | Seed DEMO, rotada en §3 | `token_version = 2` | **`2`, sin tocar** |
+
+Se usó `npm run seed:dev -w apps/api -- --rotar-admin`, que **no es el seed general**: rota esa única cuenta, no
+crea ninguna —si no existe, falla— y no toca las cuentas DEMO. Mismo orden seguro que la rotación DEMO: escribir
+el archivo primero, activar después, restaurar el archivo si la activación falla.
+
+| Comprobación | Resultado |
+| --- | --- |
+| Login con la credencial nueva | **Correcto** |
+| Login con la anterior | **Rechazado** |
+| Sesiones previas | **Invalidadas** (`token_version` 0 → 1) |
+| Cambios en `.env` | **Una sola línea**, `SEED_ADMIN_PASSWORD`; mismo número de líneas y el resto byte a byte |
+| Otras cuentas | **Ninguna tocada** |
+| Bitácora | Una entrada `user.password_rotated` |
+
+El valor nuevo **no se ha publicado** y vive solo en `.env`, que no se versiona.
 
 **Mientras tanto**, la misma regla de §4 se extiende a `.env`: no se imprime, ni entero ni filtrado. Para saber si
 una variable está puesta se mira el **efecto** —por ejemplo `live_calls_enabled` en la respuesta de la API— o el
