@@ -1,4 +1,4 @@
-# P0-030 — Estado por criterio frente a las fuentes (2026-10-15, tercera revisión)
+# P0-030 — Estado por criterio frente a las fuentes (2026-10-16, cuarta revisión)
 
 Contraste de **todos** los criterios de la historia con sus fuentes: **S1 §60** (dashboard técnico, los 11 KPI),
 **S1 §97** (Sprint 11 — Reporting: reportes por entidad y exportación GeoJSON), **RF-30** (`docs/03_REQUISITOS.md`),
@@ -7,19 +7,20 @@ Contraste de **todos** los criterios de la historia con sus fuentes: **S1 §60**
 Tres estados, sin terceras lecturas: **DEMOSTRADO** (hay código y prueba que lo acreditan), **PENDIENTE** (falta hacerlo,
 sin bloqueo externo) y **BLOQUEADO** (depende de una decisión o capacidad concreta que no está en esta historia).
 
-La historia **sigue ABIERTA**. Lo demostrado es DONE_LOCAL; eso no acredita producción ni conformidad EUDR.
+La historia pasa a **DONE_LOCAL** (2026-10-16): todos sus criterios están demostrados con pruebas locales. Eso
+**no** acredita producción, volumen de piloto ni conformidad EUDR.
 
-### Qué quedaba bloqueado y qué queda hoy (contraste del 2026-10-15)
+### Qué quedaba bloqueado y qué queda hoy (contraste del 2026-10-16)
 
 | Criterio que estaba bloqueado | Antes | Hoy |
 | --- | --- | --- |
 | `plots_valid` | BLOQUEADO por D-05 (criterio inexistente) | **DEMOSTRADO**: el criterio existe y tiene versión (`EUDR_GEO_V1 1.0.0`, D-05.A) y el indicador lo cuenta |
 | Distribución por severidad de riesgo | BLOQUEADO por D-07 y por el catálogo `NOT_APPROVED` | **DEMOSTRADO**: con el catálogo `1.0.0` publicado y adoptado por una organización, el indicador clasifica y el lote **CRÍTICO** se publica aparte; sin adopción sigue `UNKNOWN` con su motivo real |
-| GeoJSON — perfil de destino regulatorio | BLOQUEADO por D-05 | **SIGUE BLOQUEADO**, pero por **D-05.B** (aplicabilidad jurídica), no por el perfil técnico |
+| GeoJSON — «perfil de destino regulatorio» | BLOQUEADO por D-05 | **NO ERA UN CRITERIO DE ESTA HISTORIA.** Ninguna fuente lo pide: ver §4.ter. El criterio literal, `GeoJSON export`, está **DEMOSTRADO** |
 
-**Por eso la historia NO se cierra todavía.** Queda un criterio de la fuente (S1 §97) bloqueado: el perfil de
-destino regulatorio del GeoJSON depende de **D-05.B**. Cerrarla con ese criterio abierto sería declarar demostrado
-algo que no lo está.
+**Ya no queda ningún criterio de P0-030 bloqueado.** El estado de la historia pasa a **DONE_LOCAL** con la
+evidencia de §1 a §3; ver §4.ter para por qué el tercer renglón no era un criterio y qué sigue dependiendo de
+D-05.B fuera de esta historia.
 
 ## 1. S1 §60 — Dashboard técnico (11 KPI)
 
@@ -54,7 +55,7 @@ su cero es observado y se publica, porque **un resultado desfavorable no es moti
 | Traceability report | **DEMOSTRADO** | `GET /reports/entities/traceability`. Completitud del origen declarado desde `lot_inputs.origin_known` |
 | DD report | **DEMOSTRADO** | `GET /reports/entities/dd`. Preparación de la última instantánea, con los BLOCKED contados |
 | GeoJSON export (técnico) | **DEMOSTRADO** | `GET /reports/entities/plots/geojson`. `FeatureCollection` RFC 7946 con la geometría guardada, sin reproyectar ni recortar; exige `plot:read_geometry` |
-| GeoJSON export (**perfil de destino regulatorio**) | **BLOQUEADO** | **D-05.B** (aplicabilidad jurídica), ya no D-05 entero: el perfil **técnico** existe desde el 2026-10-15 (`EUDR_GEO_V1 1.0.0`, D-05.A) y la respuesta lo nombra. Lo que falta es qué puede afirmarse frente al destino. Ver §4 |
+| *(«perfil de destino regulatorio»)* | **NO ES UN CRITERIO** | Ninguna fuente lo pide: S1 §97 dice «GeoJSON export» y S1 §16 pide dos rutas y un formato. Se había añadido por interpretación; ver **§4.ter**. La aplicabilidad jurídica es **D-05.B** y se registra en `docs/22`, no como condición de cierre de esta historia |
 
 ## 3. RF-30, docs/09, docs/17, QA-13/14 y UX_UI §20.2
 
@@ -123,13 +124,54 @@ organización, con el mismo permiso `plot:read_geometry`, la misma ausencia de r
 técnico **no es conformidad** ni habilita presentar nada, y el propio indicador lo dice. Nada de esto se ha
 probado contra el **servicio real** del destino.
 
-**P0-030 sigue ABIERTA.** Que `plots_valid` se calcule no cierra la historia: la **distribución de riesgo**
-(`risk_high` / `risk_medium` / `risk_low`) sigue bloqueada por **D-07** y por el catálogo `NOT_APPROVED`, con su
-`CHECK` en el esquema.
+**Actualización del 2026-10-16**: la distribución de riesgo dejó de estar bloqueada —el catálogo `1.0.0` está
+publicado y una organización lo adoptó— y el «perfil de destino regulatorio» resultó no ser un criterio de esta
+historia (§4.ter). Con eso, P0-030 queda **DONE_LOCAL**. Lo que **no** cambia: cumplir el perfil técnico no es
+conformidad, nada se ha probado contra el servicio real del destino y **D-05.B** sigue pendiente.
 
 Lo que **no** se hace mientras tanto: inventar una geometría para las parcelas que solo tienen superficie declarada. Se
 excluyen del archivo y su número se declara en el propio GeoJSON (`counts.solo_superficie_declarada`), de modo que nadie
 lea un archivo incompleto como si fuera completo.
+
+## 4.ter El «perfil de destino regulatorio» NO es un criterio de P0-030
+
+Este documento llegó a listar «GeoJSON export (**perfil de destino regulatorio**)» como un criterio **BLOQUEADO**
+de la historia. **No lo es.** Se añadió por interpretación, y conviene deshacerlo citando el texto literal.
+
+### Lo que dicen las fuentes, palabra por palabra
+
+| Fuente | Texto literal | Qué pide |
+| --- | --- | --- |
+| **S1 §97** (Sprint 11 — Reporting) | «Producer report · Plot report · Lot report · Risk report · Traceability report · DD report · **GeoJSON export**» | Una **exportación GeoJSON**. Nada más: ni perfil, ni validación contra un destino, ni aceptación |
+| **S1 §16** (GeoJSON) | «La plataforma debe tener exportador: `GET /plots/{id}/geojson` y `GET /plots/export/geojson`. La guía de trazabilidad señala GeoJSON como **formato interoperable requerido** para EUDR» | Dos rutas y un **formato**. «Formato interoperable requerido» describe el formato del archivo, **no** acredita que un archivo concreto sea aceptado por nadie |
+| **RF-30** (`docs/03`) | «Reportes/KPI calculados con **denominadores y permisos reales**» | Denominadores y permisos |
+| **Aceptación de P0-030** (`docs/18`) | «filtro tenant/periodo, denominador/definición, datos reales, export autorizado con snapshot y audit; reporte no filtra PII ni confunde readiness con conformidad» | Seis condiciones, ninguna regulatoria |
+| **QA-13 / QA-14** (`docs/16`) | «Crear/corregir/aprobar/descargar/exportar/cambiar permiso; reporte» · «Home por permiso, links, sección 403, vacío/error/loading, teclado» | Permisos, historial y estados de UI |
+
+**Ninguna de las cinco menciona un perfil de destino, una validación contra el sistema oficial ni una aceptación
+jurídica.** El criterio literal es «GeoJSON export», y está **DEMOSTRADO**.
+
+### Tres alcances que se habían fundido en uno
+
+| # | Alcance | Qué es | Estado | De quién depende |
+| --- | --- | --- | --- | --- |
+| 1 | **Exportación técnica** | Entregar la geometría guardada en RFC 7946, sin reproyectar ni recortar, con permiso `plot:read_geometry` y los omitidos declarados | **DEMOSTRADO** — es el criterio de S1 §97 | P0-030 (esta historia) |
+| 2 | **Compatibilidad documentada** con el destino | Una segunda exportación que aplica el perfil `EUDR_GEO_V1 1.0.0`: umbral de 4 ha, 6 decimales, propiedades esperadas y parcelas calificadas | **IMPLEMENTADO** (D-05.A, 2026-10-15), y **nunca probado contra el servicio real** | D-05.A, ya adoptada |
+| 3 | **Aceptación jurídica** | Que cumplir el perfil **acredite** el requisito de geolocalización frente al destino | **PENDIENTE** | **D-05.B**, que es una decisión regulatoria, no un criterio de reporting |
+
+Fundirlos convertía una decisión regulatoria abierta en una condición de cierre de una historia de reportes. Es el
+mismo error que este documento ya corrigió dos veces —atribuir el bloqueo de la severidad a P0-021 y P0-028—, y se
+corrige igual: **el criterio es el que está escrito**, y lo demás se registra donde corresponde.
+
+### Qué falta realmente, y dónde se registra
+
+- **D-05.B** sigue pendiente, y su efecto está donde debe estar: en `docs/22` y en lo que la exportación **dice de
+  sí misma**. La respuesta declara `regulatory_profile: { status: "PENDING", depends_on: "D-05.B", technical_profile:
+  "EUDR_GEO_V1 1.0.0 (D-05.A, provisional)" }`, y la pantalla lo rotula. Nadie puede leer el archivo como una
+  acreditación.
+- **Nada se ha probado contra el servicio real del destino.** El perfil se construyó sobre documentación fechada
+  (`docs/sources/eudr-is-2026-10-15/`) y así lo declara: `verification: DOCUMENTED_NOT_TESTED_AGAINST_SERVICE`.
+- Cerrar P0-030 **no** afirma conformidad EUDR, ni que el archivo sea aceptado, ni que exista perfil jurídico.
 
 ## 4.bis Qué bloquea realmente la severidad de riesgo (y qué no)
 

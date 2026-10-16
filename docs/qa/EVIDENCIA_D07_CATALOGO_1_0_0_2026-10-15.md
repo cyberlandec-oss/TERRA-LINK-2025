@@ -134,12 +134,13 @@ proveedor sigue en `SELECTED_FOR_DEVELOPMENT`.
 ## 6. Incidencias de esta entrega
 
 - **`CREDENCIALES.csv` bloqueado al sembrar.** `seed:demo` terminó su trabajo y **falló al escribir el archivo**
-  (`EBUSY`): está abierto en otro programa. Dejó `CREDENCIALES.pendiente.csv`. Los datos sembrados **sí** se
-  aplicaron; el código de salida 1 es de la escritura del archivo, no del seed.
+  (`EBUSY`): está abierto en otro programa. Dejó `CREDENCIALES.pendiente.csv`. El código de salida 1 es de la
+  escritura del archivo, no de las operaciones de datos. Contraste completo de qué creó y qué no, con sus
+  límites: `docs/qa/EFECTO_SEED_DEMO_2026-10-15.md`.
 - **Se imprimió la columna `contrasena` de `CREDENCIALES.csv` en la sesión**, al listar las tres primeras columnas
-  para preparar una consulta a la API. Es una regla explícita del proyecto y se incumplió. Las cuentas son
-  **DEMO, de un despliegue local**, pero conviene **rotarlas**: el procedimiento está en
-  `docs/qa/ROTACION_CREDENCIALES_DEMO_2026-10-14.md`.
+  para preparar una consulta a la API. Cinco cuentas DEMO, incluida la de plataforma. **Rotadas y verificadas** el
+  2026-10-16, con la corrección de fondo del procedimiento:
+  `docs/qa/ROTACION_CREDENCIALES_DEMO_2026-10-16.md`.
 
 ## 7. Lo que esta entrega NO acredita
 

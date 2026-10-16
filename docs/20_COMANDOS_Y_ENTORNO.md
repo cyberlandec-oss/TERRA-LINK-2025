@@ -256,7 +256,7 @@ y `adb logcat -s ReactNativeJS:V` (línea `TL_SELFTEST`). Evidencia: `docs/qa/EV
 
 - `npx jest --runInBand test/imports.int-spec.ts src/imports` (desde `apps/api`): integración con PostgreSQL real y lector XLSX.
 - `npm run build -w apps/api && node e2e/review/importaciones.mjs`: revisión en navegador (admin, MANAGER, técnico denegado, teclado, 390 px) contra la app de desarrollo; crea productores DEMO-IMP-* en BORRADOR. Evidencia en `docs/qa/importacion/`.
-- `node e2e/seed/comprobar-seed-demo.mjs`: seed DEMO en base desechable `terra_link_seedcheck` (idempotencia, membresías, contraseñas, rotación). No toca `terra_link` ni `CREDENCIALES.csv`.
+- `node e2e/seed/comprobar-seed-demo.mjs`: seed DEMO en base desechable `terra_link_seedcheck` — idempotencia, membresías, contraseñas y **rotación**, incluido el caso del archivo principal **bloqueado** (16 comprobaciones). No toca `terra_link` ni `CREDENCIALES.csv`. **No forma parte de `npm run validate`**: se ejecuta aparte tras tocar el seed.
 - Entorno Android en variables de usuario (2026-10-11): `ANDROID_HOME`/`ANDROID_SDK_ROOT` = `C:\Users\mario\AppData\Local\Android\Sdk`, `JAVA_HOME` = JDK 17.0.20.1, `Path` con `platform-tools`, `emulator` y `%JAVA_HOME%\bin`. Abrir una terminal nueva para que apliquen.
 - El repositorio vigente está en `D:\PROYECTOS CYBER LAND\TERRA LINK EUDR 2026\TERRA LINK 2025` (la ruta `C:\Users\mario\TERRA LINK 2025` ya no existe).
 
@@ -284,7 +284,28 @@ y `adb logcat -s ReactNativeJS:V` (línea `TL_SELFTEST`). Evidencia: `docs/qa/EV
 
 - `npx jest --runInBand test/imports-lots.int-spec.ts test/imports-deliveries.int-spec.ts test/dd.int-spec.ts` (desde `apps/api`).
 - `npm run build -w apps/api && node e2e/review/importaciones-lotes.mjs` y `importaciones-entregas.mjs`: revisiones en navegador (archivos sintéticos; usan la recepción DEMO de ENT-2026-00001 y referencias DEMO-REF-*/DEMO-IMP-LOTE-*).
-- Rotación de cuentas DEMO: `node --env-file-if-exists=../../.env dist/db/seed-demo.js --rotar=<cuenta>` (desde `apps/api`, tras compilar). Si `CREDENCIALES.csv` está abierto en Excel falla con EBUSY sin activar nada: cerrarlo y repetir; no forzar la escritura.
+- Rotación de cuentas DEMO: `npm run seed:demo -w apps/api -- --rotar=<cuenta>`, **una cuenta por invocación**. Esa rama **retorna antes** de cualquier alta: no repuebla nada. Si `CREDENCIALES.csv` está abierto en otro programa, la rotación **se completa igualmente** escribiendo en `CREDENCIALES.pendiente.csv`, lo declara como **vigente** y **avisa** de que el bloqueado conserva una credencial que ya no sirve; solo aborta si no puede escribir **ninguno** de los dos. Verifica login nuevo, rechazo de **todas** las contraseñas anteriores conocidas e invalidación de sesiones (`token_version + 1`).
+
+### Consultar la API con una cuenta DEMO: `consulta-api.mjs`
+
+**No se lee `CREDENCIALES.csv` para copiar una contraseña a un `curl`.** Ese procedimiento manual provocó dos
+exposiciones de contraseñas en consola (2026-10-14 y 2026-10-16). Para consultar la API se usa:
+
+```
+node e2e/review/consulta-api.mjs --listar-consultas
+node e2e/review/consulta-api.mjs <cuenta> <consulta> ["Organización"] [--base http://localhost:4000]
+```
+
+Lee la credencial del archivo vigente —el **más reciente** de `CREDENCIALES.csv` y `CREDENCIALES.pendiente.csv`—,
+autentica y consulta. **Ni la contraseña ni el token salen por consola.** La salida se limita a cuenta,
+organización, rol y el resultado proyectado de una consulta de la lista cerrada, con un saneado que quita claves
+sensibles a cualquier profundidad. Añadir una consulta es añadir una entrada a `CONSULTAS` con su proyección
+explícita, nunca volcar la respuesta entera.
+
+**Secretos: qué no se imprime nunca.** Ni la columna `contrasena` de `CREDENCIALES.csv` —ni filtrada, ni «para
+comprobar que existe»: para eso está `estado_acceso`— ni **el contenido de `.env`**, entero o filtrado. Para saber
+si una variable está puesta se mira su **efecto** (por ejemplo `live_calls_enabled` en la respuesta de la API) o su
+**nombre** en el contenedor, nunca su valor.
 - El episodio de 690 s de la primera ejecución de `imports-deliveries.int-spec.ts` sigue con **causa no determinada**; no se cambiaron timeouts.
 
 ### Web por rol y Lot Hub (P0-027, 2026-10-12)
