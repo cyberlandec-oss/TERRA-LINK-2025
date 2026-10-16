@@ -5,9 +5,9 @@
 // credenciales en una carpeta temporal (TL_CREDENTIALS_DIR). Nunca toca `terra_link`, el bucket de desarrollo ni el
 // CREDENCIALES.csv de la raíz. No imprime contraseñas: compara huellas (hash argon2 y SHA-256 del CSV).
 // Requiere: `npm run infra:up` (o el perfil app) y `npm run build -w apps/api` no es necesario: los scripts compilan.
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,6 +27,8 @@ const note = (s) => { log.push(s); console.log(s); };
 const psql = (db, q) => execFileSync('docker', ['compose', 'exec', '-T', 'postgres', 'sh', '-c', `psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d ${db} -tAc "${q.replace(/"/g, '\\"')}"`], { cwd: root, encoding: 'utf8' }).trim();
 const env = { ...process.env, DATABASE_URL: url.toString(), S3_BUCKET: 'terra-link-seedcheck', REDIS_KEY_PREFIX: `tl-seedcheck:${Date.now()}:`, TL_CREDENTIALS_DIR: credDir };
 const run = (script, extra = []) => execFileSync('npm', ['run', script, '-w', 'apps/api', '--', ...extra], { cwd: root, env, encoding: 'utf8', shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
+// Igual, pero juntando la salida de error: los avisos del seed (archivo bloqueado, por ejemplo) van por stderr.
+const runConAvisos = (script, extra = []) => execSync(`npm run ${script} -w apps/api -- ${extra.join(' ')} 2>&1`, { cwd: root, env, encoding: 'utf8' });
 
 function snapshot() {
   const q = (s) => psql(DB, s).split('\n').filter(Boolean);
@@ -66,12 +68,33 @@ try {
   check('rotación: cambia solo la cuenta indicada', changed.solo_despues.length === 1 && changed.solo_despues[0].startsWith(`${target}@`), `${changed.solo_despues.map((x) => x.split('|')[0]).join(',')}`);
   const tv = (s) => Number(s.users.find((x) => x.startsWith(`${target}@`)).split('|')[2]);
   check('rotación: invalida sesiones previas (token_version + 1)', tv(s3) === tv(s2) + 1);
-  check('rotación: login nuevo verificado y anterior rechazado', /login nuevo=true; anterior rechazada=true/.test(outRot));
+  check('rotación: login nuevo verificado y anteriores rechazadas', /login nuevo=true; anteriores rechazadas=true/.test(outRot));
+  check('rotación: declara qué archivo queda vigente', /guardada en CREDENCIALES[^;]*\(vigente\)/.test(outRot), outRot.split('\n').find((l) => l.startsWith('Rotación')) ?? '');
   check('rotación: membresías intactas', JSON.stringify(s2.memberships) === JSON.stringify(s3.memberships));
+  check('rotación: no repuebla (conteos de datos DEMO intactos)', JSON.stringify(s2.counts.filter((c) => !c.startsWith('domain_events'))) === JSON.stringify(s3.counts.filter((c) => !c.startsWith('domain_events'))), `${s2.counts.join(' ')} → ${s3.counts.join(' ')}`);
 
   run('seed:demo');
   const s4 = snapshot();
   check('tras la rotación, el seed conserva la contraseña rotada', JSON.stringify(s3.users) === JSON.stringify(s4.users));
+
+  // Archivo principal bloqueado: antes abortaba la rotación entera. Ahora escribe en el pendiente, avisa de que
+  // el bloqueado conserva una credencial muerta y declara cuál queda vigente.
+  const principal = join(credDir, 'CREDENCIALES.csv');
+  const pendiente = join(credDir, 'CREDENCIALES.pendiente.csv');
+  copyFileSync(principal, pendiente);
+  chmodSync(principal, 0o444); // solo lectura: `openSync(f, 'r+')` falla igual que con el archivo abierto en Excel
+  let outBloq = '';
+  try {
+    outBloq = runConAvisos('seed:demo', ['--rotar=tecnico1.cooperativa']);
+  } finally {
+    chmodSync(principal, 0o644);
+  }
+  const s5 = snapshot();
+  const tv1 = (s) => Number(s.users.find((x) => x.startsWith('tecnico1.cooperativa@')).split('|')[2]);
+  check('bloqueado: la rotación se completa en vez de abortar', /login nuevo=true; anteriores rechazadas=true/.test(outBloq), outBloq.split('\n').slice(-3).join(' | '));
+  check('bloqueado: el archivo vigente es el pendiente', /guardada en CREDENCIALES\.pendiente\.csv \(vigente\)/.test(outBloq));
+  check('bloqueado: avisa de que el principal conserva una credencial muerta', /YA NO SIRVE/.test(outBloq));
+  check('bloqueado: la sesión también se invalida', tv1(s5) === tv1(s4) + 1);
 } catch (e) {
   check('ejecución sin errores', false, String(e.stderr ?? e.message).split('\n').filter((l) => !/contrasena|password/i.test(l)).slice(-8).join(' | '));
 } finally {
