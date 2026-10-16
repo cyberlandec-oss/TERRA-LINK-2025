@@ -1,5 +1,5 @@
 import { randomInt, randomUUID } from 'crypto';
-import { closeSync, existsSync, openSync, readFileSync, writeFileSync } from 'fs';
+import { closeSync, existsSync, openSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import type { AddressInfo } from 'net';
 import { createApp } from '../bootstrap';
@@ -146,18 +146,50 @@ const esc = (v: string) => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : 
 const HEADER = ['nombre_usuario', 'email', 'contrasena', 'rol', 'organizacion', 'tipo_organizacion', 'perfil_cadena',
   'es_admin_empresa', 'es_admin_plataforma', 'url_acceso', 'estado_acceso', 'observaciones'];
 
+/**
+ * Archivos de credenciales que existen, **del más reciente al más antiguo**.
+ *
+ * El orden importa: `CREDENCIALES.pendiente.csv` se escribe cuando `CREDENCIALES.csv` está abierto en otro
+ * programa, y entonces el principal se queda **obsoleto**. Leerlo primero devolvería una contraseña muerta. Es
+ * la misma regla que ya usa `e2e/review/revision-por-rol.mjs`: manda el más reciente.
+ */
+function credentialFiles(): string[] {
+  return [CSV_PATH, resolve(CRED_DIR, 'CREDENCIALES.pendiente.csv')]
+    .filter((f) => existsSync(f))
+    .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+}
+
+/** Lee una columna del CSV por email, en orden de archivo. Nunca devuelve nada a la consola. */
+function readColumn(path: string, column: string): Array<[string, string]> {
+  const rows = parseCsv(readFileSync(path, 'utf8'));
+  const head = rows.shift() ?? [];
+  const iEmail = head.indexOf('email');
+  const iCol = head.indexOf(column);
+  const out: Array<[string, string]> = [];
+  for (const r of rows) if (r[iEmail] && r[iCol]) out.push([r[iEmail], r[iCol]]);
+  return out;
+}
+
 function loadKnownPasswords(): Map<string, string> {
   const known = new Map<string, string>();
-  // También el archivo pendiente (escrito cuando CREDENCIALES.csv estaba abierto en otro programa).
-  for (const path of [CSV_PATH, resolve(CRED_DIR, 'CREDENCIALES.pendiente.csv')]) {
-    if (!existsSync(path)) continue;
-    const rows = parseCsv(readFileSync(path, 'utf8'));
-    const head = rows.shift() ?? [];
-    const iEmail = head.indexOf('email');
-    const iPass = head.indexOf('contrasena');
-    for (const r of rows) if (r[iEmail] && r[iPass] && !known.has(r[iEmail])) known.set(r[iEmail], r[iPass]);
+  for (const path of credentialFiles()) {
+    for (const [mail, pass] of readColumn(path, 'contrasena')) if (!known.has(mail)) known.set(mail, pass);
   }
   return known;
+}
+
+/**
+ * TODAS las contraseñas que algún archivo atribuye a esa cuenta, sin repetir.
+ *
+ * Al rotar hay que comprobar que la anterior **deja de servir**, y si los dos archivos discrepan —porque uno
+ * quedó bloqueado y se quedó atrás— la única comprobación honesta es que **ninguna** de las dos abra sesión.
+ */
+function knownPasswordsFor(mail: string): string[] {
+  const out: string[] = [];
+  for (const path of credentialFiles()) {
+    for (const [m, pass] of readColumn(path, 'contrasena')) if (m === mail && !out.includes(pass)) out.push(pass);
+  }
+  return out;
 }
 
 /** ¿Se puede escribir CREDENCIALES.csv o CREDENCIALES.pendiente.csv? (abre sin escribir; no altera su contenido). */
@@ -213,9 +245,17 @@ async function main(): Promise<void> {
       if (!spec) throw new Error('Cuenta DEMO desconocida para rotar.');
       const mail = email(spec);
       const user = await db.selectFrom('users').select(['id']).where('email', '=', mail).executeTakeFirst();
-      const oldPwd = known.get(mail);
-      if (!user || !oldPwd) throw new Error('La cuenta no existe o no tiene credencial conocida: no se rota.');
-      const files = [CSV_PATH, resolve(CRED_DIR, 'CREDENCIALES.pendiente.csv')].filter((f) => existsSync(f)).map((f) => ({ f, text: readFileSync(f, 'utf8') }));
+      const previousPasswords = knownPasswordsFor(mail);
+      if (!user || !previousPasswords.length) throw new Error('La cuenta no existe o no tiene credencial conocida: no se rota.');
+      // Se escribe en los archivos que SE PUEDAN escribir. Antes se escribía en todos los que existieran, de modo
+      // que un `CREDENCIALES.csv` abierto en Excel abortaba la rotación entera: justo cuando más urge rotar. Si no
+      // se puede escribir ninguno, no se rota nada. Un archivo bloqueado se declara después, porque se queda con
+      // una credencial que ya no sirve.
+      const writable = (f: string) => { try { closeSync(openSync(f, 'r+')); return true; } catch { return false; } };
+      const existing = [CSV_PATH, resolve(CRED_DIR, 'CREDENCIALES.pendiente.csv')].filter((f) => existsSync(f));
+      const locked = existing.filter((f) => !writable(f));
+      const files = existing.filter(writable).map((f) => ({ f, text: readFileSync(f, 'utf8') }));
+      if (!files.length) throw new Error('Ningún archivo de credenciales se puede escribir: no se rota nada.');
       const rewrite = (text: string, pwd: string, estado: string) => {
         const rows = parseCsv(text); const head = rows.shift() ?? [];
         const iE = head.indexOf('email'); const iP = head.indexOf('contrasena'); const iS = head.indexOf('estado_acceso');
@@ -232,12 +272,18 @@ async function main(): Promise<void> {
       }
       const status = async (pwd: string) => (await fetch(`${base}/api/v1/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: mail, password: pwd }) })).status;
       const okNew = (await status(fresh)) === 200;
-      const oldRejected = (await status(oldPwd)) === 401;
+      // Se comprueban TODAS las anteriores conocidas, no solo la que ganó la precedencia: si los dos archivos
+      // discrepaban, dar por buena una sola dejaría la otra sin verificar.
+      const previas = previousPasswords.filter((x) => x !== fresh);
+      const oldRejected = (await Promise.all(previas.map(status))).every((c) => c === 401);
       for (const c of files) writeFileSync(c.f, rewrite(c.text, fresh, okNew ? 'LOGIN_VERIFICADO (rotada)' : 'FALLO_LOGIN'));
       const superId = (await db.selectFrom('users').select('id').where('platform_role', '=', 'SUPER_ADMIN').executeTakeFirst())?.id ?? null;
       await app.get(AuditService).record(db, { organizationId: null, actorUserId: superId, action: 'user.password_rotated', entityType: 'user', entityId: user.id, result: 'SUCCESS',
-        after: { reason: 'Rotación de cuenta DEMO por exposición en una captura de pantalla; sesiones anteriores invalidadas' } });
-      console.log(`Rotación de ${local}: nueva credencial guardada en ${files.length} archivo(s) local(es); login nuevo=${okNew}; anterior rechazada=${oldRejected}; sesiones previas invalidadas.`);
+        after: { reason: 'Rotación de cuenta DEMO por exposición de la credencial (consola, captura o transcripción); sesiones anteriores invalidadas' } });
+      const vigente = files.map((c) => c.f.split(/[\\/]/).pop()).join(', ');
+      const obsoleto = locked.map((f) => f.split(/[\\/]/).pop()).join(', ');
+      console.log(`Rotación de ${local}: credencial nueva guardada en ${vigente} (vigente); login nuevo=${okNew}; anteriores rechazadas=${oldRejected} (${previas.length} comprobada(s)); sesiones previas invalidadas.`);
+      if (locked.length) console.error(`AVISO: ${obsoleto} está bloqueado y conserva una credencial que YA NO SIRVE. El archivo vigente es ${vigente}.`);
       if (!okNew || !oldRejected) process.exitCode = 1;
       return;
     }
