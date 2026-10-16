@@ -33,9 +33,11 @@
 
 ## Continuidad
 
-- **[sesiones/REANUDAR_2026-10-15.md](sesiones/REANUDAR_2026-10-15.md): documento VIGENTE para retomar el trabajo**
-  —arranque del entorno, estado por historia, trampas conocidas, respaldos, siguiente paso y restricciones—.
-  Los `REANUDAR_` anteriores (2026-10-11 y 2026-10-14) son **históricos** y no deben usarse para reanudar.
+- **[sesiones/REANUDAR_2026-10-16.md](sesiones/REANUDAR_2026-10-16.md): documento VIGENTE para retomar el trabajo**
+  —arranque del entorno, las dos medidas de avance, estado por historia, trampas conocidas, respaldos, siguiente
+  paso y restricciones—.
+  Los `REANUDAR_` anteriores (2026-10-11, 2026-10-14 y 2026-10-15) son **históricos** y no deben usarse para
+  reanudar: el del 2026-10-15 da `CREDENCIALES.csv` como archivo vigente y las claves PII sin rotar.
 
 ## Operación
 
