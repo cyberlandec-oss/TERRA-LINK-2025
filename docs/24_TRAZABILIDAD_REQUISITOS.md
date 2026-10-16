@@ -2,6 +2,8 @@
 
 Referencias S1–S4 y secciones corresponden a los originales conservados en `sources/`. La matriz justifica alcance, no acredita implementación.
 
+**Estado por requisito (2026-10-16)**: el contraste uno a uno de los 58 requisitos con identificador —qué está demostrado, qué es parcial, qué espera una decisión y qué es una prueba sin ejecutar— está en `docs/decisiones/CONTRASTE_DOCUMENTACION_RAIZ_2026-10-16.md`. Cobertura demostrada: **25 de 58 (43 %)**; cierre de historias del MVP: **24 de 32 (75 %)**. Son medidas distintas y no deben mezclarse.
+
 | Fuente | Requisitos | Historias | Especificación | Verificación |
 | --- | --- | --- | --- | --- |
 | S1 §§8–12, 71; S4 §§2–4 | RF-01–05, RNF-01 | P0-001–005 | 05/06/07 | QA-01/02/03 |

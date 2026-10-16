@@ -16,6 +16,13 @@ operación, conformidad EUDR y fases posteriores al MVP. Tampoco mide esfuerzo r
 intercambiables entre sí ni con las cerradas. Y **DONE_LOCAL** sigue significando lo de siempre: criterios de la
 historia cumplidos con pruebas locales, sin acreditar producción, Android real ni conformidad.
 
+**Segunda medida, distinta y necesaria**: la **cobertura demostrada de requisitos** de `03_REQUISITOS.md` es
+**25 de 58 — 43 %** (y **25 de 43 — 58 %** si se cuenta solo lo que el MVP se propuso). La diferencia con el 75 %
+es exactamente lo que el cierre de historias **no** mide: los 12 requisitos **transversales** —operación,
+seguridad, offline, rendimiento, recuperación— que ninguna historia cierra por sí sola, y los 15 de **evolución**,
+que nunca estuvieron en el alcance del MVP. Contraste por requisito, con método y denominador:
+`docs/decisiones/CONTRASTE_DOCUMENTACION_RAIZ_2026-10-16.md`.
+
 De D-05 solo sigue abierta la parte **B** (aplicabilidad jurídica). De D-07, las partes **5 y 6** (perfil jurídico
 y quién concluye).
 
