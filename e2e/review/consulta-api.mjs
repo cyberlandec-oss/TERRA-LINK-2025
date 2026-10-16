@@ -6,10 +6,10 @@
 // `curl`. Aquí la contraseña **se lee del archivo y se usa**, nunca se escribe en la salida; el token tampoco
 // sale: vive en memoria y se descarta al terminar.
 //
-// La salida se limita a campos autorizados: cuenta, organización, rol y el resultado de la consulta. Cualquier
-// otra cosa se recorta. Si una consulta futura devolviera un campo sensible, se añade a BLOQUEADOS y deja de
-// publicarse: el filtro es por lista negra **sobre lo que se imprime**, además de por proyección explícita de
-// cada consulta.
+// La salida se limita a campos autorizados: cuenta, organización, rol y el resultado de la consulta. El filtro es
+// una **lista de permitidos** declarada por consulta (`campos`): lo que no esté en ella no se publica, aunque la
+// API empiece a devolverlo mañana. Una lista negra no vale para esto — solo detiene lo que alguien se acordó de
+// prohibir —, así que se conserva únicamente como **segunda barrera** sobre lo ya filtrado.
 //
 // Ejemplos:
 //   node e2e/review/consulta-api.mjs admin.cooperativa indicadores
@@ -21,8 +21,11 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-/** Nunca se imprime un valor cuya clave esté aquí, venga de donde venga. */
-const BLOQUEADOS = /^(contrasena|password|access_token|refresh_token|token|secret|api_key|authorization|password_hash|document_number|phone|phone_enc|email)$/i;
+/**
+ * Segunda barrera: aunque una clave llegue a estar permitida por error, si se llama así no se publica.
+ * **No es el filtro principal** — eso es `permitir()` —, sino una red por si alguien amplía una lista sin pensar.
+ */
+const BLOQUEADOS = /(contrasena|password|passwd|access_token|refresh_token|token|secret|api_?key|authorization|credential|document_number|phone|email|_enc$|_bidx$)/i;
 
 function parseCsv(text) {
   const rows = []; let row = []; let f = ''; let q = false; const s = text.replace(/^﻿/, '');
@@ -61,7 +64,7 @@ export function cuentaDemo(local, dir = root) {
   return fila;
 }
 
-/** Quita de la salida cualquier clave sensible, a cualquier profundidad. */
+/** Segunda barrera: quita de la salida cualquier clave que *parezca* sensible, a cualquier profundidad. */
 export function sanear(valor) {
   if (Array.isArray(valor)) return valor.map(sanear);
   if (valor && typeof valor === 'object') {
@@ -72,38 +75,78 @@ export function sanear(valor) {
   return valor;
 }
 
+/**
+ * Filtro principal: **lista de permitidos**. De cada objeto se conservan solo las claves declaradas, y nada más;
+ * un campo nuevo que aparezca en la respuesta se descarta por omisión en vez de publicarse.
+ *
+ * Los valores permitidos deben ser escalares (texto, número, booleano o nulo). Si uno llega como objeto o lista
+ * —porque la API cambió de forma—, **no se publica su contenido**: se sustituye por `"[omitido: no escalar]"`.
+ * Así un campo que hoy es `"OK"` y mañana es `{ valor, detalle_interno }` no cuela el detalle.
+ */
+export function permitir(valor, campos) {
+  if (Array.isArray(valor)) return valor.map((v) => permitir(v, campos));
+  if (!valor || typeof valor !== 'object') return valor;
+  const out = {};
+  for (const k of campos) {
+    if (!Object.prototype.hasOwnProperty.call(valor, k)) continue;
+    const v = valor[k];
+    out[k] = v === null || ['string', 'number', 'boolean'].includes(typeof v) ? v : '[omitido: no escalar]';
+  }
+  return sanear(out);
+}
+
 // Consultas permitidas. Cada una proyecta explícitamente lo que publica: no se vuelca la respuesta entera.
+// Cada consulta declara `campos`: la lista EXHAUSTIVA de lo que puede publicar. `proyecta` solo elige de dónde
+// sale cada cosa; quien decide qué se publica es la lista.
 const CONSULTAS = {
   indicadores: {
     descripcion: 'Indicadores del reporte, con su catálogo, estado, valor y denominador',
     ruta: (org) => `/api/v1/organizations/${org}/reports/indicators`,
-    proyecta: (b) => b.indicators.map((i) => ({ code: i.code, catalog: i.catalog, status: i.status, value: i.value, numerator: i.numerator, denominator: i.denominator })),
+    campos: ['code', 'catalog', 'status', 'value', 'numerator', 'denominator'],
+    proyecta: (b) => b.indicators,
   },
   riesgo: {
     descripcion: 'Lotes con su resultado técnico y vigencia (sin severidad ni datos del productor)',
     ruta: (org) => `/api/v1/organizations/${org}/risk/lots`,
-    proyecta: (b) => b.map((l) => ({ lot_code: l.lot_code, technical_label: l.technical_label, freshness: l.freshness })),
+    campos: ['lot_code', 'technical_label', 'freshness'],
+    proyecta: (b) => b,
   },
   'catalogo-riesgo': {
     descripcion: 'Catálogo de reglas que aplica a la organización y su estado de adopción',
     ruta: (org) => `/api/v1/organizations/${org}/risk/rule-sets/adoptions`,
-    proyecta: (b) => ({ version: b.current_rule_set.version, publicacion_global: b.current_rule_set.global_publication, adoptado: b.adopted, decisiones: b.history.length }),
+    campos: ['version', 'publicacion_global', 'adoptado', 'decisiones'],
+    proyecta: (b) => ({ version: b.current_rule_set?.version, publicacion_global: b.current_rule_set?.global_publication, adoptado: b.adopted, decisiones: b.history?.length }),
   },
   satelite: {
     descripcion: 'Estado del proveedor satelital y si las llamadas reales están habilitadas',
     ruta: (org) => `/api/v1/organizations/${org}/satellite/providers`,
+    campos: ['seleccion', 'proveedor', 'live_calls_enabled'],
     proyecta: (b) => ({ seleccion: b.selection?.status ?? null, proveedor: b.selection?.provider_code ?? null, live_calls_enabled: b.live_calls_enabled }),
   },
   organizaciones: {
     descripcion: 'Organizaciones visibles para la cuenta',
     ruta: () => '/api/v1/organizations',
-    proyecta: (b) => (b.items ?? b).map((o) => ({ name: o.name, organization_type: o.organization_type })),
+    campos: ['name', 'organization_type'],
+    proyecta: (b) => b.items ?? b,
   },
 };
 
+/**
+ * Un error solo puede decir **qué ruta** y **qué código**. Nunca el cuerpo de la respuesta, ni las cabeceras, ni
+ * la configuración: un 500 puede traer una traza con una consulta y sus parámetros, y un 401 puede repetir lo
+ * enviado. `ruta` es una plantilla construida aquí, no entrada del usuario.
+ */
+class ErrorDeConsulta extends Error {
+  constructor(ruta, status) {
+    super(`${ruta} devolvió ${status}`);
+    this.name = 'ErrorDeConsulta';
+    this.status = status;
+  }
+}
+
 async function pedir(base, ruta, token) {
   const r = await fetch(`${base}${ruta}`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
-  if (!r.ok) throw new Error(`${ruta} devolvió ${r.status}`);
+  if (!r.ok) throw new ErrorDeConsulta(ruta, r.status);
   return r.json();
 }
 
@@ -116,7 +159,7 @@ export async function consultar({ cuenta, consulta, organizacion, base = 'http:/
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email: fila.email, password: fila.contrasena }),
   });
-  if (!login.ok) throw new Error(`Inicio de sesión rechazado (${login.status}). ¿Está vigente el archivo de credenciales?`);
+  if (!login.ok) throw new ErrorDeConsulta('/api/v1/auth/login', login.status); // sin cuerpo: un 401 puede repetir lo enviado
   const token = (await login.json()).access_token;
 
   let orgId = null;
@@ -134,7 +177,7 @@ export async function consultar({ cuenta, consulta, organizacion, base = 'http:/
     organizacion: organizacion ?? fila.organizacion,
     rol: fila.rol,
     consulta,
-    resultado: sanear(def.proyecta(cuerpo)),
+    resultado: permitir(def.proyecta(cuerpo), def.campos),
   };
 }
 
@@ -154,5 +197,6 @@ async function main() {
 }
 
 if (process.argv[1] && process.argv[1].endsWith('consulta-api.mjs')) {
-  main().catch((e) => { console.error(e.message); process.exitCode = 1; });
+  // Solo el mensaje, nunca la traza: una traza puede llevar valores de variables locales (la contraseña leída).
+  main().catch((e) => { console.error(e instanceof Error ? e.message : 'Error desconocido'); process.exitCode = 1; });
 }
