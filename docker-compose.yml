@@ -83,6 +83,11 @@ services:
       WEB_ORIGIN: http://localhost:${WEB_HOST_PORT:-3000}
       API_PORT: 4000
       SCANNER_HOST: scanner
+      # Llamadas satelitales REALES. Encenderlas envía geometrías de productores a un tercero y exige la
+      # aprobación de D-09 parte B. Se declara `disabled` EXPLÍCITAMENTE y no por omisión: el valor por defecto
+      # del código ya es desactivado, pero un despliegue no debe depender de que nadie haya definido la variable.
+      # `${SATELLITE_LIVE_CALLS:-disabled}` deja la decisión en .env sin que el olvido la encienda.
+      SATELLITE_LIVE_CALLS: ${SATELLITE_LIVE_CALLS:-disabled}
     ports: ["${API_HOST_PORT:-4000}:4000"]
     depends_on:
       migrate: { condition: service_completed_successfully }
@@ -104,6 +109,8 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY:?definir en .env}
       S3_BUCKET: ${S3_BUCKET:-terra-link-private}
       STORAGE_SWEEP_MS: ${STORAGE_SWEEP_MS:-600000}
+      # El worker ejecuta los trabajos satelitales: aquí importa igual o más que en la API.
+      SATELLITE_LIVE_CALLS: ${SATELLITE_LIVE_CALLS:-disabled}
     depends_on:
       migrate: { condition: service_completed_successfully }
     # Se puede escalar (`--scale worker=2`): el reclamo usa FOR UPDATE SKIP LOCKED.

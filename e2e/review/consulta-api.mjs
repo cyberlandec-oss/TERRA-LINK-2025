@@ -89,6 +89,11 @@ const CONSULTAS = {
     ruta: (org) => `/api/v1/organizations/${org}/risk/rule-sets/adoptions`,
     proyecta: (b) => ({ version: b.current_rule_set.version, publicacion_global: b.current_rule_set.global_publication, adoptado: b.adopted, decisiones: b.history.length }),
   },
+  satelite: {
+    descripcion: 'Estado del proveedor satelital y si las llamadas reales están habilitadas',
+    ruta: (org) => `/api/v1/organizations/${org}/satellite/providers`,
+    proyecta: (b) => ({ seleccion: b.selection?.status ?? null, proveedor: b.selection?.provider_code ?? null, live_calls_enabled: b.live_calls_enabled }),
+  },
   organizaciones: {
     descripcion: 'Organizaciones visibles para la cuenta',
     ruta: () => '/api/v1/organizations',
