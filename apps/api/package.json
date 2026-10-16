@@ -9,6 +9,7 @@
     "migrate": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/db/migrate-cli.js",
     "seed:dev": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/db/seed-dev.js",
     "seed:demo": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/db/seed-demo.js",
+    "rekey:pii": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/db/rekey-pii.js",
     "openapi": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/openapi-export.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint src test --max-warnings 0",
