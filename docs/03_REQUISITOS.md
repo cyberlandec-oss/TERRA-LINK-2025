@@ -46,6 +46,7 @@ P0-027–031 son historias añadidas para cubrir capacidades ya mencionadas en l
 | --- | --- | --- | --- |
 | RF-32 | Buyer Portal con lote/embarque, evidencia y descarga autorizada | P1-001 | Grant, expiración y revocación |
 | RF-33 | QR/pasaporte digital por audiencia | P1-002 | No exponer PII ni prometer DDS |
+| RF-47 | **Referencia pública por entidad** (`public_reference`) en productor, parcela, entrega, lote, paquete y embarque, desde el modelo de datos | P1-002 | S1 §49: «agregar QR desde la primera arquitectura aunque no sea obligatorio en el MVP» y «nunca exponer directamente IDs internos». Detectado sin requisito propio en el contraste de obligaciones del 2026-10-16 |
 | RF-34 | My Work con tareas reales de dominios operativos | P1-003 | Cerrar por acción real, respetar assignee/permisos |
 | RF-35 | Wizard de onboarding y diagnóstico de madurez 0–6 | P1-004 | Madurez ≠ conformidad legal |
 | RF-36 | Perfil de legalidad Ecuador y documentos requeridos | P1-005 | Fuente, versión, vigencia y revisor |

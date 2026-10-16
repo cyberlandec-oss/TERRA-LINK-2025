@@ -1,12 +1,20 @@
 # D-43 — Rotación de las claves de cifrado de datos personales (PROPUESTA, no ejecutada)
 
-Archivo: `docs/decisiones/D-43-ROTACION-CLAVES-PII.md` · Revisión **2** (2026-10-16) · Estado: **PROPUESTA**.
+Archivo: `docs/decisiones/D-43-ROTACION-CLAVES-PII.md` · Revisión **3** (2026-10-16) · Estado: **ADOPTADA Y
+EJECUTADA en el entorno local**.
 
-La revisión 2 **corrige** la conclusión sobre el historial: que el trigger lo impida con el mecanismo de hoy no
+La revisión 2 **corrigió** la conclusión sobre el historial: que el trigger lo impida con el mecanismo de hoy no
 demuestra que toda rotación deba alterar el contenido histórico. Ver §3.
 
-**Nada de esto se ha ejecutado.** El documento existe para que la decisión se tome con los hechos delante, no
-para registrar algo ya hecho. No contiene ninguna clave ni ningún valor.
+**Decisión tomada el 2026-10-16**: **alcance C** (incluye historial) · **sí** se rota el índice ciego ·
+**custodia declarada** de los respaldos existentes · **ejecución inmediata**. Ejecutada tras un ensayo sobre una
+copia aislada que pasó **19/19** comprobaciones. Evidencia:
+`docs/qa/EVIDENCIA_D43_ROTACION_PII_2026-10-16.md`.
+
+**Lo que NO resolvió**: los respaldos anteriores siguen cifrados con la clave expuesta y la transcripción sigue
+siendo material sensible. Ver §5.
+
+Este documento no contiene ninguna clave ni ningún valor.
 
 ## 0. Por qué
 

@@ -286,6 +286,29 @@ y `adb logcat -s ReactNativeJS:V` (línea `TL_SELFTEST`). Evidencia: `docs/qa/EV
 - `npm run build -w apps/api && node e2e/review/importaciones-lotes.mjs` y `importaciones-entregas.mjs`: revisiones en navegador (archivos sintéticos; usan la recepción DEMO de ENT-2026-00001 y referencias DEMO-REF-*/DEMO-IMP-LOTE-*).
 - Rotación de cuentas DEMO: `npm run seed:demo -w apps/api -- --rotar=<cuenta>`, **una cuenta por invocación**. Esa rama **retorna antes** de cualquier alta: no repuebla nada. Si `CREDENCIALES.csv` está abierto en otro programa, la rotación **se completa igualmente** escribiendo en `CREDENCIALES.pendiente.csv`, lo declara como **vigente** y **avisa** de que el bloqueado conserva una credencial que ya no sirve; solo aborta si no puede escribir **ninguno** de los dos. Verifica login nuevo, rechazo de **todas** las contraseñas anteriores conocidas e invalidación de sesiones (`token_version + 1`).
 
+### Recodificar los datos personales y el índice ciego (D-43)
+
+`npm run rekey:pii -w apps/api` es un **ENSAYO** que no escribe; con `-- --aplicar` ejecuta. Todo en **una
+transacción**: descifra con la clave del token, vuelve a cifrar con la activa, recalcula `document_number_bidx`
+y comprueba, antes de confirmar, que no queda ningún token con otra clave y que el trigger append-only está
+activo. Si algo falla, revierte. No imprime valores personales ni hashes de ellos.
+
+**Orden obligatorio** (si no, el sistema atiende con claves e índices incompatibles):
+
+```
+docker compose stop api web worker          # 1. detener escrituras
+#   2. respaldo verificado del estado ACTUAL (§Respaldo y restauración verificada)
+node infra/d43/ensayo-copia-aislada.mjs <respaldo> <claves-nuevas>   # 3. ensayo en copia aislada
+#   4. .env: añadir la clave nueva al llavero SIN quitar la anterior, activarla, clave de índice nueva
+npm run rekey:pii -w apps/api -- --aplicar  # 5. recodificar
+docker compose --profile app up -d --wait api web worker            # 6. arrancar
+#   7. comprobar lectura, búsqueda e historial; solo entonces retirar la clave anterior del llavero
+```
+
+**Nunca se retira una clave del llavero mientras exista un token con su identificador**, aquí o en un respaldo
+restaurable. La clave anterior se conserva en el `claves.env` de cada respaldo, con ACL restringida y un
+`LEEME-CLAVES.md` que dice cuál hace falta **por su identificador**, nunca por su valor.
+
 ### Consultar la API con una cuenta DEMO: `consulta-api.mjs`
 
 **No se lee `CREDENCIALES.csv` para copiar una contraseña a un `curl`.** Ese procedimiento manual provocó dos

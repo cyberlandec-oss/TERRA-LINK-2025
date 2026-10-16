@@ -11,7 +11,7 @@ denominador?*
 | Grupo | Documentos | Qué aportan |
 | --- | --- | --- |
 | **Fuentes originales** | `docs/sources/` S1–S4 | El material del que se derivó todo. **No son requisitos**: son el texto de partida |
-| **Requisitos con identificador** | `03_REQUISITOS.md` | **La única lista con IDs verificables**: RF-01…RF-46 y RNF-01…RNF-12 |
+| **Requisitos con identificador** | `03_REQUISITOS.md` | **La única lista con IDs verificables**: RF-01…RF-47 y RNF-01…RNF-12 |
 | **Plan de verificación** | `16_PLAN_QA.md` | QA-01…QA-17: los casos de aceptación |
 | **Especificaciones** | `04`–`15`, `UX_UI.md` | *Cómo* debe cumplirse cada requisito. No añaden requisitos nuevos con ID propio |
 | **Plan y estado** | `18`, `19`, `22`, `23`, `24` | Backlog, roadmap, decisiones abiertas, estado y la matriz fuente→requisito→historia→prueba |
@@ -30,12 +30,51 @@ prueba**: `24_TRAZABILIDAD_REQUISITOS.md`, reutilizada tal cual.
 | Bloque | Cantidad | Qué es |
 | --- | ---: | --- |
 | **RF-01 … RF-31** | 31 | Capacidades del **MVP (P0)** |
-| **RF-32 … RF-46** | 15 | Capacidades de **evolución (P1)**, fuera del MVP |
+| **RF-32 … RF-47** | 16 | Capacidades de **evolución (P1)**, fuera del MVP. Incluye **RF-47**, añadida el 2026-10-16 por el contraste de obligaciones (§2.bis) |
 | **RNF-01 … RNF-12** | 12 | Condiciones **transversales**: seguridad, operación, offline, privacidad, rendimiento… |
-| **Total** | **58** | Requisitos con identificador |
+| **Total** | **59** | Requisitos con identificador |
 
 En paralelo, el plan de QA define **17 casos** (QA-01…QA-17), que son el otro eje: un requisito puede estar
 implementado y su caso de QA no haberse ejecutado todavía.
+
+## 2.bis Comprobación: ¿toda obligación de las fuentes apunta a un requisito?
+
+El denominador solo vale si **ninguna obligación de las fuentes se queda fuera por no tener identificador**. Se
+comprobó sección por sección, enfrentando las secciones numeradas de cada fuente con las que la matriz
+(`24_TRAZABILIDAD_REQUISITOS.md`) referencia.
+
+| Fuente | Secciones numeradas | Referenciadas | Sin referencia directa |
+| --- | ---: | ---: | ---: |
+| **S1** Documentación técnica maestra | 118 | 76 | **42** |
+| **S4** Workflows de cacao | 24 | 24 | **0** |
+| **S2** Negocio y plataformas | 31 | 12 | 19 |
+| **S3** Mapa competitivo | 43 | 19 | 24 |
+
+Una sección sin referencia **no** es automáticamente una obligación perdida. Clasificadas una a una:
+
+| Grupo | Secciones | ¿Obligación? |
+| --- | --- | --- |
+| **Encuadre** (objetivo, principio, alcance, arquitectura, stack) | S1 §1–7 | §5–7 sí, y están en **TECH-001 / ADR-0001 / docs/04**. §1–4 son contexto |
+| **Detalle de API** (rutas de ejemplo) | S1 §50–53 | Sí, pero son **forma** de requisitos ya identificados (RF-06…RF-22). `docs/09` declara expresamente que «los endpoints de la spec son propuestas»: el grafo de trazabilidad existe como `upstream`/`downstream` dentro de `GET /lots/{id}` en vez de `/traceability/:tipo/:id`. Misma obligación, otra ruta |
+| **Testing** | S1 §70 | Sí, y es **método**: vive en `16_PLAN_QA.md` (QA-01…17) y en la Definition of Done. Sus partes con requisito son RNF-01 (seguridad), RNF-04 (offline) y RNF-11 |
+| **Plan y proceso** (sprints, backlog, semanas, DoD, instrucciones) | S1 §86–96, §100–102, §104–118 | No son obligaciones de producto: son el plan de trabajo. `18_BACKLOG.md` y `19_ROADMAP_Y_PILOTO.md` los recogen |
+| **Invariantes y prohibiciones** | S1 §2, §103 | **Sí, y son transversales**: «quién, cuándo, dónde, de qué entidad, qué respalda» → RNF-03; «no mezclar organizaciones» → RNF-01; «no modificar históricos en silencio» → RNF-03 y los triggers; «una certificación no equivale a cumplimiento» → compuertas. Además están escritas como reglas del repositorio (`.claude/rules/00-domain.md`, `CLAUDE.md`) |
+| **Negocio y competencia** | S2 §1–3, 10–17, 21–31 · S3 (casi todo) | No. Modelo de negocio, competidores, precios y estrategia. Las «FASE 6 – RISK ENGINE» y «FASE 7 – DUE DILIGENCE» de S2 describen el flujo ya cubierto por RF-20 y RF-22 |
+
+### La única obligación encontrada sin requisito: S1 §49 (QR)
+
+> «Agregar QR desde la primera arquitectura aunque no sea obligatorio en el MVP. […] Cada una podrá tener
+> `public_reference`. Nunca exponer directamente IDs internos.»
+
+**RF-33** cubre el QR como capacidad de P1, pero **ninguna** cubría la obligación **estructural**: que productor,
+parcela, entrega, lote, paquete y embarque lleven una **referencia pública** desde el modelo de datos. Comprobado:
+la columna `public_reference` **no existe en ninguna tabla**.
+
+**Ajuste del denominador**: se añade **RF-47** a `03_REQUISITOS.md`, ligada a P1-002, con el texto literal de la
+fuente. Queda **NO DEMOSTRADA**. El denominador pasa de 58 a **59** y el numerador no cambia.
+
+**No se rehízo ningún documento ya trazado**: S4 estaba completo, y S1, S2 y S3 solo necesitaban la clasificación
+anterior, no una reescritura.
 
 ## 3. Escala, sin terceras lecturas
 
@@ -106,8 +145,9 @@ Las quince corresponden a historias **P1**, ninguna iniciada.
 | RF-44 | Extracción asistida de documentos | P1-013 | **NO DEMOSTRADO** |
 | RF-45 | Analytics / supplier score | P1-014 | **NO DEMOSTRADO** |
 | RF-46 | Multilenguaje / SSO / consumo | P1-015 | **NO DEMOSTRADO** |
+| RF-47 | Referencia pública por entidad (`public_reference`) | P1-002 | **NO DEMOSTRADO** — añadida el 2026-10-16 por el contraste de obligaciones (§2.bis). La columna no existe en ninguna tabla |
 
-**RF de evolución: 0 DEMOSTRADOS de 15.** Tres están **bloqueados por terceros** (RF-36, RF-37, RF-38): no son
+**RF de evolución: 0 DEMOSTRADOS de 16.** Tres están **bloqueados por terceros** (RF-36, RF-37, RF-38): no son
 trabajo técnico pendiente, sino decisiones o canales externos.
 
 ## 6. Requisitos no funcionales (RNF-01 … RNF-12)
@@ -154,17 +194,18 @@ criterio de cierre de ninguna historia concreta.
 | Bloque | Demostrados | Total | % |
 | --- | ---: | ---: | ---: |
 | RF del MVP (RF-01…31) | 21 | 31 | 68 % |
-| RF de evolución (RF-32…46) | 0 | 15 | 0 % |
+| RF de evolución (RF-32…47) | 0 | 16 | 0 % |
 | RNF (RNF-01…12) | 4 | 12 | 33 % |
-| **Total** | **25** | **58** | **43 %** |
+| **Total** | **25** | **59** | **42 %** |
 
-**Sí se puede calcular**, y es **43 %**. La diferencia con el 75 % no es una contradicción: son medidas de cosas
+**Sí se puede calcular**, y es **42 %** tras el ajuste de §2.bis (era 43 % sobre 58; la obligación encontrada
+añade un requisito al denominador y ninguno al numerador). La diferencia con el 75 % no es una contradicción: son medidas de cosas
 distintas. El 75 % cuenta **historias del MVP cerradas**; el 43 % cuenta **requisitos demostrados de todo el
 documento de requisitos**, incluyendo los 15 de evolución —que nunca estuvieron en el alcance del MVP— y los 12
 transversales, que ninguna historia cierra por sí sola.
 
 **Si se midiera solo lo que el MVP se propuso** (31 RF del MVP + 12 RNF = 43), el resultado sería **25 de 43,
-58 %**. Es la cifra más comparable con el 75 %, y la distancia entre ambas es justamente **lo que el cierre de
+58 %** — RF-47 es de evolución y no entra aquí. Es la cifra más comparable con el 75 %, y la distancia entre ambas es justamente **lo que el cierre de
 historias no mide**: los requisitos transversales.
 
 ### 7.3 Qué NO miden estos porcentajes
