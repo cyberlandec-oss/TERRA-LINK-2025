@@ -167,11 +167,11 @@ producción.
 | RNF-08 | Interoperabilidad | **DEMOSTRADO** | OpenAPI validada en cada `validate`; fixtures de GeoJSON e importación |
 | RNF-09 | Accesibilidad | **PARCIAL** | Teclado, 390 px y zoom 200 % probados **en web**; la app **móvil real** no se ha comprobado |
 | RNF-10 | Observabilidad | **DEMOSTRADO** (2026-10-17) | Request/job IDs, `/health/live` y `/health/ready`, y **avisos verificados con fallos inducidos** en `operations-alerts.int-spec.ts` (6) y en el despliegue, sin secretos. **Cubre lo que su verificación nombra**; lo que S1 §77 pide además está ahora en **RNF-13** |
-| RNF-13 | Instrumentación de observabilidad | **PENDIENTE** (alta 2026-10-17) | *metrics*, *tracing* y `/version` de **S1 §77** no estaban en ningún requisito. Registrada la omisión, se mide aparte y **no reabre RNF-10** |
+| RNF-13 | Instrumentación de observabilidad | **DEMOSTRADO** (2026-10-17) | Métricas medidas con **peticiones reales** (la serie va de 0 a 3), **267 series sin un solo identificador**, **recorrido real** de una traza desde su `request_id` hasta sus tramos de base, y `/version` sirviendo. Saneamiento con **lista blanca** probado aparte (`sanitize.spec.ts`, 14). **No cierra RNF-05 ni RNF-06**: medir no es tener objetivos |
 | RNF-11 | Mantenibilidad | **DEMOSTRADO** | Linters sin avisos, módulos y límites conservados, ADR por cambio estructural |
 | RNF-12 | Operación segura | **DEMOSTRADO** (2026-10-17) | Entornos separados y 0 secretos versionados; **D-43 ejecutada** el 2026-10-16; y el **ensayo de retorno 12/12** (`scripts/ensayo-retorno.mjs`) separando retorno de la aplicación, compatibilidad de esquema y restauración de datos, con referencias públicas exactas y un fallo inducido identificable y recuperable |
 
-**RNF: 4 DEMOSTRADOS de 13** (RNF-13 nace pendiente).
+**RNF: 5 DEMOSTRADOS de 13.**
 
 ## 7. Las dos mediciones
 
@@ -199,15 +199,18 @@ criterio de cierre de ninguna historia concreta.
 | RNF (RNF-01…13) | 4 | 13 | 31 % |
 | **Total** | **25** | **60** | **42 %** |
 
-**Sí se puede calcular**, y es **50,8 %** al 2026-10-17: **30 de 59**. Partía de 42 % (25/59) y suben cinco
-requisitos: **RF-47** (2026-10-16), **RF-03** y **RNF-01** (al cerrarse P0-003) y **RNF-10** y **RNF-12**
-(avisos verificados y ensayo de retorno). La diferencia con el 75 % no es una contradicción: son medidas de cosas
+*(La tabla conserva el corte del 2026-10-16; la cifra vigente está debajo.)*
+
+**Sí se puede calcular**, y es **51,7 %** al 2026-10-17: **31 de 60**. Partía de 42 % (25/59) y suben seis
+requisitos: **RF-47** (2026-10-16), **RF-03** y **RNF-01** (al cerrarse P0-003), **RNF-10** y **RNF-12**
+(avisos verificados y ensayo de retorno) y **RNF-13** (métricas y trazas). El denominador pasó de 59 a **60**
+al registrarse **RNF-13**: el catálogo estaba incompleto, no se amplió el alcance. La diferencia con el 75 % no es una contradicción: son medidas de cosas
 distintas. El 75 % cuenta **historias del MVP cerradas**; el 43 % cuenta **requisitos demostrados de todo el
 documento de requisitos**, incluyendo los 15 de evolución —que nunca estuvieron en el alcance del MVP— y los 12
 transversales, que ninguna historia cierra por sí sola.
 
-**Si se midiera solo lo que el MVP se propuso** (31 RF del MVP + 12 RNF = 43), el resultado sería **29 de 43,
-67,4 %** — RF-47 es de evolución y no entra aquí; RF-03, RNF-01, RNF-10 y RNF-12 sí. Es la cifra más comparable con el 75 %, y la distancia entre ambas es justamente **lo que el cierre de
+**Si se midiera solo lo que el MVP se propuso** (31 RF del MVP + 13 RNF = 44), el resultado sería **30 de 44,
+68,2 %** — RF-47 es de evolución y no entra aquí; RF-03, RNF-01, RNF-10, RNF-12 y RNF-13 sí. Es la cifra más comparable con el 75 %, y la distancia entre ambas es justamente **lo que el cierre de
 historias no mide**: los requisitos transversales.
 
 ### 7.3 Qué NO miden estos porcentajes

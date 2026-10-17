@@ -34,7 +34,7 @@ recuperación reconocible**:
 **Nada inventado**: no hay objetivos p95, de disponibilidad ni umbrales, porque **TECH-001 sigue pendiente** y
 sin él no habría nada que aprobar. Cada aviso se apoya en una condición ya definida en el producto.
 
-**Sin secretos y sin permisos nuevos**: ruta pública como `/health`, que publica **solo recuentos agregados** —
+**Sin secretos y sin permisos nuevos**: ruta pública como `/health` que, en ese momento, publicaba **recuentos agregados** (**corregido el 2026-10-17**: ver la actualización al final) —
 ni identificadores, ni nombres, ni datos de ninguna organización. **No se amplió D-04** ni se añadió ningún
 servicio de pago o envío a terceros.
 
@@ -125,6 +125,18 @@ y los tres puertos responden 200.
 **RNF-10 cubre lo que su verificación nombra, no toda la observabilidad de S1 §77**, que además pide *metrics*
 y *tracing*. Eso **no está** y no se cuenta como hecho: el requisito con identificador es el que gobierna, y su
 columna de verificación no los incluye. Si se quisieran, serían trabajo nuevo.
+
+> **Actualización del 2026-10-17 (posterior a esta entrega).** Lo anterior describía bien el estado, pero se
+> quedaba corto en una cosa: que ningún requisito recogiera *metrics* y *tracing* **no es razón para dejarlos
+> fuera del catálogo**, porque la obligación está en la fuente. Se registró la omisión como **RNF-13** —junto
+> con `/version`, que tampoco existía— y **se demostró** el mismo día. **RNF-10 no se reabrió**: su
+> verificación sigue cumplida. Ver `docs/qa/EVIDENCIA_RNF13_OBSERVABILIDAD_2026-10-17.md`.
+>
+> En esa entrega se corrigió además una exposición de **esta misma**: `GET /operations/alerts` publicaba sin
+> autenticar el recuento de documentos sin análisis limpio y de entregas `DEAD` **de todas las organizaciones**.
+> Donde aquí se lee «ruta pública como `/health`, que publica **solo recuentos agregados**», hay que leer que
+> **un agregado de un recurso protegido sigue siendo información de ese recurso**: la respuesta anónima quedó
+> reducida a infraestructura y la actividad pasó a una ruta por organización, con sus permisos.
 
 Tampoco se tocan `READY`, despacho, la conclusión `UNDETERMINED` ni el satélite, y **TECH-001 sigue pendiente**:
 sin umbrales acordados no hay objetivo de rendimiento que aprobar (RNF-05).

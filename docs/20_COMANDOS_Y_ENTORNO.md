@@ -162,6 +162,59 @@ Antes de arrancar, comprobar la configuración resuelta (`... config`) y que **n
 
 **Nunca** restaurar sobre `terra_link` ni sobre los volúmenes de desarrollo.
 
+## Observabilidad: qué se publica y a quién (RNF-10 y RNF-13, 2026-10-17)
+
+S1 §77 pide *structured logs*, *metrics*, *tracing*, *error monitoring* y *health checks*, más `/health`,
+`/ready` y `/version`. Lo que hay, y **quién puede verlo**:
+
+| Ruta | Quién | Qué sirve |
+| --- | --- | --- |
+| `GET /health/live` · `GET /health/ready` | **Público** | Vivo; y estado por dependencia con degradación declarada |
+| **`GET /version`** | **Público** | Servicio, versión y migración. **Sin el commit** |
+| `GET /operations/alerts` | **Público** | **Solo salud de infraestructura**: tres avisos. Ni recuentos de recursos, ni identificadores, ni organización |
+| `GET /api/v1/organizations/:orgId/operations/alerts` | Miembro, **permiso a permiso** | Lo anterior **más** documentos sin análisis limpio (`document:read`) y entregas DEAD (`events:reprocess`) **de esa organización**. Sin el permiso: `RESTRICTED`, sin valor |
+| `GET /metrics` | **Plataforma** (`observability:read`) | Exposición Prometheus: peticiones por método/ruta-patrón/clase, duración observada, consultas por operación, dependencias y cola del outbox |
+| `GET /api/v1/observability/traces[/:id]` | **Plataforma** | Trazas recientes y el recorrido completo de una, por su `request_id` |
+| `GET /api/v1/observability/build` | **Plataforma** | Commit desplegado, versión y migración del código |
+
+### Por qué la respuesta pública se redujo
+
+Hasta el 2026-10-17 `GET /operations/alerts` publicaba, **sin autenticar**, el recuento de versiones de
+documento sin análisis limpio y el de entregas DEAD **de todas las organizaciones a la vez**. No había nombres,
+pero un agregado de un recurso protegido **sigue siendo información de ese recurso**, y su evolución es
+observable por un tercero. Ahora la respuesta anónima no consulta ninguna tabla de negocio.
+
+### Cómo se recorre un caso real
+
+1. Toma el `request_id`: viene en la cabecera `X-Request-Id` de cualquier respuesta, en el cuerpo de los
+   errores normalizados y en la columna `request_id` de la bitácora.
+2. `GET /api/v1/observability/traces/<request_id>` con una sesión de plataforma: devuelve el tramo raíz —
+   método, ruta en patrón, estado y duración— y debajo los tramos de base de datos, nombrados **verbo y
+   tabla**.
+3. Para medir en agregado, `GET /metrics`.
+
+**Límites, declarados.** Las trazas viven en un **anillo acotado en memoria del proceso** (200): se pierden al
+reiniciar y el worker tiene el suyo, que no se consulta por HTTP. **No es un backend de trazas** y **nada se
+exporta a ningún servicio externo**. `APP_COMMIT` no está definido en el despliegue local, así que `build`
+devuelve `commit: null`; definirlo en la construcción es trabajo pendiente.
+
+### Lo que la instrumentación NO registra, por diseño
+
+Contraseñas, tokens y cabeceras de autorización; cuerpos de petición o respuesta; correos, cédulas y nombres;
+coordenadas y geometrías; **valores de SQL**; e identificadores de persona o recurso **como etiqueta de
+métrica**. Todo lo que se etiqueta o se guarda pasa por `apps/api/src/observability/sanitize.ts`, que usa
+**lista blanca** de atributos: lo que no está nombrado ahí no sale. Las rutas se reducen al **patrón**
+(`/api/v1/organizations/:orgId/producers`) y el SQL a **verbo y tabla** (`SELECT producers`).
+
+**No hay objetivos p95, SLO ni disponibilidad comprometida**: el histograma publica la **distribución
+observada**. Medir **no cierra RNF-05 ni RNF-06**, que siguen esperando los *budgets* de TECH-001.
+
+### Comprobar el despliegue
+
+```
+node e2e/review/observabilidad.mjs            # avisos separados, métricas y trazas, sobre el despliegue
+```
+
 ## Retorno y recuperación (RNF-12)
 
 **Tres cosas distintas**, y confundirlas es el error que el requisito quiere evitar:
