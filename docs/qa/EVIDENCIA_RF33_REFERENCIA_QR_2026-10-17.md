@@ -116,8 +116,14 @@ servir.
 
 **Por eso RF-33 y P1-002 siguen ABIERTAS y las cifras no se mueven.**
 
-También pendiente: `Package` del listado de S1 §49 no tiene referencia propia —el paquete DD se referencia por
-su **instantánea**—, y `DD_SNAPSHOT` no tiene pantalla a la que enrutar.
+`DD_SNAPSHOT` se resuelve pero no tiene pantalla propia a la que enrutar.
+
+> **Corrección (2026-10-17).** Esta sección decía que «`Package` del listado de S1 §49 **no tiene referencia
+> propia**», lo que contradecía dar RF-47 por completo respecto de la misma entidad. **La frase estaba mal
+> planteada.** `Package` es el `DueDiligenceEvidencePackage` de S1 §44: su contenido **se genera desde la
+> instantánea**, y hoy **queda identificado por ella**, que sí tiene referencia. No hay entidad sin
+> identificador. El contraste completo —incluida la condición bajo la cual eso dejaría de ser cierto, y la
+> prueba que lo vigila— está en `docs/qa/EVIDENCIA_P1001_P1002_PORTAL_2026-10-17.md` §2.
 
 ## 6. Validación, despliegue y demostración
 
