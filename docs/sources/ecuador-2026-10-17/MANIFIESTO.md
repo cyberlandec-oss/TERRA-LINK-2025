@@ -25,6 +25,11 @@ los cuerpos legales de esta carpeta puede confirmarse con las fuentes obtenidas.
 una por una las reformas publicadas en ediciones posteriores, o recurrir a una consolidación **comercial**
 (LEXIS/SILEC), que no se ha contratado y que **no es fuente oficial**.
 
+**Actualización del 2026-10-17.** El portal del Registro Oficial sigue sin servir texto consolidado, pero
+**no es la única vía**: la **Asamblea Nacional conserva las publicaciones modificatorias** y por ahí sí se
+obtuvieron (§2.3). La reconstrucción, por tanto, **es posible**: se hace ley por ley, siguiendo cada norma que
+la reforma. Lo que sigue sin existir es un **texto consolidado oficial** que lo dé hecho.
+
 **Por eso P1-005 no puede cerrarse con este material.** Lo que sí queda es la base fechada para trabajar.
 
 ## 2. Lo que se obtuvo
@@ -98,6 +103,69 @@ Código Orgánico Administrativo, COGEP, COOTAD, Código del Trabajo, LOTAIP, LO
 
 **Es un índice de transparencia, no texto normativo y no una interpretación.** Sirve para orientarse; **no
 sustenta ninguna regla** y su fecha (2023) es anterior a esta consulta, de modo que puede estar desactualizado.
+
+### 2.3 Las dos publicaciones modificatorias (incorporadas el 2026-10-17)
+
+| Archivo | Qué es | Publicación | Bytes | sha256 |
+| --- | --- | --- | ---: | --- |
+| `fomento-ro-s-309-2018-08-21.pdf` | **Texto normativo**: Ley Orgánica para el Fomento Productivo…, cuyo **Art. 56** reforma la LOTRTA | RO **Suplemento 309**, 21-ago-2018 | 3 005 920 | `1b6584acbf3faf62a6beaf330cba31378524f69cbc6cb6a81f91d7fe8717e818` |
+| `fe-erratas-ro-s-321-2018-09-06.pdf` | **Fe de erratas** de la anterior (Oficio SAN-2018-1371) | RO **Suplemento 321**, 6-sep-2018 | 4 002 395 | `c857e53df5f832439060d1b9b4fa614ca0de4ef67897ed10da2c5215ae4ee7ba` |
+| `ro-29-2s-2022-03-25-comprimido.pdf` | **Texto normativo**: Ley Orgánica de Vivienda de Interés Social, cuyas **Disposiciones Reformatorias** modifican la LOTRTA | **2.º Suplemento 29**, 25-mar-2022 | 6 948 293 | `076904562ca77c9c7615c9a0f9c49751017d891f72df00419f9278a2a849f869` |
+
+Las tres proceden de **fichas oficiales de la Asamblea Nacional** (enlace «Descarga aquí»), y las tres
+cabeceras se comprobaron contra el propio documento.
+
+**Sobre el 2.º Suplemento 29, con precisión.** La Asamblea publica **dos copias**: la **canónica** de la ficha
+(26 326 983 bytes, sha256 `24ba55e6a206ea1113166243da4640eaca42a9f3ed5ef0e47868020926b03f44`) y una **comprimida**
+(la de arriba). **En el repositorio se guarda la comprimida**, por peso; **la verificación visual se hizo sobre
+la canónica**, cuyo hash y URL quedan aquí para que cualquiera la vuelva a descargar y repita la comprobación.
+Las dos extraen el **mismo texto** (8 182 caracteres), porque el documento es un **escaneo**: de la página 4 a
+la 39 **no hay capa de texto**.
+
+**Por eso la verificación fue visual, no por extracción.** Se extrajeron las imágenes de página incrustadas en
+el PDF y se leyeron. Las dos que sustentan la matriz quedan guardadas como **evidencia derivada**:
+
+| Evidencia visual | Qué muestra | sha256 |
+| --- | --- | --- |
+| `derivados/ro29-paginas-verificadas/ro29-pagina-impresa-33.jpg` | **DISPOSICIONES REFORMATORIAS**, PRIMERA a CUARTA («Página 33 de 36») | `b505300b117637b8201aeadddaad277623236d5351af14b528562d7aa399ace0` |
+| `derivados/ro29-paginas-verificadas/ro29-pagina-impresa-34.jpg` | QUINTA a OCTAVA y el inicio de las transitorias («Página 34 de 36») | `50faefb84a3b8eedc3c9ee081f51f4d3f8d93003b02371866d66de622d99ca54` |
+
+**Corrección de la indicación de partida**: las disposiciones reformatorias están en las páginas impresas
+**33 y 34 de 36**, no en las 35–36. Se registra la numeración que el propio documento imprime en su pie.
+
+### 2.4 Qué dicen, comprobado
+
+**RO-S 309 (2018), Art. 56** — leído en la extracción de texto:
+
+> «Realícese la siguiente reforma a la Ley Orgánica de Tierras Rurales y Territorios Ancestrales. A
+> continuación del artículo 39, añádase el siguiente artículo innumerado: “Artículo (…).- Seguro
+> Agropecuario.- La autoridad Agraria Nacional, propondrá los parámetros de aseguramiento y riesgos de
+> cobertura de las pólizas de seguro, a las actividades vinculadas a la producción agropecuaria. […]”»
+
+**A quién se dirige**: a la **Autoridad Agraria Nacional** y a las autoridades competentes, que **proponen**
+parámetros y **fijan** porcentajes de prima asumibles por el Estado **a título de incentivo**. **No crea un
+deber del productor de contratar ni de presentar una póliza.**
+
+**Fe de erratas (RO-S 321, 2018)** — leída entera: corrige el artículo 35, renumera el 47, sustituye la
+Disposición General Décima, cambia una frase de la Transitoria Primera y elimina la Transitoria Sexta.
+**No toca el artículo 56**: la reforma a la LOTRTA queda como se publicó.
+
+**2.º Suplemento 29 (2022), Disposiciones Reformatorias** — leídas en las imágenes de página:
+
+| Disposición | Artículo de la LOTRTA | Qué cambia |
+| --- | --- | --- |
+| **PRIMERA** | **Art. 54** | Define la **Regularización** (agraria o de vivienda) sobre **tierra rural estatal** y reparte competencias |
+| **SEGUNDA** | **Art. 59** | La **adjudicación de tierras rurales estatales** en posesión agraria o de vivienda **constituye justo título** |
+| **TERCERA** | **Art. 66** | Valor y forma de pago **en adjudicaciones del Estado** a posesionarios individuales |
+| **CUARTA** | **Art. 67** | Falta de pago por caso fortuito o fuerza mayor: prórroga de hasta tres años |
+| **QUINTA** | **Art. 68** | Formalidades: el **peticionario de la adjudicación** debe presentar una **declaración responsable** |
+| **SEXTA** | **Art. 69** | Parámetros para fijar el valor de la tierra rural adjudicada |
+| **SÉPTIMA** | **Título II** | Donde diga «Autoridad Agraria Nacional», añádase «o el ente rector de hábitat y vivienda, según corresponda» |
+| OCTAVA | — | Ley Orgánica de Economía Popular y Solidaria: **no** es la LOTRTA |
+
+**Queda corregida la hipótesis anterior**, que atribuía estas reformas **solo al reglamento**: modifican **la
+ley**. Y hay un matiz que la matriz debe conservar: **las siete tratan de regularización y adjudicación de
+tierra rural ESTATAL**, no de deberes generales de todo productor.
 
 ## 3. La distinción que P1-005 exige: norma, guía e interpretación
 
