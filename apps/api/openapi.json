@@ -29,6 +29,22 @@
         ]
       }
     },
+    "/operations/alerts": {
+      "get": {
+        "description": "Cada aviso tiene condición comprobable, estado, lo observado, qué hacer y una recuperación reconocible. Distingue DEGRADACIÓN (el escáner caído deja documentos pendientes, nunca limpios, y la API sigue atendiendo) de INDISPONIBILIDAD (dependencias del núcleo). Sin objetivos p95 ni umbrales sin contrato. Solo recuentos agregados: ni secretos, ni identificadores, ni datos de ninguna organización.",
+        "operationId": "OperationsAlertsController_alerts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Avisos operativos verificables (RNF-10)",
+        "tags": [
+          "Operación"
+        ]
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "operationId": "AuthController_login",

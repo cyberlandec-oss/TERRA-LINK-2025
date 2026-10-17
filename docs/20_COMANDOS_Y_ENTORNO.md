@@ -162,6 +162,43 @@ Antes de arrancar, comprobar la configuración resuelta (`... config`) y que **n
 
 **Nunca** restaurar sobre `terra_link` ni sobre los volúmenes de desarrollo.
 
+## Retorno y recuperación (RNF-12)
+
+**Tres cosas distintas**, y confundirlas es el error que el requisito quiere evitar:
+
+| | Qué es | Cómo se hace | Qué NO resuelve |
+| --- | --- | --- | --- |
+| **1. Retorno de la aplicación** | Volver a una versión anterior del código | Desplegar ese SHA. **Nunca uno vetado**: `docs/qa/RETORNO_CANDIDATOS_VETADOS.txt` | No cambia el esquema ni los datos |
+| **2. Compatibilidad con el esquema** | Si esa versión entiende el esquema que hay en la base | Comparar la migración aplicada con la que el código conoce. El aviso **`SCHEMA_CODE_MISMATCH`** lo detecta **en los dos sentidos** | No repara nada: avisa |
+| **3. Restauración de datos y objetos** | Traer de vuelta el contenido | `pg_restore` del respaldo + despliegue del `object-data.tar.gz`, con su `claves.env` | No revierte código |
+
+**`down`/`up` NO es recuperación de datos.** Reconstruye el esquema y nada más; en particular, las
+**referencias públicas** se regenerarían con **otros valores** y cualquier enlace ya emitido dejaría de
+resolver. Para conservarlas hay que **restaurar un respaldo que ya las contenga**.
+
+**Tras un retorno de la aplicación el esquema queda POR DELANTE del código.** Es la situación normal, y está
+señalada: el aviso lo marca y dice qué hacer. Volver a una versión más antigua **exige** comprobar antes si
+entiende el esquema, o restaurar datos coherentes con esa versión.
+
+### Ensayo del procedimiento
+
+```
+node scripts/ensayo-retorno.mjs --respaldo "D:\PROYECTOS CYBER LAND\TERRA LINK EUDR 2026\_respaldos\<carpeta>"
+```
+
+Corre en una **base de ensayo propia** que crea y elimina (`tl_ensayo_retorno`): **no toca la base de
+desarrollo, sus volúmenes ni ningún recurso del otro proyecto Compose**. Comprueba las tres partes por
+separado, que las **referencias públicas vuelven exactas** (huella del conjunto, no solo el recuento), que la
+identidad sigue cifrada con la clave activa, que el historial conserva su protección append-only, que el
+respaldo trae sus claves, y que **un fallo a mitad del procedimiento deja una situación identificable y
+recuperable** al reintentarlo.
+
+### Candidatos vetados como destino de retorno
+
+`docs/qa/RETORNO_CANDIDATOS_VETADOS.txt` lista los commits que **no** deben usarse como destino aunque su
+validación esté aprobada, con el motivo. Una validación verde no acredita el contrato: el primer vetado es
+`8f54b71`, que aprobó sus pruebas con un defecto de vinculación de sesión.
+
 ## Ejecución segura
 
 `infra:down -v` borra datos locales: no usarlo para «arreglar» un arranque. Las migraciones solo corren contra la base de dev o de test locales.

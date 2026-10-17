@@ -15,9 +15,9 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'crypto';
 import type { NextFunction, Response } from 'express';
 import Redis from 'ioredis';
-import { sql, type Kysely } from 'kysely';
+import { type Kysely } from 'kysely';
 import { APP_CONFIG, type AppConfig } from './config';
-import { DB, LATEST_MIGRATION } from './db/database';
+import { DB } from './db/database';
 import type { Database } from './db/schema';
 import { ErrorFilter } from './common/errors';
 import { AuditService } from './audit/audit.service';
@@ -55,6 +55,7 @@ import { CteController, CteService } from './traceability/cte';
 import { KdeController, KdeService } from './traceability/kde';
 import { PublicReferencesController, PublicReferencesService } from './traceability/public-references';
 import { AccessGrantsController, AccessGrantsService, GrantedController } from './authz/access-grants';
+import { OperationsAlertsController, OperationsAlertsService, evaluarDependencias } from './operations/alerts';
 import { PlatformElevationController, PlatformElevationService } from './authz/platform-elevation';
 import { EventHistoryController, EventHistoryService } from './events/event-history';
 import { DocumentsController, DocumentsService } from './documents/documents';
@@ -85,31 +86,17 @@ class HealthController {
   @Public()
   @Get('ready')
   async ready(@Res({ passthrough: true }) res: Response) {
-    const checks: Record<'database' | 'schema' | 'redis', 'ok' | 'unavailable'> = {
-      database: 'unavailable', schema: 'unavailable', redis: 'unavailable',
-    };
-    let migration: string | null = null;
-    try {
-      const row = await sql<{ name: string }>`SELECT name FROM kysely_migration ORDER BY name DESC LIMIT 1`.execute(this.db);
-      checks.database = 'ok';
-      migration = row.rows[0]?.name ?? null;
-      if (migration === LATEST_MIGRATION) checks.schema = 'ok';
-    } catch {
-      /* base no disponible */
-    }
-    try {
-      if ((await this.redis.ping()) === 'PONG') checks.redis = 'ok';
-    } catch {
-      /* redis no disponible */
-    }
+    // Fuente ÚNICA compartida con los avisos operativos (RNF-10): si divergieran, uno de los dos mentiría.
+    const dep = await evaluarDependencias(this.db, this.redis, this.scanner);
+    const checks = { database: dep.database, schema: dep.schema, redis: dep.redis };
     const ok = Object.values(checks).every((c) => c === 'ok');
-    const scannerOk = this.scanner.ping ? await this.scanner.ping().catch(() => false) : false;
+    const scannerOk = dep.scanner === 'ok';
     if (!ok) res.status(503);
     return {
       status: !ok ? 'unavailable' : scannerOk ? 'ok' : 'degraded',
       checks: { ...checks, scanner: scannerOk ? 'ok' : 'unavailable' },
       capabilities: { document_analysis: scannerOk ? 'AVAILABLE' : 'UNAVAILABLE' },
-      migration,
+      migration: dep.migration,
       ...(scannerOk ? {} : { note: 'Escáner antimalware no disponible: los archivos nuevos quedan con análisis pendiente y no se habilitan; el resto de la API funciona.' }),
     };
   }
@@ -201,7 +188,7 @@ export class AppModule implements NestModule {
     return {
       module: AppModule,
       controllers: [
-        HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
+        HealthController, OperationsAlertsController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
         MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, GeoProfileController, ProductsController, CteController, KdeController, PublicReferencesController, AccessGrantsController, GrantedController, PlatformElevationController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, ShipmentsController, SatelliteController, ReportsController, EntityReportsController,
       ],
       providers: [
@@ -235,6 +222,7 @@ export class AppModule implements NestModule {
         KdeService,
         PublicReferencesService,
         AccessGrantsService,
+        OperationsAlertsService,
         PlatformElevationService,
         EventHistoryService,
         DocumentsService,

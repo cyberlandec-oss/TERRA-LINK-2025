@@ -84,6 +84,26 @@ Se usan para avanzar; **no son decisiones ratificadas** ni están validados para
 - **D-20:** límites 5/20/50 por 900 s, configurables. Riesgo, recuperación y fallo de Redis en ADR-0005.
 - **ADR-0001 y ADR-0005:** adoptados para desarrollo; ratificación pendiente del responsable técnico. No hay aprobación del usuario registrada.
 
+### El bloque regulatorio en una sola tabla (2026-10-17)
+
+Reúne **D-05.B, D-07.5, D-07.6 y P1-005**, que son las decisiones que sostienen la conclusión regulatoria,
+`READY` y el expediente. **No se modifica ninguna compuerta ni se adopta nada aquí**: esto ordena lo que ya
+está escrito en `docs/decisiones/D-05-PROPUESTA.md`, `D-07-PROPUESTA.md` y `D-07-MATRIZ-CATALOGO.md` para que
+puedan decidirse juntas. **Una recomendación no es una aprobación.**
+
+| | **D-05.B** | **D-07.5** | **D-07.6** | **P1-005** |
+| --- | --- | --- | --- | --- |
+| **Pregunta concreta** | ¿Qué actor de la norma es cada usuario (Art. 2(15)) y en qué condiciones aplica el Art. 2(15a) y el Anexo III? De ahí sale si una geometría «cumple» o solo cumple el **perfil técnico** | ¿Bajo qué **perfil jurídico** se aprueba una versión del catálogo de riesgo para poder **concluir**? Hoy `regulatory_profile` es `NULL` en las tres versiones | ¿**Quién** puede emitir la conclusión regulatoria, con qué revisión y qué la hace válida? Hoy la conclusión está clavada en `UNDETERMINED` por un `CHECK` | ¿Qué requisitos legales de Ecuador son exigibles, con qué documento, regla, versión, vigencia y aprobador? |
+| **Propuesta existente** | `D-05-PROPUESTA.md`. **D-05.A ya adoptada** e implementada: perfil técnico `EUDR_GEO_V1` (migración `0041`), con el umbral de 4 ha exactas admitidas | `D-07-PROPUESTA.md` y `D-07-MATRIZ-CATALOGO.md`. **D-07.1/.2/.4 ya adoptados** (migración `0042`); catálogo técnico **`1.0.0` publicado** (`0043`) | Misma propuesta que D-07.5; el mecanismo de aprobación y adopción ya existe, falta **quién concluye** | `docs/18` P1-005 / RF-36. Sin propuesta redactada todavía |
+| **Fuente oficial y vigencia** | Reglamento (UE) 2023/1115, copia fechada **2026-10-15** en `docs/sources/eudr-norma-2026-10-15/` (consolidados `20251226` y `20260918`, con sha256 en su `MANIFIESTO.md`) | La misma copia normativa. El catálogo de riesgo **no** deriva de un artículo: sus cinco graduaciones son **decisiones de producto** y así lo declara cada regla | La misma copia normativa | Normativa **ecuatoriana**, que **no está** entre las fuentes del repositorio: habría que incorporarla fechada, como se hizo con la europea |
+| **Qué falta para decidir** | Interpretación jurídica de los artículos citados aplicada al caso cacao-Ecuador. **Ningún trabajo técnico la adelanta** | Definir el contenido de un «perfil jurídico» y qué lo hace aprobable; hoy el campo existe y está vacío a propósito | Definir el rol y el acto de conclusión, y si exige doble revisión como la mitigación | Recopilar la normativa vigente ecuatoriana y su vigencia; sin eso no hay perfil que validar |
+| **Responsable necesario** | **Regulatorio** (con criterio jurídico) | **Regulatorio** + producto | **Regulatorio** + seguridad (quién firma) | **Regulatorio** + legal Ecuador |
+| **Qué desbloquea** | Interpretación de **RF-09/RF-10**; el dictamen de aplicabilidad del GeoJSON | **RF-22**, parte de la conclusión; `RISK_CATALOG_APPROVED` deja de ser `NOT_EVALUABLE` | **RF-22**, la **conclusión regulatoria** y con ella `READY` | **RF-36**; el requisito de legalidad del expediente |
+
+**Lo que estas cuatro NO desbloquean por sí solas**: el despacho sigue además condicionado por D-34.A, y el
+satélite por **D-09.B**, que es una decisión **separada** de contratación y uso real. **Nada de esta tabla
+autoriza una llamada externa ni el envío de geometrías a ningún proveedor.**
+
 ### D-04: parte bloqueada y decisión mínima
 
 Implementado sin D-04: SUPER_ADMIN solo administra metadatos de organizaciones, incorpora al primer ORG_ADMIN (`organization:onboard_admin`) y desactiva cuentas. No hay bypass global.
