@@ -157,7 +157,11 @@ await rev.caso('CONTROL: ORG_ADMIN ve la actividad de SU organización, con valo
   },
 });
 
-await rev.caso('ALCANCE POR RECURSO: el técnico no recibe el total de la organización', {
+// ALCANCE: en el DESPLIEGUE esto comprueba la redacción y la cota (el técnico nunca por encima del
+// administrador). **No es la prueba discriminante**: con la organización DEMO sin documentos pendientes, los
+// dos recuentos son 0 y un fallo de alcance no se vería aquí. La discriminación real —un documento asignado a
+// un técnico que el otro NO ve— está en `operations-alerts.int-spec.ts`, donde se puede crear el caso.
+await rev.caso('ALCANCE POR RECURSO: el técnico ve su alcance declarado y nunca por encima del administrador', {
   pedir: pedir(tecnico, 'GET', `/api/v1/organizations/${COOP}/operations/alerts`), estado: 200, estructura: ['alerts'],
   comprueba: (b) => {
     const suyo = buscar(b, 'DOCUMENTS_PENDING_ANALYSIS');
