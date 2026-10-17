@@ -57,6 +57,8 @@ export class PlatformElevationService {
   // ------------------------------------------------------------- solicitar (SUPER_ADMIN)
   async solicitar(user: AuthUser, orgId: string, dto: SolicitarDto, requestId?: string) {
     this.authz.requirePlatform(user, 'organization:list_all');
+    // La comprobación de contraseña queda ligada a ESTA sesión: sin identidad de sesión no se solicita.
+    if (!user.sessionId) throw forbidden('SESSION_NOT_IDENTIFIED', 'Vuelve a iniciar sesión: tu sesión no está identificada.');
     // Comprobación RECIENTE de la contraseña: conocer un identificador de organización no basta.
     const cuenta = await this.db.selectFrom('users').select(['password_hash', 'status']).where('id', '=', user.id).executeTakeFirst();
     if (!cuenta || cuenta.status !== 'ACTIVE' || !(await verifyPassword(cuenta.password_hash, dto.password))) {
@@ -77,7 +79,8 @@ export class PlatformElevationService {
         await trx.insertInto('platform_elevations').values({
           id, organization_id: orgId, requested_by: user.id, purpose: dto.purpose.trim(), reason: dto.reason.trim(),
           scope_note: dto.scope_note.trim(), actions: dto.actions, duration_seconds: dto.duration_seconds, status: 'PENDING',
-          operation_id: dto.operation_id,
+          // La sesión que probó la contraseña es la única que podrá usar la elevación.
+          session_id: user.sessionId, operation_id: dto.operation_id,
         } as never).execute();
         await this.audit.record(trx, { organizationId: orgId, actorUserId: user.id, action: 'elevation.request', entityType: 'platform_elevation', entityId: id, requestId, result: 'SUCCESS',
           after: { purpose: dto.purpose.trim(), scope_note: dto.scope_note.trim(), actions: dto.actions, duration_seconds: dto.duration_seconds, reason: dto.reason.trim() } });
@@ -107,6 +110,7 @@ export class PlatformElevationService {
       // La sesión del solicitante queda ligada: si cierra sesión o se desactiva su cuenta, el acceso cae.
       const sol = await trx.selectFrom('users').select(['token_version', 'status']).where('id', '=', e.requested_by).executeTakeFirst();
       if (!sol || sol.status !== 'ACTIVE') throw conflict('REQUESTER_NOT_ACTIVE', 'La cuenta solicitante ya no está activa.');
+      if (!e.session_id) throw conflict('SESSION_NOT_IDENTIFIED', 'La solicitud no tiene sesión ligada: no puede aprobarse.');
       const ahora = new Date();
       const vence = new Date(ahora.getTime() + e.duration_seconds * 1000);
       await trx.updateTable('platform_elevations').set({
@@ -149,7 +153,8 @@ export class PlatformElevationService {
     this.authz.requirePlatform(user, 'organization:list_all');
     await this.db.transaction().execute(async (trx) => {
       const e = await trx.selectFrom('platform_elevations').selectAll().where('organization_id', '=', orgId).where('id', '=', id).forUpdate().executeTakeFirst();
-      if (!e || e.requested_by !== user.id) throw notFound();
+      // Solo la MISMA sesión que la solicitó puede terminarla: otra sesión de la cuenta no la gobierna.
+      if (!e || e.requested_by !== user.id || !user.sessionId || e.session_id !== user.sessionId) throw notFound();
       if (e.status !== 'APPROVED') throw conflict('ELEVATION_NOT_ACTIVE', `La elevación está ${e.status}.`);
       await trx.updateTable('platform_elevations').set({ status: 'ENDED', ended_at: new Date() } as never).where('id', '=', id).execute();
       await this.audit.record(trx, { organizationId: orgId, actorUserId: user.id, action: 'elevation.end', entityType: 'platform_elevation', entityId: id, requestId, result: 'SUCCESS', after: { reason: 'finalización anticipada por el solicitante' } });
@@ -164,10 +169,19 @@ export class PlatformElevationService {
    * cerró sesión o su cuenta se desactivó, su `token_version` cambió y la elevación deja de aplicar.
    */
   async vigente(user: AuthUser, orgId: string, accion: AccionElevable): Promise<{ id: string; scope_note: string } | null> {
+    // Sin identidad de sesión no hay elevación posible: no se puede comprobar a quién pertenece.
+    if (!user.sessionId) return null;
     const filas = await sql<{ id: string; scope_note: string }>`
       SELECT e.id, e.scope_note FROM platform_elevations e
       JOIN users u ON u.id = e.requested_by AND u.status = 'ACTIVE' AND u.token_version = e.session_token_version
+      -- El aprobador debe SEGUIR siendo ORG_ADMIN activo: si pierde la condición habilitante, lo que aprobó
+      -- deja de sostenerse.
+      JOIN memberships am ON am.user_id = e.approved_by AND am.organization_id = e.organization_id AND am.status = 'ACTIVE'
+      JOIN users au ON au.id = e.approved_by AND au.status = 'ACTIVE'
+      JOIN role_assignments ara ON ara.membership_id = am.id AND ara.organization_id = am.organization_id AND ara.role_code = 'ORG_ADMIN'
       WHERE e.organization_id = ${orgId} AND e.requested_by = ${user.id}
+        -- La SESION, no la cuenta: token_version es por cuenta y no distingue sesiones simultaneas.
+        AND e.session_id = ${user.sessionId}
         AND e.status = 'APPROVED' AND e.expires_at > now() AND ${accion} = ANY(e.actions)
       LIMIT 1`.execute(this.db);
     return filas.rows[0] ?? null;

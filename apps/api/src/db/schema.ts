@@ -681,7 +681,11 @@ export interface AccessGrantsTable {
 // lectura. No crea membresía ni asigna roles (migración 0047).
 export interface PlatformElevationsTable {
   id: string; organization_id: string; requested_by: string; purpose: string; reason: string; scope_note: string;
-  actions: string[]; duration_seconds: number; session_token_version: number | null;
+  actions: string[]; duration_seconds: number;
+  /** `jti` de la sesión solicitante: distingue sesiones simultáneas, que `token_version` no distingue. */
+  session_id: string | null;
+  /** Versión de sesión de la CUENTA: protección adicional para la invalidación global. */
+  session_token_version: number | null;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVOKED' | 'ENDED' | 'EXPIRED';
   approved_by: string | null; approved_at: Timestamp | null; expires_at: Timestamp | null;
   rejected_at: Timestamp | null; reject_reason: string | null;

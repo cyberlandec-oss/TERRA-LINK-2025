@@ -175,9 +175,9 @@ Con 1 y 2, P0-003 quedaría con **un solo criterio abierto** —elevación— en
 | 1 | La pide **solo SUPER_ADMIN**, autenticado y con **comprobación reciente de contraseña** | `requirePlatform` + `verifyPassword`; conocer un identificador de organización no basta |
 | 2 | La aprueba un **ORG_ADMIN activo y distinto** de la organización afectada. **Sin autoaprobación ni excepción de emergencia** | `CHECK approved_by <> requested_by`, disparador que exige ORG_ADMIN activo de esa organización, y comprobación en el caso de uso |
 | 3 | Identifica organización, finalidad, motivo, ámbito, acciones y duración. **Máximo 15 minutos** desde la activación, con la hora del servidor | Campos obligatorios; `CHECK duration_seconds BETWEEN 60 AND 900`; `expires_at` se fija al aprobar y se compara con `now()` |
-| 4 | **No modifica roles ni crea membresías.** Ligada al solicitante y a su sesión; no acumula entre organizaciones | No toca `memberships` ni `role_assignments`; `session_token_version` liga la sesión; índice único por organización y solicitante |
+| 4 | **No modifica roles ni crea membresías.** Ligada al solicitante y **a su sesión**; no acumula entre organizaciones | No toca `memberships` ni `role_assignments`; **`session_id` (el `jti` del token firmado) liga la sesión concreta**, y `session_token_version` queda como protección adicional para la invalidación global; índice único por organización y solicitante. Ver §7.2 |
 | 5 | Solo acciones **expresamente solicitadas, aprobadas y soportadas**. Sin «acceso total». Identidad, geometrías, documentos personales, escritura y administración de permisos **excluidos** | Catálogo cerrado `['members:read']` con `CHECK actions <@ ...`; la lectura elevada **redacta nombres y correos**; las escrituras de `members.ts` siguen bloqueadas |
-| 6 | **Revocación inmediata** por el aprobador y **finalización anticipada** por el solicitante. Vencimiento, cierre de sesión o desactivación cortan el acceso | Rutas `revoke` y `end`; `vigente()` revalida estado, `expires_at > now()`, cuenta activa y `token_version` |
+| 6 | **Revocación inmediata** por el aprobador y **finalización anticipada** por el solicitante (solo desde su propia sesión). Vencimiento, cierre de sesión, desactivación **o que el aprobador pierda su condición** cortan el acceso | Rutas `revoke` y `end`; `vigente()` revalida estado, `expires_at > now()`, cuenta activa, `token_version`, **`session_id`** y que el **aprobador siga siendo `ORG_ADMIN` activo** |
 | 7 | Auditoría de solicitud, aprobación o rechazo, activación, revocación y **uso**, sin datos protegidos; y **visibilidad para la organización** | `elevation.request/approve/reject/revoke/end/use` en la bitácora; `GET …/platform-elevations` lista solicitudes, estado y nº de usos para quien administra membresías |
 
 ### 7.1 La diferencia concreta que hubo que presentar
@@ -190,6 +190,23 @@ y el criterio «superadmin/elevación» **no podría demostrarse**.
 Se añade por eso **una sola acción**, de lectura, y **con los datos personales redactados**: la plataforma ve la
 forma de la organización —cuántas membresías, con qué roles y en qué estado— **no quiénes son**. No se amplía
 ningún otro privilegio por interpretación.
+
+### 7.2 Corrección: `token_version` no identifica una sesión
+
+La primera implementación ligaba la elevación a `users.token_version`. **Esa columna es por cuenta**: permite
+invalidar todas las sesiones a la vez, pero **no distingue dos sesiones simultáneas** del mismo usuario.
+Comprobado en la suite, y peor de lo supuesto: dos inicios de sesión de la misma cuenta compartían
+`token_version` y, al no haber nada único en el payload, producían **el mismo token**; la segunda sesión
+**heredaba** la elevación aprobada para la primera. Eso incumplía «ligada al solicitante y a su sesión».
+
+**Corregido** (migración `0048`, `auth.ts`): el token lleva ahora un **`jti` propio por emisión**, que firma el
+servidor y **nunca se acepta del cliente**; la elevación guarda **solo ese identificador**, jamás el token, y el
+uso exige que coincida con la sesión que presenta la petición. La comprobación de contraseña queda ligada a esa
+misma sesión. `token_version` **se conserva** como protección adicional.
+
+Queda demostrado por prueba: dos sesiones con el **mismo `token_version`**, A obtiene la lectura aprobada y **B
+queda denegada**; B tampoco puede **finalizar** la elevación de A; y **volver a iniciar sesión no hereda** la
+autorización anterior.
 
 ## 8. Descarga por concesión: vista compartida interna
 

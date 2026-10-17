@@ -193,6 +193,62 @@ describeDb('D-04 elevación supervisada: aprobación de un tercero, alcance cerr
     expect(vista.find((x: { id: string }) => x.id === e.id).usos).toBeGreaterThan(0);
   });
 
+  it('la elevación queda ligada a LA SESIÓN que la solicitó, no a la cuenta', async () => {
+    await limpiar(orgA);
+    // Dos sesiones independientes de la MISMA cuenta, con el MISMO token_version: lo que las distingue no
+    // puede ser la versión de sesión, que es por cuenta.
+    const tokenA = await h.login(SUPER);
+    const tokenB = await h.login(SUPER);
+    expect(tokenA).not.toBe(tokenB);
+    const authA = { Authorization: `Bearer ${tokenA}` };
+    const authB = { Authorization: `Bearer ${tokenB}` };
+    const tv = (await sql<{ token_version: number }>`SELECT token_version FROM users WHERE email = ${SUPER}`.execute(h.db)).rows[0].token_version;
+
+    // Se solicita desde A, probando la contraseña en A, y la aprueba un ORG_ADMIN distinto.
+    const e = (await http().post(`${base(orgA)}/platform-elevations`).set(authA).send({
+      operation_id: randomUUID(), password: PASSWORD, purpose: 'Soporte', reason: 'Diagnóstico',
+      scope_note: 'Listado de miembros', actions: ['members:read'], duration_seconds: 900,
+    }).expect(201)).body.elevation;
+    await aprobar(orgA, e.id, ADMIN_A2).expect(201);
+
+    // A obtiene únicamente la lectura aprobada.
+    const leidoA = await http().get(`${base(orgA)}/members`).set(authA).expect(200);
+    expect(leidoA.body[0]).toMatchObject({ redacted: true });
+
+    // B, la otra sesión de la misma cuenta, sigue DENEGADA: no hereda la elevación.
+    const leidoB = await http().get(`${base(orgA)}/members`).set(authB).expect(403);
+    expect(leidoB.body.error.code).toBe('ELEVATION_REQUIRED');
+
+    // Y B tampoco puede finalizarla ni revocarla: no es su sesión.
+    expect([403, 404]).toContain((await http().post(`${base(orgA)}/platform-elevations/${e.id}/end`).set(authB)).status);
+    await http().get(`${base(orgA)}/members`).set(authA).expect(200);   // la de A sigue viva
+
+    // El token_version no cambió: la distinción no viene de él.
+    expect((await sql<{ token_version: number }>`SELECT token_version FROM users WHERE email = ${SUPER}`.execute(h.db)).rows[0].token_version).toBe(tv);
+
+    // Volver a iniciar sesión NO hereda la autorización anterior.
+    const tokenC = await h.login(SUPER);
+    expect((await http().get(`${base(orgA)}/members`).set({ Authorization: `Bearer ${tokenC}` })).status).toBe(403);
+
+    // Se cierra y se restaura la sesión que usan las demás pruebas.
+    await http().post(`${base(orgA)}/platform-elevations/${e.id}/end`).set(authA).expect(201);
+    await h.login(SUPER);
+  });
+
+  it('si el aprobador deja de ser ORG_ADMIN activo, la elevación deja de servir', async () => {
+    await limpiar(orgA);
+    const e = (await solicitar(orgA).expect(201)).body.elevation;
+    await aprobar(orgA, e.id, ADMIN_A2).expect(201);
+    await miembros(orgA, SUPER).expect(200);                       // control: viva
+    // El aprobador pierde su condición habilitante.
+    await sql`UPDATE memberships SET status = 'INACTIVE' WHERE organization_id = ${orgA}
+      AND user_id = (SELECT id FROM users WHERE email = ${ADMIN_A2})`.execute(h.db);
+    const r = await miembros(orgA, SUPER).expect(403);
+    expect(r.body.error.code).toBe('ELEVATION_REQUIRED');
+    await sql`UPDATE memberships SET status = 'ACTIVE' WHERE organization_id = ${orgA}
+      AND user_id = (SELECT id FROM users WHERE email = ${ADMIN_A2})`.execute(h.db);
+  });
+
   it('una elevación NO es una concesión: son mecanismos separados', async () => {
     await limpiar(orgA);
     // La elevación no aparece como concesión, ni al revés, y ninguna habilita la vía de la otra.

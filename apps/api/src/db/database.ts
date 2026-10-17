@@ -49,6 +49,7 @@ import * as m0044 from './migrations/0044_rf47_referencia_publica';
 import * as m0045 from './migrations/0045_d34a_compuerta_despacho';
 import * as m0046 from './migrations/0046_p0003_concesiones_externas';
 import * as m0047 from './migrations/0047_d04_elevacion_supervisada';
+import * as m0048 from './migrations/0048_d04_elevacion_por_sesion';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -99,6 +100,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0045_d34a_compuerta_despacho': m0045,
   '0046_p0003_concesiones_externas': m0046,
   '0047_d04_elevacion_supervisada': m0047,
+  '0048_d04_elevacion_por_sesion': m0048,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

@@ -17,6 +17,7 @@ import { Reflector } from '@nestjs/core';
 import { ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsEmail, IsString, MaxLength } from 'class-validator';
 import type { Request, Response } from 'express';
+import { randomUUID } from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import type { Kysely } from 'kysely';
 import { APP_CONFIG, type AppConfig } from '../config';
@@ -32,6 +33,11 @@ export interface AuthUser {
   id: string;
   email: string;
   platformRole: 'SUPER_ADMIN' | null;
+  /**
+   * Identidad de ESTA sesión (`jti` del token firmado), no de la cuenta. `tv` sirve para invalidar todas las
+   * sesiones a la vez; esto distingue una de otra. `null` solo para un token anterior a su introducción.
+   */
+  sessionId: string | null;
 }
 
 export type AuthedRequest = Request & { user?: AuthUser; requestId?: string };
@@ -44,9 +50,17 @@ export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionConte
   return req.user!;
 });
 
-/** Emite un JWT ligado a la versión de sesión vigente del usuario (`tv`). */
+/**
+ * Emite un JWT con **identidad propia de sesión** (`jti`) además de la versión de sesión de la cuenta (`tv`).
+ *
+ * `tv` es **por cuenta**: sirve para invalidar TODAS las sesiones a la vez, pero **no distingue dos sesiones
+ * simultáneas** del mismo usuario. Sin `jti`, dos inicios de sesión en el mismo segundo producían incluso el
+ * **mismo token**, y cualquier autorización ligada solo a `tv` la heredaría la otra sesión. El `jti` lo genera
+ * el servidor, viaja **firmado** y nunca se acepta del cliente; de él solo se guarda el identificador, jamás
+ * el token.
+ */
 export function issueAccessToken(config: AppConfig, userId: string, tokenVersion: number) {
-  const accessToken = jwt.sign({ tv: tokenVersion }, config.jwtSecret, {
+  const accessToken = jwt.sign({ tv: tokenVersion, jti: randomUUID() }, config.jwtSecret, {
     algorithm: 'HS256', subject: userId, expiresIn: config.jwtTtlSeconds,
   });
   return { access_token: accessToken, token_type: 'Bearer', expires_in: config.jwtTtlSeconds };
@@ -63,6 +77,7 @@ export async function authenticate(
   if (!header.startsWith('Bearer ')) throw unauthenticated();
   let sub: string;
   let tv: number;
+  let sid: string | null = null;
   try {
     const payload = jwt.verify(header.slice(7), config.jwtSecret, { algorithms: ['HS256'] });
     if (typeof payload === 'string' || typeof payload.sub !== 'string' || typeof payload.tv !== 'number') {
@@ -70,6 +85,8 @@ export async function authenticate(
     }
     sub = payload.sub;
     tv = payload.tv;
+    // Identidad de sesión: solo se acepta la que el propio servidor firmó.
+    sid = typeof payload.jti === 'string' ? payload.jti : null;
   } catch {
     throw unauthenticated();
   }
@@ -80,7 +97,7 @@ export async function authenticate(
     .where('id', '=', sub)
     .executeTakeFirst();
   if (!user || user.status !== 'ACTIVE' || user.token_version !== tv) throw unauthenticated();
-  return { id: user.id, email: user.email, platformRole: user.platform_role };
+  return { id: user.id, email: user.email, platformRole: user.platform_role, sessionId: sid };
 }
 
 @Injectable()
