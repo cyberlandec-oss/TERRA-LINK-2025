@@ -158,3 +158,48 @@ Las cuatro pruebas de integración fijan lo mismo que el ensayo, con una fixture
 intactos, búsqueda y duplicados tras reindexar, aislamiento entre organizaciones, índice igual al esperado,
 reversión ante fallo inducido, append-only restaurado y comprobado, y que ningún resultado publica datos
 personales.
+
+---
+
+## Corrección de la evidencia de reversión (2026-10-16, posterior)
+
+**La reversión a mitad de operación no estaba demostrada.** La prueba que se presentaba como tal inducía el
+fallo poniendo `PII_ACTIVE_KEY_ID = 'k9'`, una clave activa fuera del llavero. Contrastado después:
+`recodificar` llama a `parsePiiConfig` en su **primera línea** (`apps/api/src/db/rekey-pii.ts:62`) y esa función
+lanza cuando la clave activa no está en `PII_KEYS` (`apps/api/src/crypto/pii.ts:35`), **antes** de abrir la
+transacción (línea 73). Con `k9` no llegaba a escribirse nada, así que no había nada que revertir: las
+aserciones de «todo sigue igual» se cumplían trivialmente. El comentario de la prueba —«`encrypt` revienta a
+mitad del recorrido»— era incorrecto.
+
+**Las dos comprobaciones, ahora distinguidas:**
+
+| Prueba | Qué induce | Qué demuestra |
+| --- | --- | --- |
+| «una clave activa inexistente se rechaza antes de tocar nada **(comprobación previa, no reversión)**» | `PII_ACTIVE_KEY_ID = 'k9'` | Que un llavero inservible se rechaza **antes** de escribir. Es una propiedad real y útil —no se empieza con configuración inválida— pero **no es reversión**. Se afirma el mensaje exacto, `PII_ACTIVE_KEY_ID no está en PII_KEYS`, para que quede claro que el rechazo es previo |
+| «un fallo **DESPUÉS** de escribir datos e historial revierte cifrados, índices y auditoría, y deja el trigger activo» | Un trigger `BEFORE INSERT` sobre `audit_logs` que lanza al insertarse la auditoría de éxito — **último paso antes del commit**, ya con productores e historial reescritos y con el trigger append-only desactivado y vuelto a activar | La reversión de verdad |
+
+**Cómo se acredita que el fallo fue posterior a las escrituras.** La prueba parte recodificando todo a `k1`, de
+modo que cualquier token `k2` que se observe solo puede venir de la transacción en curso. El trigger inyectado
+cuenta, **dentro** de la transacción, los tokens ya reescritos y los incorpora al mensaje de la excepción, que
+sobrevive al rollback. Observado en la corrida: **`FALLO_INDUCIDO productores_k2=3 historial_k2=4`**. Es decir,
+3 productores y 4 filas de historial ya estaban reescritos cuando se produjo el fallo.
+
+**Lo que se comprueba después del rollback**: que los cifrados y los índices vuelven **exactamente** a los de
+antes (comparación fila a fila de las cuatro columnas cifradas y del índice ciego); que el historial vuelve
+igual, con autoría, fechas y motivo; que **no queda auditoría de éxito** (`action = 'pii.rekeyed'` no aumenta);
+que el trigger append-only queda en **`O`** y **muerde** (un `UPDATE` sobre `producer_versions` se rechaza).
+Al terminar, la prueba deja el entorno en `k2` para el resto de la suite.
+
+**Alcance**: base aislada `*_test` del arnés de integración. **No se repitió la rotación sobre la base de
+desarrollo**, y esta corrección no la exige: lo que cambió es la prueba, no la intervención ya ejecutada.
+
+| | |
+| --- | --- |
+| Commit | **`4cf28d2`** |
+| Validación | `2026-10-17T01-44-22-107Z` sobre `4cf28d2` — **APROBADA** |
+| Pruebas | **63 suites, 586** unitarias e integración · **72** E2E (585 → 586: la prueba de reversión añadida) |
+| Pruebas en `test/rekey-pii.int-spec.ts` | **5** (4 anteriores, una de ellas renombrada, más la nueva) |
+
+**Lo que esta corrección no cambia**: la rotación de claves ejecutada sobre desarrollo sigue siendo válida y su
+evidencia anterior se conserva. Los cuatro respaldos cifrados con la clave expuesta siguen igual, con su
+`LEEME-CLAVES.md` y su exposición declarada; la rotación del sistema vivo no remedia un respaldo ya tomado.

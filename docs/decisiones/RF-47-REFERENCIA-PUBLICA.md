@@ -104,40 +104,89 @@ implementar, no después**, porque cada una cambia el esquema o el comportamient
 
 ### D-47.1 — Ámbito de unicidad
 
-§49 no lo dice. O la referencia es **única de forma absoluta** y se resuelve sola —lo que un QR exige—, o es
-única por organización y el enlace debe llevar la organización, reintroduciendo un identificador interno.
-*Qué se necesita decidir*: cuál de los dos, y si es absoluta, que el índice `UNIQUE` sea sobre la columna sola.
+| Opción | Qué hace |
+| --- | --- |
+| **A** | **Única de forma absoluta**: `UNIQUE (public_reference)`, sin `organization_id`. La referencia se resuelve sola |
+| **B** | Única por organización: `UNIQUE (organization_id, public_reference)`. El enlace debe llevar la organización |
+
+**Recomendación: A.** **Efecto:** es la única compatible con la obligación incondicional de §49. Con B, resolver
+`PAR-001` exige saber de qué organización es, así que el enlace tiene que transportar el `organization_id` —un
+UUID interno— y eso es exactamente «exponer directamente IDs internos». A permite una ruta de la forma
+`/r/<referencia>` sin ningún identificador interno a la vista. **Coste de A**: el valor necesita entropía
+suficiente para no colisionar entre organizaciones y para no ser adivinable; eso lo fija D-47.4.
 
 ### D-47.2 — Qué entidad es «Package»
 
-Sin tabla `packages`, hay tres candidatos con significados distintos: `dd_cases` (el expediente, uno por lote),
-`dd_snapshots` (la instantánea versionada, que es lo que de verdad se entrega) o `dd_exports` (la descarga
-concreta). La diferencia no es cosmética: el paquete DD interno y la presentación oficial de DDS son procesos
-distintos, y una referencia pública sobre el expediente sugiere algo distinto que sobre una instantánea.
-*Qué se necesita decidir*: a cuál se ancla, o si se ancla a más de una.
+| Opción | Qué hace |
+| --- | --- |
+| **A** | `dd_cases` — el expediente, uno por lote |
+| **B** | `dd_snapshots` — la instantánea versionada, con su versión y su hash |
+| **C** | `dd_exports` — la descarga concreta |
+
+**Recomendación: B.** **Efecto:** una referencia pública debe apuntar a algo **inmutable y comprobable**, y la
+instantánea ya lo es: `docs/06` le exige `snapshot_version/hash R`. El expediente (A) es un proceso vivo cuyo
+`readiness` cambia, así que la misma referencia significaría cosas distintas según cuándo se resuelva. La
+descarga (C) es un hecho, no una cosa: habría una referencia nueva por cada descarga del mismo contenido.
+**Condición que acompaña a B**: referenciar una instantánea **no** implica que esté aprobada ni que se haya
+presentado una DDS; `EXPORTED` sigue significando «se descargó el paquete».
 
 ### D-47.3 — A qué resuelve tras una corrección o una versión nueva
 
-Parcela y productor conservan historial versionado (`plot_versions`, `producer_versions`), y las correcciones
-crean registros nuevos sin sobrescribir el original. RF-47 exige que la referencia **se conserve** tras una
-corrección; no dice **a qué apunta** después. O apunta a la entidad y muestra lo vigente, o apunta a una versión
-y queda congelada. *Qué se necesita decidir*: entidad o versión. Si es entidad, la referencia sobrevive a las
-correcciones por construcción; si es versión, hacen falta tantas referencias como versiones.
+| Opción | Qué hace |
+| --- | --- |
+| **A** | La referencia pertenece a **la entidad** y resuelve a lo vigente |
+| **B** | La referencia pertenece a **cada versión** y queda congelada |
+| **C** | Ambas: una de entidad y una por versión |
+
+**Recomendación: A para las cinco entidades operativas** (productor, parcela, entrega, lote, embarque).
+**Efecto:** RF-47 exige que la referencia **se conserve** tras una corrección, y una referencia de entidad lo
+cumple por construcción: la corrección crea un registro nuevo relacionado con el original y la referencia no se
+mueve. Con B, un QR ya impreso en una etiqueta de campo quedaría obsoleto en cuanto se corrige una geometría,
+que es justo lo contrario de lo que se busca. El historial sigue alcanzable a través de la entidad, con la
+autorización de siempre. **Para «Package» no aplica**: si D-47.2 = B, el destino ya es una instantánea inmutable,
+de modo que se comporta como una referencia de versión sin necesidad de decidirlo aparte.
 
 ### D-47.4 — Emisión: a todas las filas o bajo demanda
 
-«Podrá tener» es optativo. Si se emite a todas las filas, la columna es `NOT NULL` y hay que poblar los
-registros existentes en la migración. Si se emite bajo demanda, es anulable y hace falta decidir **quién** la
-emite, con qué permiso y si es revocable. *Qué se necesita decidir*: cuál de las dos, y en el caso de los
-registros ya existentes, si se incorporan todos de una vez o solo cuando alguien los publica.
+| Opción | Qué hace |
+| --- | --- |
+| **A** | A todas las filas: columna `NOT NULL`, poblando los registros existentes en la migración |
+| **B** | **Bajo demanda**: columna anulable con índice único parcial, emitida por un rol con permiso |
 
-### D-47.5 — Qué se ve al resolverla
+**Recomendación: B.** **Efecto:** respeta el «**podrá** tener» de §49, que es optativo y no obligatorio. Con A se
+acuñaría una referencia pública para los 9 productores, 6 parcelas, 3 entregas y 3 lotes actuales **sin que nadie
+lo haya pedido para ninguno**, creando superficie pública por defecto sobre datos de personas. Con B, la
+**incorporación de los registros existentes** queda resuelta sin inventar valores: reciben referencia cuando
+alguien decide publicarlos, y eso es comprobable como prueba. **Lo que B obliga a fijar**: quién la emite, que el
+valor sea opaco y de entropía suficiente (D-47.1), y si es **revocable** —y qué ocurre con lo ya impreso si se
+revoca—. **Coste de B frente a A**: hay dos estados (con y sin referencia) que la UI y la API deben tratar.
 
-Formalmente esto es RF-33, no RF-47, pero la decisión de ámbito depende de ello y conviene dejarlo escrito
-aquí: **una referencia pública no es un permiso de acceso.** Conocer la referencia no puede autorizar nada por
-sí solo; la autorización por organización, acción y recurso sigue intacta, y resolver una referencia sin
-autorización no debe distinguir «no existe» de «no te corresponde». *Qué se necesita decidir*: qué devuelve
-exactamente una resolución no autorizada, y qué subconjunto por audiencia define RF-33.
+### D-47.5 — Qué devuelve una resolución no autorizada
+
+| Opción | Qué hace |
+| --- | --- |
+| **A** | **Indistinguible**: la misma respuesta para «no existe» y «existe pero no te corresponde» |
+| **B** | Distingue: `404` si no existe, `403` si existe y no está autorizado |
+
+**Recomendación: A.** **Efecto:** con B, la referencia se convierte en un **oráculo de existencia**: probando
+valores se confirma cuáles son válidos, y combinado con cualquier filtración de referencias permite censar
+entidades ajenas. A lo impide y mantiene el invariante que importa: **una referencia pública no es un permiso de
+acceso.** Conocerla no autoriza nada; la autorización por organización, acción y recurso sigue intacta. **Lo que
+esta decisión no cubre**: qué subconjunto se muestra a cada audiencia cuando sí hay autorización, que es RF-33 y
+se decide con esa historia.
+
+### Resumen de lo recomendado
+
+| Decisión | Recomendación |
+| --- | --- |
+| D-47.1 Ámbito | Única **absoluta**, sin `organization_id` en el índice |
+| D-47.2 «Package» | **`dd_snapshots`**, sin que referenciar implique aprobación |
+| D-47.3 Destino | **La entidad**, resolviendo a lo vigente, para las cinco operativas |
+| D-47.4 Emisión | **Bajo demanda**, anulable, con índice único parcial |
+| D-47.5 No autorizado | **Indistinguible** de inexistente |
+
+Con estas cinco resueltas, el contrato queda cerrado y la implementación es directa y verificable contra §5.
+**Mientras no se aprueben, no se añade ninguna columna.**
 
 ---
 
@@ -160,5 +209,6 @@ Independientemente de las cinco decisiones, estas condiciones se verificarán en
 
 ## 6. Estado
 
-No se ha añadido ninguna columna, migración ni endpoint. El siguiente paso es **resolver D-47.1 a D-47.5**; con
-ellas resueltas, la implementación es directa y verificable contra §5.
+No se ha añadido ninguna columna, migración ni endpoint. Las cinco decisiones de §4 están **presentadas con
+opciones, recomendación y efecto** (revisión del 2026-10-16) y **esperan aprobación**. En cuanto se aprueben
+—aceptando o cambiando cada recomendación— la implementación procede y se verifica contra §5.
