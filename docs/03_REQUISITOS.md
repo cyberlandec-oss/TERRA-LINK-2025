@@ -46,7 +46,7 @@ P0-027–031 son historias añadidas para cubrir capacidades ya mencionadas en l
 | --- | --- | --- | --- |
 | RF-32 | Buyer Portal con lote/embarque, evidencia y descarga autorizada | P1-001 | Grant, expiración y revocación |
 | RF-33 | QR/pasaporte digital por audiencia | P1-002 | No exponer PII ni prometer DDS |
-| RF-47 | **Referencia pública por entidad** (`public_reference`) en productor, parcela, entrega, lote, paquete y embarque, desde el modelo de datos | P1-002 | S1 §49: «agregar QR desde la primera arquitectura aunque no sea obligatorio en el MVP» y «nunca exponer directamente IDs internos». Detectado sin requisito propio en el contraste de obligaciones del 2026-10-16 |
+| RF-47 | **Referencia pública por entidad** (`public_reference`) en productor, parcela, entrega, lote, paquete y embarque, desde el modelo de datos | P1-002 | S1 §49: «agregar QR desde la primera arquitectura aunque no sea obligatorio en el MVP» y «nunca exponer directamente IDs internos». Detectado sin requisito propio en el contraste de obligaciones del 2026-10-16. **Clasificación de alcance: evolución (P1)**, justificada abajo |
 | RF-34 | My Work con tareas reales de dominios operativos | P1-003 | Cerrar por acción real, respetar assignee/permisos |
 | RF-35 | Wizard de onboarding y diagnóstico de madurez 0–6 | P1-004 | Madurez ≠ conformidad legal |
 | RF-36 | Perfil de legalidad Ecuador y documentos requeridos | P1-005 | Fuente, versión, vigencia y revisor |
@@ -60,6 +60,33 @@ P0-027–031 son historias añadidas para cubrir capacidades ya mencionadas en l
 | RF-44 | Extracción asistida de documentos | P1-013 | Revisión humana y evidencia de extracción |
 | RF-45 | Analytics/supplier score comercial | P1-014 | Métrica independiente de riesgo legal |
 | RF-46 | Extensión multilenguaje/SSO/consumo | P1-015 | Español primero y decisiones de coste |
+
+### RF-47: por qué es evolución y no MVP (2026-10-16)
+
+RF-47 se numeró después de RF-46 pero se coloca junto a RF-33 porque es **la mitad de modelo de datos de la misma
+capacidad**: RF-33 es el QR/pasaporte por audiencia y RF-47 la referencia pública que ese QR resuelve.
+
+La fuente lo sitúa fuera del MVP por **tres vías independientes y concordantes**:
+
+1. **S1 §49, literal**: «Agregar QR desde la primera arquitectura **aunque no sea obligatorio en el MVP**». La propia
+   sección que crea la exigencia declara que no es obligatoria en el MVP.
+2. **S1 §100 «BACKLOG P0»**, que es el alcance original del MVP: enumera P0-001…P0-026 y **no menciona QR ni
+   `public_reference` en ninguna fila**.
+3. **S1 §101 «P1 — Después»**: enumera **QR** explícitamente entre las capacidades posteriores.
+
+**Lo que §49 sí obliga hoy** es de diseño, no de entrega: «nunca exponer directamente IDs internos». Es una
+restricción sobre *cómo* se expone lo que ya existe, no una capacidad que el MVP deba entregar. Por eso RF-47 no
+entra en el denominador del MVP y sí en el del catálogo completo.
+
+**Denominadores, en consecuencia (sin corrección respecto de lo ya publicado):**
+
+| Medida | Denominador | Por qué |
+| --- | ---: | --- |
+| Requisitos del alcance MVP | **43** (31 RF + 12 RNF) | RF-47 es P1: queda fuera. Mantener 43 es lo correcto |
+| Requisitos identificados, incluida evolución | **59** | RF-47 sí cuenta aquí |
+
+Los requisitos **parciales siguen fuera del numerador** en ambas medidas: se cuentan solo los completamente
+demostrados. Contraste por requisito: `docs/decisiones/CONTRASTE_DOCUMENTACION_RAIZ_2026-10-16.md`.
 
 ## Requisitos no funcionales
 

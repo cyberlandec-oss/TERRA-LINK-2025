@@ -1,6 +1,12 @@
 # D-34 — Condición de `dd_package_id` y `dispatch_at` en el despacho (PROPUESTA, no decidida)
 
-Archivo: `docs/decisiones/D-34-PROPUESTA.md` · Revisión **1** (2026-10-16) · Estado: **PROPUESTA**.
+Archivo: `docs/decisiones/D-34-PROPUESTA.md` · Revisión **2** (2026-10-16) · Estado: **PROPUESTA**.
+
+> **Revisión 2 (2026-10-16).** Se añaden §8 —las seis preguntas que la revisión 1 dejaba sin responder y que
+> hay que responder **antes** de adoptar B— y §9 —dos correcciones de hecho a la revisión 1, contrastadas contra
+> el código—. **B no se adopta.** La revisión 1 recomendaba B; esa recomendación queda **en suspenso** hasta que
+> §8 esté resuelta, porque declarar un régimen de destino no puede convertirse, por sí solo, en una forma de
+> omitir el paquete.
 
 **Nada de esto está adoptado.** Este documento existe para decidir, no para registrar algo hecho. **Decidir no
 implementa nada**: lo que aquí se elija sigue necesitando código, una versión nueva del catálogo KDE y sus
@@ -141,3 +147,71 @@ Hasta que eso exista y esté probado, **P0-029 y P0-017 siguen abiertas**, se de
 - `READY` del expediente sigue bloqueado por **D-05.B**, **D-07.5**, **D-07.6**, **P1-005** y **D-09.B**.
 - Las llamadas satelitales siguen deshabilitadas.
 - `EXPORTED` sigue significando «se descargó el paquete», no «se presentó una DDS».
+
+---
+
+## 8. Las seis preguntas que hay que responder antes de adoptar B
+
+La revisión 1 recomendaba B y dejaba su pieza central —«el régimen del destino es declarado y auditado»— como
+una frase, no como un mecanismo. Mientras siga siendo una frase, **B es una vía para omitir el paquete mediante
+una declaración sin verificar**, que es justo lo que no debe permitir. Estas seis preguntas son el contenido que
+le falta. **Ninguna está respondida todavía**: la columna «Respuesta propuesta» es material a decidir, no
+adoptado.
+
+| # | Pregunta | Qué dice la revisión 1 | Respuesta propuesta, a decidir |
+| --- | --- | --- | --- |
+| 1 | **¿Qué dato determina la exigencia del paquete?** | «que el embarque declare un destino sujeto a EUDR» — sin nombrar el dato | Un campo **nuevo y explícito** de régimen declarado (p. ej. `eudr_regime`) con tres valores: `SUBJECT`, `NOT_SUBJECT`, `UNKNOWN`. **No** `destination_country`: el país es indicio, no el criterio jurídico (§9.a) |
+| 2 | **¿Quién puede establecerlo y modificarlo?** | No lo dice | Un rol con responsabilidad regulatoria —**no** quien crea el embarque ni quien lo despacha—, y solo mientras el embarque está en `DRAFT`. Tras el despacho es inmutable, como todo lo que el despacho acredita. Cada cambio deja actor, momento y motivo |
+| 3 | **¿Qué respaldo requiere?** | «declarado y auditado» | Motivo escrito obligatorio y, para `NOT_SUBJECT`, **evidencia enlazada** (documento o afirmación de evidencia), porque es la declaración que exime del paquete. Declarar `SUBJECT` no necesita respaldo: es la opción que **no** exime |
+| 4 | **¿Qué ocurre si es desconocido?** | No lo dice | `UNKNOWN` **no despacha**. Es la postura del proyecto: «origen desconocido y datos faltantes siguen siendo desconocidos». Desconocido **no** puede comportarse como `NOT_SUBJECT`, que es el error que haría inútil toda la compuerta. Valor por defecto: `UNKNOWN` |
+| 5 | **¿Cómo se impide omitir el paquete con una declaración sin verificar?** | «queda en el evento de despacho» y «no puede después presentarse como acreditado» | Cuatro cierres a la vez: (a) `NOT_SUBJECT` exige respaldo enlazado (#3); (b) quien lo declara no es quien despacha (#2); (c) el régimen y su respaldo quedan en el evento de despacho y en el expediente, no solo en la fila; (d) un embarque despachado como `NOT_SUBJECT` **no** puede luego exhibirse como acreditado ni entrar en un paquete DD, y el expediente lo declara así explícitamente |
+| 6 | **¿Qué hace `dispatch_at` en cada transición?** | «siempre requerido» | Ver §8.1: hoy ya lo fija el servidor, y eso cambia la pregunta |
+
+### 8.1 `dispatch_at` transición por transición (comportamiento actual, verificado en código)
+
+`shipments.status` tiene **tres** valores: `DRAFT`, `DISPATCHED`, `CANCELLED` (`apps/api/src/db/schema.ts:577`).
+No hay estado intermedio de reserva: las reservas viven en `shipment_reservations`
+(`ACTIVE`/`RELEASED`/`CONSUMED`).
+
+| Transición | Qué pasa con `dispatch_at` | Quién lo pone |
+| --- | --- | --- |
+| crear → `DRAFT` | queda `NULL` | nadie; no se acepta del cliente |
+| `DRAFT` → `DRAFT` (items, reservas) | sigue `NULL` | — |
+| `DRAFT` → **`DISPATCHED`** | se fija a la hora del servidor, junto con `dispatched_by` y `dispatch_operation_id` (`shipments.ts:412`) | **el servidor**, no el cliente |
+| `DRAFT` → `CANCELLED` | se queda `NULL` | — |
+| desde `DISPATCHED` o `CANCELLED` | **no hay transición**: se rechaza con `409 SHIPMENT_NOT_DRAFT` (`shipments.ts:119`) | — |
+
+**Consecuencia para D-34**: `dispatch_at` **no es un dato que el cliente aporte**, así que no hay condición de
+obligatoriedad que escribir sobre él en el sentido en que la hay para `dd_package_id`. Es un sello del servidor:
+`NULL` antes del despacho, con valor después, nunca editable. Marcarlo **`C`** en `docs/06` —condicional, con la
+condición sin escribir— describe mal lo que ocurre. Lo honesto al decidir D-34 es **reclasificarlo**: para el
+registro es `R` a partir de `DISPATCHED` y no aplicable antes, y lo que la compuerta debe comprobar no es que el
+cliente lo mande, sino que **existe** cuando el estado es `DISPATCHED`.
+
+### 8.2 Lo que no se debe hacer, y conviene dejar escrito
+
+- **No clasificar jurídicamente un destino por inferencia.** Ni desde `destination_country`, ni desde el nombre
+  del comprador, ni desde una lista interna de países. El régimen es una **declaración de una persona
+  responsable**, con su respaldo, o es `UNKNOWN`.
+- **No usar datos sintéticos como prueba de aplicabilidad real.** Los embarques DEMO sirven para probar el
+  mecanismo —idempotencia, consumo único, bloqueo— y **no** acreditan que una clasificación concreta sea
+  correcta en derecho.
+- La aplicabilidad jurídica sigue siendo **D-05.B**, y D-34 no la sustituye ni la adelanta.
+
+---
+
+## 9. Dos correcciones de hecho a la revisión 1
+
+**a) `destination_country` sí está normalizado.** La revisión 1 dice, en el «En contra» de la opción B, que
+«`shipments.destination` es texto declarado, no un país normalizado con régimen». Contrastado: la columna se
+llama **`destination_country`**, es `character(2)` y el DTO la valida como **ISO 3166-1 alfa-2**
+(`@Matches(/^[A-Z]{2}$/)`, `shipments.ts:44`); el lugar libre es otro campo, `destination_place`.
+
+La corrección **no debilita** el «En contra», lo precisa: lo que falta no es normalización, es **régimen**. Y el
+país, por sí solo, **no determina** la aplicabilidad: lo determina la puesta en el mercado de la Unión, de la que
+el país de destino es indicio. Por eso la respuesta a §8 #1 es un campo nuevo y no una tabla de países.
+
+**b) La columna no se llama `dd_package_id`.** En `shipments` la columna real es
+**`dd_package_export_id`** (uuid). D-34 y `docs/06_DICCIONARIO_DATOS.md` la nombran `dd_package_id`. Al escribir
+la condición hay que unificar el nombre o dejar constancia de la correspondencia, o la condición se escribirá
+sobre un campo que no existe.

@@ -155,14 +155,19 @@ describeDb('D-43 recodificación de identidad y reindexado (PostgreSQL real)', (
     process.env.PII_INDEX_KEY = b64(idx1); // se deja como estaba para no arrastrar estado a otras pruebas
   });
 
-  it('un fallo a mitad revierte TODO: ni datos, ni índice, ni el trigger desactivado', async () => {
+  // Una clave activa inexistente se rechaza ANTES de abrir la transacción: `recodificar` llama a
+  // `parsePiiConfig` en su primera línea y esa función exige que la activa esté en el llavero. Es una
+  // propiedad que conviene fijar —no se empieza a escribir con una configuración inservible— pero
+  // **no demuestra reversión a mitad de operación**: no llega a escribirse nada que revertir.
+  // La reversión de verdad se prueba en el caso siguiente.
+  it('una clave activa inexistente se rechaza antes de tocar nada (comprobación previa, no reversión)', async () => {
     const antes = (await sql<{ id: string; document_number_enc: string; document_number_bidx: string }>`
       SELECT id, document_number_enc, document_number_bidx FROM producers WHERE document_number_enc IS NOT NULL ORDER BY id`.execute(h.db)).rows;
     const versAntes = (await sql<{ id: string; snapshot: Record<string, unknown> }>`SELECT id, snapshot FROM producer_versions ORDER BY id`.execute(h.db)).rows;
 
-    // Fallo inducido: la clave activa no está en el llavero, así que `encrypt` revienta a mitad del recorrido.
     process.env.PII_ACTIVE_KEY_ID = 'k9';
-    await expect(recodificar(h.db, true)).rejects.toThrow();
+    // El mensaje acredita que el rechazo es de configuración, previo al recorrido de filas.
+    await expect(recodificar(h.db, true)).rejects.toThrow('PII_ACTIVE_KEY_ID no está en PII_KEYS');
     process.env.PII_ACTIVE_KEY_ID = 'k2';
 
     expect((await sql<{ id: string; document_number_enc: string; document_number_bidx: string }>`
@@ -170,6 +175,74 @@ describeDb('D-43 recodificación de identidad y reindexado (PostgreSQL real)', (
     expect((await sql<{ id: string; snapshot: Record<string, unknown> }>`SELECT id, snapshot FROM producer_versions ORDER BY id`.execute(h.db)).rows).toEqual(versAntes);
     const trg = (await sql<{ enabled: string }>`SELECT tgenabled AS enabled FROM pg_trigger WHERE tgname = 'producer_versions_no_mutation'`.execute(h.db)).rows[0];
     expect(trg.enabled).not.toBe('D'); // no se queda desactivado tras el fallo
+  });
+
+  // Reversión REAL a mitad de operación: el fallo se induce en el INSERT de la auditoría de éxito, que
+  // `recodificar` hace al final de la transacción, ya con productores e historial reescritos y con el
+  // trigger append-only desactivado y vuelto a activar. El mensaje de la excepción lleva el recuento de
+  // tokens de la clave nueva observado DENTRO de la transacción: sobrevive al rollback y prueba que las
+  // escrituras ya estaban hechas cuando se produjo el fallo.
+  it('un fallo DESPUÉS de escribir datos e historial revierte cifrados, índices y auditoría, y deja el trigger activo', async () => {
+    // 1) Partir de `k1` en todo: así cualquier token `k2` que se observe durante la transacción solo
+    //    puede venir de esta operación, y no de un estado anterior.
+    process.env.PII_ACTIVE_KEY_ID = 'k1';
+    expect((await recodificar(h.db, true)).errores).toEqual([]);
+
+    const antes = (await sql<{ id: string; document_type_enc: string | null; document_number_enc: string | null; phone_enc: string | null; address_enc: string | null; document_number_bidx: string | null }>`
+      SELECT id, document_type_enc, document_number_enc, phone_enc, address_enc, document_number_bidx FROM producers ORDER BY id`.execute(h.db)).rows;
+    const versAntes = (await sql<{ id: string; snapshot: Record<string, unknown>; changed_by: string | null; changed_at: string; reason: string | null }>`
+      SELECT id, snapshot, changed_by, changed_at::text, reason FROM producer_versions ORDER BY producer_id, version`.execute(h.db)).rows;
+    const auditoriasAntes = (await sql<{ n: string }>`SELECT count(*)::text AS n FROM audit_logs WHERE action = 'pii.rekeyed'`.execute(h.db)).rows[0].n;
+    // Punto de partida comprobado: ni un solo token de la clave nueva.
+    expect(antes.filter((p) => p.document_number_enc?.split('.')[1] === 'k2')).toEqual([]);
+
+    // 2) Inyectar el fallo en la auditoría de éxito (último paso antes del commit).
+    await sql`CREATE OR REPLACE FUNCTION tl_test_fallo_tras_escribir() RETURNS trigger AS $$
+      DECLARE prod_k2 int; hist_k2 int;
+      BEGIN
+        SELECT count(*) INTO prod_k2 FROM producers WHERE split_part(document_number_enc, '.', 2) = 'k2';
+        SELECT count(*) INTO hist_k2 FROM producer_versions WHERE split_part(snapshot->>'document_number_enc', '.', 2) = 'k2';
+        RAISE EXCEPTION 'FALLO_INDUCIDO productores_k2=% historial_k2=%', prod_k2, hist_k2;
+      END $$ LANGUAGE plpgsql`.execute(h.db);
+    await sql`CREATE TRIGGER tl_test_fallo BEFORE INSERT ON audit_logs FOR EACH ROW
+      WHEN (NEW.action = 'pii.rekeyed') EXECUTE FUNCTION tl_test_fallo_tras_escribir()`.execute(h.db);
+
+    // 3) Recodificar a `k2`: escribe productores e historial y revienta antes del commit.
+    let mensaje = '';
+    try {
+      process.env.PII_ACTIVE_KEY_ID = 'k2';
+      await recodificar(h.db, true);
+      throw new Error('la recodificación debía fallar y no falló');
+    } catch (e) {
+      mensaje = e instanceof Error ? e.message : String(e);
+    } finally {
+      await sql`DROP TRIGGER IF EXISTS tl_test_fallo ON audit_logs`.execute(h.db);
+      await sql`DROP FUNCTION IF EXISTS tl_test_fallo_tras_escribir()`.execute(h.db);
+    }
+
+    // 4) El fallo ocurrió DESPUÉS de escribir: el recuento visto dentro de la transacción lo acredita.
+    expect(mensaje).toMatch(/FALLO_INDUCIDO/);
+    const visto = /productores_k2=(\d+) historial_k2=(\d+)/.exec(mensaje);
+    expect(visto).not.toBeNull();
+    expect(Number(visto![1])).toBeGreaterThan(0); // productores ya reescritos con la clave nueva
+    expect(Number(visto![2])).toBeGreaterThan(0); // historial también
+
+    // 5) Y sin embargo, nada quedó: cifrados e índices vuelven a ser exactamente los de antes.
+    expect((await sql<{ id: string; document_type_enc: string | null; document_number_enc: string | null; phone_enc: string | null; address_enc: string | null; document_number_bidx: string | null }>`
+      SELECT id, document_type_enc, document_number_enc, phone_enc, address_enc, document_number_bidx FROM producers ORDER BY id`.execute(h.db)).rows).toEqual(antes);
+    expect((await sql<{ id: string; snapshot: Record<string, unknown>; changed_by: string | null; changed_at: string; reason: string | null }>`
+      SELECT id, snapshot, changed_by, changed_at::text, reason FROM producer_versions ORDER BY producer_id, version`.execute(h.db)).rows).toEqual(versAntes);
+    // Ninguna auditoría de ÉXITO: la operación no se acredita como hecha.
+    expect((await sql<{ n: string }>`SELECT count(*)::text AS n FROM audit_logs WHERE action = 'pii.rekeyed'`.execute(h.db)).rows[0].n).toBe(auditoriasAntes);
+
+    // 6) El trigger append-only quedó activo, y muerde de verdad.
+    const trg = (await sql<{ enabled: string }>`SELECT tgenabled AS enabled FROM pg_trigger WHERE tgname = 'producer_versions_no_mutation'`.execute(h.db)).rows[0];
+    expect(trg.enabled).toBe('O');
+    await expect(sql`UPDATE producer_versions SET reason = 'intento' WHERE id = ${versAntes[0].id}`.execute(h.db)).rejects.toThrow();
+
+    // 7) Dejar el entorno como lo encontró el resto de la suite: todo en `k2`.
+    process.env.PII_ACTIVE_KEY_ID = 'k2';
+    expect((await recodificar(h.db, true)).errores).toEqual([]);
   });
 
   it('el ensayo no escribe nada, y ningún resultado publica datos personales', async () => {
