@@ -191,6 +191,14 @@ export class KdeService {
         rows = entity === 'buyer'
           ? (await sql<{ id: string; active: boolean }>`SELECT id, status = 'ACTIVE' AS active FROM buyers WHERE organization_id = ${org} AND id = ANY(${ids})`.execute(dbh)).rows
           : (await sql<{ id: string; active: boolean }>`SELECT id, status <> 'CANCELLED' AS active FROM shipments WHERE organization_id = ${org} AND id = ANY(${ids})`.execute(dbh)).rows;
+      } else if (entity === 'dd_package') {
+        // Basta `shipment:read` para comprobar que la acreditación EXISTE; leer su contenido sigue exigiendo
+        // `dd:read`. Solo cuenta un export de tipo DD_PACKAGE de la propia organización: un borrador interno
+        // (`INTERNAL_REVIEW`) no es acreditación.
+        if (!has('shipment:read') && !has('dd:read')) return { found, inactive, verifiable: true };
+        rows = (await sql<{ id: string; active: boolean }>`
+          SELECT id, TRUE AS active FROM dd_exports
+          WHERE organization_id = ${org} AND kind = 'DD_PACKAGE' AND id = ANY(${ids})`.execute(dbh)).rows;
       } else if (entity === 'location') {
         if (!has('location:read')) return { found, inactive, verifiable: true };
         rows = (await sql<{ id: string; active: boolean }>`SELECT id, status = 'ACTIVE' AS active FROM locations WHERE organization_id = ${org} AND id = ANY(${ids})`.execute(dbh)).rows;

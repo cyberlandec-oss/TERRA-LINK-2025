@@ -54,7 +54,7 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
 
   it('catálogo vigente 1.2.0 (P0-012 + referencia de límites declarada): cada KDE con hito exacto, contrato, tipo, unidad, obligatoriedad, regla, responsable y fuente', async () => {
     const r = (await http().get(`${base(orgA)}/kde-catalog`).set(as('trazabilidad@test.local')).expect(200)).body;
-    expect(r).toMatchObject({ scope: 'SYSTEM', current_release: { version: '1.6.0' }, flow_requirement: { status: 'PENDING', decision: 'D-33' }, legal_configuration: { status: 'NOT_ACTIVE' } });
+    expect(r).toMatchObject({ scope: 'SYSTEM', current_release: { version: '1.7.0' }, flow_requirement: { status: 'PENDING', decision: 'D-33' }, legal_configuration: { status: 'NOT_ACTIVE' } });
     const codes = r.definitions.map((d: { code: string }) => d.code);
     expect(new Set(codes).size).toBe(codes.length);
     const w = r.definitions.find((d: { code: string }) => d.code === 'DELIVERY_DECLARED_WEIGHT');
@@ -96,7 +96,7 @@ describeDb('P0-014 datos mínimos (KDE) y validación', () => {
     expect(item(r, 'DELIVERY_SUPPORT').result).toBe('REQUIRED_MISSING');
     expect(item(r, 'DELIVERY_PRODUCTION_PERIOD').result).toBe('REQUIRED_MISSING'); // 1.1.0 (D-34): requerido para completitud
     expect(r.gate).toMatchObject({ transition_allowed: false, outcome: 'INCOMPLETE' });
-    expect(r).toMatchObject({ persisted: false, cte: { reference: 'DELIVERY@2' }, kde_release: '1.6.0' });
+    expect(r).toMatchObject({ persisted: false, cte: { reference: 'DELIVERY@2' }, kde_release: '1.7.0' });
     // parcela de otro productor (fuera del alcance del técnico), de otra organización e inexistente: mismo resultado
     for (const id of [plotOther, plotB, randomUUID()]) {
       const x = (await validate('tecnico1@test.local', delivery, { ...values, DELIVERY_PLOTS: [id] }).expect(200)).body;

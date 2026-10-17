@@ -129,7 +129,7 @@ describeDb('P0-029 embarques: reservas en el ledger, preflight y despacho', () =
     expect((await reconcile()).consistent).toBe(true);
   });
 
-  it('preflight real: calidad pendiente, sin expediente y compuerta bloqueada por D-34 → despacho rechazado sin tocar el ledger', async () => {
+  it('preflight real: calidad pendiente y sin acreditación de diligencia (D-34.A) → despacho rechazado sin tocar el ledger', async () => {
     const l = await lot('80');
     const s = await shipment();
     const it = await item(s.id, l, '80');
@@ -139,8 +139,11 @@ describeDb('P0-029 embarques: reservas en el ledger, preflight y despacho', () =
     expect(p.allowed).toBe(false);
     expect({ items: st('ITEMS'), reservation: st('RESERVATION'), origin: st('ORIGIN') }).toEqual({ items: 'OK', reservation: 'OK', origin: 'OK' });
     expect({ quality: st('QUALITY'), dd: st('DD_PACKAGE'), evidence: st('EVIDENCE'), gate: st('GATE') }).toEqual({ quality: 'BLOCKED', dd: 'BLOCKED', evidence: 'BLOCKED', gate: 'BLOCKED' });
-    expect(p.gate.blocking.map((b: { code: string }) => b.code).sort()).toEqual(['SHIPMENT_DISPATCH_AT', 'SHIPMENT_PACKAGE']);
-    expect(p.gate.blocking.every((b: { result: string }) => b.result === 'DECISION_PENDING')).toBe(true);
+    // D-34.A (2026-10-16): la compuerta ya NO bloquea por «decisión pendiente». La condición está escrita, así
+    // que bloquea por el motivo real: falta la acreditación por ítem. `SHIPMENT_PACKAGE` quedó retirada y
+    // `SHIPMENT_DISPATCH_AT` deja de bloquear porque el sello lo pone el servidor en la transacción.
+    expect(p.gate.blocking.map((b: { code: string }) => b.code).sort()).toEqual(['SHIPMENT_ITEM_PACKAGES']);
+    expect(p.gate.blocking.every((b: { result: string }) => b.result === 'REQUIRED_MISSING')).toBe(true);
     const before = await qty(l);
     const d = await http().post(`${base(orgA)}/shipments/${s.id}/dispatch`).set(as(EXP)).send({ operation_id: randomUUID(), expected_version: (await view(s.id)).row_version }).expect(409);
     expect(d.body.error.code).toBe('DISPATCH_BLOCKED');

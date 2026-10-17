@@ -15,6 +15,17 @@ import { EVENT_STORE, type EventStore } from '../events/events';
 import { RiskService } from '../risk/risk';
 import { buildPackage, evaluateRequirements, manifestOf, readinessOf, sectionHashes, sha256, summary, DISCLAIMER, type DdContent, type Requirement } from './requirements';
 
+/** D-34.A.1: el vínculo concreto que una acreditación debe cubrir para despachar ese ítem. */
+export interface DispatchLink { shipment_id: string; item_id: string; reservation_id: string; quantity: string }
+export type PackageStatus = 'OK' | 'NO_CASE' | 'NOT_APPROVED' | 'NOT_READY' | 'STALE' | 'NO_PACKAGE' | 'LINK_MISMATCH';
+export interface PackageForDispatch { status: PackageStatus; case_number: string | null; snapshot_number: number | null; export_id: string | null }
+
+/** Compara cantidades decimales sin depender de cómo las serialice PostgreSQL ('90' y '90.000' son la misma). */
+function sameQuantity(a: string, b: string): boolean {
+  const norm = (x: string) => { const [i, d = ''] = String(x).trim().split('.'); return `${BigInt(i || '0')}.${d.replace(/0+$/, '')}`; };
+  try { return norm(a) === norm(b); } catch { return false; }
+}
+
 // P0-022 Diligencia y paquete (RF-22, QA-12; docs/13 §Ciclo del expediente, §Paquete, §Presentación oficial; UX_UI).
 // Expediente por lote → instantánea consistente (REPEATABLE READ) con manifest, hashes y guards por requisito →
 // revisión autorizada (iniciar / devolver / aprobar; aprobar exige READY vigente) → exportación auditada desde la
@@ -137,12 +148,23 @@ export class DdService {
       if (!versionIds.every((v) => covered.includes(v))) return null;
       return `Proveedor ${selected.code}: resultado con cobertura para todas las versiones de parcela de origen. Insumo con sus límites; no es conclusión regulatoria.`;
     })();
+    // D-34.A.1: vínculo previo al despacho. Solo reservas ACTIVAS de la misma organización, con su embarque,
+    // ítem, lote y cantidad. Entra en el contenido, así que cambiarlo desactualiza la instantánea.
+    const shipmentLinks = (await sql<{ shipment_id: string; shipment_code: string; shipment_status: string; item_id: string; reservation_id: string; lot_id: string; quantity: string; unit: string; location_id: string }>`
+      SELECT s.id AS shipment_id, s.shipment_code, s.status AS shipment_status, i.id AS item_id, r.id AS reservation_id,
+             r.lot_id, r.quantity::text AS quantity, r.unit, r.location_id
+      FROM shipment_reservations r
+      JOIN shipment_items i ON i.id = r.item_id AND i.organization_id = r.organization_id
+      JOIN shipments s ON s.id = r.shipment_id AND s.organization_id = r.organization_id
+      WHERE r.organization_id = ${ctx.organizationId} AND r.lot_id = ${lotId} AND r.status = 'ACTIVE'
+      ORDER BY s.shipment_code, i.id`.execute(db)).rows;
     return {
       subject: { type: 'LOT', id: lot.id, code: lot.lot_code, product: lot.product, unit: lot.unit, origin_status: lot.origin_status },
       quantities: { ...q, unit: lot.unit, source: 'ledger (stock_entries)' },
       origin: { lots: origin.lots.map((l) => ({ id: l.id, lot_code: l.lot_code, origin_status: l.origin_status })), ledger_differences: origin.ledger_differences },
       deliveries, plots, quality, documents, evidence, risk, mitigations,
-      profiles: { legal_profile: null, geolocation_profile: null, satellite_provider: satelliteProfile, shipment_link: null },
+      shipment_links: shipmentLinks,
+      profiles: { legal_profile: null, geolocation_profile: null, satellite_provider: satelliteProfile },
     };
   }
 
@@ -310,16 +332,23 @@ export class DdService {
    * aprobada con readiness READY, vigente (sin cambios posteriores) y un DD_PACKAGE exportado de ella. Solo devuelve
    * códigos y números: el contenido del expediente sigue exigiendo dd:read.
    */
-  async packageForDispatch(db: Db, ctx: TenantContext, lotId: string): Promise<{ status: 'OK' | 'NO_CASE' | 'NOT_APPROVED' | 'NOT_READY' | 'STALE' | 'NO_PACKAGE'; case_number: string | null; snapshot_number: number | null; export_id: string | null }> {
+  async packageForDispatch(db: Db, ctx: TenantContext, lotId: string, link?: DispatchLink): Promise<PackageForDispatch> {
     const c = (await sql<{ id: string; case_number: string }>`SELECT id, case_number FROM dd_cases WHERE organization_id = ${ctx.organizationId} AND subject_id = ${lotId}`.execute(db)).rows[0];
     if (!c) return { status: 'NO_CASE', case_number: null, snapshot_number: null, export_id: null };
-    const s = (await sql<{ id: string; snapshot_number: number; readiness: string }>`
-      SELECT s.id, s.snapshot_number, s.readiness FROM dd_snapshots s JOIN dd_reviews r ON r.snapshot_id = s.id AND r.action = 'APPROVE'
+    const s = (await sql<{ id: string; snapshot_number: number; readiness: string; content: DdContent }>`
+      SELECT s.id, s.snapshot_number, s.readiness, s.content FROM dd_snapshots s JOIN dd_reviews r ON r.snapshot_id = s.id AND r.action = 'APPROVE'
       WHERE s.organization_id = ${ctx.organizationId} AND s.case_id = ${c.id} ORDER BY s.snapshot_number DESC LIMIT 1`.execute(db)).rows[0];
     const base = { case_number: c.case_number, snapshot_number: s?.snapshot_number ?? null, export_id: null };
     if (!s) return { status: 'NOT_APPROVED', ...base };
     if (s.readiness !== 'READY') return { status: 'NOT_READY', ...base };
     if (await this.isStale(db, ctx, s.id)) return { status: 'STALE', ...base };
+    // D-34.A.1: la acreditación debe cubrir ESTE vínculo. Que el lote tenga alguna reserva no basta: la
+    // instantánea aprobada tiene que contener el embarque, el ítem, la reserva y la cantidad que se despachan.
+    // Un paquete del lote correcto pero de otro contexto de embarque NO acredita este despacho.
+    if (link && !(s.content.shipment_links ?? []).some((l) => l.shipment_id === link.shipment_id && l.item_id === link.item_id
+      && l.reservation_id === link.reservation_id && l.lot_id === lotId && sameQuantity(l.quantity, link.quantity))) {
+      return { status: 'LINK_MISMATCH', ...base };
+    }
     const e = (await sql<{ id: string }>`SELECT id FROM dd_exports WHERE organization_id = ${ctx.organizationId} AND snapshot_id = ${s.id} AND kind = 'DD_PACKAGE' ORDER BY exported_at DESC LIMIT 1`.execute(db)).rows[0];
     if (!e) return { status: 'NO_PACKAGE', ...base };
     return { status: 'OK', ...base, export_id: e.id };

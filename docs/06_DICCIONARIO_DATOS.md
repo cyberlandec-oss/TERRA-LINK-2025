@@ -54,7 +54,47 @@ Cantidades `numeric(20,6)` y dinero `numeric(20,4)` son propuestas de precisión
 | process_inputs/outputs | run_id R; lot_id R; quantity R; unit R | Consumir y materializar una vez; outputs trazan todos los inputs |
 | stock_entries | lot_id/location_id R; movement_type R; signed_quantity R; unit R; event_id R; effective_at R; recorded_at R; correction_of O | Ledger append-only; débito y crédito enlazados en traslado |
 | reservations | lot_id R; shipment_id R; quantity R; status R; expires_at O | Bloquear exceso de reserva con transacción |
-| shipments/items | shipment_code/buyer/destination/status R; lot_id/quantity/unit R por item; dd_package_id C; dispatch_at C | Reservar → liberar → despachar; no debitar dos veces |
+| shipments/items | shipment_code/buyer/destination/status R; lot_id/quantity/unit R por item; **`shipment_items.dd_package_export_id` C** (condición escrita abajo); **`dispatch_at` C** (condición de estado, abajo) | Reservar → liberar → despachar; no debitar dos veces |
+
+
+### Las dos condiciones del despacho, escritas (D-34.A, 2026-10-16)
+
+Hasta el 2026-10-16 estos dos campos estaban marcados `C` **sin condición escrita**, y la compuerta
+`SHIPMENT_DISPATCH` respondía `BLOCKED_PENDING_DECISION`. D-34.A las escribe. Es una **política operativa de
+producto**, no la afirmación de que todo movimiento esté jurídicamente sujeto a lo mismo.
+
+**1. Acreditación de diligencia — `shipment_items.dd_package_export_id`**
+
+> **Obligatoria para CADA ítem al despachar.** Debe referenciar un `dd_exports` de tipo **`DD_PACKAGE`** del
+> expediente **del lote de ese ítem** y de la **misma organización**, con instantánea **aprobada**, `readiness`
+> **`READY`**, **vigente** (sin cambios posteriores) y cuyo contenido **cubra el vínculo concreto** —embarque,
+> ítem, lote, reserva y cantidad— que se despacha.
+
+- **Un borrador interno (`INTERNAL_REVIEW`) no la satisface.**
+- Un paquete **del lote correcto pero de otro contexto de embarque** tampoco: la instantánea acreditaría otro
+  vínculo.
+- La columna única `shipments.dd_package_id` **queda retirada**: un embarque lleva N lotes y no hay un único
+  paquete que la justifique. **No se mantienen dos fuentes de acreditación.**
+- Se escribe al despachar y **no se reemplaza ni se retira**: es la evidencia histórica de qué paquete respaldó
+  ese ítem, distinta de su vigencia para una operación futura.
+- Garantías: FK de dos columnas (tenant) **más** disparador de correspondencia con el lote y el tipo. Una FK por
+  organización **no demuestra correspondencia con el lote**.
+
+**2. Sello del despacho — `shipments.dispatch_at`**
+
+> **Obligatorio al quedar `DISPATCHED` y ausente antes.** Lo sella el **servidor** dentro de la transacción de
+> despacho; **ningún DTO lo acepta** del cliente.
+
+Que lo genere el servidor **no impide que sea condicional**: son ejes distintos —quién aporta el valor y cuándo
+debe existir—. La condición de estado la impone el `CHECK shipments_dispatch_at_state`, y la del sello completo
+—quién y con qué operación— el `CHECK shipments_dispatch_stamp`.
+
+**Vínculo previo (`SHIPMENT_LINK`)**: se satisface **antes** del despacho con un ítem que tenga reserva activa.
+No exige que la mercancía haya salido; exigirlo crearía una dependencia circular que ninguna fuente impone
+(S1 §44 enumera el contenido del paquete y **no** incluye embarque ni despacho).
+
+**Nada de esto habilita `READY`** ni cambia requisito regulatorio alguno: la conclusión sigue `UNDETERMINED`.
+Catálogo KDE **1.7.0**. Contrato: `docs/decisiones/D-34-PROPUESTA.md`.
 
 ## Documentos, evidencia, riesgo y DD
 

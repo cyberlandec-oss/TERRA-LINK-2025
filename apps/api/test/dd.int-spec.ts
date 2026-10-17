@@ -85,7 +85,10 @@ describeDb('P0-022 expediente: guards, instantánea consistente, revisión, expo
     expect(status(s, 'ORIGIN_DECLARED')).toBe('MET');
     expect(status(s, 'QUALITY_DECIDED')).toBe('PENDING'); // calidad pendiente ≠ aprobación
     expect(status(s, 'DELIVERY_SUPPORTS')).toBe('PENDING'); // D-35 MVP
-    for (const code of ['GEOLOCATION_PROFILE', 'DEFORESTATION_ANALYSIS', 'LEGAL_PROFILE', 'RISK_CATALOG_APPROVED', 'REGULATORY_CONCLUSION', 'SHIPMENT_LINK']) expect(status(s, code)).toBe('NOT_EVALUABLE');
+    for (const code of ['GEOLOCATION_PROFILE', 'DEFORESTATION_ANALYSIS', 'LEGAL_PROFILE', 'RISK_CATALOG_APPROVED', 'REGULATORY_CONCLUSION']) expect(status(s, code)).toBe('NOT_EVALUABLE');
+    // D-34.A.1 (2026-10-16): SHIPMENT_LINK dejó de ser NOT_EVALUABLE. La condición está escrita —ítem de
+    // embarque con reserva activa— así que es EVALUABLE: aquí el lote no está en ningún embarque, luego PENDING.
+    expect(status(s, 'SHIPMENT_LINK')).toBe('PENDING');
     expect(s.summary.percent_met).toBeGreaterThan(0);
     expect(s.summary.met).toBeLessThan(s.summary.total);
     expect(s.submission.status).toBe('NOT_SUBMITTED');

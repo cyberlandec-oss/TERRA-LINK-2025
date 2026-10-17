@@ -29,7 +29,15 @@ export interface DdContent {
     rule_set_regulatory_profile: string | null;
     technical_result: string; severity: string; conclusion: string; is_current: boolean; review_process: string; factors: Array<{ code: string; result: string; effect: string }> };
   mitigations: Array<{ id: string; factor_code: string; status: string; row_version: string; decision: string | null }>;
-  profiles: { legal_profile: string | null; geolocation_profile: string | null; satellite_provider: string | null; shipment_link: string | null };
+  /**
+   * D-34.A.1: vínculo PREVIO al despacho. Un ítem de embarque con reserva activa de la misma organización.
+   * Identifica embarque, ítem, lote, reserva y cantidad, que es lo que el paquete debe cubrir: una reserva de
+   * OTRO embarque no lo sustituye. Al estar en el contenido, cualquier cambio —cantidad, reserva, ítem o
+   * cancelación— altera el hash y **desactualiza** la instantánea, de modo que una acreditación que ya no
+   * corresponde no puede usarse.
+   */
+  shipment_links: Array<{ shipment_id: string; shipment_code: string; shipment_status: string; item_id: string; reservation_id: string; lot_id: string; quantity: string; unit: string; location_id: string }>;
+  profiles: { legal_profile: string | null; geolocation_profile: string | null; satellite_provider: string | null };
 }
 
 export interface Requirement { code: string; label: string; status: ReqStatus; detail: string; source: string; references: string[] }
@@ -130,7 +138,15 @@ export function evaluateRequirements(c: DdContent): Requirement[] {
   out.push(!c.mitigations.length ? r('MITIGATIONS_VERIFIED', 'Mitigaciones verificadas', 'MET', 'Sin mitigaciones registradas para el sujeto.', 'docs/13 MITIGATION_UNVERIFIED')
     : pendingMit.length ? r('MITIGATIONS_VERIFIED', 'Mitigaciones verificadas', 'PENDING', `${pendingMit.length} mitigación(es) sin verificar.`, 'docs/13 MITIGATION_UNVERIFIED', pendingMit.map((m) => m.factor_code))
       : r('MITIGATIONS_VERIFIED', 'Mitigaciones verificadas', 'MET', 'Mitigaciones verificadas. Verificar no resuelve causas ni equivale a aprobación regulatoria.', 'docs/13 MITIGATION_UNVERIFIED'));
-  out.push(r('SHIPMENT_LINK', 'Vínculo con reserva/despacho y embarque', c.profiles.shipment_link ? 'MET' : 'NOT_EVALUABLE', c.profiles.shipment_link ?? 'Reserva/despacho (P0-017) y embarques (P0-029) pendientes: bloquea la integración con embarques, no el resto del expediente.', 'docs/18 P0-017/P0-029'));
+  // D-34.A.1 (2026-10-16): el vínculo se satisface ANTES del despacho, con un ítem de embarque que tenga
+  // reserva activa. **No exige que la mercancía haya salido**: exigirlo crearía una dependencia circular
+  // —despachar exige el paquete, el paquete exige READY y READY exigiría el despacho— que ninguna fuente
+  // impone (S1 §44 enumera el contenido del paquete y no incluye embarque ni despacho).
+  out.push(c.shipment_links.length
+    ? r('SHIPMENT_LINK', 'Vínculo con embarque mediante reserva activa', 'MET',
+        c.shipment_links.map((l) => `${l.shipment_code} · ítem ${l.item_id} · reserva ${l.quantity} ${l.unit}`).join(' · '), 'D-34.A.1; docs/18 P0-017/P0-029')
+    : r('SHIPMENT_LINK', 'Vínculo con embarque mediante reserva activa', 'PENDING',
+        'El lote no tiene ningún ítem de embarque con reserva activa. Añádelo a un embarque y reserva la cantidad.', 'D-34.A.1; docs/18 P0-017/P0-029'));
   return out;
 }
 
@@ -158,6 +174,7 @@ export function manifestOf(c: DdContent) {
       ...c.deliveries.map((d) => ({ kind: 'delivery', id: d.id, version: d.row_version })),
       ...c.plots.map((p) => ({ kind: 'plot_version', id: p.version_id ?? p.plot_id, version: String(p.version_number ?? 'sin versión'), hash: p.geometry_hash })),
       ...c.documents.map((d) => ({ kind: 'document_version', id: d.version_id, version: String(d.version_number), hash: d.sha256 })),
+      ...c.shipment_links.map((l) => ({ kind: 'shipment_reservation', id: l.reservation_id, version: `${l.shipment_code}:${l.item_id}`, hash: `${l.quantity} ${l.unit}` })),
       ...c.evidence.map((e) => ({ kind: 'evidence', id: e.id, version: e.row_version })),
       ...(c.risk ? [{ kind: 'risk_evaluation', id: c.risk.evaluation_id, version: String(c.risk.evaluation_number), hash: c.risk.snapshot_hash }, { kind: 'risk_rule_set', id: c.risk.rule_set_version, version: c.risk.rule_set_approval }] : []),
       ...c.mitigations.map((m) => ({ kind: 'mitigation', id: m.id, version: m.row_version })),

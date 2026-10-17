@@ -1,6 +1,30 @@
-# D-34 — Condición de `dd_package_id` y `dispatch_at` en el despacho (PROPUESTA, no decidida)
+# D-34 — Condición de `dd_package_id` y `dispatch_at` en el despacho
 
-Archivo: `docs/decisiones/D-34-PROPUESTA.md` · Revisión **3** (2026-10-16) · Estado: **PROPUESTA**.
+Archivo: `docs/decisiones/D-34-PROPUESTA.md` · Revisión **4** (2026-10-16) ·
+Estado: **OPCIÓN A ADOPTADA como regla provisional del MVP local**.
+
+> **Revisión 4 (2026-10-16) — lo decidido.** Se adopta la **opción A**: para despachar se exige el paquete final
+> de diligencia, **sin** excepción por declarar «no sujeto». Con ella, dos decisiones que la opción A dejaba
+> abiertas y que se resolvieron antes de implementar:
+>
+> | | Decisión | Adoptado |
+> | --- | --- | --- |
+> | **D-34.A.1** | Qué satisface `SHIPMENT_LINK` | **Vínculo PREVIO**: un ítem de embarque con reserva activa, válida y de la misma organización. **No** exige que la mercancía haya salido |
+> | **D-34.A.2** | Dónde se registra la acreditación | **Por ítem** (`shipment_items.dd_package_export_id`). La columna única de `shipments` **queda retirada** |
+>
+> **Por qué A.1 así**: exigir el despacho habría creado una **dependencia circular irrompible** —despachar exige
+> el paquete, el paquete exige `READY`, y `READY` exigiría el despacho—. Ninguna fuente la impone: **S1 §44**
+> enumera el contenido del `DueDiligenceEvidencePackage` (`operator, product, quantity, country, plots,
+> production_period, suppliers, chain_actors, deforestation_evidence, legality_evidence, risk_assessment,
+> mitigation, verification, audit_trail`) y **no incluye embarque, despacho ni `dispatch_at`**.
+>
+> **Es una política operativa de producto**, no la afirmación de que todo movimiento esté jurídicamente sujeto a
+> lo mismo. **No desbloquea el despacho mientras el expediente no pueda aprobarse**, y eso se asumió al
+> adoptarla: `READY` sigue inalcanzable por D-05.B, D-07.5, D-07.6, P1-005 y D-09.B.
+>
+> Implementación y pruebas: migración `0045_d34a_compuerta_despacho`, catálogo KDE **1.7.0**,
+> `test/d34a-despacho.int-spec.ts` (**9**, fixtures sintéticas declaradas). Condición escrita en
+> `docs/06_DICCIONARIO_DATOS.md`. **P0-029 y P0-017 siguen abiertas.**
 
 > **Revisión 2 (2026-10-16).** Se añaden §8 —las seis preguntas que la revisión 1 dejaba sin responder y que
 > hay que responder **antes** de adoptar B— y §9 —correcciones de hecho a la revisión 1, contrastadas contra

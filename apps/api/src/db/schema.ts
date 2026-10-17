@@ -575,10 +575,13 @@ export interface StockEntriesTable { id: string; organization_id: string; moveme
 export interface BuyersTable { id: string; organization_id: string; code: string; name: string; country: string; status: Generated<'ACTIVE' | 'INACTIVE'>; created_by: string; operation_id: string; row_version: Generated<string>; created_at: Generated<Timestamp> }
 export interface ShipmentsTable {
   id: string; organization_id: string; shipment_code: string; status: 'DRAFT' | 'DISPATCHED' | 'CANCELLED'; buyer_id: string; destination_country: string; destination_place: string | null; origin_location_id: string;
-  notes: string | null; dd_package_export_id: string | null; dispatch_at: Timestamp | null; dispatched_by: string | null; dispatch_operation_id: string | null; cancel_reason: string | null;
+  notes: string | null; dispatch_at: Timestamp | null; dispatched_by: string | null; dispatch_operation_id: string | null; cancel_reason: string | null;
   created_by: string; operation_id: string; row_version: Generated<string>; created_at: Generated<Timestamp>;
 }
-export interface ShipmentItemsTable { id: string; organization_id: string; shipment_id: string; lot_id: string; quantity: string; unit: string; created_by: string; created_at: Generated<Timestamp> }
+// D-34.A.2: la acreditación de diligencia vive POR ÍTEM, que es donde está la cardinalidad real (un embarque
+// lleva N lotes, cada uno con su expediente y su export). Se escribe al despachar y no se reemplaza después:
+// es la evidencia histórica de qué paquete respaldó ese ítem, distinta de su vigencia para una operación futura.
+export interface ShipmentItemsTable { id: string; organization_id: string; shipment_id: string; lot_id: string; quantity: string; unit: string; dd_package_export_id: string | null; created_by: string; created_at: Generated<Timestamp> }
 export interface ShipmentReservationsTable {
   id: string; organization_id: string; shipment_id: string; item_id: string; lot_id: string; location_id: string; quantity: string; unit: string; status: 'ACTIVE' | 'RELEASED' | 'CONSUMED';
   reserve_movement_id: string; end_movement_id: string | null; release_reason: string | null; created_by: string; created_at: Generated<Timestamp>; ended_at: Timestamp | null; operation_id: string;

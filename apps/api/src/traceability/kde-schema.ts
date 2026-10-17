@@ -8,11 +8,15 @@ export const REQUIREMENTS = ['REQUIRED', 'CONDITIONAL', 'OPTIONAL'] as const;
 export type Requirement = (typeof REQUIREMENTS)[number];
 
 /** Entidades con verificación real en esta etapa (tenant + alcance del usuario). */
-export const VERIFIABLE_ENTITIES = ['producer', 'plot', 'plot_version', 'product', 'membership', 'document', 'delivery', 'location', 'sample', 'weighable', 'lot', 'process_run', 'buyer', 'shipment'] as const;
+export const VERIFIABLE_ENTITIES = ['producer', 'plot', 'plot_version', 'product', 'membership', 'document', 'delivery', 'location', 'sample', 'weighable', 'lot', 'process_run', 'buyer', 'shipment', 'dd_package'] as const;
 /** Entidades del contrato aún inexistentes: la referencia se acepta como «no verificable», nunca como válida. */
 export const PENDING_ENTITIES: Record<string, string> = {
-  counterparty: 'D-33', dd_package: 'P0-022',
+  counterparty: 'D-33',
 };
+// D-34.A (2026-10-16): `dd_package` deja de ser una entidad pendiente. La acreditación existe y es
+// `dd_exports` con `kind = 'DD_PACKAGE'`. El validador comprueba **existencia, tenant y tipo**; la
+// **correspondencia** con el lote, el embarque, el ítem, la reserva y la cantidad la comprueba la operación,
+// porque el validador de KDE no conoce ese contexto. Una FK por organización no demuestra correspondencia.
 
 export interface Validation {
   positive?: boolean;          // > 0 (QUANTITY/DECIMAL/INTEGER)

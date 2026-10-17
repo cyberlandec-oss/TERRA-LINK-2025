@@ -17,7 +17,9 @@ const SYNTHETIC: DdContent = {
   // (D-07.5). Hoy ninguna versión real lleva `regulatory_profile`, y la prueba de integración lo comprueba.
   risk: { evaluation_id: 'e1', evaluation_number: 1, snapshot_hash: 'c'.repeat(64), rule_set_version: 'SINT', rule_set_approval: 'APPROVED', rule_set_adopted: true, rule_set_regulatory_profile: 'PERFIL SINTÉTICO DE PRUEBA', technical_result: 'NO_FINDINGS_IN_EVALUATED_RULES', severity: 'LOW', conclusion: 'NEGLIGIBLE', is_current: true, review_process: 'RESOLVED', factors: [{ code: 'X', result: 'NOT_HIT', effect: 'BLOCKING' }] },
   mitigations: [],
-  profiles: { legal_profile: 'PERFIL SINTÉTICO DE PRUEBA', geolocation_profile: 'PERFIL SINTÉTICO DE PRUEBA', satellite_provider: 'PROVEEDOR SINTÉTICO DE PRUEBA', shipment_link: 'EMBARQUE SINTÉTICO DE PRUEBA' },
+  // D-34.A.1: el vínculo se satisface con un ítem de embarque con reserva ACTIVA (fixture sintética).
+  shipment_links: [{ shipment_id: 's1', shipment_code: 'EMB-SINT-1', shipment_status: 'DRAFT', item_id: 'i1', reservation_id: 'r1', lot_id: 'l1', quantity: '100', unit: 'KG', location_id: 'loc1' }],
+  profiles: { legal_profile: 'PERFIL SINTÉTICO DE PRUEBA', geolocation_profile: 'PERFIL SINTÉTICO DE PRUEBA', satellite_provider: 'PROVEEDOR SINTÉTICO DE PRUEBA' },
 };
 const st = (c: DdContent, code: string) => evaluateRequirements(c).find((r) => r.code === code)?.status;
 

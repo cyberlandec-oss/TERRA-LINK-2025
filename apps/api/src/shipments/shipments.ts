@@ -78,6 +78,8 @@ const CHECK_LABEL: Record<string, string> = {
 const DD_MESSAGE: Record<string, string> = {
   NO_CASE: 'El lote no tiene expediente de diligencia.', NOT_APPROVED: 'Ninguna instantánea del expediente está aprobada.', NOT_READY: 'La instantánea aprobada no tiene todos los requisitos cumplidos.',
   STALE: 'Cambiaron datos relevantes desde la instantánea aprobada (por ejemplo, la reserva): captura y aprueba una nueva.', NO_PACKAGE: 'No se exportó el paquete DD_PACKAGE de la instantánea aprobada.', OK: 'Paquete aprobado, vigente y exportado.',
+  // D-34.A.1: el paquete existe y está aprobado, pero no cubre ESTE embarque, ítem, reserva y cantidad.
+  LINK_MISMATCH: 'El paquete aprobado no cubre este embarque, ítem, reserva y cantidad: su instantánea acredita otro vínculo. Captura y aprueba una instantánea con la reserva vigente.',
 };
 type Check = { code: string; label: string; status: 'OK' | 'BLOCKED'; subject: string | null; message: string };
 
@@ -339,30 +341,38 @@ export class ShipmentsService {
   // ---------- Preflight y despacho ----------
 
   /** Comprobaciones previas al despacho; ninguna se omite ni se rebaja. */
-  async preflightChecks(db: Db, ctx: TenantContext, shipmentId: string): Promise<{ allowed: boolean; checks: Check[]; gate: Awaited<ReturnType<KdeService['evaluateTransition']>>; packages: Array<{ lot_id: string; export_id: string | null }> }> {
+  async preflightChecks(db: Db, ctx: TenantContext, shipmentId: string, dispatchAt?: Date): Promise<{ allowed: boolean; checks: Check[]; gate: Awaited<ReturnType<KdeService['evaluateTransition']>>; packages: Array<{ item_id: string; lot_id: string; export_id: string | null }> }> {
     const s = await db.selectFrom('shipments').selectAll().where('organization_id', '=', ctx.organizationId).where('id', '=', shipmentId).executeTakeFirstOrThrow();
     const items = await db.selectFrom('shipment_items as i').innerJoin('lots as l', 'l.id', 'i.lot_id').select(['i.id', 'i.lot_id', 'i.quantity', 'l.lot_code', 'l.origin_status']).where('i.shipment_id', '=', shipmentId).orderBy('l.lot_code').execute();
-    const res = await db.selectFrom('shipment_reservations').select(['item_id', 'quantity', 'location_id']).where('shipment_id', '=', shipmentId).where('status', '=', 'ACTIVE').execute();
+    const res = await db.selectFrom('shipment_reservations').select(['id', 'item_id', 'quantity', 'location_id']).where('shipment_id', '=', shipmentId).where('status', '=', 'ACTIVE').execute();
     const checks: Check[] = [];
     const add = (code: string, ok: boolean, subject: string | null, message: string) => checks.push({ code, label: CHECK_LABEL[code], status: ok ? 'OK' : 'BLOCKED', subject, message });
     add('STATUS', s.status === 'DRAFT', null, s.status === 'DRAFT' ? 'En preparación.' : `Estado ${STATUS_LABEL[s.status]}.`);
     add('ITEMS', items.length > 0, null, items.length ? `${items.length} lote(s).` : 'Agrega al menos un lote con su cantidad.');
-    const packages: Array<{ lot_id: string; export_id: string | null }> = [];
+    const packages: Array<{ item_id: string; lot_id: string; export_id: string | null }> = [];
     for (const i of items) {
       const r = res.find((x) => x.item_id === i.id);
       add('RESERVATION', !!r && scaled(String(r.quantity)) === scaled(String(i.quantity)) && r.location_id === s.origin_location_id, i.lot_code, r ? `Reservado ${dec(r.quantity)} kg en el centro de salida.` : 'Sin reserva activa: reserva la cantidad del ítem.');
       const q = this.lots.qualitySummary(await this.lots.quality(db, i.lot_id));
       add('QUALITY', q.status === 'RELEASED_BY_HUMAN_DECISION', i.lot_code, q.label);
       add('ORIGIN', i.origin_status === 'COMPLETE', i.lot_code, i.origin_status === 'COMPLETE' ? 'Origen declarado.' : 'Origen incompleto: no se despacha como origen conocido.');
-      const p = await this.dd.packageForDispatch(db, ctx, i.lot_id);
+      // D-34.A.1: la acreditación debe cubrir ESTE vínculo, no una reserva cualquiera del lote. Sin reserva
+      // activa no hay vínculo que acreditar, y la comprobación RESERVATION ya lo marca.
+      const link = r ? { shipment_id: shipmentId, item_id: i.id, reservation_id: r.id, quantity: String(i.quantity) } : undefined;
+      const p = await this.dd.packageForDispatch(db, ctx, i.lot_id, link);
       add('DD_PACKAGE', p.status === 'OK', i.lot_code, `${p.case_number ? `${p.case_number}${p.snapshot_number ? ` · instantánea ${p.snapshot_number}` : ''}: ` : ''}${DD_MESSAGE[p.status]}`);
       add('EVIDENCE', p.status === 'OK', i.lot_code, p.status === 'OK' ? 'Exigida y cumplida dentro del paquete aprobado.' : 'Se acredita con el paquete de diligencia aprobado (pendiente).');
-      packages.push({ lot_id: i.lot_id, export_id: p.export_id });
+      packages.push({ item_id: i.id, lot_id: i.lot_id, export_id: p.export_id });
     }
     const total = items.reduce((a, i) => a + scaled(String(i.quantity)), 0n);
     const gate = await this.kde.evaluateTransition({ ...ctx, permissions: [...new Set([...ctx.permissions, 'shipment:read', 'lot:read'] as Permission[])] }, 'SHIPMENT_DISPATCH', {
       SHIPMENT_REF: s.id, SHIPMENT_BUYER: s.buyer_id, SHIPMENT_DESTINATION: `${s.destination_country}${s.destination_place ? ` · ${s.destination_place}` : ''}`,
-      SHIPMENT_LOTS: items.map((i) => i.lot_id), SHIPMENT_QUANTITY: items.length ? { value: unscaled(total), unit: 'KG' } : null, SHIPMENT_PACKAGE: null, SHIPMENT_DISPATCH_AT: null,
+      SHIPMENT_LOTS: items.map((i) => i.lot_id), SHIPMENT_QUANTITY: items.length ? { value: unscaled(total), unit: 'KG' } : null,
+      // D-34.A.2: la lista solo se envía si TODOS los ítems están acreditados; si falta uno, el KDE queda
+      // ausente y la compuerta bloquea por REQUIRED, que es lo que debe ocurrir.
+      SHIPMENT_ITEM_PACKAGES: items.length && packages.every((x) => x.export_id) ? packages.map((x) => x.export_id) : null,
+      // El sello lo pone el servidor en la transacción de despacho; aquí se evalúa el valor que tendrá.
+      SHIPMENT_DISPATCH_AT: (dispatchAt ?? new Date()).toISOString(),
     }, db);
     add('GATE', gate.allowed, null, gate.allowed ? 'Datos mínimos del embarque completos.' : gate.blocking.map((b) => b.message).join(' '));
     return { allowed: checks.every((c) => c.status === 'OK'), checks, gate, packages };
@@ -395,10 +405,22 @@ export class ShipmentsService {
         this.requireDraft(s);
         const items = await trx.selectFrom('shipment_items').select('lot_id').where('shipment_id', '=', id).orderBy('lot_id').execute();
         for (const i of items) await trx.selectFrom('lots').select('id').where('id', '=', i.lot_id).forUpdate().execute();
-        const p = await this.preflightChecks(trx, ctx, id);
+        // El sello del servidor, fijado una sola vez y usado tanto para la compuerta como para la fila.
+        const dispatchAt = new Date();
+        // Revalidación DENTRO de la transacción, con los lotes bloqueados: autorización ya comprobada arriba,
+        // reservas y cantidades vigentes, acreditación de CADA ítem y las demás compuertas.
+        const p = await this.preflightChecks(trx, ctx, id, dispatchAt);
         await trx.insertInto('gate_evaluations').values({ id: randomUUID(), organization_id: ctx.organizationId, entity_type: 'shipment', entity_id: id, transition: p.gate.transition, release_version: p.gate.release,
           allowed: p.allowed, result: JSON.stringify({ checks: p.checks.map((c) => ({ code: c.code, subject: c.subject, status: c.status })), blocking: p.gate.blocking, pending: p.gate.pending }), evaluated_by: user.id }).execute();
         if (!p.allowed) throw new AppError(409, 'DISPATCH_BLOCKED', 'No se puede despachar: hay comprobaciones sin cumplir. Revisa el preflight.', p.checks.filter((c) => c.status !== 'OK').map((c) => ({ field: c.subject ? `${c.code}:${c.subject}` : c.code, reason: c.message })));
+        // D-34.A.2: la acreditación de cada ítem se registra ANTES de consumir reservas. El disparador de la
+        // base comprueba correspondencia con el lote, tipo DD_PACKAGE y organización; si alguno no cuadra, la
+        // transacción entera se aborta y no se consume ninguna reserva ni se guarda un despacho parcial.
+        for (const paquete of p.packages) {
+          if (!paquete.export_id) throw new AppError(409, 'DISPATCH_BLOCKED', 'Falta la acreditación de diligencia de un ítem.', [{ field: `DD_PACKAGE:${paquete.lot_id}`, reason: 'sin paquete' }]);
+          await trx.updateTable('shipment_items').set({ dd_package_export_id: paquete.export_id } as never)
+            .where('id', '=', paquete.item_id).where('organization_id', '=', ctx.organizationId).execute();
+        }
         const res = await trx.selectFrom('shipment_reservations').select(['id', 'lot_id', 'location_id', 'quantity']).where('shipment_id', '=', id).where('status', '=', 'ACTIVE').forUpdate().execute();
         const movements: string[] = [];
         for (const r of res) {
@@ -409,7 +431,7 @@ export class ShipmentsService {
           await trx.updateTable('lots').set({ row_version: sql`row_version + 1` } as never).where('id', '=', r.lot_id).execute();
           movements.push(mid);
         }
-        const after = await this.bump(trx, id, { status: 'DISPATCHED', dispatch_at: new Date(), dispatched_by: user.id, dispatch_operation_id: dto.operation_id });
+        const after = await this.bump(trx, id, { status: 'DISPATCHED', dispatch_at: dispatchAt, dispatched_by: user.id, dispatch_operation_id: dto.operation_id });
         await this.record(trx, ctx, user.id, s, Number(after.row_version), 'ShipmentDispatched', { movements, reservations: res.map((r) => ({ reservation_id: r.id, lot_id: r.lot_id, quantity: dec(r.quantity), unit: 'KG' })), dd_packages: p.packages },
           'shipment.dispatch', { status: 'DISPATCHED', reservations: res.length }, requestId);
       });

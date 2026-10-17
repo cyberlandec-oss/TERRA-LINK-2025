@@ -46,6 +46,7 @@ import * as m0041 from './migrations/0041_eudr_geo_profile';
 import * as m0042 from './migrations/0042_d07_mecanismos';
 import * as m0043 from './migrations/0043_catalogo_riesgo_1_0_0';
 import * as m0044 from './migrations/0044_rf47_referencia_publica';
+import * as m0045 from './migrations/0045_d34a_compuerta_despacho';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -93,6 +94,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0042_d07_mecanismos': m0042,
   '0043_catalogo_riesgo_1_0_0': m0043,
   '0044_rf47_referencia_publica': m0044,
+  '0045_d34a_compuerta_despacho': m0045,
 };
 
 class StaticMigrationProvider implements MigrationProvider {
