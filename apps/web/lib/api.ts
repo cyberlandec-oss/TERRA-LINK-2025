@@ -133,6 +133,26 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
   return data as T;
 }
 
+/**
+ * RF-33 — Trae un SVG autenticado (el QR de una referencia). No se puede usar `<img src>` porque la ruta
+ * exige el token de sesión; se pide con la sesión y se inserta el marcado, que el servidor ya emite.
+ * Una denegación llega como error normalizado en JSON, no como imagen.
+ */
+export async function apiSvg(path: string): Promise<string> {
+  const token = session.get();
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
+  } catch {
+    throw new ApiError(0, { code: 'NETWORK', message: 'No se pudo contactar el servidor. Revisa tu conexión y reintenta.', request_id: null });
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new ApiError(res.status, data?.error ?? { code: `HTTP_${res.status}`, message: 'Error inesperado.', request_id: null });
+  }
+  return res.text();
+}
+
 /** Envío multipart (archivo). El navegador fija el content-type con el límite del formulario. */
 export async function apiUpload<T>(path: string, form: FormData): Promise<{ status: number; data: T }> {
   const token = session.get();

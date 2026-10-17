@@ -1,11 +1,14 @@
-import { Controller, Get, Inject, Injectable, Param, Req } from '@nestjs/common';
+import { Controller, Get, Inject, Injectable, Param, Req, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { sql, type Kysely, type Transaction } from 'kysely';
 import type { AuthUser } from '../auth/auth';
 import { AuthorizationService, type TenantContext } from '../authz/authorization.service';
 import type { Permission } from '../authz/catalog';
 import { notFound } from '../common/errors';
+import { APP_CONFIG } from '../config';
 import { DB } from '../db/database';
+import { enlaceDeReferencia, qrSvg } from './reference-qr';
 import type { Database, PublicReferenceEntity } from '../db/schema';
 
 // RF-47 — Resolución de una referencia pública. Contrato: `docs/decisiones/RF-47-REFERENCIA-PUBLICA.md`.
@@ -18,8 +21,13 @@ import type { Database, PublicReferenceEntity } from '../db/schema';
 // alcance devuelven **lo mismo**. Si se distinguieran, la referencia sería un oráculo de existencia: probando
 // valores se confirmaría cuáles son válidos (D-47.5).
 //
-// Lo que esto NO es: publicación. No expone nada a quien no podría verlo ya por las rutas normales, no define
-// audiencias y no emite QR. Eso es **RF-33 / P1-002**, que sigue fuera de esta entrega.
+// RF-33 (2026-10-17) añade la **representación visual** de la referencia —el QR— y el recorrido para
+// obtenerla, copiarla y abrirla hasta el recurso. **Se apoya en este mismo resolver y en su autorización**: el
+// QR se emite a quien ya puede leer el recurso, y escanearlo no concede nada.
+//
+// Lo que sigue FUERA: las **vistas por audiencia** de RF-33/P1-002. Esa parte depende de **P1-001 (Buyer
+// Portal)** y del contrato de concesiones (ADR-0002), que definen quién es la audiencia externa y qué
+// proyección le corresponde. Sin eso no hay audiencia que servir, y **no se inventa una**.
 
 /** Permiso de dominio por tipo, y si admite el alcance «asignado» que usa el resto del producto. */
 const ACCESO: Record<PublicReferenceEntity, { amplio: Permission; asignado?: Permission }> = {
@@ -61,11 +69,25 @@ interface Resuelta { reference: string; entity_type: PublicReferenceEntity; orga
 
 @Injectable()
 export class PublicReferencesService {
-  constructor(@Inject(DB) private readonly db: Kysely<Database>, private readonly authz: AuthorizationService) {}
+  constructor(
+    @Inject(DB) private readonly db: Kysely<Database>,
+    private readonly authz: AuthorizationService,
+    @Inject(APP_CONFIG) private readonly config: { webOrigin: string },
+  ) {}
 
   /** Una sola respuesta para todo lo que no se puede entregar: no revela si la referencia existe. */
   private get opaca() {
     return notFound('No hay ningún recurso a tu alcance con esa referencia.');
+  }
+
+  /**
+   * RF-33 — QR de la referencia, para quien **ya** puede leer el recurso. Reutiliza `resolve()` entero: si no
+   * está autorizado, recibe la MISMA respuesta opaca que al resolver, no un QR.
+   */
+  async qr(user: AuthUser, reference: string): Promise<{ svg: string; link: string; resuelta: Resuelta }> {
+    const resuelta = await this.resolve(user, reference);
+    const link = enlaceDeReferencia(this.config.webOrigin, resuelta.reference);
+    return { svg: qrSvg(link), link, resuelta };
   }
 
   async resolve(user: AuthUser, reference: string): Promise<Resuelta> {
@@ -137,5 +159,34 @@ export class PublicReferencesController {
   @ApiOkResponse({ description: 'Identidad mínima del recurso referenciado.' })
   resolve(@Req() req: { user: AuthUser }, @Param('reference') reference: string) {
     return this.service.resolve(req.user, reference);
+  }
+
+  @Get(':reference/qr.svg')
+  @ApiOperation({
+    summary: 'QR de una referencia pública (RF-33)',
+    description:
+      'Codifica SOLO el enlace de resolución con la referencia opaca: ni identificadores internos, ni nombres, ' +
+      'ni datos personales, ni tokens. Exige la MISMA autorización que resolver la referencia, de modo que el ' +
+      'QR se entrega a quien ya puede leer el recurso. Escanearlo no concede acceso: al abrirlo hay que ' +
+      'autenticarse y tener permiso. No sustituye un DDS ni acredita conformidad.',
+  })
+  async qr(@Req() req: { user: AuthUser }, @Param('reference') reference: string, @Res({ passthrough: true }) res: Response) {
+    // El tipo se fija DESPUÉS de autorizar: una denegación es un error normalizado en JSON, no un SVG. Con la
+    // cabecera declarada en el decorador, el 404 salía rotulado como imagen y el cliente no podía leerlo.
+    const { svg } = await this.service.qr(req.user, reference);
+    res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    return svg;
+  }
+
+  @Get(':reference/link')
+  @ApiOperation({
+    summary: 'Enlace de resolución de una referencia (RF-33)',
+    description: 'El mismo enlace que codifica el QR, para copiarlo. Misma autorización que resolver.',
+  })
+  async link(@Req() req: { user: AuthUser }, @Param('reference') reference: string) {
+    const { link, resuelta } = await this.service.qr(req.user, reference);
+    return { reference: resuelta.reference, entity_type: resuelta.entity_type, code: resuelta.code, link,
+      note: 'Conocer el enlace no concede acceso: al abrirlo se exige sesión y permiso sobre el recurso. No sustituye un DDS.' };
   }
 }

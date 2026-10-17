@@ -3437,6 +3437,56 @@
         ]
       }
     },
+    "/api/v1/public-references/{reference}/qr.svg": {
+      "get": {
+        "description": "Codifica SOLO el enlace de resolución con la referencia opaca: ni identificadores internos, ni nombres, ni datos personales, ni tokens. Exige la MISMA autorización que resolver la referencia, de modo que el QR se entrega a quien ya puede leer el recurso. Escanearlo no concede acceso: al abrirlo hay que autenticarse y tener permiso. No sustituye un DDS ni acredita conformidad.",
+        "operationId": "PublicReferencesController_qr",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "QR de una referencia pública (RF-33)",
+        "tags": [
+          "Trazabilidad"
+        ]
+      }
+    },
+    "/api/v1/public-references/{reference}/link": {
+      "get": {
+        "description": "El mismo enlace que codifica el QR, para copiarlo. Misma autorización que resolver.",
+        "operationId": "PublicReferencesController_link",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Enlace de resolución de una referencia (RF-33)",
+        "tags": [
+          "Trazabilidad"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/access-grants": {
       "post": {
         "description": "La concesión NO crea membresía ni asigna roles. Exige vencimiento futuro y solo puede conceder lo que el concedente ya tiene.",

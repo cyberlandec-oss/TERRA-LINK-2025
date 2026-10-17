@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { ReferenciaPublica } from '../../../../../lib/public-reference';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api } from '../../../../../lib/api';
@@ -96,6 +97,9 @@ export default function LotDetailPage() {
         producers={[...new Map(l.upstream.receptions.filter((r) => r.producer_id).map((r) => [r.producer_id!, { id: r.producer_id!, code: r.producer_code }])).values()]} />
       <RiskDdSection orgId={orgId} lotId={l.id} can={ws.can} />
       <Alert tone="info">Existencia, calidad y origen son dimensiones separadas: tener existencia no significa calidad liberada ni origen completo. Movimientos en <Link href={`/organizaciones/${orgId}/inventario`}>Inventario</Link>.</Alert>
+      <section className="card">
+        <ReferenciaPublica reference={l.public_reference ?? null} />
+      </section>
       <section className="card" aria-labelledby="lt-hist">
         <h2 id="lt-hist">Historia</h2>
         <ol className="plain" aria-label="Historia del lote">{l.history.map((h) => <li key={h.version}><strong>{h.event_type}</strong> <span className="muted">· {h.actor} · {new Date(h.occurred_at).toLocaleString('es-EC')}</span></li>)}</ol>

@@ -36,6 +36,10 @@ describeDb('RF-47 referencia pública: emisión, unicidad entre tipos, estabilid
   const refOf = async (tipo: string, id: string) =>
     (await sql<{ reference: string }>`SELECT reference FROM public_references WHERE entity_type = ${tipo} AND entity_id = ${id}`.execute(h.db)).rows[0]?.reference;
   const resolve = (ref: string, actor: string) => http().get(`/api/v1/public-references/${ref}`).set(as(actor));
+  const qr = (ref: string, actor: string) => http().get(`/api/v1/public-references/${ref}/qr.svg`).set(as(actor));
+  /** El SVG llega como Buffer porque supertest no parsea `image/svg+xml`. */
+  const svgDe = (r: { text?: string; body: unknown }) => r.text ?? Buffer.from(r.body as Buffer).toString('utf8');
+  const link = (ref: string, actor: string) => http().get(`/api/v1/public-references/${ref}/link`).set(as(actor));
 
   async function join(o: string, email: string, role: string, admin = ADMIN) {
     const inv = await http().post(`${base(o)}/invitations`).set(as(admin)).send({ email, role_code: role }).expect(201);
@@ -248,5 +252,59 @@ describeDb('RF-47 referencia pública: emisión, unicidad entre tipos, estabilid
   it('sin autenticación no resuelve nada', async () => {
     const refLot = (await refOf('LOT', lot))!;
     await http().get(`/api/v1/public-references/${refLot}`).expect(401);
+  });
+
+  // ---------------------------------------------------------------- RF-33: representación visual
+
+  it('RF-33 el QR codifica SOLO el enlace de resolución: sin identificadores internos ni datos', async () => {
+    const ref = (await refOf('LOT', lot))!;
+    const r = await qr(ref, ADMIN).expect(200);
+    expect(r.headers['content-type']).toMatch(/image\/svg\+xml/);
+    const svg = svgDe(r);
+    expect(svg).toMatch(/^<svg /);
+    expect(svg).toContain('viewBox');
+
+    const l = await link(ref, ADMIN).expect(200);
+    expect(l.body.link).toMatch(new RegExp(`/r/${ref}$`));
+    // Lo que NO va dentro: identificador interno, código operativo, organización ni nada personal.
+    for (const prohibido of [lot, orgA, producer]) expect(l.body.link).not.toContain(prohibido);
+    expect(l.body.note).toMatch(/no concede acceso/i);
+    expect(l.body.note).toMatch(/No sustituye un DDS/i);
+  });
+
+  it('RF-33 el QR exige la MISMA autorización que resolver: lo ajeno y lo inexistente responden igual', async () => {
+    const ajena = (await refOf('PRODUCER', producerB))!;
+    const inexistente = '0'.repeat(24);
+    const a = await qr(ajena, ADMIN).expect(404);
+    const b = await qr(inexistente, ADMIN).expect(404);
+    expect(a.body.error.code).toBe(b.body.error.code);
+    expect(a.body.error.message).toBe(b.body.error.message);
+    // Y no se filtra un QR por la puerta de al lado: tampoco el enlace.
+    await link(ajena, ADMIN).expect(404);
+    // CONTROL: su dueño sí obtiene el QR.
+    await qr(ajena, ADMIN_B).expect(200);
+  });
+
+  it('RF-33 el QR respeta el alcance asignado, igual que la resolución', async () => {
+    const refProd = (await refOf('PRODUCER', producer))!;
+    // El técnico resuelve lo asignado…
+    const puedeResolver = (await resolve(refProd, TEC)).status;
+    const puedeQr = (await qr(refProd, TEC)).status;
+    // …y el QR acompaña exactamente a esa decisión, sin ampliarla ni restringirla.
+    expect(puedeQr).toBe(puedeResolver);
+  });
+
+  it('RF-33 sin autenticación no hay QR ni enlace', async () => {
+    const ref = (await refOf('LOT', lot))!;
+    await http().get(`/api/v1/public-references/${ref}/qr.svg`).expect(401);
+    await http().get(`/api/v1/public-references/${ref}/link`).expect(401);
+  });
+
+  it('RF-33 el QR es ESTABLE: el mismo recurso da el mismo código', async () => {
+    const ref = (await refOf('LOT', lot))!;
+    const uno = svgDe(await qr(ref, ADMIN).expect(200));
+    const dos = svgDe(await qr(ref, ADMIN).expect(200));
+    expect(uno).toBe(dos);
+    expect(uno.length).toBeGreaterThan(200);   // hay módulos de verdad, no un SVG vacío
   });
 });

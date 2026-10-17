@@ -7,6 +7,8 @@ export interface LotQuality { status: string; label: string; note: string }
 export interface LotRow { id: string; lot_code: string; source: string; status: string; origin_status: string; product_name: string; product_code: string; quantities: LotQuantities; quality: LotQuality }
 export interface Lot {
   id: string; lot_code: string; source: 'RECEPTIONS' | 'PROCESS_OUTPUT'; status: 'OPEN' | 'CLOSED_FOR_INPUT'; row_version: number; product: { id: string; code: string; name: string };
+  /** RF-47: referencia pública opaca del lote. RF-33 la muestra, la copia y emite su QR. */
+  public_reference?: string | null;
   origin: { status: 'COMPLETE' | 'INCOMPLETE'; label: string; note: string | null }; quality: LotQuality; quantities: LotQuantities & { unit: string; note: string };
   inputs: Array<{ id: string; reception_id: string; delivery_id?: string; delivery_code: string; producer_code: string; received_at: string; weighing_id: string; reception_version: number; quantity: Qty; origin_known: boolean; released: { reason: string; at: string } | null }>;
   produced_by: { run_id: string; run_code: string; process_type: string; quantity: Qty } | null;
