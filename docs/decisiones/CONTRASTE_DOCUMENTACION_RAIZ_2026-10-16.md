@@ -92,7 +92,7 @@ hacerlo y una ponderación inventada convertiría una medida en una opinión.
 | --- | --- | --- | --- | --- |
 | RF-01 | Organización y membresía única | P0-001 | **DEMOSTRADO** | — |
 | RF-02 | Usuarios sin pérdida de historial | P0-002 | **DEMOSTRADO** | Entrega de invitaciones provisional (D-19), registrada |
-| RF-03 | Mínimo privilegio y aislamiento | P0-003 | **PARCIAL** | Dos criterios: *buyer/grants* sin contrato (ADR-0002/P1-001) y *superadmin/elevación* sin **D-04** |
+| RF-03 | Mínimo privilegio y aislamiento | P0-003 | **DEMOSTRADO** (2026-10-17) | Los dos criterios que faltaban quedaron cubiertos: *buyer/grants* con concesiones externas reales (D-P0003.1 = A, migración `0046`) y *superadmin/elevación* con la elevación supervisada ligada a la sesión (D-04, migraciones `0047`/`0048`). Tenant en **API, jobs, descargas y relaciones** en `qa02-jobs-objetos.int-spec.ts`; QA-01 en `members`/`rbac`. **Alcance de la elevación**: una sola acción de lectura redactada (`members:read`); no habilita escritura ni datos personales |
 | RF-04 | Productor con identidad protegida | P0-004 | **DEMOSTRADO** | — |
 | RF-05 | Código y deduplicación | P0-005 | **DEMOSTRADO** | — |
 | RF-06 | Parcela | P0-006 | **DEMOSTRADO** | — |
@@ -157,7 +157,7 @@ producción.
 
 | RNF | Condición | Estado | Qué falta exactamente |
 | --- | --- | --- | --- |
-| RNF-01 | Aislamiento y mínimo privilegio | **PARCIAL** | Cero accesos cruzados demostrado en la matriz; faltan los dos criterios de P0-003 (grants externos y elevación) |
+| RNF-01 | Aislamiento y mínimo privilegio | **DEMOSTRADO** (2026-10-17) | Cero accesos cruzados en la matriz QA-02 **incluidos objetos y relaciones**, con control autorizado en cada caso; y los dos criterios que faltaban de P0-003 —grants externos y elevación— demostrados |
 | RNF-02 | Integridad transaccional | **PARCIAL** | Confirmación, cierre y reserva probados concurrentes; **despacho** no (D-34) |
 | RNF-03 | Auditabilidad | **DEMOSTRADO** | — |
 | RNF-04 | Offline (7 días simulados + interrupción real) | **NO DEMOSTRADO** | El **ensayo** no se ha ejecutado; la duración objetivo sigue sin ADR |
@@ -198,14 +198,15 @@ criterio de cierre de ninguna historia concreta.
 | RNF (RNF-01…12) | 4 | 12 | 33 % |
 | **Total** | **25** | **59** | **42 %** |
 
-**Sí se puede calcular**, y es **42 %** tras el ajuste de §2.bis (era 43 % sobre 58; la obligación encontrada
-añade un requisito al denominador y ninguno al numerador). La diferencia con el 75 % no es una contradicción: son medidas de cosas
+**Sí se puede calcular**, y es **47,5 %** al 2026-10-17: **28 de 59**. Partía de 42 % (25/59) y suben tres
+requisitos: **RF-47** (referencia pública, 2026-10-16) y **RF-03** y **RNF-01** (2026-10-17, al cerrarse los dos
+criterios de P0-003). La diferencia con el 75 % no es una contradicción: son medidas de cosas
 distintas. El 75 % cuenta **historias del MVP cerradas**; el 43 % cuenta **requisitos demostrados de todo el
 documento de requisitos**, incluyendo los 15 de evolución —que nunca estuvieron en el alcance del MVP— y los 12
 transversales, que ninguna historia cierra por sí sola.
 
-**Si se midiera solo lo que el MVP se propuso** (31 RF del MVP + 12 RNF = 43), el resultado sería **25 de 43,
-58 %** — RF-47 es de evolución y no entra aquí. Es la cifra más comparable con el 75 %, y la distancia entre ambas es justamente **lo que el cierre de
+**Si se midiera solo lo que el MVP se propuso** (31 RF del MVP + 12 RNF = 43), el resultado sería **27 de 43,
+62,8 %** — RF-47 es de evolución y no entra aquí; RF-03 y RNF-01 sí. Es la cifra más comparable con el 75 %, y la distancia entre ambas es justamente **lo que el cierre de
 historias no mide**: los requisitos transversales.
 
 ### 7.3 Qué NO miden estos porcentajes

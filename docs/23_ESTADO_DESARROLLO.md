@@ -7,7 +7,7 @@
 | Estado | Historias |
 | --- | ---: |
 | **DONE_LOCAL**, con sus límites de evidencia | **24 de 32** (75 %) |
-| Abiertas, con implementación parcial | **7** — P0-003, P0-017, P0-022, P0-023, P0-024, P0-028, P0-029 |
+| Abiertas, con implementación parcial | **6** — P0-017, P0-022, P0-023, P0-024, P0-028, P0-029 (P0-003 cerrada el 2026-10-17) |
 | Piloto **sin ejecutar** | **1** — P0-031 |
 
 **Qué mide y qué no ese 75 %.** Es el **cierre de historias del MVP** con evidencia local, y nada más. **No** es
@@ -92,7 +92,7 @@ mediciones en `docs/qa/DIAGNOSTICO_VALIDACION_INESTABLE_2026-10-13.md`.
 | TECH-001 | **DONE_LOCAL (fundamentos)** | Ver tabla; lo funcional pendiente pasa a sus historias |
 | P0-001 Organización | **DONE_LOCAL** | Criterios cumplidos; D-18 provisional no afecta el criterio |
 | P0-002 Usuarios | **DONE_LOCAL** | Criterios cumplidos con la autenticación vigente; entrega de invitaciones provisional (D-19) registrada |
-| P0-003 RBAC y aislamiento | **ABIERTA, bloqueada en 1 criterio** (2026-10-17) | «buyer/grants» **demostrado** con concesiones externas (D-P0003.1 opción A, migración `0046`) y «checks de jobs/objects» **demostrado** con la matriz QA-02. Queda **«superadmin/elevación», bloqueado por D-04**, que **no se cierra por omisión**. La **descarga** por concesión espera una decisión declarada |
+| P0-003 RBAC y aislamiento | **DONE_LOCAL** (2026-10-17) | Los seis criterios demostrados: catálogo efectivo, permisos por acción/recurso, A→A y A→B, **checks de FK/jobs/objects** (matriz QA-02), **buyer/grants** (concesiones externas con descarga) y **superadmin/elevación** (D-04 supervisada, ligada a la sesión). Validación APROBADA sobre `de7f996`. **D-04 adoptada como política provisional local**: la elevación habilita **una** acción de lectura redactada |
 | P0-004 Productor | **DONE_LOCAL** | Brecha de cifrado de identidad resuelta (migración 0006) |
 | P0-005 Código y deduplicación | **DONE_LOCAL** | Unicidad concurrente, coincidencia de identidad y revisión sin fusión |
 | P0-006 Parcela | **DONE_LOCAL** (brecha corregida el 2026-10-10) | Clasificación de geometría exacta (doc 06) faltaba: detectada al iniciar P0-007, corregida con `plot:read_geometry` y probada antes de volver a declararla cumplida |
