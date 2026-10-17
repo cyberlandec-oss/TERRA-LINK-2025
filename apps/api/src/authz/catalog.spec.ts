@@ -65,4 +65,25 @@ describe('catálogo RBAC', () => {
       expect(permissionsForRoles([r])).toContain('plot:read_geometry');
     }
   });
+
+  /**
+   * S1 §49 lista `Package` entre las entidades con referencia pública. En esta implementación el paquete de
+   * debida diligencia **se genera desde la instantánea**, y su huella depende además del *perfil de redacción*
+   * de quien exporta (`geometry`, `personal_documents`). Mientras **todos** los roles que pueden exportar
+   * tengan el MISMO perfil, un paquete queda identificado por su instantánea —que sí tiene referencia— y no
+   * hace falta un identificador nuevo.
+   *
+   * Si alguien añade un rol que pueda exportar con un perfil más estrecho, dos paquetes de la misma
+   * instantánea tendrían huellas distintas y **la identidad del paquete dejaría de ser la instantánea**. Esta
+   * prueba existe para que eso no pase inadvertido.
+   */
+  it('la identidad del PAQUETE sigue siendo la instantánea: todos los exportadores comparten perfil de redacción', () => {
+    const exportadores = Object.entries(ROLE_PERMISSIONS).filter(([, p]) => p.includes('dd:export_package'));
+    expect(exportadores.length).toBeGreaterThan(0);
+    const perfiles = new Set(exportadores.map(([, p]) =>
+      `${p.includes('plot:read_geometry')}|${p.includes('producer:read_identity')}`));
+    expect(perfiles.size).toBe(1);
+    // Y es el perfil completo: nadie exporta hoy una versión redactada.
+    expect([...perfiles][0]).toBe('true|true');
+  });
 });

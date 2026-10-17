@@ -237,4 +237,72 @@ describeDb('P0-003 concesiones externas: alcance, vencimiento, revocación, clas
     const texto = JSON.stringify((await sql<{ after: unknown }>`SELECT after FROM audit_logs WHERE entity_id = ${g.id}`.execute(h.db)).rows);
     for (const prohibido of [PASSWORD, 'password', 'access_token']) expect(texto).not.toContain(prohibido);
   });
+
+  // ---------------------------------------------------------------- P1-001/P1-002: audiencia externa
+
+  /** Referencia pública del recurso: el dato que viaja en el enlace y en el QR. */
+  const refDe = async (tipo: string, id: string) =>
+    (await sql<{ reference: string }>`SELECT reference FROM public_references WHERE entity_type = ${tipo} AND entity_id = ${id}`.execute(h.db)).rows[0]?.reference;
+  const resolver = (ref: string, actor: string) => http().get(`/api/v1/public-references/${ref}`).set(as(actor));
+  const qrDe = (ref: string, actor: string) => http().get(`/api/v1/public-references/${ref}/qr.svg`).set(as(actor));
+  const revocar = (id: string) => http().post(`${base(orgA)}/access-grants/${id}/revoke`).set(as(ADMIN)).send({ operation_id: randomUUID(), reason: 'Fin de la prueba' });
+  /** Cada caso usa su PROPIO lote: una concesión activa es única por recurso y destinatario. */
+  let n = 0;
+  const loteNuevo = () => crearLote(orgA, ADMIN, `AX${++n}`);
+
+  it('AUDIENCIA EXTERNA: con concesión vigente, el enlace resuelve SIN membresía', async () => {
+    const l = await loteNuevo();
+    const ref = (await refDe('LOT', l))!;
+    // Sin concesión no resuelve: el rol BUYER por sí solo no concede nada.
+    await resolver(ref, EXTERNO).expect(404);
+
+    const g = (await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: l, expires_at: futuro(), reason: 'Audiencia externa' }).expect(201)).body.grant;
+    const r = await resolver(ref, EXTERNO).expect(200);
+    expect(r.body).toMatchObject({ entity_type: 'LOT', id: l, audience: 'GRANTEE', grant_id: g.id });
+    // CONTROL: el miembro resuelve como MEMBER, no como concesionario.
+    expect((await resolver(ref, ADMIN).expect(200)).body).toMatchObject({ audience: 'MEMBER' });
+    // Y el QR también se le entrega, porque puede abrir el recurso.
+    await qrDe(ref, EXTERNO).expect(200);
+    await revocar(g.id).expect(201);
+  });
+
+  it('AUDIENCIA EXTERNA: la concesión REVOCADA corta la resolución y el QR', async () => {
+    const l = await loteNuevo();
+    const ref = (await refDe('LOT', l))!;
+    const g = (await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: l, expires_at: futuro(), reason: 'Se revocará' }).expect(201)).body.grant;
+    await resolver(ref, EXTERNO).expect(200);   // CONTROL: antes de revocar sí
+    await revocar(g.id).expect(201);
+    await resolver(ref, EXTERNO).expect(404);
+    await qrDe(ref, EXTERNO).expect(404);
+  });
+
+  it('AUDIENCIA EXTERNA: la concesión VENCIDA deja de resolver', async () => {
+    const l = await loteNuevo();
+    const ref = (await refDe('LOT', l))!;
+    // Vence de VERDAD, con el reloj del servidor: los términos de una concesión no se editan, así que
+    // adelantar la fecha en la base no es una opción —y el disparador lo impide, que es lo correcto—.
+    await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: l, expires_at: new Date(Date.now() + 2500).toISOString(), reason: 'Vence en segundos' }).expect(201);
+    await resolver(ref, EXTERNO).expect(200);   // CONTROL: mientras está viva, resuelve
+    await new Promise((r) => setTimeout(r, 3000));
+    await resolver(ref, EXTERNO).expect(404);   // vencida: deja de resolver sola
+  });
+
+  it('AUDIENCIA EXTERNA: la concesión es de UN recurso, no una llave de la organización', async () => {
+    const concedido = await loteNuevo();
+    const otro = await loteNuevo();
+    const g = (await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: concedido, expires_at: futuro(), reason: 'Solo este lote' }).expect(201)).body.grant;
+    await resolver((await refDe('LOT', concedido))!, EXTERNO).expect(200);   // CONTROL
+    // Cualquier otro recurso de la MISMA organización, no.
+    await resolver((await refDe('LOT', otro))!, EXTERNO).expect(404);
+    const prod = (await sql<{ id: string }>`SELECT id FROM producers WHERE organization_id = ${orgA} LIMIT 1`.execute(h.db)).rows[0].id;
+    await resolver((await refDe('PRODUCER', prod))!, EXTERNO).expect(404);
+    await revocar(g.id).expect(201);
+  });
+
+  it('AUDIENCIA EXTERNA: sin lectura concedida no resuelve, aunque la concesión exista', async () => {
+    const l = await loteNuevo();
+    const ref = (await refDe('LOT', l))!;
+    await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: l, can_read: false, can_download: true, expires_at: futuro(), reason: 'Solo descarga' }).expect(201);
+    await resolver(ref, EXTERNO).expect(404);
+  });
 });

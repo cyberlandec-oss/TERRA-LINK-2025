@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { sql } from 'kysely';
+import jsQR from 'jsqr';
 import { PASSWORD, describeDb, setupHarness } from './helpers';
 
 // RF-47 — Referencia pública por entidad, contra PostgreSQL real. Datos SINTÉTICOS.
@@ -306,5 +307,37 @@ describeDb('RF-47 referencia pública: emisión, unicidad entre tipos, estabilid
     const dos = svgDe(await qr(ref, ADMIN).expect(200));
     expect(uno).toBe(dos);
     expect(uno.length).toBeGreaterThan(200);   // hay módulos de verdad, no un SVG vacío
+  });
+
+  it('RF-33 el QR DECODIFICA al enlace esperado, con un decodificador independiente', async () => {
+    const ref = (await refOf('LOT', lot))!;
+    const svg = svgDe(await qr(ref, ADMIN).expect(200));
+    const esperado = (await link(ref, ADMIN).expect(200)).body.link as string;
+
+    // Se rasteriza el SVG a partir de su propia geometría —cada módulo es 1 unidad del viewBox— y se decodifica
+    // con `jsqr`, que NO es el codificador usado para generarlo: si coincidiera por construcción, la prueba no
+    // demostraría nada.
+    const lado = Number(/viewBox="0 0 (\d+)/.exec(svg)![1]);
+    const modulos = new Set((svg.match(/M(\d+) (\d+)h1v1h-1z/g) ?? []).map((m) => {
+      const [, x, y] = /M(\d+) (\d+)/.exec(m)!;
+      return `${x},${y}`;
+    }));
+    const esc = 4;
+    const px = lado * esc;
+    const datos = new Uint8ClampedArray(px * px * 4).fill(255);
+    for (const celda of modulos) {
+      const [x, y] = celda.split(',').map(Number);
+      for (let dy = 0; dy < esc; dy++) {
+        for (let dx = 0; dx < esc; dx++) {
+          const i = ((y * esc + dy) * px + (x * esc + dx)) * 4;
+          datos[i] = datos[i + 1] = datos[i + 2] = 0;
+        }
+      }
+    }
+    const leido = jsQR(datos, px, px);
+    expect(leido).not.toBeNull();
+    expect(leido!.data).toBe(esperado);
+    // Y lo decodificado NO contiene identificadores internos.
+    for (const prohibido of [lot, orgA]) expect(leido!.data).not.toContain(prohibido);
   });
 });

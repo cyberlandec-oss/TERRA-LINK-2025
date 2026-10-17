@@ -89,6 +89,13 @@ a:hover { color: var(--tl-forest); }
 /* Acceso (login / invitación): sin sidebar. */
 .tl-access { min-height: 100vh; display: grid; place-items: center; padding: var(--tl-space-4); }
 .tl-access-card { width: 100%; max-width: 440px; }
+/* Portal del destinatario de una concesión (P1-001): vive fuera del espacio de trabajo y, a diferencia de la
+   tarjeta de ingreso, contiene tablas. `min-width: 0` deja que el hijo encoja dentro de la rejilla; sin eso el
+   ancho mínimo de la tabla estira el contenedor y la página desborda a 390 px. */
+.tl-portal { min-height: 100vh; padding: var(--tl-space-4); display: grid; justify-items: center; }
+.tl-portal-card { width: 100%; max-width: 960px; min-width: 0; }
+.tl-portal-card .table-wrap { max-width: 100%; overflow-x: auto; }
+
 .tl-access-brand { font-size: 28px; font-weight: 700; letter-spacing: 0.06em; color: var(--tl-forest); margin-bottom: var(--tl-space-4); text-align: center; }
 
 /* ---------- Página ---------- */

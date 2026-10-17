@@ -30,7 +30,12 @@ const DESTINO: Record<string, (org: string, id: string) => string> = {
   // daría una pantalla equivocada o un error confuso, así que se muestra el dato y se dice por qué.
 };
 
-interface Resuelta { reference: string; entity_type: string; organization_id: string; id: string; code: string }
+interface Resuelta {
+  reference: string; entity_type: string; organization_id: string; id: string; code: string;
+  /** Por qué se resolvió: miembro de la organización, o destinatario de una concesión vigente. */
+  audience: 'MEMBER' | 'GRANTEE';
+  grant_id?: string;
+}
 
 export default function ResolverReferenciaPage() {
   const params = useParams<{ reference: string }>();
@@ -48,6 +53,9 @@ export default function ResolverReferenciaPage() {
       const r = await api<Resuelta>(`/api/v1/public-references/${reference}`);
       setResuelta(r);
       setError(null);
+      // La audiencia decide el destino. Un destinatario de concesión **no es miembro**: llevarlo a la pantalla
+      // interna le daría un 403 o una pantalla vacía. Va a su vista compartida, que es lo que le corresponde.
+      if (r.audience === 'GRANTEE') { router.replace('/compartido'); return; }
       const destino = DESTINO[r.entity_type];
       if (destino) router.replace(destino(r.organization_id, r.id));
     } catch (e) { setError(e as ApiError); }

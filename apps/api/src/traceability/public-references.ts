@@ -65,7 +65,21 @@ export async function referenciasDe(db: Kysely<Database> | Transaction<Database>
   return Object.fromEntries(r.rows.map((x) => [x.entity_id, x.reference]));
 }
 
-interface Resuelta { reference: string; entity_type: PublicReferenceEntity; organization_id: string; id: string; code: string }
+/**
+ * `audience` dice **por qué** se resolvió, y con eso la interfaz sabe adónde llevar:
+ *   · `MEMBER`  — es miembro de la organización: va a la pantalla interna del recurso;
+ *   · `GRANTEE` — no es miembro, pero tiene una **concesión vigente sobre ESE recurso**: va a la vista
+ *     compartida, que es la única proyección que le corresponde.
+ * No hay una tercera: sin membresía y sin concesión, la respuesta es la opaca de siempre.
+ */
+export type Audiencia = 'MEMBER' | 'GRANTEE';
+
+interface Resuelta {
+  reference: string; entity_type: PublicReferenceEntity; organization_id: string; id: string; code: string;
+  audience: Audiencia;
+  /** Solo para `GRANTEE`: la concesión por la que se resolvió, para abrir su vista. */
+  grant_id?: string;
+}
 
 @Injectable()
 export class PublicReferencesService {
@@ -96,13 +110,44 @@ export class PublicReferencesService {
 
     // Tenant desde el registro, nunca desde la petición: la referencia no elige organización.
     const ctx = await this.authz.tenantContext(user, ref.organization_id);
-    if (!ctx) throw this.opaca;
+    if (!ctx) {
+      // Sin membresía todavía puede haber **concesión vigente sobre este recurso**. Si no la hay, la respuesta
+      // es la misma opaca: quien no tiene nada no distingue «no existe» de «no es para ti».
+      const grant = await this.porConcesion(user, { entity_type: ref.entity_type, entity_id: ref.entity_id });
+      if (!grant) throw this.opaca;
+      const compartida = await this.entidad(ref.entity_type, ref.entity_id, ref.organization_id);
+      if (!compartida) throw this.opaca;
+      return { reference: ref.reference, entity_type: ref.entity_type, organization_id: ref.organization_id,
+        id: compartida.id, code: compartida.code, audience: 'GRANTEE', grant_id: grant };
+    }
 
     const fila = await this.entidad(ref.entity_type, ref.entity_id, ref.organization_id);
     if (!fila) throw this.opaca; // la entidad ya no está, o no es de esa organización
     if (!this.autorizado(ctx, ref.entity_type, fila.assignee)) throw this.opaca;
 
-    return { reference: ref.reference, entity_type: ref.entity_type, organization_id: ref.organization_id, id: fila.id, code: fila.code };
+    return { reference: ref.reference, entity_type: ref.entity_type, organization_id: ref.organization_id, id: fila.id, code: fila.code, audience: 'MEMBER' };
+  }
+
+  /**
+   * P1-001/P1-002 — Audiencia EXTERNA: el destinatario de una **concesión vigente sobre ese mismo recurso**.
+   *
+   * No exige membresía, que es justamente el punto: una concesión es acceso **sin pertenecer**. Y no amplía
+   * nada: exige que la concesión sea de **ese recurso exacto**, que esté **viva** (ni vencida ni revocada),
+   * que tenga **lectura** concedida y que la cuenta siga activa. Al vencer o revocarse, deja de resolver.
+   *
+   * El rol BUYER por sí solo **no** concede nada: lo que habilita es la concesión, no el rol.
+   */
+  private async porConcesion(user: AuthUser, ref: { entity_type: PublicReferenceEntity; entity_id: string }): Promise<string | null> {
+    // Solo los tipos que una concesión puede cubrir; para el resto no hay nada que mirar.
+    if (!['LOT', 'SHIPMENT', 'DD_SNAPSHOT'].includes(ref.entity_type)) return null;
+    const g = await sql<{ id: string }>`
+      SELECT g.id FROM access_grants g
+      JOIN users u ON u.id = g.grantee_user_id AND u.status = 'ACTIVE'
+      WHERE g.grantee_user_id = ${user.id}
+        AND g.resource_type = ${ref.entity_type} AND g.resource_id = ${ref.entity_id}
+        AND g.can_read AND g.revoked_at IS NULL AND g.expires_at > now()
+      ORDER BY g.expires_at DESC LIMIT 1`.execute(this.db);
+    return g.rows[0]?.id ?? null;
   }
 
   private autorizado(ctx: TenantContext, tipo: PublicReferenceEntity, assignee: string | null): boolean {
