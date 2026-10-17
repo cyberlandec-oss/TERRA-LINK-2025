@@ -92,12 +92,13 @@ describeDb('P0-003 concesiones externas: alcance, vencimiento, revocación, clas
     await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: loteB, expires_at: futuro(), reason: 'Ajeno' }).expect(422);
   });
 
-  it('el vencimiento es obligatorio y futuro; la descarga espera una decisión declarada', async () => {
+  it('el vencimiento es obligatorio y futuro', async () => {
     await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: lote, reason: 'Sin vencimiento' }).expect(400);
     const pasado = await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: lote, expires_at: new Date(Date.now() - 1000).toISOString(), reason: 'Vencida ya' }).expect(422);
     expect(pasado.body.error.code).toBe('GRANT_EXPIRY_INVALID');
-    const descarga = await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: lote, can_download: true, expires_at: futuro(), reason: 'Descarga' }).expect(422);
-    expect(descarga.body.error.code).toBe('GRANT_DOWNLOAD_PENDING_DECISION');
+    // Conceder descarga sobre OTRO lote, para no ocupar la única concesión activa del lote compartido.
+    const otro = await crearLote(orgA, ADMIN, 'CL');
+    await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: otro, can_download: true, expires_at: futuro(), reason: 'Descarga' }).expect(201);
   });
 
   it('con una concesión real, la cuenta externa ve la proyección permitida y nada más', async () => {
@@ -119,7 +120,8 @@ describeDb('P0-003 concesiones externas: alcance, vencimiento, revocación, clas
     // La concesión NO crea membresía ni da acceso general: la vía normal sigue cerrada.
     await http().get(`${base(orgA)}/lots/${lote}`).set(as(EXTERNO)).expect(404);
     await http().get(`${base(orgA)}/producers`).set(as(EXTERNO)).expect(404);
-    expect((await mias().expect(200)).body.grants).toHaveLength(1);
+    // Contiene ESTA concesión; no se fija un total, que depende de otras pruebas del mismo archivo.
+    expect((await mias().expect(200)).body.grants.map((x: { id: string }) => x.id)).toContain(g.id);
   });
 
   it('no concede acciones distintas de las concedidas, ni otros recursos', async () => {
@@ -131,6 +133,37 @@ describeDb('P0-003 concesiones externas: alcance, vencimiento, revocación, clas
     await leerConcedido(g.id).expect(200);
     // Otra cuenta no usa la concesión ajena, aunque sepa su identificador.
     await leerConcedido(g.id, ADMIN_B).expect(404);
+  });
+
+  it('la descarga entrega la MISMA proyección, identificada como vista compartida interna', async () => {
+    const lote8 = await crearLote(orgA, ADMIN, 'CJ');
+    const g = (await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: lote8, can_read: true, can_download: true, expires_at: futuro(), reason: 'Compartir' }).expect(201)).body.grant;
+    const leido = (await leerConcedido(g.id).expect(200)).body;
+    const bajado = await http().get(`/api/v1/granted/${g.id}/download`).set(as(EXTERNO)).expect(200);
+
+    expect(bajado.headers['content-disposition']).toMatch(/attachment; filename="vista-compartida-lot-/);
+    const archivo = JSON.parse(Buffer.isBuffer(bajado.body) ? bajado.body.toString('utf8') : JSON.stringify(bajado.body));
+    // Se identifica como lo que es, y dice lo que NO es.
+    expect(archivo.tipo_de_archivo).toBe('VISTA_COMPARTIDA_INTERNA');
+    expect(archivo.aviso).toMatch(/NO es un DD_PACKAGE/);
+    expect(archivo.aviso).toMatch(/NO acredita conformidad EUDR/);
+    expect(archivo.limitaciones.length).toBeGreaterThan(0);
+    expect(archivo.generado_en).toEqual(expect.any(String));
+    // Y es EXACTAMENTE la proyección que ya podía leer: ni un campo más.
+    expect(archivo.recurso).toEqual(leido);
+    const texto = JSON.stringify(archivo);
+    expect(texto).not.toMatch(/coordinates|geometry/i);
+    expect(texto).not.toMatch(/Finca C|CJ-P/);
+
+    // Sin la acción concedida no hay descarga, aunque se pueda leer.
+    const soloLectura = await crearLote(orgA, ADMIN, 'CK');
+    const g2 = (await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: soloLectura, expires_at: futuro(), reason: 'Solo lectura' }).expect(201)).body.grant;
+    await leerConcedido(g2.id).expect(200);
+    await http().get(`/api/v1/granted/${g2.id}/download`).set(as(EXTERNO)).expect(404);
+
+    // Revocada, tampoco se descarga.
+    await http().post(`${base(orgA)}/access-grants/${g.id}/revoke`).set(as(ADMIN)).send({ operation_id: randomUUID(), reason: 'Fin' }).expect(201);
+    await http().get(`/api/v1/granted/${g.id}/download`).set(as(EXTERNO)).expect(404);
   });
 
   it('la revocación tiene efecto inmediato y no se reactiva', async () => {

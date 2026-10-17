@@ -676,6 +676,18 @@ export interface AccessGrantsTable {
   granted_by: string; operation_id: string; created_at: Generated<Timestamp>;
   revoked_at: Timestamp | null; revoked_by: string | null; revoke_reason: string | null;
 }
+// D-04 — Elevación de plataforma supervisada: la pide SUPER_ADMIN, la aprueba un ORG_ADMIN distinto de la
+// organización afectada, dura 15 minutos como máximo y solo habilita un catálogo cerrado de acciones de
+// lectura. No crea membresía ni asigna roles (migración 0047).
+export interface PlatformElevationsTable {
+  id: string; organization_id: string; requested_by: string; purpose: string; reason: string; scope_note: string;
+  actions: string[]; duration_seconds: number; session_token_version: number | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVOKED' | 'ENDED' | 'EXPIRED';
+  approved_by: string | null; approved_at: Timestamp | null; expires_at: Timestamp | null;
+  rejected_at: Timestamp | null; reject_reason: string | null;
+  revoked_at: Timestamp | null; revoked_by: string | null; revoke_reason: string | null;
+  ended_at: Timestamp | null; operation_id: string; created_at: Generated<Timestamp>;
+}
 export interface PublicReferencesTable { reference: string; entity_type: PublicReferenceEntity; entity_id: string; organization_id: string; created_at: Generated<Timestamp> }
 export interface DdExportsTable { id: string; organization_id: string; snapshot_id: string; kind: 'INTERNAL_REVIEW' | 'DD_PACKAGE'; redaction_profile: unknown; package_hash: string; size_bytes: number; exported_by: string; exported_at: Generated<Timestamp>; operation_id: string }
 export interface MitigationDecisionsTable { id: string; organization_id: string; action_id: string; submission_number: number; decision: 'VERIFIED' | 'REJECTED'; reason: string; decided_by: string; decided_at: Generated<Timestamp>; operation_id: string; criterion_met: boolean | null }
@@ -827,6 +839,7 @@ export interface Database {
   dd_exports: DdExportsTable;
   public_references: PublicReferencesTable;
   access_grants: AccessGrantsTable;
+  platform_elevations: PlatformElevationsTable;
   satellite_providers: SatelliteProvidersTable;
   satellite_jobs: SatelliteJobsTable;
   satellite_results: SatelliteResultsTable;

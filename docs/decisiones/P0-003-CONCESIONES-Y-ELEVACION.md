@@ -1,6 +1,8 @@
 # P0-003 — Concesiones externas y elevación de plataforma
 
-**Estado: contraste previo. Nada implementado todavía.** Fecha: 2026-10-16.
+**Estado: ambas mitades ADOPTADAS como políticas provisionales locales e implementadas.**
+Concesiones (D-P0003.1 = A) el 2026-10-16; **elevación supervisada (D-04) y descarga por concesión** el
+2026-10-17. Fecha de origen del contraste: 2026-10-16.
 Criterios originales (`docs/18_BACKLOG.md` P0-003): «catálogo efectivo, permisos por acción/recurso, checks de
 FK/jobs/objects; casos A→A y A→B, **buyer/grants** y **superadmin/elevación**; UI no sustituye backend».
 RF-03 · QA-02.
@@ -158,3 +160,62 @@ la ha considerado: si la plataforma no necesita entrar, el criterio se cierra de
    respuesta, y **C (no haber elevación) es una de las respuestas posibles**.
 
 Con 1 y 2, P0-003 quedaría con **un solo criterio abierto** —elevación— en lugar de dos.
+
+---
+
+# Parte II — Políticas adoptadas el 2026-10-17
+
+## 7. Elevación de plataforma supervisada (D-04)
+
+**Decisiones de diseño del MVP local, no obligaciones deducidas de las fuentes.** Implementada en la migración
+`0047_d04_elevacion_supervisada` y en `apps/api/src/authz/platform-elevation.ts`.
+
+| # | Política | Cómo se garantiza |
+| --- | --- | --- |
+| 1 | La pide **solo SUPER_ADMIN**, autenticado y con **comprobación reciente de contraseña** | `requirePlatform` + `verifyPassword`; conocer un identificador de organización no basta |
+| 2 | La aprueba un **ORG_ADMIN activo y distinto** de la organización afectada. **Sin autoaprobación ni excepción de emergencia** | `CHECK approved_by <> requested_by`, disparador que exige ORG_ADMIN activo de esa organización, y comprobación en el caso de uso |
+| 3 | Identifica organización, finalidad, motivo, ámbito, acciones y duración. **Máximo 15 minutos** desde la activación, con la hora del servidor | Campos obligatorios; `CHECK duration_seconds BETWEEN 60 AND 900`; `expires_at` se fija al aprobar y se compara con `now()` |
+| 4 | **No modifica roles ni crea membresías.** Ligada al solicitante y a su sesión; no acumula entre organizaciones | No toca `memberships` ni `role_assignments`; `session_token_version` liga la sesión; índice único por organización y solicitante |
+| 5 | Solo acciones **expresamente solicitadas, aprobadas y soportadas**. Sin «acceso total». Identidad, geometrías, documentos personales, escritura y administración de permisos **excluidos** | Catálogo cerrado `['members:read']` con `CHECK actions <@ ...`; la lectura elevada **redacta nombres y correos**; las escrituras de `members.ts` siguen bloqueadas |
+| 6 | **Revocación inmediata** por el aprobador y **finalización anticipada** por el solicitante. Vencimiento, cierre de sesión o desactivación cortan el acceso | Rutas `revoke` y `end`; `vigente()` revalida estado, `expires_at > now()`, cuenta activa y `token_version` |
+| 7 | Auditoría de solicitud, aprobación o rechazo, activación, revocación y **uso**, sin datos protegidos; y **visibilidad para la organización** | `elevation.request/approve/reject/revoke/end/use` en la bitácora; `GET …/platform-elevations` lista solicitudes, estado y nº de usos para quien administra membresías |
+
+### 7.1 La diferencia concreta que hubo que presentar
+
+El perfil propuesto **no nombraba ninguna acción**, y el **único punto de lectura** que hoy responde
+`ELEVATION_REQUIRED` es el **listado de miembros** (`members.ts`; los otros dos son escrituras —cambiar
+membresía y cambiar roles— que el perfil excluye). Sin incluir `members:read`, la elevación no habilitaría nada
+y el criterio «superadmin/elevación» **no podría demostrarse**.
+
+Se añade por eso **una sola acción**, de lectura, y **con los datos personales redactados**: la plataforma ve la
+forma de la organización —cuántas membresías, con qué roles y en qué estado— **no quiénes son**. No se amplía
+ningún otro privilegio por interpretación.
+
+## 8. Descarga por concesión: vista compartida interna
+
+Sustituye al rechazo `GRANT_DOWNLOAD_PENDING_DECISION` que esta misma decisión dejó pendiente el 2026-10-16.
+
+- Es **un archivo interno de la MISMA proyección** que el destinatario ya puede leer. `leer()` y `descargar()`
+  comparten **una sola** implementación (`proyeccion()`): no existe una segunda, más amplia.
+- Se **identifica como lo que es**: `tipo_de_archivo: VISTA_COMPARTIDA_INTERNA`, con recurso, fecha de
+  generación y limitaciones, y dice explícitamente que **no es un `DD_PACKAGE`, ni una DDS, ni prueba de
+  conformidad, ni una presentación oficial**.
+- **No sirve el paquete final original** ni incorpora identidad, geometrías o documentos que la concesión no
+  permita. Revalida cuenta, concesión, vencimiento, revocación y acción **al descargar**, audita la descarga y
+  no crea enlaces públicos.
+
+## 9. Estado de los criterios de P0-003
+
+| Criterio original | Estado |
+| --- | --- |
+| Catálogo efectivo, permisos por acción/recurso | **Verificado** |
+| Casos A→A y A→B | **Verificado** |
+| UI no sustituye backend | **Verificado** |
+| Checks de FK/jobs/objects | **Demostrado** (matriz QA-02, 2026-10-16) |
+| buyer/grants | **Demostrado** (concesiones reales + descarga, 2026-10-17) |
+| superadmin/elevación | **Demostrado** con el perfil adoptado (2026-10-17) |
+
+**Lo que el perfil adoptado NO cubre, y por tanto no se declara:** la elevación habilita **una** acción de
+lectura redactada. Cualquier soporte que exigiera datos personales, geometrías, documentos o escritura
+**sigue sin estar contemplado** y necesitaría una decisión nueva. RF-03 y los RNF solo se actualizan si cada
+requisito completo queda demostrado; esto se contrasta en el cierre de la entrega, no aquí.

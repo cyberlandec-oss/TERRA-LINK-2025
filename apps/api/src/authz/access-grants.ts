@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Req, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiOperation, ApiPropertyOptional, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsBoolean, IsIn, IsISO8601, IsOptional, IsString, IsUUID, Length } from 'class-validator';
 import { randomUUID } from 'crypto';
@@ -27,8 +28,6 @@ type Tipo = 'LOT' | 'SHIPMENT' | 'DD_SNAPSHOT';
 
 /** Permiso que el CONCEDENTE debe tener para poder conceder lectura de cada tipo: no se concede lo que no se tiene. */
 const LECTURA: Record<Tipo, Permission> = { LOT: 'lot:read', SHIPMENT: 'shipment:read', DD_SNAPSHOT: 'dd:read' };
-/** Y para conceder descarga del paquete, además, la facultad de exportarlo. */
-const DESCARGA: Record<Tipo, Permission | null> = { LOT: null, SHIPMENT: null, DD_SNAPSHOT: 'dd:export_package' };
 
 class CrearConcesionDto {
   @ApiProperty() @IsUUID() operation_id!: string;
@@ -72,16 +71,12 @@ export class AccessGrantsService {
     if (quiereLeer && !ctx.permissions.includes(LECTURA[dto.resource_type])) {
       throw forbidden('GRANT_BEYOND_GRANTOR', 'No puedes conceder una lectura que tú no tienes sobre ese recurso.');
     }
-    // La DESCARGA espera una decisión de producto y, mientras tanto, **no se concede para ningún tipo**:
-    // conceder algo que el sistema no va a entregar sería peor que rechazarlo. El conflicto está contrastado:
-    // construir el paquete para una cuenta sin permisos produce redacciones (geometrías y documentos con datos
-    // personales) y la exportación de un DD_PACKAGE **se bloquea** cuando las hay (`EXPORT_SCOPE_INSUFFICIENT`,
-    // dd.ts); servir en su lugar el ya exportado ampliaría el acceso, que es justo lo que el punto 6 del
-    // contrato prohíbe sin contrato expreso. Decisión en `docs/decisiones/P0-003-CONCESIONES-Y-ELEVACION.md`.
-    if (quiereDescargar) {
-      throw new AppError(422, 'GRANT_DOWNLOAD_PENDING_DECISION',
-        'La concesión de DESCARGA espera una decisión de producto: el paquete final se bloquea si hay que redactarlo, y servir el ya exportado ampliaría el acceso a geometrías y documentos personales. Concede lectura mientras tanto.',
-        [{ field: 'can_download', reason: `decisión pendiente; cuando se resuelva exigirá ${DESCARGA[dto.resource_type] ?? 'una facultad de descarga que este tipo no tiene'}` }]);
+    // DESCARGA adoptada (2026-10-17): es un **archivo interno de la MISMA proyección** que el destinatario ya
+    // puede leer, no el paquete final. Por eso basta con que el concedente pueda conceder esa lectura; no se
+    // exige una facultad de exportación, porque no se exporta el paquete. El contenido lo produce `leer()`:
+    // una sola proyección, sin una segunda más amplia.
+    if (quiereDescargar && !ctx.permissions.includes(LECTURA[dto.resource_type])) {
+      throw forbidden('GRANT_BEYOND_GRANTOR', 'No puedes conceder una descarga de algo que tú no puedes leer.');
     }
 
     // 2) Vencimiento obligatorio y futuro.
@@ -198,6 +193,16 @@ export class AccessGrantsService {
   async leer(user: AuthUser, grantId: string) {
     const g = await this.vigente(user, grantId, 'read');
     await this.registrarUso(user, g.organization_id, g.id, 'grant.read');
+    return this.proyeccion(g);
+  }
+
+  /**
+   * **La** proyección permitida — una sola, compartida por la lectura y por la descarga, para que no existan
+   * dos con alcances distintos. La concesión **no levanta la clasificación**: no hay identidad de productores,
+   * ni geometrías, ni documentos personales; solo códigos, estados y agregados, como el Buyer Portal de
+   * S3 §22.8 («183 productores», no sus nombres).
+   */
+  private async proyeccion(g: { organization_id: string; resource_type: Tipo; resource_id: string }) {
     const org = g.organization_id;
     if (g.resource_type === 'LOT') {
       const l = (await sql<{ id: string; lot_code: string; status: string; origin_status: string; product: string; productores: number; parcelas: number }>`
@@ -231,6 +236,34 @@ export class AccessGrantsService {
       requirements: (sn.requirements ?? []).map((r) => ({ code: r.code, status: r.status })),
       public_reference: await referenciaDe(this.db, org, 'DD_SNAPSHOT', sn.id),
       nota: 'Preparación interna. NO acredita presentación de DDS ni conformidad EUDR.' };
+  }
+
+  /**
+   * Descarga por concesión: **vista compartida interna**, no el paquete final. Reutiliza exactamente la misma
+   * proyección de `leer()` —no hay una segunda, más amplia— y se identifica como lo que es, con su recurso, su
+   * fecha y sus límites. Revalida cuenta, concesión, vencimiento, revocación y acción, como cualquier acceso.
+   */
+  async descargar(user: AuthUser, grantId: string) {
+    const g = await this.vigente(user, grantId, 'download');
+    const proyeccion = await this.proyeccion(g);
+    await this.registrarUso(user, g.organization_id, g.id, 'grant.download');
+    const org = await this.db.selectFrom('organizations').select('name').where('id', '=', g.organization_id).executeTakeFirst();
+    const generado = new Date().toISOString();
+    const cuerpo = {
+      tipo_de_archivo: 'VISTA_COMPARTIDA_INTERNA',
+      aviso: 'Vista compartida interna de Terra Link. NO es un DD_PACKAGE, NO es una DDS, NO acredita conformidad EUDR y NO es una presentación oficial.',
+      limitaciones: [
+        'Contiene exactamente lo que la concesión permite leer: agregados, sin identidad, geometrías ni documentos.',
+        'Refleja el estado en la fecha de generación; no se actualiza y no prueba vigencia posterior.',
+        'La concesión que la habilita puede vencer o revocarse en cualquier momento.',
+      ],
+      organizacion_emisora: org?.name ?? null,
+      recurso: proyeccion,
+      generado_en: generado,
+      concesion: { id: g.id, vence: g.expires_at },
+    };
+    const nombre = `vista-compartida-${g.resource_type.toLowerCase()}-${generado.slice(0, 10)}.json`;
+    return { nombre, cuerpo };
   }
 
   /** Registra el USO, no solo la creación: el contrato exige auditar creación, cambios, revocación y uso. */
@@ -273,6 +306,16 @@ export class GrantedController {
   @ApiOperation({ summary: 'Lo que otras organizaciones han concedido a mi cuenta (P0-003)' })
   mias(@CurrentUser() u: AuthUser) {
     return this.service.mias(u);
+  }
+
+  @Get(':grantId/download')
+  @ApiOperation({ summary: 'Descargar la vista compartida interna del recurso concedido',
+    description: 'Archivo interno con la MISMA proyección que la lectura. No es DD_PACKAGE, DDS ni prueba de conformidad. Revalida cuenta, concesión, vencimiento, revocación y acción.' })
+  async descargar(@CurrentUser() u: AuthUser, @Param('grantId', ParseUUIDPipe) id: string, @Res() res: Response) {
+    const { nombre, cuerpo } = await this.service.descargar(u, id);
+    res.setHeader('content-type', 'application/json; charset=utf-8');
+    res.setHeader('content-disposition', `attachment; filename="${nombre}"`);
+    res.send(JSON.stringify(cuerpo, null, 2));
   }
 
   @Get(':grantId')

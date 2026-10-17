@@ -3136,6 +3136,31 @@
         ]
       }
     },
+    "/api/v1/granted/{grantId}/download": {
+      "get": {
+        "description": "Archivo interno con la MISMA proyección que la lectura. No es DD_PACKAGE, DDS ni prueba de conformidad. Revalida cuenta, concesión, vencimiento, revocación y acción.",
+        "operationId": "GrantedController_descargar",
+        "parameters": [
+          {
+            "name": "grantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Descargar la vista compartida interna del recurso concedido",
+        "tags": [
+          "Autorización"
+        ]
+      }
+    },
     "/api/v1/granted/{grantId}": {
       "get": {
         "description": "Revalida cuenta, concesión, vencimiento, revocación y acción en CADA acceso. Un recurso inexistente y uno no concedido responden igual.",
@@ -3156,6 +3181,219 @@
           }
         },
         "summary": "Proyección permitida del recurso concedido",
+        "tags": [
+          "Autorización"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/platform-elevations": {
+      "post": {
+        "description": "Solo SUPER_ADMIN, con comprobación reciente de contraseña. Queda PENDIENTE hasta que la apruebe un ORG_ADMIN distinto de la organización afectada. Máximo 15 minutos.",
+        "operationId": "PlatformElevationController_solicitar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitarDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Solicitar elevación de plataforma (D-04)",
+        "tags": [
+          "Autorización"
+        ]
+      },
+      "get": {
+        "description": "Visibilidad para la organización afectada: quién pidió qué, con qué alcance, si se aprobó y cuántas veces se usó.",
+        "operationId": "PlatformElevationController_listar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Solicitudes y accesos de plataforma sobre esta organización",
+        "tags": [
+          "Autorización"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/platform-elevations/{id}/approve": {
+      "post": {
+        "operationId": "PlatformElevationController_aprobar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecidirDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Autorización"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/platform-elevations/{id}/reject": {
+      "post": {
+        "operationId": "PlatformElevationController_rechazar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecidirDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Autorización"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/platform-elevations/{id}/revoke": {
+      "post": {
+        "operationId": "PlatformElevationController_revocar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecidirDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Autorización"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/platform-elevations/{id}/end": {
+      "post": {
+        "operationId": "PlatformElevationController_terminar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Finalización anticipada por el propio solicitante",
         "tags": [
           "Autorización"
         ]
@@ -9574,6 +9812,65 @@
         ]
       },
       "RevocarDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "reason"
+        ]
+      },
+      "SolicitarDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "description": "Contraseña del solicitante: la elevación exige comprobación reciente, no basta el token."
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "scope_note": {
+            "type": "string",
+            "description": "Recursos o ámbito concreto al que se limita el soporte."
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "members:read"
+              ]
+            }
+          },
+          "duration_seconds": {
+            "type": "number",
+            "description": "Duración en segundos, máximo 900 (15 minutos)."
+          }
+        },
+        "required": [
+          "operation_id",
+          "password",
+          "purpose",
+          "reason",
+          "scope_note",
+          "actions",
+          "duration_seconds"
+        ]
+      },
+      "DecidirDto": {
         "type": "object",
         "properties": {
           "operation_id": {

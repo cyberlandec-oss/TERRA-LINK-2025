@@ -55,6 +55,7 @@ import { CteController, CteService } from './traceability/cte';
 import { KdeController, KdeService } from './traceability/kde';
 import { PublicReferencesController, PublicReferencesService } from './traceability/public-references';
 import { AccessGrantsController, AccessGrantsService, GrantedController } from './authz/access-grants';
+import { PlatformElevationController, PlatformElevationService } from './authz/platform-elevation';
 import { EventHistoryController, EventHistoryService } from './events/event-history';
 import { DocumentsController, DocumentsService } from './documents/documents';
 import { EvidenceController, EvidenceService } from './evidence/evidence';
@@ -201,7 +202,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         HealthController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
-        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, GeoProfileController, ProductsController, CteController, KdeController, PublicReferencesController, AccessGrantsController, GrantedController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, ShipmentsController, SatelliteController, ReportsController, EntityReportsController,
+        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, GeoProfileController, ProductsController, CteController, KdeController, PublicReferencesController, AccessGrantsController, GrantedController, PlatformElevationController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, ShipmentsController, SatelliteController, ReportsController, EntityReportsController,
       ],
       providers: [
         { provide: APP_CONFIG, useValue: config },
@@ -234,6 +235,7 @@ export class AppModule implements NestModule {
         KdeService,
         PublicReferencesService,
         AccessGrantsService,
+        PlatformElevationService,
         EventHistoryService,
         DocumentsService,
         EvidenceService,

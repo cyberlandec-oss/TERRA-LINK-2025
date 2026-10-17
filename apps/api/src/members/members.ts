@@ -22,6 +22,7 @@ import { DB } from '../db/database';
 import type { Database } from '../db/schema';
 import { AppError, conflict, forbidden, notFound, unauthenticated } from '../common/errors';
 import { AuditService } from '../audit/audit.service';
+import { PlatformElevationService } from '../authz/platform-elevation';
 import { AuthorizationService } from '../authz/authorization.service';
 import { ORGANIZATION_ROLES, assignableRoles, canGrantRole, type Permission } from '../authz/catalog';
 import { CurrentUser, Public, issueAccessToken, type AuthUser, type AuthedRequest } from '../auth/auth';
@@ -76,6 +77,7 @@ export class MembersService {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly authz: AuthorizationService,
     private readonly audit: AuditService,
+    private readonly elevation: PlatformElevationService,
   ) {}
 
   /**
@@ -334,8 +336,26 @@ export class MembersService {
     return { id: current.id, reactivated: true };
   }
 
-  async listMembers(user: AuthUser, orgId: string) {
-    if ((await this.actor(user, orgId, 'membership:read', false)).onboarding) this.elevationRequired();
+  async listMembers(user: AuthUser, orgId: string, requestId?: string) {
+    if ((await this.actor(user, orgId, 'membership:read', false)).onboarding) {
+      // D-04: sin elevación aprobada y vigente, sigue bloqueado. Con ella, SOLO lectura y **sin datos
+      // personales**: el perfil adoptado excluye la identidad protegida, así que la plataforma ve la forma de
+      // la organización —cuántas membresías, con qué roles y en qué estado—, no quiénes son.
+      const elev = await this.elevation.vigente(user, orgId, 'members:read');
+      if (!elev) this.elevationRequired();
+      await this.elevation.registrarUso(user, orgId, elev.id, 'listado de miembros sin datos personales', requestId);
+      const filas = await this.db
+        .selectFrom('memberships as m')
+        .select([
+          'm.id as membership_id', 'm.status', 'm.status_reason',
+          sql<string[]>`coalesce((select array_agg(ra.role_code order by ra.role_code) from role_assignments ra
+            where ra.membership_id = m.id and ra.organization_id = m.organization_id), '{}')`.as('roles'),
+        ])
+        .where('m.organization_id', '=', orgId)
+        .orderBy('m.id')
+        .execute();
+      return filas.map((f) => ({ ...f, redacted: true, note: 'Elevación de plataforma: sin nombres ni correos. No es acceso de miembro.' }));
+    }
     return this.db
       .selectFrom('memberships as m')
       .innerJoin('users as u', 'u.id', 'm.user_id')
@@ -468,8 +488,8 @@ export class MembersController {
   }
 
   @Get('members')
-  members(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string) {
-    return this.service.listMembers(user, orgId);
+  members(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Req() req: AuthedRequest) {
+    return this.service.listMembers(user, orgId, req.requestId);
   }
 
   @Post('members/:membershipId/deactivate')
