@@ -193,6 +193,256 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/legal-profile/catalog": {
+      "get": {
+        "description": "Versiones, fuentes y reglas CANDIDATAS. Una regla en DRAFT no es una regla aprobada.",
+        "operationId": "LegalProfileController_catalogo",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Catálogo de perfiles jurídicos (P1-005)",
+        "tags": [
+          "Perfil jurídico (P1-005)"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/legal-profile/adoptions": {
+      "post": {
+        "description": "Requiere `risk:approve_rules`. Append-only. Adoptar un perfil parcial no lo vuelve suficiente.",
+        "operationId": "LegalProfileController_adoptar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdoptarDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Adoptar o retirar un perfil",
+        "tags": [
+          "Perfil jurídico (P1-005)"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/legal-assessments": {
+      "post": {
+        "description": "Requiere `dd:manage`. Crea un ítem por regla candidata, en aplicabilidad DESCONOCIDA y resultado NO EVALUABLE.",
+        "operationId": "LegalAssessmentsController_preparar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepararDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Preparar la evaluación legal de una parcela",
+        "tags": [
+          "Perfil jurídico (P1-005)"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/legal-assessments/{id}": {
+      "get": {
+        "description": "Requiere `dd:read` y alcance sobre la parcela.",
+        "operationId": "LegalAssessmentsController_ver",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Consultar una evaluación legal",
+        "tags": [
+          "Perfil jurídico (P1-005)"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/legal-assessments/{id}/items/{itemId}": {
+      "put": {
+        "description": "Requiere `risk:review`. Concurrencia por `expected_version`; cada cambio deja historia.",
+        "operationId": "LegalAssessmentsController_revisar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevisarDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revisar aplicabilidad, evidencia y resultado",
+        "tags": [
+          "Perfil jurídico (P1-005)"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/legal-assessments/{id}/items/{itemId}/history": {
+      "get": {
+        "description": "Append-only: se conserva aunque el ítem cambie después.",
+        "operationId": "LegalAssessmentsController_historial",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Historial de un requisito",
+        "tags": [
+          "Perfil jurídico (P1-005)"
+        ]
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "operationId": "AuthController_login",
@@ -9144,6 +9394,18 @@
       }
     },
     "schemas": {
+      "AdoptarDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "PrepararDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RevisarDto": {
+        "type": "object",
+        "properties": {}
+      },
       "LoginDto": {
         "type": "object",
         "properties": {

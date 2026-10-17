@@ -37,7 +37,15 @@ export interface DdContent {
    * corresponde no puede usarse.
    */
   shipment_links: Array<{ shipment_id: string; shipment_code: string; shipment_status: string; item_id: string; reservation_id: string; lot_id: string; quantity: string; unit: string; location_id: string }>;
-  profiles: { legal_profile: string | null; geolocation_profile: string | null; satellite_provider: string | null };
+  profiles: {
+    /**
+     * P1-005: estado del perfil jurídico ADOPTADO por la organización, o `null` si no adoptó ninguno.
+     * Es un objeto y no un texto porque el requisito necesita distinguir tres cosas: no hay perfil, hay uno
+     * insuficiente (parcial o sin revisión jurídica) y hay uno completo y revisado.
+     */
+    legal_profile: null | { version: string; scope: 'PARTIAL' | 'COMPLETE'; legal_review_status: 'PENDING' | 'REVIEWED'; pending_matters: string[] };
+    geolocation_profile: string | null; satellite_provider: string | null;
+  };
 }
 
 export interface Requirement { code: string; label: string; status: ReqStatus; detail: string; source: string; references: string[] }
@@ -96,8 +104,28 @@ export function evaluateRequirements(c: DdContent): Requirement[] {
       : without.length ? r('DELIVERY_SUPPORTS', 'Soportes de entrega vigentes y disponibles', 'PENDING', `${without.length} entrega(s) sin soporte (D-35 MVP: no impide recibir; queda pendiente).`, 'D-35 MVP', without)
         : r('DELIVERY_SUPPORTS', 'Soportes de entrega vigentes y disponibles', 'MET', 'Cada entrega tiene un soporte vigente y disponible (no prueba autenticidad ni validez jurídica).', 'D-35 MVP'));
   } else out.push(r('DELIVERY_SUPPORTS', 'Soportes de entrega vigentes y disponibles', 'NOT_EVALUABLE', 'Sin entregas en el grafo.', 'D-35 MVP'));
-  out.push(r('LEGAL_PROFILE', 'Perfil jurídico aplicable (legalidad y evidencias exigibles)', c.profiles.legal_profile ? 'MET' : 'NOT_EVALUABLE',
-    c.profiles.legal_profile ?? `Sin perfil jurídico aprobado (P1-005): no hay lista de requisitos legales ni evidencias exigibles. ${c.evidence.length} evidencia(s) registrada(s) se conservan como referencia; D-37 sigue pendiente.`, 'docs/13 §Legalidad Ecuador'));
+  // P1-005. Tres situaciones distintas, y ninguna se confunde con otra:
+  //   · sin perfil adoptado      → NOT_EVALUABLE (no se presume nada);
+  //   · perfil PARCIAL o sin revisión jurídica → **PENDING**: hay mecanismo y hay trabajo hecho, pero la
+  //     revisión necesaria sigue sin resolverse, y eso **impide acreditar READY**. Desconocido no es
+  //     incumplimiento, pero tampoco requisito satisfecho;
+  //   · perfil COMPLETE y REVIEWED → MET.
+  const lp = c.profiles.legal_profile;
+  if (!lp) {
+    out.push(r('LEGAL_PROFILE', 'Perfil jurídico aplicable (legalidad y evidencias exigibles)', 'NOT_EVALUABLE',
+      `Sin perfil jurídico adoptado (P1-005): no hay lista de requisitos legales ni evidencias exigibles. ${c.evidence.length} evidencia(s) registrada(s) se conservan como referencia; D-37 sigue pendiente.`, 'docs/13 §Legalidad Ecuador'));
+  } else if (lp.scope === 'PARTIAL' || lp.legal_review_status !== 'REVIEWED') {
+    const motivos = [
+      ...(lp.scope === 'PARTIAL' ? [`alcance PARCIAL (faltan: ${lp.pending_matters.join(', ') || 'sin declarar'})`] : []),
+      ...(lp.legal_review_status !== 'REVIEWED' ? ['sin revisión jurídica resuelta'] : []),
+    ];
+    out.push(r('LEGAL_PROFILE', 'Perfil jurídico aplicable (legalidad y evidencias exigibles)', 'PENDING',
+      `Perfil ${lp.version} adoptado, pero no satisface el requisito: ${motivos.join(' y ')}. Una revisión necesaria pendiente sigue impidiendo acreditar READY.`,
+      'docs/13 §Legalidad Ecuador'));
+  } else {
+    out.push(r('LEGAL_PROFILE', 'Perfil jurídico aplicable (legalidad y evidencias exigibles)', 'MET',
+      `Perfil ${lp.version} adoptado, completo y con revisión jurídica resuelta.`, 'docs/13 §Legalidad Ecuador'));
+  }
   // 5) Riesgo y mitigaciones.
   if (!c.risk) {
     // Sin evaluación: los requisitos de riesgo siguen listados; lo desconocido queda visible, nunca omitido.

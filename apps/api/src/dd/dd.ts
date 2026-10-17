@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Req, Res } from '@nestjs/common';
+import { perfilDeOrganizacion } from '../legal/legal-profile';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsString, IsUUID, Length } from 'class-validator';
 import { randomUUID } from 'crypto';
@@ -164,7 +165,9 @@ export class DdService {
       origin: { lots: origin.lots.map((l) => ({ id: l.id, lot_code: l.lot_code, origin_status: l.origin_status })), ledger_differences: origin.ledger_differences },
       deliveries, plots, quality, documents, evidence, risk, mitigations,
       shipment_links: shipmentLinks,
-      profiles: { legal_profile: null, geolocation_profile: null, satellite_provider: satelliteProfile },
+      // P1-005: el perfil ADOPTADO por la organización entra en la instantánea. Hoy es parcial y sin
+      // revisión jurídica, así que LEGAL_PROFILE queda PENDING y READY sigue bloqueado.
+      profiles: { legal_profile: await perfilDeOrganizacion(db as Kysely<Database>, ctx.organizationId), geolocation_profile: null, satellite_provider: satelliteProfile },
     };
   }
 

@@ -588,6 +588,59 @@ export interface ShipmentReservationsTable {
 }
 
 // P0-020 riesgo
+// P1-005 — Perfil jurídico revisable (migración 0049). El catálogo es de plataforma y sus filas son
+// inmutables; la adopción, la revisión jurídica y el historial son append-only.
+export interface LegalProfileVersionsTable {
+  version: string; jurisdiction: 'EC'; scope: 'PARTIAL' | 'COMPLETE'; scope_note: string;
+  covered_matters: string[]; pending_matters: string[];
+  technical_status: 'DRAFT' | 'PUBLISHED';
+  /** Texto, no usuario: es un catálogo de sistema sembrado por la migración. */
+  published_by: string; published_at: Generated<Timestamp>; reason: string;
+}
+export interface LegalProfileReviewsTable {
+  id: string; version: string; decision: 'REVIEWED' | 'OBJECTED' | 'WITHDRAWN';
+  reviewer_id: string; reviewer_capacity: string; basis: string;
+  decided_at: Generated<Timestamp>; operation_id: string;
+}
+export interface LegalProfileSourcesTable {
+  version: string; code: string; title: string; authority: string; publication: string; publication_date: string;
+  url: string; file_sha256: string; pdf_page_index: number | null; printed_page: string | null;
+  document_obtained: boolean; text_contrasted: boolean; legal_validity_reviewed: boolean;
+  modifications_found: string; gaps: string;
+}
+export interface LegalProfileRulesTable {
+  version: string; code: string; matter: string; source_code: string; article: string; subject: string;
+  applicability_condition: string; evidence_required: string; product_can_check: string;
+  needs_legal_review: boolean; review_status: 'DRAFT' | 'REVIEWED'; gaps: string;
+}
+export interface LegalProfileAdoptionsTable {
+  id: string; organization_id: string; version: string; decision: 'ADOPT' | 'WITHDRAW';
+  reason: string; decided_by: string; decided_at: Generated<Timestamp>; operation_id: string;
+}
+export interface LegalAssessmentsTable {
+  id: string; organization_id: string; subject_type: 'PLOT'; subject_id: string; version: string;
+  status: 'OPEN' | 'CLOSED'; created_by: string; created_at: Generated<Timestamp>;
+  closed_at: Timestamp | null; operation_id: string;
+}
+export type Applicability = 'UNKNOWN' | 'APPLICABLE' | 'NOT_APPLICABLE';
+export type ItemResult = 'PENDING' | 'SATISFIED' | 'NOT_SATISFIED' | 'NOT_EVALUABLE' | 'NOT_APPLICABLE';
+export interface LegalAssessmentItemsTable {
+  id: string; organization_id: string; assessment_id: string; version: string; rule_code: string;
+  applicability: Applicability; applicability_reason: string | null;
+  evidence_version_id: string | null; evidence_origin: 'OFFICIAL_DOCUMENT' | 'PRODUCER_DECLARATION' | null;
+  evidence_admissibility: 'NOT_JUSTIFIED' | 'JUSTIFIED'; evidence_justification: string | null;
+  result: ItemResult; reviewer_id: string | null; reviewed_at: Timestamp | null; reason: string | null;
+  cartographic_indication: 'NONE' | 'INDICATION' | 'NOT_ASSESSED';
+  cartographic_source: string | null; cartographic_note: string | null;
+  row_version: Generated<string>; updated_at: Generated<Timestamp>;
+}
+export interface LegalAssessmentItemHistoryTable {
+  id: string; organization_id: string; item_id: string; row_version: string;
+  applicability: string; evidence_version_id: string | null; evidence_origin: string | null;
+  evidence_admissibility: string; result: string; reviewer_id: string | null; reason: string | null;
+  cartographic_indication: string; changed_by: string; changed_at: Generated<Timestamp>; change_note: string;
+}
+
 export interface RiskRuleSetAdoptionsTable {
   id: string;
   organization_id: string;
@@ -824,6 +877,14 @@ export interface Database {
   process_outputs: ProcessOutputsTable;
   stock_movements: StockMovementsTable;
   stock_entries: StockEntriesTable;
+  legal_profile_versions: LegalProfileVersionsTable;
+  legal_profile_reviews: LegalProfileReviewsTable;
+  legal_profile_sources: LegalProfileSourcesTable;
+  legal_profile_rules: LegalProfileRulesTable;
+  legal_profile_adoptions: LegalProfileAdoptionsTable;
+  legal_assessments: LegalAssessmentsTable;
+  legal_assessment_items: LegalAssessmentItemsTable;
+  legal_assessment_item_history: LegalAssessmentItemHistoryTable;
   risk_rule_set_adoptions: RiskRuleSetAdoptionsTable;
   risk_evaluations: RiskEvaluationsTable;
   risk_reviews: RiskReviewsTable;

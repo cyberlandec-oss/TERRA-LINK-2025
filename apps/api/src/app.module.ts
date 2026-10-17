@@ -57,6 +57,7 @@ import { PublicReferencesController, PublicReferencesService } from './traceabil
 import { AccessGrantsController, AccessGrantsService, GrantedController } from './authz/access-grants';
 import { OperationsAlertsController, OperationsAlertsService, OperationsOrgAlertsController, evaluarDependencias } from './operations/alerts';
 import { ObservabilityController, ObservabilityInterceptor, VersionController } from './observability/observability';
+import { LegalAssessmentsController, LegalProfileController, LegalProfileService } from './legal/legal-profile';
 import { PlatformElevationController, PlatformElevationService } from './authz/platform-elevation';
 import { EventHistoryController, EventHistoryService } from './events/event-history';
 import { DocumentsController, DocumentsService } from './documents/documents';
@@ -189,7 +190,8 @@ export class AppModule implements NestModule {
     return {
       module: AppModule,
       controllers: [
-        HealthController, VersionController, ObservabilityController, OperationsAlertsController, OperationsOrgAlertsController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
+        HealthController, VersionController, ObservabilityController, OperationsAlertsController, OperationsOrgAlertsController,
+        LegalProfileController, LegalAssessmentsController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
         MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, GeoProfileController, ProductsController, CteController, KdeController, PublicReferencesController, AccessGrantsController, GrantedController, PlatformElevationController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, ShipmentsController, SatelliteController, ReportsController, EntityReportsController,
       ],
       providers: [
@@ -224,6 +226,7 @@ export class AppModule implements NestModule {
         PublicReferencesService,
         AccessGrantsService,
         OperationsAlertsService,
+        LegalProfileService,
         PlatformElevationService,
         EventHistoryService,
         DocumentsService,

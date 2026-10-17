@@ -19,9 +19,46 @@ const SYNTHETIC: DdContent = {
   mitigations: [],
   // D-34.A.1: el vínculo se satisface con un ítem de embarque con reserva ACTIVA (fixture sintética).
   shipment_links: [{ shipment_id: 's1', shipment_code: 'EMB-SINT-1', shipment_status: 'DRAFT', item_id: 'i1', reservation_id: 'r1', lot_id: 'l1', quantity: '100', unit: 'KG', location_id: 'loc1' }],
-  profiles: { legal_profile: 'PERFIL SINTÉTICO DE PRUEBA', geolocation_profile: 'PERFIL SINTÉTICO DE PRUEBA', satellite_provider: 'PROVEEDOR SINTÉTICO DE PRUEBA' },
+  // Perfil SINTÉTICO completo y revisado: solo así READY puede llegar a evaluarse en esta fixture.
+  profiles: { legal_profile: { version: '0.0.0-sintetico', scope: 'COMPLETE', legal_review_status: 'REVIEWED', pending_matters: [] }, geolocation_profile: 'PERFIL SINTÉTICO DE PRUEBA', satellite_provider: 'PROVEEDOR SINTÉTICO DE PRUEBA' },
 };
 const st = (c: DdContent, code: string) => evaluateRequirements(c).find((r) => r.code === code)?.status;
+
+describe('P1-005 LEGAL_PROFILE: el mecanismo no es el perfil', () => {
+  const con = (lp: DdContent['profiles']['legal_profile']) => ({ ...SYNTHETIC, profiles: { ...SYNTHETIC.profiles, legal_profile: lp } });
+
+  it('sin perfil adoptado: NO EVALUABLE, y no se presume nada', () => {
+    expect(st(con(null), 'LEGAL_PROFILE')).toBe('NOT_EVALUABLE');
+    expect(readinessOf(evaluateRequirements(con(null)))).toBe('BLOCKED');
+  });
+
+  it('perfil PARCIAL adoptado: PENDIENTE, y READY sigue sin acreditarse', () => {
+    const c = con({ version: '0.1.0', scope: 'PARTIAL', legal_review_status: 'PENDING', pending_matters: ['LABOUR', 'TAX'] });
+    expect(st(c, 'LEGAL_PROFILE')).toBe('PENDING');
+    expect(readinessOf(evaluateRequirements(c))).not.toBe('READY');
+    const req = evaluateRequirements(c).find((r) => r.code === 'LEGAL_PROFILE')!;
+    expect(req.detail).toMatch(/PARCIAL/);
+    expect(req.detail).toMatch(/impidiendo acreditar READY/);
+  });
+
+  it('perfil PARCIAL aunque esté REVISADO: sigue PENDIENTE. Revisar no completa el alcance', () => {
+    const c = con({ version: '0.1.0', scope: 'PARTIAL', legal_review_status: 'REVIEWED', pending_matters: ['LABOUR'] });
+    expect(st(c, 'LEGAL_PROFILE')).toBe('PENDING');
+    expect(readinessOf(evaluateRequirements(c))).not.toBe('READY');
+  });
+
+  it('perfil COMPLETO pero SIN revisión jurídica: PENDIENTE. El mecanismo no sustituye la revisión', () => {
+    const c = con({ version: '9.9.9', scope: 'COMPLETE', legal_review_status: 'PENDING', pending_matters: [] });
+    expect(st(c, 'LEGAL_PROFILE')).toBe('PENDING');
+    expect(evaluateRequirements(c).find((r) => r.code === 'LEGAL_PROFILE')!.detail).toMatch(/sin revisión jurídica/);
+    expect(readinessOf(evaluateRequirements(c))).not.toBe('READY');
+  });
+
+  it('solo COMPLETO y REVISADO cumple (fixture SINTÉTICA: hoy no existe tal perfil)', () => {
+    const c = con({ version: '9.9.9', scope: 'COMPLETE', legal_review_status: 'REVIEWED', pending_matters: [] });
+    expect(st(c, 'LEGAL_PROFILE')).toBe('MET');
+  });
+});
 
 describe('P0-022 guards por requisito', () => {
   it('fixture sintética con todo cumplido → READY (solo prueba el cálculo)', () => {
