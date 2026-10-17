@@ -170,9 +170,9 @@ S1 §77 pide *structured logs*, *metrics*, *tracing*, *error monitoring* y *heal
 | Ruta | Quién | Qué sirve |
 | --- | --- | --- |
 | `GET /health/live` · `GET /health/ready` | **Público** | Vivo; y estado por dependencia con degradación declarada |
-| **`GET /version`** | **Público** | Servicio, versión y migración. **Sin el commit** |
+| **`GET /version`** | **Público** | Servicio, versión, **revisión del código desplegado** (inyectada al construir) y migración |
 | `GET /operations/alerts` | **Público** | **Solo salud de infraestructura**: tres avisos. Ni recuentos de recursos, ni identificadores, ni organización |
-| `GET /api/v1/organizations/:orgId/operations/alerts` | Miembro, **permiso a permiso** | Lo anterior **más** documentos sin análisis limpio (`document:read`) y entregas DEAD (`events:reprocess`) **de esa organización**. Sin el permiso: `RESTRICTED`, sin valor |
+| `GET /api/v1/organizations/:orgId/operations/alerts` | Miembro, **permiso a permiso y por alcance** | Lo anterior **más** documentos sin análisis limpio (`document:read`, **acotado al alcance real del titular**) y entregas DEAD (`events:reprocess`) **de esa organización**. Sin el permiso: `RESTRICTED`, sin valor |
 | `GET /metrics` | **Plataforma** (`observability:read`) | Exposición Prometheus: peticiones por método/ruta-patrón/clase, duración observada, consultas por operación, dependencias y cola del outbox |
 | `GET /api/v1/observability/traces[/:id]` | **Plataforma** | Trazas recientes y el recorrido completo de una, por su `request_id` |
 | `GET /api/v1/observability/build` | **Plataforma** | Commit desplegado, versión y migración del código |
@@ -183,6 +183,30 @@ Hasta el 2026-10-17 `GET /operations/alerts` publicaba, **sin autenticar**, el r
 documento sin análisis limpio y el de entregas DEAD **de todas las organizaciones a la vez**. No había nombres,
 pero un agregado de un recurso protegido **sigue siendo información de ese recurso**, y su evolución es
 observable por un tercero. Ahora la respuesta anónima no consulta ninguna tabla de negocio.
+
+### El alcance de los documentos no es el permiso
+
+`document:read` **no** significa «todos los documentos de la organización». El alcance real lo pone el
+**titular** del documento, y `DocumentsService.list()` lo aplica fila a fila. Un **técnico de campo** tiene
+`document:read` pero solo `producer:read_assigned` y `plot:read_assigned`: ve los documentos de **sus**
+productores asignados.
+
+El aviso usa **el mismo predicado**, de modo que el recuento de un técnico es el de su alcance y lo dice
+(«… dentro de tu alcance»). **Administrador y auditor conservan el total** porque sus permisos sí son de
+organización. Publicar el total a quien solo lee lo asignado sería una vía lateral para contar lo que la lista
+le niega.
+
+### Desplegar con la revisión inyectada
+
+```
+node scripts/desplegar.mjs              # construye con APP_COMMIT=<git rev-parse> y comprueba /version
+```
+
+**Por qué no se escribe a mano.** Una etiqueta en `.env` o en el compose se queda desactualizada en cuanto
+alguien reconstruye sin tocarla, y entonces `/version` miente. El script la calcula con `git rev-parse` **al
+construir** y la pasa como `ARG APP_COMMIT`; después comprueba que `/version` declara esa misma revisión. Si el
+árbol tiene cambios sin confirmar, la marca con `+sucio`: lo desplegado **no es** ese commit exacto. Construir
+con `docker compose` a mano deja `commit: null` y `commit_source: NOT_INJECTED`, declarado, nunca inventado.
 
 ### Cómo se recorre un caso real
 
@@ -195,8 +219,9 @@ observable por un tercero. Ahora la respuesta anónima no consulta ninguna tabla
 
 **Límites, declarados.** Las trazas viven en un **anillo acotado en memoria del proceso** (200): se pierden al
 reiniciar y el worker tiene el suyo, que no se consulta por HTTP. **No es un backend de trazas** y **nada se
-exporta a ningún servicio externo**. `APP_COMMIT` no está definido en el despliegue local, así que `build`
-devuelve `commit: null`; definirlo en la construcción es trabajo pendiente.
+exporta a ningún servicio externo**. La revisión del código **sí** se inyecta ahora en el artefacto
+(`scripts/desplegar.mjs`), y `/version` la publica: una revisión no es un secreto y sin ella `/version` no
+identificaría lo que está corriendo.
 
 ### Lo que la instrumentación NO registra, por diseño
 

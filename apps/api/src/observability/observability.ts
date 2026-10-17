@@ -32,6 +32,13 @@ import { cerrarTraza, claseDeError, ejecutarConTraza, trazaPorId, trazasReciente
 export const INICIO_PROCESO = new Date();
 export const VERSION_SERVICIO = process.env.npm_package_version ?? '0.1.0';
 
+/**
+ * Revisión del código DESPLEGADO, inyectada en el artefacto al construirlo (`ARG APP_COMMIT`).
+ * No es una etiqueta escrita a mano: la calcula `scripts/desplegar.mjs` con `git rev-parse`. Si se construyó
+ * sin ella, se declara como no inyectada en vez de inventar un valor o callar.
+ */
+export const COMMIT_DESPLEGADO: string | null = (process.env.APP_COMMIT ?? '').trim() || null;
+
 buildInfo.labels(VERSION_SERVICIO, LATEST_MIGRATION).set(1);
 
 /**
@@ -101,8 +108,9 @@ export class VersionController {
   @ApiOperation({
     summary: 'Versión desplegada (S1 §77)',
     description:
-      'Público, como `/health` y `/ready`. Servicio, versión y migración que el código conoce. ' +
-      'El commit desplegado NO se publica aquí: se sirve en la ruta restringida de observabilidad.',
+      'Público, como `/health` y `/ready`. Identifica el código DESPLEGADO: servicio, versión, revisión ' +
+      'inyectada al construir el artefacto y migración que ese código conoce. Una revisión no es un secreto, ' +
+      'y sin ella `/version` no identificaría lo que está corriendo. Si no se inyectó, se declara así.',
   })
   async version() {
     let aplicada: string | null = null;
@@ -112,6 +120,8 @@ export class VersionController {
     return {
       service: 'terra-link-api',
       version: VERSION_SERVICIO,
+      commit: COMMIT_DESPLEGADO,
+      commit_source: COMMIT_DESPLEGADO ? 'BUILD_ARG' : 'NOT_INJECTED',
       schema: { known_by_code: LATEST_MIGRATION, applied: aplicada },
       started_at: INICIO_PROCESO.toISOString(),
     };
@@ -192,7 +202,8 @@ export class ObservabilityController {
     return {
       service: 'terra-link-api',
       version: VERSION_SERVICIO,
-      commit: process.env.APP_COMMIT ?? null,
+      commit: COMMIT_DESPLEGADO,
+      commit_source: COMMIT_DESPLEGADO ? 'BUILD_ARG' : 'NOT_INJECTED',
       migration_known_by_code: LATEST_MIGRATION,
       started_at: INICIO_PROCESO.toISOString(),
       node: process.version,

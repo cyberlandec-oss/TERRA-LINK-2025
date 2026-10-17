@@ -31,7 +31,7 @@
     },
     "/version": {
       "get": {
-        "description": "Público, como `/health` y `/ready`. Servicio, versión y migración que el código conoce. El commit desplegado NO se publica aquí: se sirve en la ruta restringida de observabilidad.",
+        "description": "Público, como `/health` y `/ready`. Identifica el código DESPLEGADO: servicio, versión, revisión inyectada al construir el artefacto y migración que ese código conoce. Una revisión no es un secreto, y sin ella `/version` no identificaría lo que está corriendo. Si no se inyectó, se declara así.",
         "operationId": "VersionController_version",
         "parameters": [],
         "responses": {

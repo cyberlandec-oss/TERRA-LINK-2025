@@ -44,18 +44,28 @@ describeDb('RNF-13 métricas y trazas: medidas sobre peticiones reales', () => {
 
   // ---------------------------------------------------------------- /version
 
-  it('`/version` existe, es público y publica la versión desplegada sin el commit', async () => {
+  it('`/version` identifica el código desplegado, sin secretos', async () => {
     const r = await http().get('/version').expect(200);
     expect(r.body.service).toBe('terra-link-api');
     expect(typeof r.body.version).toBe('string');
     expect(r.body.schema.known_by_code).toBe(LATEST_MIGRATION);
     expect(r.body.schema.applied).toBe(LATEST_MIGRATION);
-    // El commit exacto NO se publica en la ruta pública: identifica el código desplegado.
-    expect(JSON.stringify(r.body)).not.toContain('commit');
-    // Y nada de secretos.
-    for (const p of ['password', 'secret', 'token', 'postgres://', 'redis://']) {
+    // La revisión forma parte del contrato: `/version` tiene que decir QUÉ código corre.
+    expect(r.body).toHaveProperty('commit');
+    expect(r.body).toHaveProperty('commit_source');
+    // Y si no se inyectó, lo DECLARA en vez de inventarla o callarla. El arnés no construye imagen.
+    expect(['BUILD_ARG', 'NOT_INJECTED']).toContain(r.body.commit_source);
+    if (r.body.commit_source === 'NOT_INJECTED') expect(r.body.commit).toBeNull();
+    else expect(typeof r.body.commit).toBe('string');
+    // Nada de secretos: una revisión no lo es, una credencial sí.
+    for (const p of ['password', 'secret', 'token', 'postgres://', 'redis://', '@']) {
       expect(JSON.stringify(r.body).toLowerCase()).not.toContain(p);
     }
+  });
+
+  it('la revisión se toma del artefacto, nunca de lo que pida el cliente', async () => {
+    const r = await http().get('/version').set('X-App-Commit', 'cafe1234').set('x-forwarded-commit', 'cafe1234').expect(200);
+    expect(r.body.commit).not.toBe('cafe1234');
   });
 
   it('el commit desplegado se sirve en la ruta restringida, con control autorizado', async () => {
@@ -63,6 +73,7 @@ describeDb('RNF-13 métricas y trazas: medidas sobre peticiones reales', () => {
     await http().get('/api/v1/observability/build').set(as(ADMIN)).expect(403); // ORG_ADMIN no es plataforma
     const r = await http().get('/api/v1/observability/build').set(as(SUPER)).expect(200);  // CONTROL
     expect(r.body).toHaveProperty('commit');
+    expect(r.body.commit_source).toBe(r.body.commit ? 'BUILD_ARG' : 'NOT_INJECTED');
     expect(r.body.migration_known_by_code).toBe(LATEST_MIGRATION);
   });
 

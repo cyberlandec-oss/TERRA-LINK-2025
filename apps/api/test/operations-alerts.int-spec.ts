@@ -65,6 +65,10 @@ describeDb('RNF-10 avisos operativos: se provocan, informan, se recuperan y no s
   const ADMIN_B = 'avisos-admin-b@test.local';
   const AUDITOR = 'avisos-auditor-a@test.local';   // orgA: tiene document:read, NO tiene events:reprocess
   const COMPRADOR = 'avisos-buyer-b@test.local';   // miembro de orgB únicamente
+  // Dos técnicos de la MISMA organización con asignaciones distintas: tienen `document:read`, pero su alcance
+  // de lectura es `producer:read_assigned`, no toda la organización.
+  const TEC_1 = 'avisos-tecnico1-a@test.local';
+  const TEC_2 = 'avisos-tecnico2-a@test.local';
 
   const http = () => h.http();
   const as = (e: string) => h.as(e);
@@ -84,9 +88,18 @@ describeDb('RNF-10 avisos operativos: se provocan, informan, se recuperan y no s
    * Versión de documento SIN análisis limpio, propia de la organización indicada. Fixture sintético, pero con
    * un titular REAL: un disparador exige que el productor pertenezca a la organización.
    */
-  async function documentoPendiente(org: string, admin: string, creador: string) {
-    const titular = (await http().post(`/api/v1/organizations/${org}/producers`).set(as(admin))
-      .send({ producer_code: `AV-${randomUUID().slice(0, 8)}`, legal_name: 'Finca sintética de avisos' }).expect(201)).body.id as string;
+  const membresiaDe = async (email: string, org: string) => (await h.db.selectFrom('memberships as m')
+    .innerJoin('users as u', 'u.id', 'm.user_id').select('m.id')
+    .where('u.email', '=', email).where('m.organization_id', '=', org).executeTakeFirstOrThrow()).id;
+
+  async function documentoPendiente(org: string, admin: string, creador: string, asignarA?: string) {
+    const prod = (await http().post(`/api/v1/organizations/${org}/producers`).set(as(admin))
+      .send({ producer_code: `AV-${randomUUID().slice(0, 8)}`, legal_name: 'Finca sintética de avisos' }).expect(201));
+    const titular = prod.body.id as string;
+    if (asignarA) {
+      await http().put(`/api/v1/organizations/${org}/producers/${titular}/assignment`).set(as(admin))
+        .send({ expected_version: prod.body.row_version, membership_id: await membresiaDe(asignarA, org) }).expect(200);
+    }
     const doc = randomUUID();
     await sql`INSERT INTO documents (id, organization_id, document_type, owner_type, owner_id, title, created_by)
       VALUES (${doc}, ${org}, 'DELIVERY_SUPPORT', 'producer', ${titular}, 'Soporte sintético de avisos', ${creador})`.execute(h.db);
@@ -118,6 +131,8 @@ describeDb('RNF-10 avisos operativos: se provocan, informan, se recuperan y no s
     orgA = await mk('Coop Avisos A', ADMIN_A);
     orgB = await mk('Coop Avisos B', ADMIN_B);
     await join(orgA, AUDITOR, 'AUDITOR', ADMIN_A);
+    await join(orgA, TEC_1, 'FIELD_TECHNICIAN', ADMIN_A);
+    await join(orgA, TEC_2, 'FIELD_TECHNICIAN', ADMIN_A);
     await join(orgB, COMPRADOR, 'BUYER', ADMIN_B);
   });
   afterAll(async () => {
@@ -225,6 +240,48 @@ describeDb('RNF-10 avisos operativos: se provocan, informan, se recuperan y no s
     }
     // Un aviso reservado NO se concluye como degradación: no se opina sobre lo que no se miró.
     expect(b.status).toBe('ok');
+  });
+
+  it('ALCANCE POR RECURSO: `document:read` no publica el total de la organización a quien solo lee lo asignado', async () => {
+    const adminAId = (await sql<{ id: string }>`SELECT id FROM users WHERE email = ${ADMIN_A}`.execute(h.db)).rows[0].id;
+    const contar = async (actor: string) => {
+      const r = (await deOrg(orgA, actor).expect(200)).body as Respuesta;
+      return buscar(r, 'DOCUMENTS_PENDING_ANALYSIS');
+    };
+
+    // Punto de partida de cada técnico, antes de tocar nada.
+    const base1 = Number(/^(\d+)/.exec((await contar(TEC_1)).observed)![1]);
+    const base2 = Number(/^(\d+)/.exec((await contar(TEC_2)).observed)![1]);
+    const baseAdmin = Number(/^(\d+)/.exec((await contar(ADMIN_A)).observed)![1]);
+
+    // Un documento pendiente cuyo titular está asignado SOLO al técnico 1.
+    await documentoPendiente(orgA, ADMIN_A, adminAId, TEC_1);
+
+    const t1 = await contar(TEC_1);
+    const t2 = await contar(TEC_2);
+    const adm = await contar(ADMIN_A);
+
+    // El técnico 1 lo ve: está en su alcance (CONTROL de que el documento existe y se cuenta de verdad).
+    expect(Number(/^(\d+)/.exec(t1.observed)![1])).toBe(base1 + 1);
+    expect(t1.state).toBe('FIRING');
+    // El técnico 2 NO: ni el recuento ni el estado derivado cambian para él.
+    expect(Number(/^(\d+)/.exec(t2.observed)![1])).toBe(base2);
+    // El administrador, con alcance de organización, sí lo ve.
+    expect(Number(/^(\d+)/.exec(adm.observed)![1])).toBe(baseAdmin + 1);
+
+    // Y el recuento del técnico coincide con lo que la LISTA de documentos le deja ver: misma autorización.
+    const visibles = (await http().get(`/api/v1/organizations/${orgA}/documents`).set(as(TEC_2)).expect(200)).body as unknown[];
+    expect(Number(/^(\d+)/.exec(t2.observed)![1])).toBeLessThanOrEqual(visibles.length);
+    // Quien no tiene alcance completo lo dice en lo observado, para no leerse como total de la organización.
+    expect(t2.observed).toMatch(/dentro de tu alcance/);
+    expect(adm.observed).not.toMatch(/dentro de tu alcance/);
+  });
+
+  it('ALCANCE POR RECURSO: el auditor conserva el total, porque su permiso SÍ es de organización', async () => {
+    const adm = buscar((await deOrg(orgA, ADMIN_A).expect(200)).body as Respuesta, 'DOCUMENTS_PENDING_ANALYSIS');
+    const aud = buscar((await deOrg(orgA, AUDITOR).expect(200)).body as Respuesta, 'DOCUMENTS_PENDING_ANALYSIS');
+    expect(aud.observed).toBe(adm.observed);
+    expect(aud.observed).not.toMatch(/dentro de tu alcance/);
   });
 
   it('la recuperación se reconoce también en la ruta restringida', async () => {

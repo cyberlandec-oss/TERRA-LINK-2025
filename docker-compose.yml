@@ -50,7 +50,12 @@ services:
   # Secretos desde .env en tiempo de ejecución; nunca se copian a las imágenes.
   migrate:
     profiles: [app]
-    build: { context: ., dockerfile: apps/api/Dockerfile }
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        # La calcula `scripts/desplegar.mjs`; vacío si se construye a mano, y entonces /version lo declara así.
+        APP_COMMIT: "${APP_COMMIT:-}"
     image: terra-link-api:local
     command: ["node", "dist/db/migrate-cli.js"]
     environment:

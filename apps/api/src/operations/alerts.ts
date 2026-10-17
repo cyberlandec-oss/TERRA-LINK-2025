@@ -176,18 +176,46 @@ export class OperationsAlertsService {
     const dep = await evaluarDependencias(this.db, this.redis, this.scanner);
     const alerts = avisosDeInfraestructura(dep);
 
-    // Documentos sin análisis limpio, SOLO de esta organización y solo si se pueden leer sus documentos.
+    // Documentos sin análisis limpio, SOLO de esta organización y SOLO dentro del alcance de quien pregunta.
+    //
+    // `document:read` NO significa «todos los documentos de la organización»: el alcance real lo pone el
+    // TITULAR del documento, y `DocumentsService.list()` lo aplica fila a fila con `producers.load()` /
+    // `plots.load()`. Un técnico de campo tiene `document:read` pero solo `producer:read_assigned` y
+    // `plot:read_assigned`: ve los documentos de SUS productores asignados, no los de la organización.
+    // Publicar aquí el total organizacional por tener `document:read` sería una vía lateral para contar lo
+    // que la lista le niega. El filtro de abajo es el MISMO predicado `inScope` de esos servicios.
     let documentos: Pick<Aviso, 'state' | 'observed' | 'action'>;
+    const verProductores = puede('producer:read');
+    const verProductoresAsignados = puede('producer:read_assigned');
+    const verParcelas = puede('plot:read');
+    const verParcelasAsignadas = puede('plot:read_assigned');
+    const alcanceCompleto = verProductores && verParcelas;
     if (!puede('document:read')) documentos = reservado('document:read');
     else if (dep.database !== 'ok') documentos = sinBase;
     else {
+      // Los documentos con titular `delivery` nunca son visibles todavía (`ENTITY_TYPE_NOT_AVAILABLE`), así
+      // que tampoco se cuentan: contar lo que no se puede abrir sería informar de su existencia.
       const n = Number((await sql<{ n: string }>`
-        SELECT count(*)::text AS n FROM document_versions dv
+        SELECT count(*)::text AS n
+        FROM document_versions dv
+        JOIN documents d ON d.id = dv.document_id AND d.organization_id = dv.organization_id
+        LEFT JOIN producers pp ON d.owner_type = 'producer' AND pp.id = d.owner_id AND pp.organization_id = d.organization_id
+        LEFT JOIN plots pl ON d.owner_type = 'plot' AND pl.id = d.owner_id AND pl.organization_id = d.organization_id
+        LEFT JOIN producers pr ON pr.id = pl.producer_id AND pr.organization_id = pl.organization_id
         WHERE dv.organization_id = ${org}
-          AND NOT EXISTS (SELECT 1 FROM document_version_scans s WHERE s.version_id = dv.id AND s.result = 'CLEAN')`.execute(this.db)).rows[0].n);
+          AND NOT EXISTS (SELECT 1 FROM document_version_scans s WHERE s.version_id = dv.id AND s.result = 'CLEAN')
+          AND (
+            (d.owner_type = 'producer' AND pp.id IS NOT NULL
+              AND (${verProductores} OR (${verProductoresAsignados} AND pp.assigned_membership_id = ${ctx.membershipId})))
+            OR
+            (d.owner_type = 'plot' AND pl.id IS NOT NULL
+              AND (${verParcelas} OR (${verParcelasAsignadas} AND pr.assigned_membership_id = ${ctx.membershipId})))
+          )`.execute(this.db)).rows[0].n);
       documentos = {
         state: n > 0 ? 'FIRING' : 'OK',
-        observed: `${n} versión(es) sin análisis limpio`,
+        observed: alcanceCompleto
+          ? `${n} versión(es) sin análisis limpio`
+          : `${n} versión(es) sin análisis limpio dentro de tu alcance`,
         action: n > 0 ? 'No se habilitan hasta tener análisis limpio. Si el escáner estuvo caído, vuelve a analizarlas; si alguna es INFECTED, no se habilita nunca.' : null,
       };
     }
@@ -211,7 +239,7 @@ export class OperationsAlertsService {
     alerts.push(
       {
         code: 'DOCUMENTS_PENDING_ANALYSIS',
-        condition: 'Hay versiones de documento de esta organización sin un análisis antimalware limpio.',
+        condition: 'Hay versiones de documento sin un análisis antimalware limpio, dentro del alcance de lectura de quien pregunta (titular asignado incluido).',
         degradacion: true,
         ...documentos,
       },

@@ -12,6 +12,7 @@
 // Cada denegación lleva su control autorizado (`comprobacion.mjs`). No imprime contraseñas ni tokens, y no
 // modifica ningún dato: todas las peticiones son de lectura.
 import { randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { cuentaDemo } from './consulta-api.mjs';
 import { crearRevision, exigeEntrada } from './comprobacion.mjs';
 
@@ -56,6 +57,12 @@ const admin = await iniciarSesion('admin.cooperativa');        // ORG_ADMIN: doc
 const auditor = await iniciarSesion('auditor.cooperativa');    // AUDITOR: document:read, SIN events:reprocess
 const comprador = await iniciarSesion('comprador.importador'); // BUYER de OTRA organización
 const plataforma = await iniciarSesion('superadmin.revision'); // SUPER_ADMIN: observability:read
+const tecnico = await iniciarSesion('tecnico1.cooperativa');   // document:read, pero alcance ASIGNADO
+
+// Recuento del administrador (alcance de organización), para contrastar con el del técnico.
+const avisosAdmin = await pedir(admin, 'GET', `/api/v1/organizations/${COOP}/operations/alerts`)();
+const documentosDelAdmin = Number(/^(\d+)/.exec(
+  (avisosAdmin.body?.alerts ?? []).find((a) => a.code === 'DOCUMENTS_PENDING_ANALYSIS')?.observed ?? '0')?.[1] ?? 0);
 
 // La organización propia del comprador, para el caso de control de su acceso legítimo.
 const mias = await pedir(comprador, 'GET', '/api/v1/organizations')();
@@ -93,10 +100,28 @@ await rev.caso('PÚBLICO: sin identificadores, sin recuentos de recursos, sin or
   },
 });
 
-await rev.caso('PÚBLICO: /version existe y no publica el commit', {
-  pedir: pedir(null, 'GET', '/version'), estado: 200, estructura: ['service', 'version', 'schema.known_by_code', 'schema.applied'],
-  comprueba: (b, r) => [b.service === 'terra-link-api' && !/commit/i.test(r.texto),
-    `versión=${b.version} · esquema aplicado=${b.schema.applied} · sin commit=${!/commit/i.test(r.texto)}`],
+// La revisión que /version declara tiene que ser la del candidato desplegado, no una etiqueta escrita a mano.
+const shaEsperado = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
+
+await rev.caso('PÚBLICO: /version identifica el código desplegado', {
+  pedir: pedir(null, 'GET', '/version'), estado: 200,
+  estructura: ['service', 'version', 'commit', 'commit_source', 'schema.known_by_code', 'schema.applied'],
+  comprueba: (b) => [b.service === 'terra-link-api' && b.commit_source === 'BUILD_ARG',
+    `versión=${b.version} · commit=${b.commit} (${b.commit_source}) · esquema aplicado=${b.schema.applied}`],
+});
+
+await rev.caso('CORRESPONDENCIA: la revisión desplegada es la del candidato', {
+  pedir: pedir(null, 'GET', '/version'), estado: 200, estructura: ['commit'],
+  comprueba: (b) => {
+    // `+sucio` marca que el árbol tenía cambios sin confirmar al construir: se acepta sobre el mismo SHA.
+    const base = String(b.commit ?? '').split('+')[0];
+    return [base === shaEsperado, `desplegado=${b.commit} · candidato=${shaEsperado}`];
+  },
+});
+
+await rev.caso('/version no acepta del cliente la identidad del código', {
+  pedir: pedir(null, 'GET', '/version', { 'x-app-commit': 'cafe1234' }), estado: 200, estructura: ['commit'],
+  comprueba: (b) => [b.commit !== 'cafe1234', `commit=${b.commit}, no el inyectado por cabecera`],
 });
 
 // ------------------------------------------------------------------ RESPUESTA RESTRINGIDA POR ORGANIZACIÓN
@@ -129,6 +154,16 @@ await rev.caso('CONTROL: ORG_ADMIN ve la actividad de SU organización, con valo
     const conValor = OPERATIVOS.filter((c) => /\d/.test(buscar(b, c)?.observed ?? ''));
     return [b.organization_id === COOP && conValor.length === 2,
       `${conValor.length}/2 con recuento · documentos=«${buscar(b, 'DOCUMENTS_PENDING_ANALYSIS')?.observed}» · entregas=«${buscar(b, 'EVENT_DELIVERIES_DEAD')?.observed}»`];
+  },
+});
+
+await rev.caso('ALCANCE POR RECURSO: el técnico no recibe el total de la organización', {
+  pedir: pedir(tecnico, 'GET', `/api/v1/organizations/${COOP}/operations/alerts`), estado: 200, estructura: ['alerts'],
+  comprueba: (b) => {
+    const suyo = buscar(b, 'DOCUMENTS_PENDING_ANALYSIS');
+    const ok = /dentro de tu alcance/.test(suyo?.observed ?? '')
+      && Number(/^(\d+)/.exec(suyo?.observed ?? '')?.[1] ?? -1) <= documentosDelAdmin;
+    return [ok, `técnico=«${suyo?.observed}» · administrador contaba ${documentosDelAdmin}`];
   },
 });
 
