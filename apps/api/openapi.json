@@ -2998,6 +2998,31 @@
         ]
       }
     },
+    "/api/v1/public-references/{reference}": {
+      "get": {
+        "description": "Conocer la referencia NO concede acceso: exige membresía en la organización dueña y el permiso de lectura del dominio, con el mismo alcance asignado que el resto del producto. Una referencia inexistente, un recurso de otra organización y un recurso fuera de alcance devuelven la MISMA respuesta. No publica nada: las audiencias y el QR son RF-33.",
+        "operationId": "PublicReferencesController_resolve",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Identidad mínima del recurso referenciado."
+          }
+        },
+        "summary": "Resolver una referencia pública (RF-47)",
+        "tags": [
+          "Trazabilidad"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/aggregates/{kind}/{id}/events": {
       "get": {
         "operationId": "EventHistoryController_history",
