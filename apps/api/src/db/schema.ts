@@ -659,6 +659,12 @@ export interface SatelliteCredentialsTable {
   organization_id: string; provider_code: string; secret_ciphertext: string; created_by: string;
   created_at: Generated<Timestamp>; rotated_at: Timestamp | null;
 }
+// RF-47 — Referencia pública por entidad. Espacio de nombres ÚNICO entre todos los tipos que comparten la ruta
+// de resolución: `reference` es la clave primaria, así que una parcela y un lote no pueden coincidir. Vive
+// fuera de las entidades a propósito: añadir una referencia a una instantánea no toca su contenido, su
+// manifiesto ni su hash. Append-only: no se edita ni se reutiliza para otra entidad.
+export type PublicReferenceEntity = 'PRODUCER' | 'PLOT' | 'DELIVERY' | 'LOT' | 'SHIPMENT' | 'DD_SNAPSHOT';
+export interface PublicReferencesTable { reference: string; entity_type: PublicReferenceEntity; entity_id: string; organization_id: string; created_at: Generated<Timestamp> }
 export interface DdExportsTable { id: string; organization_id: string; snapshot_id: string; kind: 'INTERNAL_REVIEW' | 'DD_PACKAGE'; redaction_profile: unknown; package_hash: string; size_bytes: number; exported_by: string; exported_at: Generated<Timestamp>; operation_id: string }
 export interface MitigationDecisionsTable { id: string; organization_id: string; action_id: string; submission_number: number; decision: 'VERIFIED' | 'REJECTED'; reason: string; decided_by: string; decided_at: Generated<Timestamp>; operation_id: string; criterion_met: boolean | null }
 export interface MitigationCorrectionsTable { id: string; organization_id: string; action_id: string; decision_id: string; submission_number: number; support_accepted: boolean; criterion_met: boolean; reason: string; corrected_by: string; corrected_at: Generated<Timestamp>; operation_id: string }
@@ -807,6 +813,7 @@ export interface Database {
   dd_snapshots: DdSnapshotsTable;
   dd_reviews: DdReviewsTable;
   dd_exports: DdExportsTable;
+  public_references: PublicReferencesTable;
   satellite_providers: SatelliteProvidersTable;
   satellite_jobs: SatelliteJobsTable;
   satellite_results: SatelliteResultsTable;

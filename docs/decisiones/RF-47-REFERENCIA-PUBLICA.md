@@ -1,8 +1,17 @@
 # RF-47 — Referencia pública por entidad (`public_reference`)
 
-**Estado: análisis del contrato y decisiones de producto pendientes. No implementado.**
+**Estado: contrato ADOPTADO como provisional para el desarrollo local (2026-10-16) e implementado.**
 Fecha: 2026-10-16. Historia asociada: **P1-002**. Clasificación de alcance: **evolución (P1)** —
 justificación con cita literal en `docs/03_REQUISITOS.md` §«RF-47: por qué es evolución y no MVP».
+
+> **Qué se adoptó y qué no.** Se adoptan las cinco decisiones de §4, con **emisión automática**. Las cinco son
+> **decisiones de diseño**, no conclusiones que la fuente obligue: S1 §49 fija las entidades, el carácter
+> optativo («podrá tener») y la prohibición de exponer IDs internos, y **no** dice nada sobre ámbito de
+> unicidad, formato, emisión ni resolución. Donde abajo se razona a favor de una opción, se razona sobre
+> **conveniencia y riesgo**, no sobre obligación documental.
+>
+> **RF-47 no cierra RF-33 ni P1-002.** Esta entrega crea identificadores y su resolución autorizada. La
+> publicación por audiencias, los QR y las concesiones externas **siguen fuera**, y P1-002 sigue abierta.
 
 Este documento hace el contraste previo que la historia exige **antes de añadir ninguna columna**: qué dice la
 fuente, qué identificadores ya existen, cuáles de ellos satisfacen el contrato y qué decisiones de producto
@@ -106,14 +115,22 @@ implementar, no después**, porque cada una cambia el esquema o el comportamient
 
 | Opción | Qué hace |
 | --- | --- |
-| **A** | **Única de forma absoluta**: `UNIQUE (public_reference)`, sin `organization_id`. La referencia se resuelve sola |
-| **B** | Única por organización: `UNIQUE (organization_id, public_reference)`. El enlace debe llevar la organización |
+| **A** | **Única de forma absoluta**, en un espacio de nombres compartido por todos los tipos que usan el resolver |
+| **B** | Única por organización. El enlace debe identificar también la organización |
 
-**Recomendación: A.** **Efecto:** es la única compatible con la obligación incondicional de §49. Con B, resolver
-`PAR-001` exige saber de qué organización es, así que el enlace tiene que transportar el `organization_id` —un
-UUID interno— y eso es exactamente «exponer directamente IDs internos». A permite una ruta de la forma
-`/r/<referencia>` sin ningún identificador interno a la vista. **Coste de A**: el valor necesita entropía
-suficiente para no colisionar entre organizaciones y para no ser adivinable; eso lo fija D-47.4.
+**Adoptada: A.** **Es una elección de diseño, no la única solución posible.** La corrección que hay que dejar
+escrita: **B no obliga necesariamente a revelar el UUID interno de la organización** —podría llevar una
+referencia externa de organización, también opaca—, así que el argumento de «B expone IDs internos» era
+demasiado fuerte. Se adopta A porque resuelve con una sola búsqueda y sin un segundo identificador que acuñar,
+mantener y resolver, no porque B fuese inadmisible.
+
+**Lo que sí es un requisito técnico, y no una preferencia:** si las seis entidades se resuelven por la **misma
+ruta**, la unicidad tiene que ser **efectiva entre tipos**. Un `UNIQUE` independiente en cada tabla **no lo
+garantiza**: cada restricción solo mira su propia tabla, de modo que una parcela y un lote podrían recibir el
+mismo valor y el resolver tendría dos candidatos. Por eso la implementación **no añade una columna por tabla**,
+sino un **registro central** (`public_references`) donde `reference` es la clave primaria: un único espacio de
+nombres para los seis tipos y las dos organizaciones. **Coste de A**: el valor necesita entropía suficiente para
+no colisionar ni ser adivinable; son 96 bits (24 hexadecimales) de `gen_random_bytes`.
 
 ### D-47.2 — Qué entidad es «Package»
 
@@ -150,16 +167,22 @@ de modo que se comporta como una referencia de versión sin necesidad de decidir
 
 | Opción | Qué hace |
 | --- | --- |
-| **A** | A todas las filas: columna `NOT NULL`, poblando los registros existentes en la migración |
-| **B** | **Bajo demanda**: columna anulable con índice único parcial, emitida por un rol con permiso |
+| **A** | **Automática** para toda fila, incluidos los registros existentes |
+| **B** | Bajo demanda, emitida por un rol con permiso, posiblemente revocable |
 
-**Recomendación: B.** **Efecto:** respeta el «**podrá** tener» de §49, que es optativo y no obligatorio. Con A se
-acuñaría una referencia pública para los 9 productores, 6 parcelas, 3 entregas y 3 lotes actuales **sin que nadie
-lo haya pedido para ninguno**, creando superficie pública por defecto sobre datos de personas. Con B, la
-**incorporación de los registros existentes** queda resuelta sin inventar valores: reciben referencia cuando
-alguien decide publicarlos, y eso es comprobable como prueba. **Lo que B obliga a fijar**: quién la emite, que el
-valor sea opaco y de entropía suficiente (D-47.1), y si es **revocable** —y qué ocurre con lo ya impreso si se
-revoca—. **Coste de B frente a A**: hay dos estados (con y sin referencia) que la UI y la API deben tratar.
+**Adoptada: A.** **Corrige la recomendación anterior de este documento, que proponía B.** El razonamiento que la
+sostenía —que emitir referencias «crea superficie pública por defecto sobre datos de personas»— **confundía dos
+cosas**: **crear un identificador no publica los datos ni concede acceso**. Nada queda expuesto por existir una
+fila en `public_references`; el acceso lo sigue decidiendo íntegramente la autorización sobre el recurso real
+(D-47.5). Los permisos, los estados «con/sin referencia» y las posibles revocaciones que B arrastraba
+pertenecen a la **publicación** del pasaporte o del QR —RF-33—, no al identificador.
+
+**Efecto:** la emisión es un disparador por tabla en la base, de modo que **toda vía de alta** queda cubierta
+—API, semillas, importación, pruebas— sin que ninguna tenga que acordarse. La **incorporación de los registros
+existentes** se hace en la propia migración, con `ON CONFLICT DO NOTHING`, y la migración **comprueba antes de
+terminar** que no quedó ninguna fila sin referencia. Sobre «podrá tener» de §49: el carácter optativo se respeta
+en lo que importa —nada obliga a *usar* ni a *publicar* la referencia—, y acuñarla siempre es la lectura que
+elegimos, no la que la fuente impone.
 
 ### D-47.5 — Qué devuelve una resolución no autorizada
 
@@ -175,18 +198,15 @@ acceso.** Conocerla no autoriza nada; la autorización por organización, acció
 esta decisión no cubre**: qué subconjunto se muestra a cada audiencia cuando sí hay autorización, que es RF-33 y
 se decide con esa historia.
 
-### Resumen de lo recomendado
+### Resumen de lo adoptado
 
-| Decisión | Recomendación |
-| --- | --- |
-| D-47.1 Ámbito | Única **absoluta**, sin `organization_id` en el índice |
-| D-47.2 «Package» | **`dd_snapshots`**, sin que referenciar implique aprobación |
-| D-47.3 Destino | **La entidad**, resolviendo a lo vigente, para las cinco operativas |
-| D-47.4 Emisión | **Bajo demanda**, anulable, con índice único parcial |
-| D-47.5 No autorizado | **Indistinguible** de inexistente |
-
-Con estas cinco resueltas, el contrato queda cerrado y la implementación es directa y verificable contra §5.
-**Mientras no se aprueben, no se añade ninguna columna.**
+| Decisión | Adoptado | Dónde se cumple |
+| --- | --- | --- |
+| D-47.1 Ámbito | Única **entre todos los tipos que comparten el resolver** | `public_references.reference` es clave primaria |
+| D-47.2 «Package» | **`dd_snapshots`**; referenciar no acredita aprobación, vigencia, exportación ni presentación | Tipo `DD_SNAPSHOT` |
+| D-47.3 Destino | Referencia estable **de entidad**; la consulta muestra lo vigente | `UNIQUE (entity_type, entity_id)` + append-only |
+| D-47.4 Emisión | **Automática**, incluidos los registros existentes | Disparador por tabla + incorporación en la migración |
+| D-47.5 No autorizado | **Indistinguible** de inexistente | Una sola respuesta en el resolver |
 
 ---
 
@@ -207,8 +227,30 @@ Independientemente de las cinco decisiones, estas condiciones se verificarán en
 
 ---
 
-## 6. Estado
+## 6. Estado: implementado y probado
 
-No se ha añadido ninguna columna, migración ni endpoint. Las cinco decisiones de §4 están **presentadas con
-opciones, recomendación y efecto** (revisión del 2026-10-16) y **esperan aprobación**. En cuanto se aprueben
-—aceptando o cambiando cada recomendación— la implementación procede y se verifica contra §5.
+| | |
+| --- | --- |
+| Migración | **`0044_rf47_referencia_publica`** — extensión `pgcrypto`, `public_reference_new()`, tabla `public_references`, append-only, un disparador por tabla e incorporación de los existentes |
+| Resolución | `GET /api/v1/public-references/:reference` — `apps/api/src/traceability/public-references.ts` |
+| Pruebas | **12** en `apps/api/test/public-references.int-spec.ts`, contra PostgreSQL real |
+| Incorporación en desarrollo | **22 referencias**: 9 productores, 6 parcelas, 3 entregas, 3 lotes, 1 instantánea. Ninguna fila sin referencia, ninguna repetida |
+
+Lo que las pruebas fijan: emisión automática y opaca; unicidad efectiva **entre tipos** y entre organizaciones,
+con la restricción comprobada de verdad; que no se edita ni se reutiliza; incorporación **idempotente** de
+registros existentes; concurrencia (8 altas simultáneas → una referencia cada una, todas distintas); estabilidad
+tras corregir un productor y versionar una geometría; permanencia de la referencia de una instantánea anterior
+cuando llega otra; que el contenido, el manifiesto y el hash de la instantánea **no cambian**; respuestas
+indistinguibles para lo ajeno y lo inexistente; alcance asignado respetado; rol retirado que deja de resolver; y
+que sin autenticación no resuelve nada.
+
+**Lo que sigue pendiente**: RF-47 no se marca como demostrado en `docs/24` hasta que sus criterios se contrasten
+allí. **RF-33 y P1-002 siguen abiertas**: esto no las cierra.
+
+### Lo que NO cambió
+
+Los códigos operativos (`producer_code`, `plot_code`, `delivery_code`, `lot_code`, `shipment_code`,
+`case_number`) se conservan y **ninguna API existente se rediseñó**. No se creó ningún permiso: `BUYER` y
+`PRODUCER` siguen sin permisos y `SUPER_ADMIN` sin acceso a datos de organización (D-04 pendiente). Despacho y
+`READY` siguen bloqueados, la conclusión sigue `UNDETERMINED` y el satélite deshabilitado. **D-34 sigue sin
+adoptar.**
