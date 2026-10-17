@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { sql, type Kysely, type Transaction } from 'kysely';
 import { DB } from '../db/database';
 import type { Database } from '../db/schema';
+import { referenciaDe } from '../traceability/public-references';
 import { AppError, conflict, forbidden, notFound } from '../common/errors';
 import { AuditService } from '../audit/audit.service';
 import { AuthorizationService, type TenantContext } from '../authz/authorization.service';
@@ -463,6 +464,9 @@ export class ShipmentsService {
     const can = (p: Permission) => this.has(ctx, p);
     const draft = s.status === 'DRAFT';
     return {
+      // RF-47: la referencia se entrega en la LECTURA AUTORIZADA del recurso. No es publicarla por
+      // audiencias (eso es RF-33) ni concede acceso: quien lee esto ya está autorizado sobre el recurso.
+      public_reference: await referenciaDe(db, ctx.organizationId, 'SHIPMENT', s.id),
       id: s.id, shipment_code: s.shipment_code, status: s.status, status_label: STATUS_LABEL[s.status], row_version: Number(s.row_version),
       buyer: { id: s.buyer_id, code: s.buyer_code, name: s.buyer_name, country: s.buyer_country, verification: 'DECLARED' },
       destination: { country: s.destination_country, place: s.destination_place, verification: 'DECLARED' },

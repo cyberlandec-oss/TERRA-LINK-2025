@@ -8,6 +8,7 @@ import { createHash, randomUUID } from 'crypto';
 import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 import { DB } from '../db/database';
 import type { Database, ProducerStatus, ProducersTable } from '../db/schema';
+import { referenciaDe } from '../traceability/public-references';
 import { AppError, conflict, forbidden, notFound } from '../common/errors';
 import { AuditService } from '../audit/audit.service';
 import { AuthorizationService, type TenantContext } from '../authz/authorization.service';
@@ -388,6 +389,9 @@ export class ProducersService {
     const p = await this.load(this.db, ctx, id, 'read');
     return {
       ...this.view(p, ctx),
+      // RF-47: la referencia se entrega en la LECTURA AUTORIZADA. No la publica por audiencias (RF-33) ni
+      // concede acceso: quien lee esto ya está autorizado sobre el productor.
+      public_reference: await referenciaDe(this.db, ctx.organizationId, 'PRODUCER', p.id),
       can_update: p.status !== 'INACTIVE' && this.inScope(ctx, p, 'update') && ctx.organizationStatus === 'ACTIVE',
       can_assign: ctx.permissions.includes('producer:assign') && ctx.organizationStatus === 'ACTIVE',
       can_archive: ctx.permissions.includes('producer:archive') && ctx.organizationStatus === 'ACTIVE',

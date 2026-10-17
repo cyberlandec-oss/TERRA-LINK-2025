@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 import { DB } from '../db/database';
 import type { Database, LotsTable } from '../db/schema';
+import { referenciaDe } from '../traceability/public-references';
 import { AppError, conflict, forbidden, notFound } from '../common/errors';
 import { AuditService } from '../audit/audit.service';
 import { AuthorizationService, type TenantContext } from '../authz/authorization.service';
@@ -584,6 +585,9 @@ export class LotsService {
       SELECT e.event_type, e.aggregate_version::text, e.occurred_at, u.first_name, u.last_name FROM domain_events e LEFT JOIN users u ON u.id = e.actor_id
       WHERE e.organization_id = ${ctx.organizationId} AND e.aggregate_type = 'LOT' AND e.aggregate_id = ${id} ORDER BY e.aggregate_version`.execute(db)).rows;
     return {
+      // RF-47: la referencia se entrega en la LECTURA AUTORIZADA del recurso. No es publicarla por
+      // audiencias (eso es RF-33) ni concede acceso: quien lee esto ya está autorizado sobre el recurso.
+      public_reference: await referenciaDe(db, ctx.organizationId, 'LOT', l.id),
       id: l.id, lot_code: l.lot_code, source: l.source, status: l.status, row_version: Number(l.row_version), product,
       origin: { status: l.origin_status, label: l.origin_status === 'COMPLETE' ? 'Origen declarado en todos los insumos' : 'Origen incompleto', note: l.origin_status === 'INCOMPLETE' ? 'Algún insumo procede de una entrega sin origen declarado. No se mezcla con material de origen conocido y la condición se conserva en las salidas (D-39).' : null },
       quality: this.qualitySummary(await this.quality(db, id)),

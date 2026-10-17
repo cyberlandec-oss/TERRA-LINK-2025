@@ -1,6 +1,6 @@
 import { Controller, Get, Inject, Injectable, Param, Req } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Kysely, sql } from 'kysely';
+import { sql, type Kysely, type Transaction } from 'kysely';
 import type { AuthUser } from '../auth/auth';
 import { AuthorizationService, type TenantContext } from '../authz/authorization.service';
 import type { Permission } from '../authz/catalog';
@@ -30,6 +30,32 @@ const ACCESO: Record<PublicReferenceEntity, { amplio: Permission; asignado?: Per
   SHIPMENT: { amplio: 'shipment:read' },
   DD_SNAPSHOT: { amplio: 'dd:read' },
 };
+
+/**
+ * RF-47 — Referencia pública de una entidad, para **adjuntarla a su lectura autorizada**.
+ *
+ * Entregar la referencia a quien YA puede leer el recurso **no es publicarla por audiencias**: no crea acceso,
+ * no define proyecciones por destinatario y no emite ningún QR. Eso último es RF-33. Sin esto, la única forma
+ * de obtener una referencia sería consultar la base, que no es una vía aceptable para la revisión ni para un
+ * cliente.
+ *
+ * No toca el contenido de ninguna entidad: la referencia vive en su propio registro, así que adjuntarla a una
+ * respuesta **no altera el contenido, el manifiesto ni el hash** de una instantánea.
+ */
+export async function referenciaDe(db: Kysely<Database> | Transaction<Database>, org: string, tipo: PublicReferenceEntity, id: string): Promise<string | null> {
+  const r = await sql<{ reference: string }>`
+    SELECT reference FROM public_references WHERE organization_id = ${org} AND entity_type = ${tipo} AND entity_id = ${id}`.execute(db);
+  return r.rows[0]?.reference ?? null;
+}
+
+/** Varias de un tipo, para listados: devuelve `{ [entity_id]: reference }`. */
+export async function referenciasDe(db: Kysely<Database> | Transaction<Database>, org: string, tipo: PublicReferenceEntity, ids: string[]): Promise<Record<string, string>> {
+  if (!ids.length) return {};
+  const r = await sql<{ entity_id: string; reference: string }>`
+    SELECT entity_id, reference FROM public_references
+    WHERE organization_id = ${org} AND entity_type = ${tipo} AND entity_id = ANY(${ids})`.execute(db);
+  return Object.fromEntries(r.rows.map((x) => [x.entity_id, x.reference]));
+}
 
 interface Resuelta { reference: string; entity_type: PublicReferenceEntity; organization_id: string; id: string; code: string }
 

@@ -667,6 +667,15 @@ export interface SatelliteCredentialsTable {
 // fuera de las entidades a propósito: añadir una referencia a una instantánea no toca su contenido, su
 // manifiesto ni su hash. Append-only: no se edita ni se reutiliza para otra entidad.
 export type PublicReferenceEntity = 'PRODUCER' | 'PLOT' | 'DELIVERY' | 'LOT' | 'SHIPMENT' | 'DD_SNAPSHOT';
+// P0-003 — Concesión externa: acto del DUEÑO de los datos sobre instancias concretas. No crea membresía ni
+// asigna roles. Vencimiento obligatorio, revocación inmediata y términos inmutables (disparadores en 0046).
+export interface AccessGrantsTable {
+  id: string; organization_id: string; grantee_user_id: string;
+  resource_type: 'LOT' | 'SHIPMENT' | 'DD_SNAPSHOT'; resource_id: string;
+  can_read: boolean; can_download: boolean; expires_at: Timestamp; reason: string;
+  granted_by: string; operation_id: string; created_at: Generated<Timestamp>;
+  revoked_at: Timestamp | null; revoked_by: string | null; revoke_reason: string | null;
+}
 export interface PublicReferencesTable { reference: string; entity_type: PublicReferenceEntity; entity_id: string; organization_id: string; created_at: Generated<Timestamp> }
 export interface DdExportsTable { id: string; organization_id: string; snapshot_id: string; kind: 'INTERNAL_REVIEW' | 'DD_PACKAGE'; redaction_profile: unknown; package_hash: string; size_bytes: number; exported_by: string; exported_at: Generated<Timestamp>; operation_id: string }
 export interface MitigationDecisionsTable { id: string; organization_id: string; action_id: string; submission_number: number; decision: 'VERIFIED' | 'REJECTED'; reason: string; decided_by: string; decided_at: Generated<Timestamp>; operation_id: string; criterion_met: boolean | null }
@@ -817,6 +826,7 @@ export interface Database {
   dd_reviews: DdReviewsTable;
   dd_exports: DdExportsTable;
   public_references: PublicReferencesTable;
+  access_grants: AccessGrantsTable;
   satellite_providers: SatelliteProvidersTable;
   satellite_jobs: SatelliteJobsTable;
   satellite_results: SatelliteResultsTable;

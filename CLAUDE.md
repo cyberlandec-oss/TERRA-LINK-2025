@@ -37,6 +37,31 @@ Este paquete define el producto objetivo; no acredita implementación, conformid
 5. Actualiza estado, decisiones y reporte de evidencia. No cierres una historia solo porque el código compila.
 6. Entrega cambios, pruebas ejecutadas, limitaciones y siguiente paso; distingue «no ejecutado» de «aprobado».
 
+## Organización por entregas funcionales completas (2026-10-17)
+Agrupa decisiones, implementación y pruebas de **un mismo resultado funcional verificable**; no conviertas cada
+ajuste en una entrega con validación y despliegue propios, ni acumules funcionalidades independientes. Límite
+natural: mismo caso de uso, contrato y dependencias.
+1. Antes de programar, identifica resultado esperado, criterios originales cubiertos, decisiones ya adoptadas,
+   decisiones pendientes que **realmente** bloquean y comprobaciones de aceptación. No pidas de nuevo
+   aprobación de lo ya adoptado; cuando falten decisiones, preséntalas **juntas** con opciones, recomendación y
+   consecuencia, y sigue mientras tanto con el trabajo independiente ya autorizado.
+2. Durante la implementación ejecuta **pruebas dirigidas** —casos nuevos y regresiones afectadas— con typecheck
+   y lint según lo cambiado. Reutiliza arneses y utilidades existentes; no construyas sistemas paralelos.
+3. Cierre del candidato: genera artefactos versionados (incluida OpenAPI), revisa el diff excluyendo secretos,
+   credenciales, respaldos, APK y archivos ajenos, confirma, y ejecuta **`npm run validate` completa una sola
+   vez sobre ese SHA**, con el código congelado. Si falla, conserva registros, diagnostica y corrige: la
+   corrección es un candidato nuevo. No repitas hasta obtener verde ni subas timeouts.
+4. Tras aprobar: reconstruye **una vez** los servicios afectados, comprueba el comportamiento cambiado (un 200
+   no sustituye esa comprobación), aplica el respaldo cuando haya migración, cambio criptográfico o
+   intervención sobre datos, y consolida evidencia, trazabilidad, estado y continuidad en **un commit de
+   resultados**.
+5. El cierre indica qué cambió, SHA validado y resultado, comportamiento comprobado en despliegue, criterios
+   demostrados y pendientes, y la siguiente entrega recomendada. Los cambios solo documentales posteriores no
+   repiten la validación funcional.
+
+Esto **no** reduce alcance ni controles: el backlog y los criterios originales siguen igual, y se mantiene la
+distinción entre implementación, demostración local, aceptación externa y preparación para producción.
+
 ## Criterio de aceptación de esta etapa: desarrollo y validación local
 - Terra Link se desarrolla, levanta y verifica en el equipo local. GitHub Actions **no es obligatorio** en esta etapa; no hay que resolver facturación ni cambiar de cuenta.
 - Git/GitHub siguen siendo versionado y respaldo (commits y push a la rama de trabajo).

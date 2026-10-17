@@ -3023,6 +3023,144 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/access-grants": {
+      "post": {
+        "description": "La concesión NO crea membresía ni asigna roles. Exige vencimiento futuro y solo puede conceder lo que el concedente ya tiene.",
+        "operationId": "AccessGrantsController_crear",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrearConcesionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Conceder acceso externo a una instancia concreta (P0-003)",
+        "tags": [
+          "Autorización"
+        ]
+      },
+      "get": {
+        "operationId": "AccessGrantsController_listar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Autorización"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/access-grants/{id}/revoke": {
+      "post": {
+        "operationId": "AccessGrantsController_revocar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevocarDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Revocar una concesión, con efecto inmediato",
+        "tags": [
+          "Autorización"
+        ]
+      }
+    },
+    "/api/v1/granted": {
+      "get": {
+        "operationId": "GrantedController_mias",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Lo que otras organizaciones han concedido a mi cuenta (P0-003)",
+        "tags": [
+          "Autorización"
+        ]
+      }
+    },
+    "/api/v1/granted/{grantId}": {
+      "get": {
+        "description": "Revalida cuenta, concesión, vencimiento, revocación y acción en CADA acceso. Un recurso inexistente y uno no concedido responden igual.",
+        "operationId": "GrantedController_leer",
+        "parameters": [
+          {
+            "name": "grantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Proyección permitida del recurso concedido",
+        "tags": [
+          "Autorización"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/aggregates/{kind}/{id}/events": {
       "get": {
         "operationId": "EventHistoryController_history",
@@ -9386,6 +9524,68 @@
         "required": [
           "cte_definition_id",
           "values"
+        ]
+      },
+      "CrearConcesionDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "grantee_user_id": {
+            "type": "string",
+            "description": "Cuenta destinataria, existente y activa. No se crea ni se invita desde aquí."
+          },
+          "resource_type": {
+            "type": "string",
+            "enum": [
+              "LOT",
+              "SHIPMENT",
+              "DD_SNAPSHOT"
+            ]
+          },
+          "resource_id": {
+            "type": "string",
+            "description": "Instancia concreta. No se admiten comodines ni alcances por organización."
+          },
+          "can_read": {
+            "type": "boolean",
+            "default": true
+          },
+          "can_download": {
+            "type": "boolean",
+            "default": false
+          },
+          "expires_at": {
+            "type": "string",
+            "description": "Vencimiento obligatorio, en el futuro. No existe la concesión indefinida."
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "grantee_user_id",
+          "resource_type",
+          "resource_id",
+          "expires_at",
+          "reason"
+        ]
+      },
+      "RevocarDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "reason"
         ]
       },
       "RequeueDto": {
