@@ -244,8 +244,33 @@ cuando llega otra; que el contenido, el manifiesto y el hash de la instantánea 
 indistinguibles para lo ajeno y lo inexistente; alcance asignado respetado; rol retirado que deja de resolver; y
 que sin autenticación no resuelve nada.
 
-**Lo que sigue pendiente**: RF-47 no se marca como demostrado en `docs/24` hasta que sus criterios se contrasten
-allí. **RF-33 y P1-002 siguen abiertas**: esto no las cierra.
+### 6.1 El ensayo `down`/`up`: qué demuestra y qué NO
+
+Se ejecutó `down` y luego `up` sobre una **base de ensayo desechable**: `down` retiró la tabla, los seis
+disparadores y las tres funciones, y `up` volvió a crearlo todo.
+
+**Eso demuestra reversibilidad del ESQUEMA, y nada más.** No demuestra —ni puede— conservación de los
+identificadores: `up` los genera con `gen_random_bytes`, así que un ciclo `down`→`up` **acuña referencias
+distintas** y **cualquier enlace ya emitido dejaría de resolver**. Decir «el retorno está probado» sin esta
+distinción sería presentar como recuperación completa algo que no lo es.
+
+**Qué exige, por tanto, el retorno operativo de RF-47**: preservar o **restaurar los mismos valores** de
+`public_references`. En la práctica eso significa **restaurar desde un respaldo que ya los contenga**, nunca
+reconstruir el registro con `up()`. El primer respaldo que los contiene es
+**`_respaldos/2026-10-16-post-rf47`** (44 migraciones, 22 referencias): el anterior, `2026-10-16-post-rotacion-pii`,
+tiene 43 migraciones y **no los incluye**, de modo que restaurar desde él después de esta entrega perdería todos
+los identificadores emitidos.
+
+**`down` no se ejecuta sobre la base de desarrollo.** El ensayo se hizo en una base aparte, creada y eliminada
+para ese fin.
+
+**Contrastado en `docs/24`** el 2026-10-16: RF-47 queda **demostrado**. La cobertura del catálogo completo pasa a
+**26 de 59 (44,1 %)** —el denominador sube de 58 a 59 porque RF-47 existe—, el alcance MVP se queda en **25 de 43
+(58,1 %)** porque RF-47 es P1 y no entra, y el cierre de historias del MVP **sigue en 24 de 32 (75 %)**:
+completar una parte de P1-002 no cierra la historia.
+
+**RF-33 y P1-002 siguen abiertas**: esto no las cierra. Falta la publicación por audiencias, el QR y las
+concesiones externas.
 
 ### Lo que NO cambió
 

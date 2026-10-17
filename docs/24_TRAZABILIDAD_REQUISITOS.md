@@ -2,7 +2,7 @@
 
 Referencias S1–S4 y secciones corresponden a los originales conservados en `sources/`. La matriz justifica alcance, no acredita implementación.
 
-**Estado por requisito (2026-10-16)**: el contraste uno a uno de los 58 requisitos con identificador —qué está demostrado, qué es parcial, qué espera una decisión y qué es una prueba sin ejecutar— está en `docs/decisiones/CONTRASTE_DOCUMENTACION_RAIZ_2026-10-16.md`. Cobertura demostrada: **25 de 58 (43 %)**; cierre de historias del MVP: **24 de 32 (75 %)**. Son medidas distintas y no deben mezclarse.
+**Estado por requisito (2026-10-16)**: el contraste uno a uno de los requisitos con identificador —qué está demostrado, qué es parcial, qué espera una decisión y qué es una prueba sin ejecutar— está en `docs/decisiones/CONTRASTE_DOCUMENTACION_RAIZ_2026-10-16.md`. El denominador pasa de 58 a **59** al existir **RF-47** (47 RF + 12 RNF); la cifra de 58 era anterior a su alta. Cobertura demostrada: **26 de 59 (44,1 %)** tras **RF-47**; del alcance MVP: **25 de 43 (58,1 %)**, donde RF-47 **no entra** por ser P1. Cierre de historias del MVP: **24 de 32 (75 %)**, que **no cambia**: RF-47 completa una parte de P1-002, no la historia. Son medidas distintas y no deben mezclarse.
 
 | Fuente | Requisitos | Historias | Especificación | Verificación |
 | --- | --- | --- | --- | --- |
@@ -21,7 +21,8 @@ Referencias S1–S4 y secciones corresponden a los originales conservados en `so
 | S1 §§27–29, 44; S4 §16 | RF-29 | P0-029 | 05/06/13/14 | QA-06/12 · `test/shipments.int-spec.ts` (6), `e2e/review/embarques-web.mjs`; P0-029 ABIERTA (despacho bloqueado por D-34) |
 | S1 §§60, 97 | RF-30 | P0-030 | 09/17 | QA-13/14 · `test/reports.int-spec.ts` (16), `test/reports-entities.int-spec.ts` (12), `src/reports/reports-catalog.spec.ts` (8, permisos en memoria), `src/reports/reports-risk.spec.ts` (6, caso mixto), `e2e/tests/productos.spec.ts` (P0-030 ×3); §60 y los seis reportes de §97 demostrados, GeoJSON técnico demostrado; historia **ABIERTA** por la conclusión regulatoria (**D-05.B**) y la distribución de riesgo (**D-07**); desde el 2026-10-15 hay **dos** exportaciones GeoJSON, la técnica y la del perfil `EUDR_GEO_V1` (D-05.A) — estado por criterio en `docs/decisiones/P0-030-CRITERIOS.md` |
 | S1 §§75–81, 98–99 | RF-31, RNF-05/06/10/12 | P0-031; TECH-001 | 16/17/19/20 | QA-16/17 |
-| S2 §§18–20, 24; S3 §§22, 38; S4 §17 | RF-32–33 | P1-001–002 | 07/14/15 | QA-02/14 |
+| S2 §§18–20, 24; S3 §§22, 38; S4 §17 | RF-32–33 | P1-001–002 | 07/14/15 | QA-02/14 · **RF-33 sigue ABIERTA**: no hay publicación por audiencias ni QR |
+| **S1 §49** | **RF-47** | P1-002 | 05/06/07/09 | **DEMOSTRADO el 2026-10-16** · `test/public-references.int-spec.ts` (**12**, PostgreSQL real) · migración `0044_rf47_referencia_publica` · resolución `GET /api/v1/public-references/:reference` · validación **APROBADA** sobre **`d8bb9c9`** (64 suites, 598 pruebas, 72 E2E) · verificado también **en el despliegue** (9 comprobaciones). Cubre: emisión automática y opaca, unicidad efectiva **entre tipos** y entre organizaciones, inmutabilidad, incorporación idempotente de existentes, concurrencia, estabilidad tras corrección y versión nueva, permanencia de la referencia de instantáneas anteriores, contenido/manifiesto/hash intactos, respuestas indistinguibles, alcance asignado, rol retirado y sin autenticar. **No cierra RF-33 ni P1-002** |
 | S3 §§16, 18, 28; S4 §3 | RF-35 | P1-004 | 02/14 | Wizard/madurez con evidencia |
 | S2 §29; S3 §§14, 19, 27 | RF-37 | P1-006 | 15 | Intercambio autorizado/conciliación |
 | S1 §44, S3 §18; consulta oficial EU-IS | RF-38 | P1-007 | 13/15 | Receipt ACCEPTANCE/UNKNOWN, no producción implícita |
