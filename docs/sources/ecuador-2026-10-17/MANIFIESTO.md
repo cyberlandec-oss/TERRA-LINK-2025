@@ -91,9 +91,10 @@ el documento **sí es legible**, y su cabecera dice «SUPLEMENTO · Año IV · N
 de 2017», que es exactamente lo que se le atribuía. **La identificación queda comprobada contra el documento**,
 no solo contra el nombre del archivo.
 
-**El límite que sí se mantiene:** es el texto tal como se publicó en 2017 y **no incorpora reformas**. Una
-búsqueda secundaria menciona una reforma en el Suplemento del Registro Oficial **309, de 21 de agosto de
-2018**; **no se ha verificado contra el Registro Oficial** y se registra como **dato sin confirmar**.
+**El límite que sí se mantiene:** es el texto tal como se publicó en 2017 y **no incorpora reformas**. La
+reforma del RO-S **309** (2018) **ya está verificada** —su artículo 53 sustituye el segundo inciso del
+**artículo 209** del COA; ver §2.6—. Lo que **no** se ha hecho es una búsqueda exhaustiva de reformas
+posteriores a 2018.
 
 ### 2.2 `mag-indice-normativa.pdf` — índice institucional, no norma
 
@@ -166,6 +167,38 @@ Disposición General Décima, cambia una frase de la Transitoria Primera y elimi
 **Queda corregida la hipótesis anterior**, que atribuía estas reformas **solo al reglamento**: modifican **la
 ley**. Y hay un matiz que la matriz debe conservar: **las siete tratan de regularización y adjudicación de
 tierra rural ESTATAL**, no de deberes generales de todo productor.
+
+### 2.5 Bloque ambiental (incorporado el 2026-10-17)
+
+| Archivo | Qué es | Publicación | Bytes | sha256 |
+| --- | --- | --- | ---: | --- |
+| `reglamento-coa-ro-s-507-2019-06-12.pdf` | **Texto normativo**: Decreto Ejecutivo **752**, Reglamento al Código Orgánico del Ambiente | RO **Suplemento 507**, 12-jun-2019 | 1 407 425 | `6c5ac3e13c26606090ea50221e121ec45e758e75afe10d35af286b8c521de454` |
+
+**Procedencia y verificación.** Portal oficial del Estado (`gob.ec`). Cabecera comprobada **contra el propio
+documento**: «SUPLEMENTO · Año III – Nº 507 · Quito, miércoles 12 de junio de 2019 · DECRETO **752** · Expídese
+el Reglamento al Código Orgánico del Ambiente».
+
+**Incidencia técnica registrada**: `www.gob.ec` **cierra la conexión** ante descargas automatizadas directas
+(`Connection was reset`, también con cabeceras de navegador). Se obtuvo por otra vía de red, y queda anotado
+igual que el desafío de AWS WAF de EUR-Lex y el fallo TLS de `ambiente.gob.ec`.
+
+### 2.6 La reforma del COA, ahora SÍ verificada
+
+El manifiesto registraba como **dato sin confirmar** que el RO-S 309 (2018) reformaba el COA. **Queda
+verificado leyendo el propio documento**: su **SECCIÓN DÉCIMO NOVENA, «Reformas al Código Orgánico del
+Ambiente», artículo 53**, sustituye el **segundo inciso del artículo 209 del COA**:
+
+> «Los análisis se realizarán en laboratorios públicos, privados o de universidades e institutos de educación
+> superior, acreditados ante el Servicio de Acreditación Ecuatoriano. […]»
+
+**Qué alcanza y qué no.** Es una regla sobre **acreditación de laboratorios** para los análisis. **No crea
+ninguna obligación para un productor de cacao**, y así se registra: encontrar una reforma no la convierte en
+requisito exigible.
+
+**Qué sigue sin verificarse.** Una fuente secundaria indica que el **Reglamento** fue reformado por última vez
+en la **Edición Constitucional del RO 347, de 16-abr-2024**. **No se ha recuperado esa edición** y se registra
+como **modificación localizada y no verificada**. Para el **COA** no se ha hecho una búsqueda exhaustiva de
+reformas posteriores a 2018.
 
 ## 3. La distinción que P1-005 exige: norma, guía e interpretación
 

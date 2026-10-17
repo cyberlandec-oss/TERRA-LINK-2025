@@ -208,3 +208,118 @@ exactamente el error que el contrato prohíbe.
 4. **Identificar y verificar la cartografía oficial**; sin ella, EC-2 y EC-4 no son evaluables.
 5. **Decidir las ocho decisiones** de `P1-005-MATRIZ-OBLIGACIONES.md` §4.
 6. **Designar un responsable con competencia jurídica.** Sin él, nada de esto se aprueba.
+
+---
+
+# Addendum — Comprobaciones dirigidas y corrección de un defecto (2026-10-17)
+
+Las tres comprobaciones pedidas sobre lo ya entregado. **La primera encontró un defecto funcional real**, así
+que se corrigió y se aplicó el cierre completo sobre un SHA nuevo.
+
+| | |
+| --- | --- |
+| Candidato corregido | **`5228c9d`** |
+| Validación | `2026-10-17T21-14-34` — **APROBADA** |
+| Pruebas | **72 suites, 716** unitarias e integración · **72** E2E · 0 fallos |
+| Respecto de `0fbc473` | 706→**716** pruebas |
+| Migraciones | **49**, sin cambios: la corrección **no toca el esquema** |
+| Respaldo | **No se repite**: sin migración, sin cambio criptográfico y sin intervención sobre datos |
+
+## A.1 El defecto: el catálogo acreditaba por sí solo
+
+**Confirmado, y era real.** `LEGAL_PROFILE` devolvía `MET` mirando **solo el catálogo adoptado**. Un perfil
+COMPLETO y jurídicamente revisado habría acreditado el requisito aunque el sujeto del expediente tuviera
+**todas sus obligaciones desconocidas**, **sin evidencia**, o con **evidencia de otra parcela**.
+
+**Un catálogo revisado dice que existe una lista de obligaciones exigibles. No dice que ESTE lote las cumpla.**
+
+### Qué se corrigió
+
+El requisito mira ahora, además del catálogo, la **cobertura del sujeto parcela a parcela del lote**:
+
+| Condición | Si no se cumple |
+| --- | --- |
+| Existe evaluación de la parcela | `PENDING` — «sin evaluación legal» |
+| Se hizo con la **versión adoptada** | `PENDING` — «evaluada con otra versión del perfil» |
+| No quedan obligaciones sin resolver | `PENDING` — las nombra |
+| Ninguna declarada **no satisfecha** | **`INVALID`** — no «pendiente» |
+| La evidencia es la **versión vigente** del documento | `PENDING` — «evidencia SUSTITUIDA» |
+| La evidencia es **del propio sujeto** | `PENDING` — «evidencia de OTRO sujeto» |
+
+Y en la escritura: la evidencia de otro sujeto se **rechaza** (`EVIDENCE_FOREIGN_SUBJECT`). El documento debe
+ser de la parcela evaluada o de su productor; **un título de otra parcela es un documento válido que no
+acredita esta**.
+
+### Demostración
+
+**Once casos de requisito**, todos con catálogo **COMPLETO y REVISADO**, y **ninguno produce `MET`**:
+
+| Caso | Resultado |
+| --- | --- |
+| Sujeto **sin evaluar** | `PENDING` |
+| Obligaciones **desconocidas o pendientes** | `PENDING` |
+| Evidencia **faltante** | `PENDING` |
+| Evidencia **sustituida** por una versión posterior | `PENDING` |
+| Evidencia de **otro sujeto** | `PENDING` |
+| Evaluado con **otra versión** del perfil | `PENDING` |
+| Obligación **no satisfecha** | **`INVALID`** (bloquea) |
+| Sin parcelas de origen | `NOT_EVALUABLE` |
+| **CONTROL POSITIVO** (fixture **sintética**) | `MET` |
+
+El control positivo está **rotulado como fixture sintética** en el propio nombre de la prueba y en su
+comentario: esa combinación **hoy no existe** en el producto, y sirve para demostrar que el requisito *puede*
+cumplirse, no que se cumpla. **No es una aprobación jurídica.**
+
+En integración (`legal-profile.int-spec.ts`, **25**): la evidencia ajena se rechaza al escribirla; sustituir la
+versión documental deja la evidencia **desactualizada conservando la histórica**; y una parcela sin evaluación
+**no se presume resuelta**.
+
+## A.2 Vigencia e historial
+
+| Qué cambia | Qué ocurre |
+| --- | --- |
+| **Cambia el perfil adoptado** | Las evaluaciones hechas con la versión anterior **dejan de acreditar** (`assessed_version` ≠ adoptada) |
+| **Se sustituye una versión documental usada** | La evidencia queda **desactualizada** y el requisito vuelve a pendiente |
+| **Se detecta una reforma relevante** | Entra como **versión nueva** del perfil; lo evaluado con la anterior deja de acreditar |
+
+**Conservar la evidencia histórica no hace que una evaluación desactualizada siga acreditando.** Las dos cosas
+conviven: la historia es append-only y el requisito deja de darse por satisfecho.
+
+## A.3 Interfaz y respaldo: qué se verificó de verdad
+
+### Navegador, no solo HTTP
+
+**El 10/10 del recorrido HTTP no es una revisión de interfaz**, y se distingue. `e2e/review/perfil-juridico-navegador.mjs`,
+**11/11**, con Chromium real y cuenta DEMO:
+
+| Comprobación | Resultado |
+| --- | --- |
+| La pantalla se abre desde el menú | «Perfil jurídico (P1-005)» |
+| Avisa de entrada que **no acredita** | parcial + revisión pendiente + lo declara |
+| Las fuentes distinguen obtenido / contrastado / **vigencia revisada** | y la copia va identificada por **huella y página impresa** |
+| Las reglas se presentan como **candidatas** | 4 |
+| El rol EUDR **no ve** el botón de adoptar | ausente, y la pantalla lo explica |
+| Preparar | **4 requisitos en aplicabilidad desconocida** |
+| **TECLADO** | foco en «Aplicable» y **Enter** lo activa; aparece «Pendiente» |
+| **HISTORIAL** | 1 entrada con su motivo y la nota de conservación |
+| **390 px** | **sin desbordamiento horizontal**; 4 tablas en contenedor desplazable |
+
+### Respaldo: qué se comprobó, y qué no se declara
+
+Generar un respaldo **no demuestra restauración**. Lo verificado:
+
+| Comprobación | Cómo | Resultado |
+| --- | --- | --- |
+| **Integridad de archivos** | `sha256sum -c SHA256SUMS.txt` | **OK** en los tres archivos |
+| **Restauración aislada** | `scripts/ensayo-retorno.mjs` sobre base propia creada y eliminada | **12/12 APROBADO** |
+| **Referencias** | huella del conjunto, no el recuento | **22 · idéntica** (`93d21b4c…0ec9`) |
+| Esquema y tablas | contra lo declarado | **49 migraciones, 118 tablas** |
+| Identidad cifrada e historial | clave activa y disparador | `k2=6, k1=0` · trigger `O` |
+| **Objetos** | lista del tar frente al volumen vivo | **799 archivos en ambos, 0 ausentes**; de ellos **2** son objetos del bucket, el resto metadatos de MinIO |
+| Fallo inducido | `pg_restore` interrumpido | identificado, base reconocible y **reintento exacto** |
+
+## A.4 Lo que esto NO cambia
+
+**P1-005 sigue ABIERTA** y las cifras siguen en **31/60 = 51,7 %** y **30/44 = 68,2 %**. Se corrigió un defecto
+de un requisito ya contado; no se añadió ninguno. `UNDETERMINED`, `READY`, riesgo y despacho intactos; satélite
+deshabilitado.

@@ -135,14 +135,23 @@ y convertirlo en «todo productor debe aportar una póliza». **La norma no dice
 | **Qué exige revisión humana o jurídica** | Si el acto de adjudicación es evidencia suficiente de tenencia para EUDR; cómo se verifica su autenticidad |
 | **Lagunas abiertas** | Reglamento General de la LOTRTA **no obtenido**; procedimiento vigente tras 2022 **sin verificar** |
 
-### EC-7 · Materias ambientales del COA
+### EC-7 a EC-10 · Bloque ambiental: COA (RO-S 983, 2017) y su Reglamento (RO-S 507, 2019)
 
-| | |
-| --- | --- |
-| **Sujeto / aplicabilidad** | **Por determinar** |
-| **Artículos identificados** | **COA Art. 19** (Sistema Único de Información Ambiental, «público y obligatorio»); **Arts. 29, 31, 33, 34** (conservación de biodiversidad y medios regulatorios) |
-| **Estado** | **Identificación parcial.** El COA **no se ha barrido entero**: faltan sus títulos de **patrimonio forestal** y **cambio de uso del suelo**, que son los más probables para cacao |
-| **Lagunas abiertas** | El barrido completo; el Reglamento al COA (D.E. 752, RO-S 507, 2019) **no obtenido**; la reforma RO-S 309/2018 al COA **no verificada** |
+Artículos **leídos y contrastados** contra el documento. Siguen siendo **candidatos**: ninguno está
+jurídicamente revisado.
+
+| # | Obligación candidata | Sujeto | Aplicabilidad (condicional) | Artículo y modificaciones | Evidencia necesaria | Qué puede comprobar Terra Link | Qué exige revisión jurídica | Lagunas |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **EC-7** | **Prohibido convertir el uso del suelo a usos agropecuarios** en áreas del **Patrimonio Forestal Nacional** y en las asignadas como tales en los planes de ordenamiento, «tales como bosques naturales y ecosistemas frágiles» | Quien convierte el uso del suelo | **Solo** si el predio está en el PFN o en un área así asignada. **No aplica por defecto** | **COA Art. 94**; alcance del PFN en el **Art. 89**. Sin modificaciones localizadas | Si el predio está en el supuesto; **si hubo conversión y cuándo** | **Nada concluyente**: a lo sumo un indicio de localización. **No** la conversión ni su fecha | Qué cartografía delimita el PFN; si un uso agropecuario anterior está amparado | **Delimitación oficial del PFN no verificada** |
+| **EC-8** | **Prohibida la afectación, tala y cambio de uso de suelo** en **páramos, moretales y manglares** | Quien afecta, tala o cambia el uso | **Solo** predios con esos ecosistemas | **COA Art. 99**. Sin modificaciones localizadas | Localización, conducta y fecha | Indicio de localización, nada más | **Cómo se articula con el Art. 13 de la LOTRTA**: aquel regula *ampliar* con condiciones, este **prohíbe** | Qué prima si ambos concurren: **sin resolver** |
+| **EC-9** | **Reglas de la propiedad dentro del PFN**: destinar las tierras a los usos oficialmente asignados y respetar las normas de sostenibilidad | Propietario dentro del PFN | **Solo** propiedad dentro del PFN | **COA Art. 92** | Instrumento de ordenamiento que asigna el uso | Registrar lo que el productor aporte; **no** verificar su autenticidad | Si el incumplimiento es oponible al operador EUDR | Instrumentos de ordenamiento **no obtenidos** |
+| **EC-10** | **Acreditación de laboratorios** para los análisis ambientales | **La autoridad y los laboratorios**, **no el productor** | — | **COA Art. 209**, cuyo **segundo inciso sustituyó** el **Art. 53 de la Ley de Fomento Productivo** (RO-S 309, 2018) — **verificado** | **Ninguna del productor** | Nada, y **no debe pedir nada** por esta norma | — | — |
+
+**EC-10 está aquí por la misma razón que el seguro agropecuario (EC-5)**: para impedir que «el COA fue
+reformado» se convierta en un requisito para el productor. **La reforma verificada no le impone nada.**
+
+**El Reglamento (D.E. 752) está incorporado y NO barrido artículo por artículo.** Una fuente secundaria sitúa
+su última reforma en la **Edición Constitucional del RO 347 (16-abr-2024)**, **no recuperada ni verificada**.
 
 ### Materias sin ninguna fuente todavía
 
@@ -175,24 +184,28 @@ existan.**
 **Restricción operativa, vigente**: **no se envían geometrías de productores a ningún servicio externo.**
 Ninguna consulta de esta entrega lo hizo, y D-09.B sigue sin autorizar llamadas externas.
 
-## 4. Contrato pendiente de P1-005, en una sola tabla
+## 4. Decisiones de diseño: **ADOPTADAS** (2026-10-17)
 
-Criterio original (docs/18): «Fuente/requisito/aplicabilidad/documento/regla/versión/aprobador; pruebas de
-vigencia». Contraste y decisiones **necesarias para implementar**, juntas:
+Las ocho quedaron adoptadas y están **implementadas** (migración `0049`). **No vuelven a pedirse.**
 
-| # | Decisión | Opciones | Recomendación | Consecuencia si no se decide |
-| --- | --- | --- | --- | --- |
-| **D-1** | **Alcance inicial** del perfil | (a) Solo **tenencia y uso del suelo**; (b) añadir ambiental; (c) todas las materias del art. 2(40) | **(a)**: es donde hay fuente verificada y donde el expediente se bloquea | El perfil no empieza, o empieza con materias sin fuente |
-| **D-2** | **Qué es una regla candidata** | (a) Solo artículos **verificados y con reformas rastreadas**; (b) también los de identificación parcial | **(a)** | Se publican reglas apoyadas en texto sin vigencia confirmada |
-| **D-3** | **Evidencia admitida** | (a) Solo documento emitido por autoridad; (b) también declaración del productor marcada como tal | **(b) con la marca**, porque EC-6 incluye una declaración responsable del procedimiento | O se rechaza evidencia válida, o una declaración se lee como acto administrativo |
-| **D-4** | **Resultado cuando falta evidencia** | (a) concluir **incumplimiento**; (b) **pendiente**, que no concluye nada **pero sigue impidiendo acreditar**; (c) tratarlo como satisfecho | **(b)**. Incertidumbre y bloqueo **conviven**: no concluir una infracción no es dar por bueno el requisito | Si se eligiera (c), una revisión necesaria sin resolver dejaría de impedir `READY`, que es exactamente el error que hay que evitar |
-| **D-5** | **Papel de la cartografía** | (a) Veredicto automático; (b) **indicio que abre revisión** | **(b)**, por §3 | Intersecciones de una capa de 1:100 000 se convierten en acusaciones |
-| **D-6** | **Responsable de revisión** | (a) EUDR_MANAGER; (b) rol jurídico nuevo; (c) externo | **(b) o (c)**: ningún rol actual acredita competencia jurídica | Se aprueba un perfil jurídico sin quien pueda responder por él |
-| **D-7** | **Aprobación y versionado** | (a) Como el catálogo de riesgo (versión + aprobador + fecha); (b) otro mecanismo | **(a)**: el mecanismo **ya existe** y es auditable | Se inventa un segundo mecanismo de aprobación |
-| **D-8** | **Caducidad por cambio normativo** | (a) Revisión periódica declarada; (b) revalidación ante reforma detectada | **Ambas**, porque no hay consolidación oficial que avise | Un perfil aprobado envejece en silencio |
+| # | Decisión adoptada | Dónde está implementada |
+| --- | --- | --- |
+| **D-1** | **Alcance inicial**: tenencia y uso del suelo, **declarado parcial** | `legal_profile_versions.scope='PARTIAL'` con `pending_matters` visibles |
+| **D-2** | **Regla candidata**: se registra en **borrador**; sin revisar **no se publica como aprobada** | `legal_profile_rules.review_status='DRAFT'` |
+| **D-3** | **Evidencia admitida**: documento oficial **y** declaración del productor, **diferenciados por procedencia** | `evidence_origin` + admisibilidad **justificada por requisito** |
+| **D-4** | **Ausencia de evidencia**: queda **pendiente**; no concluye infracción **y tampoco acredita** | `CHECK …_no_evidence`, y `LEGAL_PROFILE` en `PENDING` |
+| **D-5** | **Cartografía**: **indicio** que abre revisión, nunca veredicto | `cartographic_indication`, **fuera de todo `CHECK` de resultado** |
+| **D-6** | **Responsable**: separados permiso de aplicación y **competencia jurídica**; sin rol nuevo | `risk:review` aplica; la revisión jurídica **no tiene endpoint** |
+| **D-7** | **Versionado**: versiones inmutables y **publicación técnica ≠ revisión jurídica ≠ adopción** | `legal_profile_versions` / `_reviews` / `_adoptions`, append-only |
+| **D-8** | **Vigencia**: un cambio relevante **desactualiza** lo afectado y conserva lo histórico | `assessed_version` y `stale_evidence` en la cobertura del sujeto |
 
-**Ninguna de estas ocho está adoptada.** Se presentan juntas, como exige el procedimiento, y **no se
-implementa ninguna** mientras no se decidan.
+**Lo que sigue pendiente es otra cosa, y no se confunde con lo anterior:**
+
+| Pendiente | Por qué no es una decisión de diseño |
+| --- | --- |
+| **Revisión jurídica del contenido** | Exige leer cada regla candidata y pronunciarse sobre vigencia y alcance |
+| **Cobertura del perfil** | Hoy tenencia, uso del suelo y ambiente; faltan las demás materias del art. 2(40) |
+| **Responsable competente identificado** | Es una designación, no un diseño. **Sin él nada se aprueba**, y no se inventa |
 
 ### Lo que «desconocido» significa aquí, para que no se lea de menos
 
