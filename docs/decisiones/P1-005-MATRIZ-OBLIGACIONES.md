@@ -80,12 +80,17 @@ automático.
 | --- | --- |
 | **Sujeto** | **La Autoridad Agraria Nacional**, que lleva el registro; y las entidades públicas y Registradores de la Propiedad, que deben **remitirle** información |
 | **Condición de aplicabilidad** | Tierras rurales en general |
-| **Artículo base** | **LOTRTA Art. 42** |
+| **Artículo base** | **LOTRTA Arts. 42 y 43** |
 | **Modificaciones localizadas** | Ninguna |
 | **Evidencia necesaria** | **Ninguna del productor**, salvo que se demuestre un deber de inscripción que el artículo **no** establece |
-| **Qué puede comprobar Terra Link** | Nada por sí solo: el registro no es público ni consultable por API conocida |
+| **Qué puede comprobar Terra Link** | **Nada verificado todavía.** El **Art. 43** dispone que la información del sistema «será de **consulta abierta al público** en general, de acuerdo con la Ley, en todas las oficinas de la Autoridad Agraria Nacional o por medios electrónicos». Lo que **no** se ha verificado es su **disponibilidad operativa**: si hay un canal electrónico en servicio, con qué condiciones de uso y si es consultable por programa |
 | **Qué exige revisión humana o jurídica** | Si existe un deber **del productor** y en qué norma; si una constancia registral es obtenible y admisible |
-| **Lagunas abiertas** | Accesibilidad del registro; su relación con el catastro municipal y con el Registro de la Propiedad |
+| **Lagunas abiertas** | **Disponibilidad operativa del canal de consulta** (no su carácter público, que la norma sí prevé); su relación con el catastro municipal y con el Registro de la Propiedad |
+
+> **Corrección (2026-10-17).** Una versión anterior de esta matriz afirmaba que «el registro no es público ni
+> consultable por API conocida». **No encontrar una API no permite afirmar que el registro no sea público**, y
+> el **Art. 43** dice lo contrario: prevé consulta abierta. Lo que queda sin verificar es el **acceso
+> operativo**, que es otra cosa y así se registra.
 
 **No convertir en requisito universal**: es una obligación **del Estado** de llevar un registro.
 
@@ -180,7 +185,7 @@ vigencia». Contraste y decisiones **necesarias para implementar**, juntas:
 | **D-1** | **Alcance inicial** del perfil | (a) Solo **tenencia y uso del suelo**; (b) añadir ambiental; (c) todas las materias del art. 2(40) | **(a)**: es donde hay fuente verificada y donde el expediente se bloquea | El perfil no empieza, o empieza con materias sin fuente |
 | **D-2** | **Qué es una regla candidata** | (a) Solo artículos **verificados y con reformas rastreadas**; (b) también los de identificación parcial | **(a)** | Se publican reglas apoyadas en texto sin vigencia confirmada |
 | **D-3** | **Evidencia admitida** | (a) Solo documento emitido por autoridad; (b) también declaración del productor marcada como tal | **(b) con la marca**, porque EC-6 incluye una declaración responsable del procedimiento | O se rechaza evidencia válida, o una declaración se lee como acto administrativo |
-| **D-4** | **Resultado cuando falta evidencia** | (a) `REQUIRED_MISSING` que bloquea; (b) **desconocido** que no concluye | **(b)**: coherente con `UNDETERMINED` y con «origen desconocido sigue siendo desconocido» | Se bloquea por ausencia de un dato cuya exigibilidad no está decidida |
+| **D-4** | **Resultado cuando falta evidencia** | (a) concluir **incumplimiento**; (b) **pendiente**, que no concluye nada **pero sigue impidiendo acreditar**; (c) tratarlo como satisfecho | **(b)**. Incertidumbre y bloqueo **conviven**: no concluir una infracción no es dar por bueno el requisito | Si se eligiera (c), una revisión necesaria sin resolver dejaría de impedir `READY`, que es exactamente el error que hay que evitar |
 | **D-5** | **Papel de la cartografía** | (a) Veredicto automático; (b) **indicio que abre revisión** | **(b)**, por §3 | Intersecciones de una capa de 1:100 000 se convierten en acusaciones |
 | **D-6** | **Responsable de revisión** | (a) EUDR_MANAGER; (b) rol jurídico nuevo; (c) externo | **(b) o (c)**: ningún rol actual acredita competencia jurídica | Se aprueba un perfil jurídico sin quien pueda responder por él |
 | **D-7** | **Aprobación y versionado** | (a) Como el catálogo de riesgo (versión + aprobador + fecha); (b) otro mecanismo | **(a)**: el mecanismo **ya existe** y es auditable | Se inventa un segundo mecanismo de aprobación |
@@ -188,6 +193,20 @@ vigencia». Contraste y decisiones **necesarias para implementar**, juntas:
 
 **Ninguna de estas ocho está adoptada.** Se presentan juntas, como exige el procedimiento, y **no se
 implementa ninguna** mientras no se decidan.
+
+### Lo que «desconocido» significa aquí, para que no se lea de menos
+
+**Desconocido no es incumplimiento, pero tampoco requisito satisfecho.** Las dos lecturas equivocadas son
+simétricas y las dos son graves: convertir una ausencia en acusación, o convertirla en vía libre.
+
+| Situación | Qué **no** se concluye | Qué **sí** ocurre |
+| --- | --- | --- |
+| Aplicabilidad **desconocida** | Ni que aplica ni que no aplica | Queda **no evaluable** y **el requisito no se acredita** |
+| Aplicable y **sin evidencia** | **No** es una infracción | Queda **pendiente** y **el requisito no se acredita** |
+| Revisión **necesaria y sin resolver** | Nada sobre el fondo | **Impide acreditar `READY`** |
+
+Esto está implementado, no solo escrito: `LEGAL_PROFILE` devuelve **`PENDING`** con el perfil parcial o sin
+revisión jurídica, y `READY` exige que **todos** los requisitos estén cumplidos.
 
 ## 5. Lagunas restantes y su efecto
 
