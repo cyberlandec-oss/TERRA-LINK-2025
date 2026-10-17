@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { sql } from 'kysely';
-import { PASSWORD, describeDb, setupHarness } from './helpers';
+import { describeDb, setupHarness } from './helpers';
 
 // QA-02 — Matriz de **jobs y objetos**, criterio de P0-003 («checks de FK/jobs/objects»).
 //
