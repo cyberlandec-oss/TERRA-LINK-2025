@@ -323,3 +323,42 @@ Generar un respaldo **no demuestra restauración**. Lo verificado:
 **P1-005 sigue ABIERTA** y las cifras siguen en **31/60 = 51,7 %** y **30/44 = 68,2 %**. Se corrigió un defecto
 de un requisito ya contado; no se añadió ninguno. `UNDETERMINED`, `READY`, riesgo y despacho intactos; satélite
 deshabilitado.
+
+---
+
+## Cierre de la entrega técnica de P1-005 (2026-10-17)
+
+**La entrega técnica queda cerrada sobre `5228c9d`.** No se repite validación, despliegue ni respaldo por este
+cierre documental.
+
+### Lo que queda registrado, porque es la lección
+
+**`0fbc473` aprobó todas sus pruebas y contenía un defecto de acreditación.** Su validación fue real —72
+suites, 706 pruebas, 72 E2E, 0 fallos— y aun así `LEGAL_PROFILE` podía acreditar un lote **sin comprobar sus
+obligaciones**: bastaba un catálogo completo y revisado. Las pruebas que yo había escrito cubrían el catálogo y
+**no el sujeto**, así que el verde era cierto y la propiedad que faltaba no estaba probada.
+
+Es el mismo patrón que `8f54b71` en P0-003: **una validación verde no acredita el contrato**. En los dos casos
+el defecto apareció en una **revisión externa dirigida**, no en la suite. Por eso quedan los dos registrados.
+
+| Candidato | Validación | Qué pasó |
+| --- | --- | --- |
+| `0fbc473` | **APROBADA** | **Defecto de acreditación por catálogo.** Corregido, no desplegado como definitivo |
+| **`5228c9d`** | **APROBADA** | Corrección verificada: 716 pruebas, recorridos 10/10 y 11/11 |
+
+### Estado al cerrar
+
+**P1-005 y RF-36 siguen ABIERTAS.** Lo entregado es el **mecanismo**; lo que falta no es técnico:
+
+| Pendiente jurídico | Por qué no lo cierra el código |
+| --- | --- |
+| **Revisión jurídica del contenido** | Exige pronunciarse sobre la vigencia y el alcance de cada regla candidata |
+| **Cobertura del perfil** | Hoy tenencia, uso del suelo y ambiente; faltan laboral, penal ambiental, tributario, aduanero, anticorrupción y CLPI |
+| **Responsable con competencia jurídica** | Es una designación. **Sin él nada se aprueba**, y no se inventa |
+| **Pruebas de vigencia** | No hay consolidación oficial; las reformas verificadas **no prueban que sean todas** |
+
+**No se continúa con el barrido artículo por artículo del Reglamento del COA**: concentraría el desarrollo en
+investigación normativa. Queda anotado como trabajo disponible, no como siguiente paso.
+
+Las **ocho decisiones de diseño están ADOPTADAS** (`docs/decisiones/P1-005-MATRIZ-OBLIGACIONES.md` §4) y **no
+vuelven a pedirse**.
