@@ -112,9 +112,29 @@ class StaticMigrationProvider implements MigrationProvider {
 /** Opciones de sesión de cada conexión (ver createDb). */
 export const PG_SESSION_OPTIONS = { options: '-c client_min_messages=warning' };
 
-export function createDb(connectionString: string, onSlowQuery?: (sqlText: string, ms: number) => void, slowMs = 1000): Kysely<Database> {
+/**
+ * `onQuery` recibe TODAS las consultas (RNF-13: métricas y tramos de traza); `onSlowQuery`, solo las lentas.
+ * A ambos se les pasa `e.query.sql`, que es el SQL **parametrizado**: los valores viajan aparte, en
+ * `e.query.parameters`, y **no se tocan aquí**. Quien consuma el texto lo reduce además a verbo y tabla.
+ */
+export function createDb(
+  connectionString: string,
+  onSlowQuery?: (sqlText: string, ms: number) => void,
+  slowMs = 1000,
+  onQuery?: (sqlText: string, ms: number) => void,
+): Kysely<Database> {
   return new Kysely<Database>({
-    ...(onSlowQuery ? { log: (e: LogEvent) => { if (e.queryDurationMillis >= slowMs) onSlowQuery(e.query.sql.replace(/\s+/g, ' ').slice(0, 200), Math.round(e.queryDurationMillis)); } } : {}),
+    ...(onSlowQuery || onQuery
+      ? {
+          log: (e: LogEvent) => {
+            const ms = Math.round(e.queryDurationMillis);
+            const texto = e.query.sql.replace(/\s+/g, ' ').slice(0, 200);
+            // La instrumentación nunca puede tumbar una consulta que ya salió bien.
+            if (onQuery) { try { onQuery(texto, ms); } catch { /* instrumentación opcional */ } }
+            if (onSlowQuery && e.queryDurationMillis >= slowMs) onSlowQuery(texto, ms);
+          },
+        }
+      : {}),
     // client_min_messages=warning: PostGIS emite NOTICE con coordenadas (p. ej. ST_IsValid ante una
     // autointersección). Sin esto llegarían al cliente; además se usa ST_IsValidDetail, que no emite NOTICE.
     dialect: new PostgresDialect({ pool: new Pool({ connectionString, max: 10, ...PG_SESSION_OPTIONS }) }),

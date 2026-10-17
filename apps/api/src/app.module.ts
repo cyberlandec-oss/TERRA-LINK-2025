@@ -10,7 +10,7 @@ import {
   Injectable,
   type DynamicModule,
 } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'crypto';
 import type { NextFunction, Response } from 'express';
@@ -55,7 +55,8 @@ import { CteController, CteService } from './traceability/cte';
 import { KdeController, KdeService } from './traceability/kde';
 import { PublicReferencesController, PublicReferencesService } from './traceability/public-references';
 import { AccessGrantsController, AccessGrantsService, GrantedController } from './authz/access-grants';
-import { OperationsAlertsController, OperationsAlertsService, evaluarDependencias } from './operations/alerts';
+import { OperationsAlertsController, OperationsAlertsService, OperationsOrgAlertsController, evaluarDependencias } from './operations/alerts';
+import { ObservabilityController, ObservabilityInterceptor, VersionController } from './observability/observability';
 import { PlatformElevationController, PlatformElevationService } from './authz/platform-elevation';
 import { EventHistoryController, EventHistoryService } from './events/event-history';
 import { DocumentsController, DocumentsService } from './documents/documents';
@@ -188,7 +189,7 @@ export class AppModule implements NestModule {
     return {
       module: AppModule,
       controllers: [
-        HealthController, OperationsAlertsController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
+        HealthController, VersionController, ObservabilityController, OperationsAlertsController, OperationsOrgAlertsController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
         MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, GeoProfileController, ProductsController, CteController, KdeController, PublicReferencesController, AccessGrantsController, GrantedController, PlatformElevationController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, ShipmentsController, SatelliteController, ReportsController, EntityReportsController,
       ],
       providers: [
@@ -230,6 +231,8 @@ export class AppModule implements NestModule {
         { provide: MALWARE_SCANNER, useValue: new ClamdScanner(config.scanner.host, config.scanner.port, config.scanner.timeoutMs) },
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },
+        // RNF-13: una métrica y una traza por petición, con la ruta saneada al patrón.
+        { provide: APP_INTERCEPTOR, useClass: ObservabilityInterceptor },
         AuditService,
         AuditQueryService,
         DeliveriesService,

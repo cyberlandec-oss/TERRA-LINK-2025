@@ -4,6 +4,7 @@ import { sql, type Kysely } from 'kysely';
 import request from 'supertest';
 import { createApp } from '../src/bootstrap';
 import type { AppConfig } from '../src/config';
+import { instrumentarConsulta } from '../src/observability/db-hook';
 import { createDb, migrateToLatest } from '../src/db/database';
 import type { Database } from '../src/db/schema';
 import { hashPassword } from '../src/auth/passwords';
@@ -55,7 +56,12 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
 
 export async function setupHarness(overrides: Partial<AppConfig> = {}) {
   if (!new URL(TEST_URL!).pathname.endsWith('_test')) throw new Error('TEST_DATABASE_URL debe apuntar a una base *_test');
-  const db: Kysely<Database> = createDb(TEST_URL!, (sqlText, ms) => recordTiming({ phase: 'slow_query', ms, test: expect.getState().currentTestName ?? null, sql: sqlText }));
+  const db: Kysely<Database> = createDb(
+    TEST_URL!,
+    (sqlText, ms) => recordTiming({ phase: 'slow_query', ms, test: expect.getState().currentTestName ?? null, sql: sqlText }),
+    1000,
+    instrumentarConsulta,   // RNF-13: la misma instrumentación que la API, no una de pruebas
+  );
   const t0 = Date.now();
   await sql`DROP SCHEMA IF EXISTS public CASCADE`.execute(db);
   await sql`CREATE SCHEMA public`.execute(db);

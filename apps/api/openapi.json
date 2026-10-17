@@ -29,9 +29,127 @@
         ]
       }
     },
+    "/version": {
+      "get": {
+        "description": "Público, como `/health` y `/ready`. Servicio, versión y migración que el código conoce. El commit desplegado NO se publica aquí: se sirve en la ruta restringida de observabilidad.",
+        "operationId": "VersionController_version",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Versión desplegada (S1 §77)",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/metrics": {
+      "get": {
+        "description": "Restringido a `observability:read` (plataforma). Etiquetas de conjunto cerrado: método, **ruta en patrón saneado**, clase de estado y operación. Sin identificadores de persona ni de recurso, sin texto SQL y sin datos de ninguna organización. El histograma publica la distribución OBSERVADA: no hay p95 comprometido ni SLO, porque TECH-001 sigue pendiente.",
+        "operationId": "ObservabilityController_metrics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Métricas en formato Prometheus (RNF-13)",
+        "tags": [
+          "Observabilidad"
+        ]
+      }
+    },
+    "/api/v1/observability/traces": {
+      "get": {
+        "description": "Restringido a `observability:read`. Anillo acotado EN MEMORIA del proceso: se pierde al reiniciar y no se comparte con el worker. El identificador de traza es el `request_id` ya existente, de modo que desde una fila de bitácora o desde el error que vio una persona se llega al recorrido completo.",
+        "operationId": "ObservabilityController_traces",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Trazas recientes (RNF-13)",
+        "tags": [
+          "Observabilidad"
+        ]
+      }
+    },
+    "/api/v1/observability/traces/{traceId}": {
+      "get": {
+        "description": "Restringido a `observability:read`. Tramos encadenados con su duración y atributos de lista blanca.",
+        "operationId": "ObservabilityController_trace",
+        "parameters": [
+          {
+            "name": "traceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Recorrido completo de una traza (RNF-13)",
+        "tags": [
+          "Observabilidad"
+        ]
+      }
+    },
+    "/api/v1/observability/build": {
+      "get": {
+        "description": "Restringido a `observability:read`: el commit exacto no se publica en `/version`.",
+        "operationId": "ObservabilityController_build",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Código desplegado (RNF-13)",
+        "tags": [
+          "Observabilidad"
+        ]
+      }
+    },
     "/operations/alerts": {
       "get": {
-        "description": "Cada aviso tiene condición comprobable, estado, lo observado, qué hacer y una recuperación reconocible. Distingue DEGRADACIÓN (el escáner caído deja documentos pendientes, nunca limpios, y la API sigue atendiendo) de INDISPONIBILIDAD (dependencias del núcleo). Sin objetivos p95 ni umbrales sin contrato. Solo recuentos agregados: ni secretos, ni identificadores, ni datos de ninguna organización.",
+        "description": "Respuesta ANÓNIMA mínima: solo salud de la infraestructura —dependencias del núcleo, esquema aplicado frente al del código y disponibilidad del escáner—, el mismo material que `/health/ready` ya publica. No consulta tablas de negocio: **sin recuentos de recursos protegidos, sin identificadores y sin detalle por organización**. La actividad operativa está en la ruta por organización, con sus permisos. Distingue DEGRADACIÓN (200) de INDISPONIBILIDAD (503). Sin objetivos p95 ni umbrales sin contrato.",
         "operationId": "OperationsAlertsController_alerts",
         "parameters": [],
         "responses": {
@@ -39,7 +157,37 @@
             "description": ""
           }
         },
-        "summary": "Avisos operativos verificables (RNF-10)",
+        "summary": "Salud de la infraestructura (RNF-10, respuesta pública mínima)",
+        "tags": [
+          "Operación"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/operations/alerts": {
+      "get": {
+        "description": "Salud de la infraestructura **más** la actividad operativa acotada a esta organización. Cada aviso de actividad exige el permiso que ya gobierna ese dato (`document:read`, `events:reprocess`); sin él sale `RESTRICTED`, **sin valor ni recuento**. No requiere ni admite elevación de plataforma.",
+        "operationId": "OperationsOrgAlertsController_alerts",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Avisos operativos de la organización (RNF-10, respuesta restringida)",
         "tags": [
           "Operación"
         ]

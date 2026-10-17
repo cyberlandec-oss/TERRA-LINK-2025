@@ -31,8 +31,8 @@ prueba**: `24_TRAZABILIDAD_REQUISITOS.md`, reutilizada tal cual.
 | --- | ---: | --- |
 | **RF-01 … RF-31** | 31 | Capacidades del **MVP (P0)** |
 | **RF-32 … RF-47** | 16 | Capacidades de **evolución (P1)**, fuera del MVP. Incluye **RF-47**, añadida el 2026-10-16 por el contraste de obligaciones (§2.bis) |
-| **RNF-01 … RNF-12** | 12 | Condiciones **transversales**: seguridad, operación, offline, privacidad, rendimiento… |
-| **Total** | **59** | Requisitos con identificador |
+| **RNF-01 … RNF-13** | 13 | Condiciones **transversales**: seguridad, operación, offline, privacidad, rendimiento… Incluye **RNF-13**, añadida el 2026-10-17 por el mismo contraste (§2.bis) |
+| **Total** | **60** | Requisitos con identificador |
 
 En paralelo, el plan de QA define **17 casos** (QA-01…QA-17), que son el otro eje: un requisito puede estar
 implementado y su caso de QA no haberse ejecutado todavía.
@@ -166,11 +166,12 @@ producción.
 | RNF-07 | Privacidad | **DEMOSTRADO** | Clasificación y redacción en UI, API, logs, reportes y exportaciones, probadas. *Nota: las dos exposiciones de credenciales del 14 y 16 de octubre fueron **de procedimiento**, no del producto; corregidas con herramienta y pruebas* |
 | RNF-08 | Interoperabilidad | **DEMOSTRADO** | OpenAPI validada en cada `validate`; fixtures de GeoJSON e importación |
 | RNF-09 | Accesibilidad | **PARCIAL** | Teclado, 390 px y zoom 200 % probados **en web**; la app **móvil real** no se ha comprobado |
-| RNF-10 | Observabilidad | **DEMOSTRADO** (2026-10-17) | Request/job IDs, `/health/live` y `/health/ready`, y **avisos verificados con fallos inducidos** en `operations-alerts.int-spec.ts` (6) y en el despliegue, sin secretos. **Cubre lo que su verificación nombra, no toda la observabilidad de S1 §77**: *metrics* y *tracing* no están y no se cuentan |
+| RNF-10 | Observabilidad | **DEMOSTRADO** (2026-10-17) | Request/job IDs, `/health/live` y `/health/ready`, y **avisos verificados con fallos inducidos** en `operations-alerts.int-spec.ts` (6) y en el despliegue, sin secretos. **Cubre lo que su verificación nombra**; lo que S1 §77 pide además está ahora en **RNF-13** |
+| RNF-13 | Instrumentación de observabilidad | **PENDIENTE** (alta 2026-10-17) | *metrics*, *tracing* y `/version` de **S1 §77** no estaban en ningún requisito. Registrada la omisión, se mide aparte y **no reabre RNF-10** |
 | RNF-11 | Mantenibilidad | **DEMOSTRADO** | Linters sin avisos, módulos y límites conservados, ADR por cambio estructural |
 | RNF-12 | Operación segura | **DEMOSTRADO** (2026-10-17) | Entornos separados y 0 secretos versionados; **D-43 ejecutada** el 2026-10-16; y el **ensayo de retorno 12/12** (`scripts/ensayo-retorno.mjs`) separando retorno de la aplicación, compatibilidad de esquema y restauración de datos, con referencias públicas exactas y un fallo inducido identificable y recuperable |
 
-**RNF: 4 DEMOSTRADOS de 12.**
+**RNF: 4 DEMOSTRADOS de 13** (RNF-13 nace pendiente).
 
 ## 7. Las dos mediciones
 
@@ -195,8 +196,8 @@ criterio de cierre de ninguna historia concreta.
 | --- | ---: | ---: | ---: |
 | RF del MVP (RF-01…31) | 21 | 31 | 68 % |
 | RF de evolución (RF-32…47) | 0 | 16 | 0 % |
-| RNF (RNF-01…12) | 4 | 12 | 33 % |
-| **Total** | **25** | **59** | **42 %** |
+| RNF (RNF-01…13) | 4 | 13 | 31 % |
+| **Total** | **25** | **60** | **42 %** |
 
 **Sí se puede calcular**, y es **50,8 %** al 2026-10-17: **30 de 59**. Partía de 42 % (25/59) y suben cinco
 requisitos: **RF-47** (2026-10-16), **RF-03** y **RNF-01** (al cerrarse P0-003) y **RNF-10** y **RNF-12**

@@ -1,6 +1,6 @@
 // Catálogo RBAC versionado (docs/07_RBAC_Y_GOBERNANZA.md). Se amplía por historia; no inferir
 // privilegios comparando nombres de rol fuera de este módulo.
-export const RBAC_CATALOG_VERSION = '2026-10-14.23';
+export const RBAC_CATALOG_VERSION = '2026-10-17.24';
 
 export type Permission =
   | 'organization:read'
@@ -135,7 +135,11 @@ export type PlatformPermission =
   | 'organization:suspend'
   | 'organization:list_all'
   | 'organization:onboard_admin'
-  | 'user:deactivate';
+  | 'user:deactivate'
+  // RNF-13 (S1 §77): leer métricas y trazas del servicio. Es INFRAESTRUCTURA saneada —método, ruta en patrón,
+  // clase de estado, duración—, nunca datos de una organización, y por eso NO necesita la elevación D-04 ni la
+  // habilita. Si algún día la instrumentación tuviera que mirar datos de negocio, eso sería otra decisión.
+  | 'observability:read';
 
 const ALL_MEMBER_READ: Permission[] = ['organization:read'];
 
@@ -170,7 +174,7 @@ export const PLATFORM_PERMISSIONS: Record<'SUPER_ADMIN', PlatformPermission[]> =
   // organization:onboard_admin: solo invitar (y ver/revocar invitaciones de) ORG_ADMIN en una organización
   // donde no es miembro. NO da acceso a miembros, datos personales ni operación: eso requiere la
   // política de elevación auditada (D-04, pendiente). No hay bypass global de SUPER_ADMIN.
-  SUPER_ADMIN: ['organization:create', 'organization:suspend', 'organization:list_all', 'organization:onboard_admin', 'user:deactivate'],
+  SUPER_ADMIN: ['organization:create', 'organization:suspend', 'organization:list_all', 'organization:onboard_admin', 'user:deactivate', 'observability:read'],
 };
 
 export function permissionsForRoles(roles: string[]): Permission[] {

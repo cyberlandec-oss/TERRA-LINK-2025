@@ -1,3 +1,4 @@
+import { instrumentarConsulta } from './observability/db-hook';
 import { createDb } from './db/database';
 import { describeForLog } from './common/errors';
 import { PRODUCTION_CONSUMERS } from './events/consumers';
@@ -12,7 +13,7 @@ import { SatelliteRunner, registeredProviders } from './satellite/runner';
 async function main(): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL no definida');
-  const db = createDb(url);
+  const db = createDb(url, undefined, 1000, instrumentarConsulta);
   const worker = new OutboxWorker(db, PRODUCTION_CONSUMERS, {
     maxAttempts: Number(process.env.OUTBOX_MAX_ATTEMPTS ?? 8),
     leaseSeconds: Number(process.env.OUTBOX_LEASE_SECONDS ?? 60),

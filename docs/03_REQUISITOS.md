@@ -82,8 +82,8 @@ entra en el denominador del MVP y sí en el del catálogo completo.
 
 | Medida | Denominador | Por qué |
 | --- | ---: | --- |
-| Requisitos del alcance MVP | **43** (31 RF + 12 RNF) | RF-47 es P1: queda fuera. Mantener 43 es lo correcto |
-| Requisitos identificados, incluida evolución | **59** | RF-47 sí cuenta aquí |
+| Requisitos del alcance MVP | **44** (31 RF + 13 RNF) | RF-47 es P1: queda fuera. **RNF-13** (alta del 2026-10-17) sí entra |
+| Requisitos identificados, incluida evolución | **60** | RF-47 y **RNF-13** cuentan aquí |
 
 Los requisitos **parciales siguen fuera del numerador** en ambas medidas: se cuentan solo los completamente
 demostrados. Contraste por requisito: `docs/decisiones/CONTRASTE_DOCUMENTACION_RAIZ_2026-10-16.md`.
@@ -104,6 +104,41 @@ demostrados. Contraste por requisito: `docs/decisiones/CONTRASTE_DOCUMENTACION_R
 | RNF-10 | Observabilidad | Request/job IDs, health/readiness y alertas verificadas sin secretos |
 | RNF-11 | Mantenibilidad | Módulos y límites conservados; linters/formatters del repo, ADR de cambios estructurales |
 | RNF-12 | Operación segura | Entornos separados, secretos fuera de git, rollback/migración revisados |
+| RNF-13 | Instrumentación de observabilidad | Métricas y trazas del servicio consultables y recorribles sobre un caso real, sin secretos ni identificadores de persona o recurso; `/version` publica la versión desplegada (S1 §77) |
+
+### RNF-13: una omisión del catálogo, registrada (2026-10-17)
+
+S1 §77 «OBSERVABILIDAD» manda implementar cinco cosas —*structured logs*, **metrics**, **tracing**, *error
+monitoring* y *health checks*— y exponer tres endpoints: `/health`, `/ready` y **`/version`**.
+
+La verificación de **RNF-10** nombra «Request/job IDs, health/readiness y alertas verificadas sin secretos».
+Eso cubre los *structured logs* correlacionados, el *error monitoring* y los *health checks*. **No cubre
+metrics, tracing ni `/version`**, y el repaso de los 59 requisitos con identificador confirma que **ningún
+otro los recoge**.
+
+**Una obligación de la fuente no desaparece porque la columna de verificación de un requisito resumido la
+omita.** Por eso se registra como **RNF-13**, igual que **RF-47** se dio de alta cuando S1 §49 exigía algo que
+el catálogo no recogía.
+
+**Por qué un requisito nuevo y no ensanchar RNF-10.** RNF-10 está demostrado contra la verificación que tiene
+escrita, y esa demostración sigue siendo válida: reabrirla no identificaría ninguna carencia en lo que sí
+verifica. La carencia concreta —no hay métricas, no hay trazas, no hay `/version`— es **otra obligación**, con
+su propia verificación, y así se puede decir sin ambigüedad qué está hecho y qué no.
+
+**Alcance MVP.** Entra, como los otros doce RNF: es instrumentación transversal y **no depende de ninguna
+decisión pendiente**. Se distingue de **RNF-05**, que sí espera los *budgets* p95/SLO de TECH-001: RNF-13 exige
+**medir y poder recorrer**, no alcanzar un objetivo. Tener métricas **no cierra RNF-05 ni RNF-06**.
+
+**Denominadores, en consecuencia:**
+
+| Medida | Antes | Ahora | Por qué |
+| --- | ---: | ---: | --- |
+| Requisitos del alcance MVP | 43 (31 RF + 12 RNF) | **44** (31 RF + **13** RNF) | RNF-13 es transversal del MVP |
+| Requisitos identificados, incluida evolución | 59 | **60** | RNF-13 cuenta en ambos |
+
+**El alta baja los porcentajes publicados mientras RNF-13 no esté demostrado**, y así debe leerse: 30/59 =
+50,8 % pasa a **30/60 = 50,0 %**, y 29/43 = 67,4 % pasa a **29/44 = 65,9 %**. No se corrige ninguna cifra
+anterior: eran correctas con el catálogo que se conocía entonces.
 
 ## Condiciones de cierre
 
