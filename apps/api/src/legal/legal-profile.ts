@@ -116,6 +116,61 @@ export async function perfilDeOrganizacion(db: Kysely<Database>, orgId: string):
   };
 }
 
+/** Cobertura legal de UN sujeto concreto (una parcela). Es lo que el expediente necesita mirar. */
+export interface CoberturaSujeto {
+  plot_id: string;
+  /** Versión del perfil con la que se evaluó, o `null` si no hay evaluación. */
+  assessed_version: string | null;
+  /** Reglas sin resolver: pendientes o no evaluables. */
+  unresolved: string[];
+  /** Reglas con resultado NO satisfecho. */
+  not_satisfied: string[];
+  /** Reglas cuya versión documental de evidencia fue **sustituida** por otra posterior. */
+  stale_evidence: string[];
+  /** Reglas cuya evidencia pertenece a **otro sujeto** (filas anteriores a la comprobación de escritura). */
+  foreign_evidence: string[];
+}
+
+/**
+ * Cobertura legal de las parcelas indicadas, con el perfil ADOPTADO.
+ *
+ * Aquí está la diferencia que el catálogo por sí solo no da: tener un perfil completo y revisado **no dice
+ * nada** sobre si ESTE sujeto tiene resueltas sus obligaciones. Se mira la evaluación del sujeto, la versión
+ * con la que se hizo, si la evidencia sigue siendo la vigente y si pertenece al propio sujeto.
+ */
+export async function coberturaDeSujetos(db: Kysely<Database>, orgId: string, plotIds: string[]): Promise<CoberturaSujeto[]> {
+  const salida: CoberturaSujeto[] = [];
+  for (const plotId of plotIds) {
+    // La evaluación MÁS RECIENTE de esa parcela.
+    const a = await db.selectFrom('legal_assessments').select(['id', 'version'])
+      .where('organization_id', '=', orgId).where('subject_id', '=', plotId)
+      .orderBy('created_at', 'desc').orderBy('id', 'desc').executeTakeFirst();
+    if (!a) { salida.push({ plot_id: plotId, assessed_version: null, unresolved: [], not_satisfied: [], stale_evidence: [], foreign_evidence: [] }); continue; }
+    const parcela = await db.selectFrom('plots').select(['id', 'producer_id'])
+      .where('organization_id', '=', orgId).where('id', '=', plotId).executeTakeFirst();
+    const items = await db.selectFrom('legal_assessment_items as i')
+      .leftJoin('document_versions as dv', (j) => j.onRef('dv.id', '=', 'i.evidence_version_id').onRef('dv.organization_id', '=', 'i.organization_id'))
+      .leftJoin('documents as d', (j) => j.onRef('d.id', '=', 'dv.document_id').onRef('d.organization_id', '=', 'dv.organization_id'))
+      .select(['i.rule_code', 'i.result', 'i.evidence_version_id', 'd.current_version_id', 'd.owner_type', 'd.owner_id'])
+      .where('i.organization_id', '=', orgId).where('i.assessment_id', '=', a.id).execute();
+    const c: CoberturaSujeto = { plot_id: plotId, assessed_version: a.version, unresolved: [], not_satisfied: [], stale_evidence: [], foreign_evidence: [] };
+    for (const it of items) {
+      if (it.result === 'PENDING' || it.result === 'NOT_EVALUABLE') c.unresolved.push(it.rule_code);
+      if (it.result === 'NOT_SATISFIED') c.not_satisfied.push(it.rule_code);
+      if (it.evidence_version_id) {
+        // Sustituida: el documento tiene ya otra versión vigente. La historia se conserva, pero la evaluación
+        // **deja de acreditar sola**: hay que volver a revisarla contra la versión nueva.
+        if (it.current_version_id && it.current_version_id !== it.evidence_version_id) c.stale_evidence.push(it.rule_code);
+        const propia = (it.owner_type === 'plot' && it.owner_id === parcela?.id)
+          || (it.owner_type === 'producer' && it.owner_id === parcela?.producer_id);
+        if (!propia) c.foreign_evidence.push(it.rule_code);
+      }
+    }
+    salida.push(c);
+  }
+  return salida;
+}
+
 @Injectable()
 export class LegalProfileService {
   constructor(
@@ -275,9 +330,23 @@ export class LegalProfileService {
       // La evidencia tiene que ser una versión de documento de ESTA organización. La FK compuesta lo garantiza;
       // aquí se comprueba antes para devolver 422 y no un error de integridad.
       if (dto.evidence_version_id) {
-        const v = await trx.selectFrom('document_versions').select(['id'])
-          .where('organization_id', '=', orgId).where('id', '=', dto.evidence_version_id).executeTakeFirst();
+        // La evidencia tiene que ser del SUJETO de la evaluación, no de cualquier recurso de la organización.
+        // Un título de otra parcela es un documento válido y, aun así, **no acredita esta**. El titular puede
+        // ser la propia parcela o su productor, que es donde cuelga la documentación de tenencia.
+        const v = await trx.selectFrom('document_versions as dv')
+          .innerJoin('documents as d', (j) => j.onRef('d.id', '=', 'dv.document_id').onRef('d.organization_id', '=', 'dv.organization_id'))
+          .select(['dv.id', 'd.owner_type', 'd.owner_id'])
+          .where('dv.organization_id', '=', orgId).where('dv.id', '=', dto.evidence_version_id).executeTakeFirst();
         if (!v) throw new AppError(422, 'EVIDENCE_VERSION_UNKNOWN', 'Esa versión de documento no existe en la organización.', [{ field: 'evidence_version_id', reason: 'UNKNOWN' }]);
+        const parcela = await trx.selectFrom('plots').select(['id', 'producer_id'])
+          .where('organization_id', '=', orgId).where('id', '=', a.subject_id).executeTakeFirstOrThrow();
+        const propia = (v.owner_type === 'plot' && v.owner_id === parcela.id)
+          || (v.owner_type === 'producer' && v.owner_id === parcela.producer_id);
+        if (!propia) {
+          throw new AppError(422, 'EVIDENCE_FOREIGN_SUBJECT',
+            'Esa evidencia pertenece a otro sujeto: no acredita esta parcela. El documento debe ser de la parcela evaluada o de su productor.',
+            [{ field: 'evidence_version_id', reason: 'FOREIGN_SUBJECT' }]);
+        }
       }
 
       const siguiente = Number(prev.row_version) + 1;

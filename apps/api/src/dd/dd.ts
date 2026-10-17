@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Req, Res } from '@nestjs/common';
-import { perfilDeOrganizacion } from '../legal/legal-profile';
+import { coberturaDeSujetos, perfilDeOrganizacion } from '../legal/legal-profile';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsString, IsUUID, Length } from 'class-validator';
 import { randomUUID } from 'crypto';
@@ -159,15 +159,20 @@ export class DdService {
       JOIN shipments s ON s.id = r.shipment_id AND s.organization_id = r.organization_id
       WHERE r.organization_id = ${ctx.organizationId} AND r.lot_id = ${lotId} AND r.status = 'ACTIVE'
       ORDER BY s.shipment_code, i.id`.execute(db)).rows;
+    const perfilAdoptado = await perfilDeOrganizacion(db as Kysely<Database>, ctx.organizationId);
+    const legalProfile = perfilAdoptado
+      ? { ...perfilAdoptado, subjects: await coberturaDeSujetos(db as Kysely<Database>, ctx.organizationId, [...new Set(plots.map((p) => p.plot_id))]) }
+      : null;
     return {
       subject: { type: 'LOT', id: lot.id, code: lot.lot_code, product: lot.product, unit: lot.unit, origin_status: lot.origin_status },
       quantities: { ...q, unit: lot.unit, source: 'ledger (stock_entries)' },
       origin: { lots: origin.lots.map((l) => ({ id: l.id, lot_code: l.lot_code, origin_status: l.origin_status })), ledger_differences: origin.ledger_differences },
       deliveries, plots, quality, documents, evidence, risk, mitigations,
       shipment_links: shipmentLinks,
-      // P1-005: el perfil ADOPTADO por la organización entra en la instantánea. Hoy es parcial y sin
-      // revisión jurídica, así que LEGAL_PROFILE queda PENDING y READY sigue bloqueado.
-      profiles: { legal_profile: await perfilDeOrganizacion(db as Kysely<Database>, ctx.organizationId), geolocation_profile: null, satellite_provider: satelliteProfile },
+      // P1-005: el perfil adoptado **y la cobertura del sujeto**. Las dos cosas, porque el catálogo por sí
+      // solo no dice si ESTE lote tiene resueltas sus obligaciones. Hoy el perfil es parcial y sin revisión
+      // jurídica, así que LEGAL_PROFILE queda PENDING y READY sigue bloqueado.
+      profiles: { legal_profile: legalProfile, geolocation_profile: null, satellite_provider: satelliteProfile },
     };
   }
 

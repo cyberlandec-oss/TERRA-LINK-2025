@@ -43,7 +43,14 @@ export interface DdContent {
      * Es un objeto y no un texto porque el requisito necesita distinguir tres cosas: no hay perfil, hay uno
      * insuficiente (parcial o sin revisión jurídica) y hay uno completo y revisado.
      */
-    legal_profile: null | { version: string; scope: 'PARTIAL' | 'COMPLETE'; legal_review_status: 'PENDING' | 'REVIEWED'; pending_matters: string[] };
+    legal_profile: null | {
+      version: string; scope: 'PARTIAL' | 'COMPLETE'; legal_review_status: 'PENDING' | 'REVIEWED'; pending_matters: string[];
+      /**
+       * Cobertura del SUJETO, parcela a parcela. Sin esto el requisito mentiría: un catálogo completo y
+       * revisado dice que **existe** una lista de obligaciones, **no** que este lote las tenga resueltas.
+       */
+      subjects: Array<{ plot_id: string; assessed_version: string | null; unresolved: string[]; not_satisfied: string[]; stale_evidence: string[]; foreign_evidence: string[] }>;
+    };
     geolocation_profile: string | null; satellite_provider: string | null;
   };
 }
@@ -104,12 +111,18 @@ export function evaluateRequirements(c: DdContent): Requirement[] {
       : without.length ? r('DELIVERY_SUPPORTS', 'Soportes de entrega vigentes y disponibles', 'PENDING', `${without.length} entrega(s) sin soporte (D-35 MVP: no impide recibir; queda pendiente).`, 'D-35 MVP', without)
         : r('DELIVERY_SUPPORTS', 'Soportes de entrega vigentes y disponibles', 'MET', 'Cada entrega tiene un soporte vigente y disponible (no prueba autenticidad ni validez jurídica).', 'D-35 MVP'));
   } else out.push(r('DELIVERY_SUPPORTS', 'Soportes de entrega vigentes y disponibles', 'NOT_EVALUABLE', 'Sin entregas en el grafo.', 'D-35 MVP'));
-  // P1-005. Tres situaciones distintas, y ninguna se confunde con otra:
-  //   · sin perfil adoptado      → NOT_EVALUABLE (no se presume nada);
-  //   · perfil PARCIAL o sin revisión jurídica → **PENDING**: hay mecanismo y hay trabajo hecho, pero la
-  //     revisión necesaria sigue sin resolverse, y eso **impide acreditar READY**. Desconocido no es
-  //     incumplimiento, pero tampoco requisito satisfecho;
-  //   · perfil COMPLETE y REVIEWED → MET.
+  // P1-005. El catálogo es condición NECESARIA, nunca suficiente.
+  //
+  // Un perfil completo y jurídicamente revisado acredita que **existe** una lista de obligaciones exigibles.
+  // **No dice nada** sobre si ESTE sujeto las tiene resueltas. Por eso, además del catálogo, se mira la
+  // evaluación de **cada parcela del lote**: que exista, que se haya hecho con la versión **adoptada**, que no
+  // queden obligaciones sin resolver, que ninguna esté incumplida, que la evidencia **siga siendo la vigente**
+  // y que pertenezca **al propio sujeto**.
+  //
+  //   · sin perfil adoptado                    → NOT_EVALUABLE (no se presume nada);
+  //   · perfil PARCIAL o sin revisión jurídica → PENDING;
+  //   · catálogo correcto pero sujeto sin resolver → PENDING (o INVALID si hay una obligación incumplida);
+  //   · catálogo correcto y sujeto resuelto    → MET.
   const lp = c.profiles.legal_profile;
   if (!lp) {
     out.push(r('LEGAL_PROFILE', 'Perfil jurídico aplicable (legalidad y evidencias exigibles)', 'NOT_EVALUABLE',
@@ -122,9 +135,37 @@ export function evaluateRequirements(c: DdContent): Requirement[] {
     out.push(r('LEGAL_PROFILE', 'Perfil jurídico aplicable (legalidad y evidencias exigibles)', 'PENDING',
       `Perfil ${lp.version} adoptado, pero no satisface el requisito: ${motivos.join(' y ')}. Una revisión necesaria pendiente sigue impidiendo acreditar READY.`,
       'docs/13 §Legalidad Ecuador'));
+  } else if (!lp.subjects.length) {
+    out.push(r('LEGAL_PROFILE', 'Perfil jurídico aplicable (legalidad y evidencias exigibles)', 'NOT_EVALUABLE',
+      `Perfil ${lp.version} completo y revisado, pero el lote no tiene parcelas de origen sobre las que evaluar la legalidad.`, 'docs/13 §Legalidad Ecuador'));
   } else {
-    out.push(r('LEGAL_PROFILE', 'Perfil jurídico aplicable (legalidad y evidencias exigibles)', 'MET',
-      `Perfil ${lp.version} adoptado, completo y con revisión jurídica resuelta.`, 'docs/13 §Legalidad Ecuador'));
+    const sinEvaluar = lp.subjects.filter((s) => s.assessed_version === null).map((s) => s.plot_id);
+    const conOtraVersion = lp.subjects.filter((s) => s.assessed_version !== null && s.assessed_version !== lp.version).map((s) => s.plot_id);
+    const incumplidas = lp.subjects.flatMap((s) => s.not_satisfied);
+    const sinResolver = lp.subjects.flatMap((s) => s.unresolved);
+    const sustituidas = lp.subjects.flatMap((s) => s.stale_evidence);
+    const ajenas = lp.subjects.flatMap((s) => s.foreign_evidence);
+    const refs = [...new Set([...sinEvaluar, ...conOtraVersion])];
+    if (incumplidas.length) {
+      out.push(r('LEGAL_PROFILE', 'Perfil jurídico aplicable (legalidad y evidencias exigibles)', 'INVALID',
+        `Obligación(es) del perfil ${lp.version} declaradas NO satisfechas en el origen del lote: ${[...new Set(incumplidas)].join(', ')}.`,
+        'docs/13 §Legalidad Ecuador', [...new Set(incumplidas)]));
+    } else {
+      const motivos = [
+        ...(sinEvaluar.length ? [`${sinEvaluar.length} parcela(s) sin evaluación legal`] : []),
+        ...(conOtraVersion.length ? [`${conOtraVersion.length} parcela(s) evaluadas con otra versión del perfil (se adoptó ${lp.version})`] : []),
+        ...(sinResolver.length ? [`obligaciones sin resolver: ${[...new Set(sinResolver)].join(', ')}`] : []),
+        ...(sustituidas.length ? [`evidencia SUSTITUIDA por una versión posterior: ${[...new Set(sustituidas)].join(', ')}`] : []),
+        ...(ajenas.length ? [`evidencia de OTRO sujeto: ${[...new Set(ajenas)].join(', ')}`] : []),
+      ];
+      out.push(motivos.length
+        ? r('LEGAL_PROFILE', 'Perfil jurídico aplicable (legalidad y evidencias exigibles)', 'PENDING',
+          `Perfil ${lp.version} completo y revisado, pero el SUJETO no está resuelto: ${motivos.join('; ')}. Un catálogo revisado no acredita por sí solo las obligaciones de este lote.`,
+          'docs/13 §Legalidad Ecuador', refs)
+        : r('LEGAL_PROFILE', 'Perfil jurídico aplicable (legalidad y evidencias exigibles)', 'MET',
+          `Perfil ${lp.version} completo y revisado, y las ${lp.subjects.length} parcela(s) de origen tienen sus obligaciones resueltas con evidencia vigente del propio sujeto.`,
+          'docs/13 §Legalidad Ecuador'));
+    }
   }
   // 5) Riesgo y mitigaciones.
   if (!c.risk) {

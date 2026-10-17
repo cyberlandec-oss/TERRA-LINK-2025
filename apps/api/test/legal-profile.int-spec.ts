@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { sql } from 'kysely';
 import { describeDb, setupHarness, PASSWORD } from './helpers';
-import { perfilDeOrganizacion } from '../src/legal/legal-profile';
+import { coberturaDeSujetos, perfilDeOrganizacion } from '../src/legal/legal-profile';
 
 // P1-005 — Perfil jurídico revisable: **el mecanismo**, no la aprobación.
 //
@@ -358,6 +358,66 @@ describeDb('P1-005 perfil jurídico revisable', () => {
   it('la revisión jurídica exige responsable identificado y fundamento: la base lo impone', async () => {
     await expect(sql`INSERT INTO legal_profile_reviews (id, version, decision, reviewer_id, reviewer_capacity, basis, operation_id)
       VALUES (${randomUUID()}, '0.1.0', 'REVIEWED', NULL, 'x', 'y', ${randomUUID()})`.execute(h.db)).rejects.toThrow();
+  });
+
+  // ---------------------------------------------------------------- cobertura del SUJETO
+
+  it('la evidencia de OTRO sujeto se rechaza al escribirla', async () => {
+    const b = await items(orgA, EUDR, evaluacion);
+    const it = b.items[0];
+    // Documento de OTRO productor de la MISMA organización: es válido y no acredita esta parcela.
+    const otro = await crearParcela(orgA, ADMIN_A, 'OTRO');
+    const adminAId = (await sql<{ id: string }>`SELECT id FROM users WHERE email = ${ADMIN_A}`.execute(h.db)).rows[0].id;
+    const ajeno = await documentoConVersion(orgA, otro.productor, adminAId);
+    const r = await revisar(orgA, EUDR, evaluacion, it.id, {
+      applicability: 'APPLICABLE', evidence_version_id: ajeno.ver, evidence_origin: 'OFFICIAL_DOCUMENT',
+      evidence_justification: 'documento de otro productor', result: 'PENDING',
+      change_note: 'intento con evidencia ajena', expected_version: it.row_version,
+    }).expect(422);
+    expect(r.body.error.code).toBe('EVIDENCE_FOREIGN_SUBJECT');
+  });
+
+  it('COBERTURA: un sujeto sin resolver no acredita, aunque el catálogo fuese completo y revisado', async () => {
+    const cob = await coberturaDeSujetos(h.db, orgA, [parcelaA]);
+    expect(cob).toHaveLength(1);
+    expect(cob[0].assessed_version).toBe('0.1.0');
+    // Quedan obligaciones sin resolver: eso es lo que impide acreditar, no el estado del catálogo.
+    expect(cob[0].unresolved.length).toBeGreaterThan(0);
+    expect(cob[0].foreign_evidence).toEqual([]);
+  });
+
+  it('COBERTURA: sustituir la versión documental usada deja la evidencia DESACTUALIZADA', async () => {
+    const adminAId = (await sql<{ id: string }>`SELECT id FROM users WHERE email = ${ADMIN_A}`.execute(h.db)).rows[0].id;
+    const prod = (await sql<{ producer_id: string }>`SELECT producer_id FROM plots WHERE id = ${parcelaA}`.execute(h.db)).rows[0].producer_id;
+    const d1 = await documentoConVersion(orgA, prod, adminAId, 1);
+    // El documento apunta a su versión vigente, como hace el módulo documental.
+    await sql`UPDATE documents SET current_version_id = ${d1.ver} WHERE id = ${d1.doc}`.execute(h.db);
+
+    const b = await items(orgA, EUDR, evaluacion);
+    const it = b.items.find((i: { evidence_version_id: string | null }) => i.evidence_version_id === null)!;
+    await revisar(orgA, EUDR, evaluacion, it.id, {
+      applicability: 'APPLICABLE', evidence_version_id: d1.ver, evidence_origin: 'OFFICIAL_DOCUMENT',
+      evidence_justification: 'Versión 1 del soporte de tenencia', result: 'PENDING',
+      change_note: 'vinculada v1', expected_version: it.row_version,
+    }).expect(200);
+    const antes = await coberturaDeSujetos(h.db, orgA, [parcelaA]);
+    expect(antes[0].stale_evidence).not.toContain(it.rule_code);
+
+    // Llega la versión 2 del MISMO documento: la evidencia vinculada queda desactualizada.
+    const d2 = await documentoConVersion(orgA, prod, adminAId, 2, d1.doc);
+    await sql`UPDATE documents SET current_version_id = ${d2.ver} WHERE id = ${d1.doc}`.execute(h.db);
+    const despues = await coberturaDeSujetos(h.db, orgA, [parcelaA]);
+    expect(despues[0].stale_evidence).toContain(it.rule_code);
+    // Y la evidencia histórica NO se pierde: sigue siendo la v1 exacta la que se vinculó.
+    const tras = await items(orgA, EUDR, evaluacion);
+    expect(tras.items.find((i: { id: string }) => i.id === it.id).evidence_version_id).toBe(d1.ver);
+  });
+
+  it('COBERTURA: una parcela sin evaluación no se presume resuelta', async () => {
+    const otra = await crearParcela(orgA, ADMIN_A, 'SINEV');
+    const cob = await coberturaDeSujetos(h.db, orgA, [otra.parcela]);
+    expect(cob[0].assessed_version).toBeNull();
+    expect(cob[0].unresolved).toEqual([]);   // no hay ítems: la ausencia no se rellena con nada
   });
 
   it('retirar el perfil deja a la organización sin perfil adoptado', async () => {
