@@ -103,6 +103,8 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     // P1-014: indicadores comerciales. Permiso propio; cada indicador exige además el de su dominio.
     if (ws.can('analytics:read')) trazabilidad.push({ href: `${base}/indicadores`, label: 'Indicadores', match: (p) => p.startsWith(`${base}/indicadores`) });
     if (ws.can('report:read')) trazabilidad.push({ href: `${base}/reportes`, label: 'Reportes', match: (p) => p.startsWith(`${base}/reportes`) });
+    // P1-015: límites vigentes y consumo observado. Solo lectura; no fija ningún límite.
+    if (ws.can('organization:read')) trazabilidad.push({ href: `${base}/limites`, label: 'Límites y consumo', match: (p) => p.startsWith(`${base}/limites`) });
     if (trazabilidad.length) groups.push({ title: 'Trazabilidad', items: trazabilidad });
     const admin: NavItem[] = [];
     const onboardingOnly = ws.isPlatformAdmin && !ws.activePerms;

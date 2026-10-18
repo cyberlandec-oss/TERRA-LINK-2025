@@ -9660,6 +9660,35 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/limits": {
+      "get": {
+        "operationId": "LimitsController_ver",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Límites vigentes del producto y consumo observado de la organización",
+        "tags": [
+          "limits"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/buyers": {
       "get": {
         "operationId": "ShipmentsController_buyers",

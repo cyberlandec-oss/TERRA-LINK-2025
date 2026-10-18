@@ -508,7 +508,7 @@ export interface DocumentVersionScansTable {
 }
 export interface DocumentExtractionsTable {
   id: string; organization_id: string; version_id: string; run_number: number;
-  status: 'EXTRAIDA' | 'SIN_TEXTO' | 'FORMATO_NO_SOPORTADO' | 'FALLIDA';
+  status: 'EXTRAIDA' | 'SIN_TEXTO' | 'TEXTO_NO_INTERPRETABLE' | 'FORMATO_NO_SOPORTADO' | 'FALLIDA';
   engine: string; engine_version: string; source_sha256: string; text_chars: number; pages: number | null;
   extracted_text: string | null; note: string; extracted_by: string; extracted_at: Generated<Timestamp>; operation_id: string;
 }

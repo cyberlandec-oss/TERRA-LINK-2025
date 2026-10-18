@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
 import { sql } from 'kysely';
 import { PASSWORD, describeDb, setupHarness } from './helpers';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { pdfConTexto, pdfEscaneado, pngMinimo } from './pdf-sintetico';
 
 // P1-013 (RF-44; S1 §55) — Extracción asistida de documentos.
@@ -39,6 +41,7 @@ describeDb('P1-013 extracción asistida (PostgreSQL real)', () => {
     version: { id: string; version_number: number; mime_type: string; sha256: string; scan: string | null; is_current: boolean };
     version_note: string; supported: boolean;
     extraction: { id: string; run_number: number; status: string; engine: string; engine_version: string; source_sha256: string; text_chars: number; pages: number | null; note: string; extracted_text: string | null } | null;
+    engine_limits: string;
     fields: Campo[];
     history: Array<{ run_number: number; status: string }>;
     can_review: boolean; disclaimer: string; no_external: string;
@@ -104,7 +107,8 @@ describeDb('P1-013 extracción asistida (PostgreSQL real)', () => {
     expect(r.extraction!.source_sha256).toBe(r.version.sha256);
     expect(r.extraction!.extracted_text).toContain('Registro de la Propiedad de Manabi');
     expect(r.extraction!.text_chars).toBeGreaterThan(50);
-    expect(r.extraction!.note).toMatch(/sin ningún servicio externo/i);
+    expect(r.extraction!.note).toMatch(/en local/i);
+    expect(r.extraction!.note).toMatch(/Legibilidad medida/i);
 
     // 2) VALOR SUGERIDO: con su fragmento de origen, su posición y la regla que lo propuso.
     const emisor = r.fields.find((f) => f.field_code === 'ISSUER')!;
@@ -234,7 +238,10 @@ describeDb('P1-013 extracción asistida (PostgreSQL real)', () => {
     expect(r.supported).toBe(false);
     expect(r.extraction!.status).toBe('FORMATO_NO_SOPORTADO');
     expect(r.extraction!.note).toMatch(/exigiría OCR/i);
-    expect(r.extraction!.note).toMatch(/NO tiene autorizado/i);
+    // Redacción corregida: la falta de OCR es LIMITACIÓN DEL MOTOR, no una obligación de usar terceros.
+    expect(r.extraction!.note).toMatch(/este motor NO implementa OCR/i);
+    expect(r.extraction!.note).toMatch(/motores de OCR que se ejecutan en local/i);
+    expect(r.extraction!.note).not.toMatch(/NO tiene autorizado/i);
     expect(r.extraction!.note).toMatch(/no se envía el archivo a ningún tercero/i);
     expect(r.extraction!.extracted_text).toBeNull();
     expect(r.fields).toEqual([]);
@@ -248,6 +255,36 @@ describeDb('P1-013 extracción asistida (PostgreSQL real)', () => {
     expect(r.extraction!.extracted_text).toBeNull();
     expect(r.extraction!.note).toMatch(/no tiene capa de texto/i);
     expect(r.fields).toEqual([]);
+  });
+
+  it('TEXTO NO INTERPRETABLE: un PDF de otra herramienta se declara, y no se sugiere nada', async () => {
+    // Fixture de una HERRAMIENTA INDEPENDIENTE (motor de impresión de Chromium), no del generador propio.
+    const ajeno = readFileSync(join(__dirname, 'fixtures/chromium-capa-texto.pdf'));
+    const d = await subir(ADMIN, ajeno, 'DELIVERY_SUPPORT', 'ajeno.pdf');
+    const r = (await extraer(ADMIN, d.id, d.versions[0].id).expect(201)).body as Vista;
+    expect(r.extraction!.status).toBe('TEXTO_NO_INTERPRETABLE');
+    expect(r.extraction!.extracted_text).toBeNull();
+    expect(r.extraction!.text_chars).toBe(0);
+    expect(r.fields).toEqual([]);
+    expect(r.extraction!.note).toMatch(/SÍ tiene capa de texto, pero este motor no supo interpretarla/i);
+    expect(r.extraction!.note).toMatch(/ToUnicode/);
+    expect(r.engine_limits).toMatch(/NO acredita compatibilidad general/i);
+  });
+
+  it('EL TEXTO EXTRAÍDO HEREDA la protección del documento de origen', async () => {
+    const d = await subir(ADMIN, pdfConTexto(CERTIFICADO), 'LAND_TENURE', 'tenencia-clasificada.pdf');
+    const v = d.versions[0];
+    await extraer(ADMIN, d.id, v.id).expect(201);
+    const visto = await ver(ADMIN, d.id, v.id);
+    expect(visto.document.classification).toBe('PERSONAL_DATA');
+    expect(visto.extraction!.extracted_text).toContain('Registro de la Propiedad');
+
+    // Quien no lee identidad NO obtiene el texto por ninguna vía.
+    expect((await http().get(ruta(d.id, v.id)).set(as(AUDITOR))).status).toBe(403);
+    const ficha = await http().get(`${api(orgA)}/documents/${d.id}`).set(as(AUDITOR));
+    if (ficha.status === 200) {
+      expect(JSON.stringify(ficha.body)).not.toContain('Registro de la Propiedad');
+    }
   });
 
   it('ACCESO DENEGADO: subir no autoriza a extraer, y sin identidad no se ve contenido personal', async () => {

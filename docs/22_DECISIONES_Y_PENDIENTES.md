@@ -189,6 +189,31 @@ organización **declare** su nivel 0–2, lo que añadiría un dato autodeclarad
 observarlos, y **ausencia de datos no se equipara a ausencia de digitalización**. Se mantiene la separación
 entre **madurez operativa**, **capacidades pendientes** del producto y **conclusión jurídica**.
 
+### D-54 — Multilenguaje, acceso federado y unidad de coste (P1-015) — **PROPUESTA (2026-10-18)**
+
+**Qué piden los criterios**. **RF-46** (`docs/03:62`, tabla de **evolución**, columna **Restricción**):
+«**Español primero** y **decisiones de coste**». **P1-015** (`docs/18:216`, **aceptación mínima**): «**ADR por
+componente**, **español conservado** y **límites/coste/SSO comprobados**», con dependencia «**TECH-001 y
+piloto**».
+
+**Qué se entregó el 2026-10-18**: los **tres ADR por componente** (**0007** multilenguaje, **0008** acceso
+federado, **0009** consumo, límites y coste), la comprobación de que el **español está conservado**, y los
+**límites comprobados** —publicados con su valor, su procedencia y su efecto, y verificados superando uno—.
+
+**Qué NO se pudo comprobar, y por qué no es interpretación mía**: la aceptación mínima pide también «**coste**»
+y «**SSO**» **comprobados**, y la historia depende de un «**piloto**» que **no existe**. Sin tarifa acordada no
+hay coste que comprobar; sin proveedor de identidad ni usuarios reales, tampoco SSO.
+
+| # | Decisión | Opciones | Efecto |
+| --- | --- | --- | --- |
+| 1 | **Unidad de coste** | **(A)** por organización · **(B)** por usuario activo · **(C)** por volumen trazado · **(D)** por almacenamiento | Decide a quién le sale caro: (B) castiga a cooperativas con muchos técnicos, (C) a las grandes, (D) a las que suben muchos documentos. **Recomendada: esperar** a tener consumo real; el del DEMO no sirve |
+| 2 | **Proveedor de acceso federado** | **(A)** seguir solo con acceso local · **(B)** OIDC alojado (Entra, Auth0, Cognito…) · **(C)** OIDC autoalojado (Keycloak) · **(D)** híbrido por organización | (B) cuesta por usuario activo y añade dependencia para entrar; (C) cambia cuota por operación. **Recomendada: (A)** mientras no sea requisito de un comprador; **(C)** cuando lo sea |
+| 3 | **Alcance multilenguaje** | **(A)** solo español —lo actual— · **(B)** i18n con el **español como fuente** · **(C)** i18n con claves abstractas | **(C)** permite que una clave sin traducir se muestre al usuario; **(B)** garantiza que el peor caso sea ver español. **Recomendada: (B)** cuando haya una segunda lengua decidida; **(A)** hasta entonces |
+| 4 | **Qué pasa al llegar a un límite** | **(A)** rechazar —lo actual— · **(B)** avisar y dejar pasar · **(C)** cobrar el exceso | **(C)** exige la decisión 1 resuelta. **Recomendada: (A)**: es predecible y no cobra sorpresas |
+
+**Nada de esto está adoptado**, y **nada se implementó por adelantado**: no hay i18n instalado «por si acaso»,
+no hay integración OIDC sin proveedor y **no se fijó ninguna tarifa ni ningún límite nuevo**.
+
 ### D-53 — Evoluciones posibles de la inteligencia comercial (P1-014) — **ABIERTA, no bloqueante (2026-10-18)**
 
 **Qué pide la fuente**. **S3 §41** («GAP 15 — pasar de *compliance* a inteligencia comercial») condiciona todo a

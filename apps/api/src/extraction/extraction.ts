@@ -29,8 +29,12 @@ import { EXPLICACION_BASE, sugerir, type Base } from './reglas';
 //   3. **dato confirmado por una persona**: sin esta decisión, **no hay dato**.
 //
 // LO QUE NO HACE
-//   · **No sale fuera.** No hay OCR remoto ni modelo alojado: un PDF con capa de texto se lee **en local**;
-//     una imagen o un PDF escaneado se declaran **no soportados**, con su motivo, en vez de enviarse a nadie.
+//   · **No sale fuera.** Un PDF con capa de texto se lee **en local**; lo que este motor no sabe leer se
+//     **declara** con su motivo, en vez de enviarse a nadie. **El OCR no obliga a usar un servicio externo**
+//     —hay motores que corren en local, como Tesseract—: que aquí no haya OCR es **limitación de este motor**.
+//   · **No confunde «no hay» con «no sé leerlo».** Un PDF cuya capa de texto este motor no interpreta se
+//     publica como `TEXTO_NO_INTERPRETABLE`, **sin texto y sin sugerencias**: devolver una interpretación
+//     incorrecta sería peor que no leer nada.
 //   · **No sobrescribe nada**: `document_versions` no se toca. Confirmar **registra**, no pisa.
 //   · **No acredita** autenticidad, legalidad, calidad ni suficiencia documental, y **no levanta** compuertas.
 //   · **No confirma importaciones** ni decide nada por sí sola.
@@ -112,15 +116,16 @@ export class ExtractionService {
         : 'Este archivo aún no tiene un análisis antivirus limpio: no se abre para extraer.');
     }
 
-    let estado: 'EXTRAIDA' | 'SIN_TEXTO' | 'FORMATO_NO_SOPORTADO' | 'FALLIDA' = 'FALLIDA';
+    let estado: 'EXTRAIDA' | 'SIN_TEXTO' | 'TEXTO_NO_INTERPRETABLE' | 'FORMATO_NO_SOPORTADO' | 'FALLIDA' = 'FALLIDA';
     let texto: string | null = null;
     let paginas: number | null = null;
     let nota = '';
 
     if (!SOPORTADOS.includes(v.mime_type)) {
       estado = 'FORMATO_NO_SOPORTADO';
-      nota = `El formato ${v.mime_type} es una imagen: leerlo exigiría OCR, que es un modelo o servicio que esta `
-        + 'instalación NO tiene autorizado. No se envía el archivo a ningún tercero. Registra los datos a mano.';
+      nota = `El formato ${v.mime_type} es una imagen: leerla exigiría OCR, y este motor NO implementa OCR. `
+        + 'No es que haga falta un servicio externo —hay motores de OCR que se ejecutan en local—: es una '
+        + 'limitación del motor instalado. No se envía el archivo a ningún tercero. Registra los datos a mano.';
     } else {
       let bytes: Buffer;
       try { bytes = await this.store.get(v.object_key); }
@@ -133,16 +138,26 @@ export class ExtractionService {
       try {
         const r = textoDePdf(bytes);
         paginas = paginasDePdf(bytes);
-        if (r.text.length === 0) {
+        if (r.hasTextLayer && !r.interpretable) {
+          // Hay capa de texto, pero este motor no la entiende: se DICE, y lo ilegible no se publica.
+          estado = 'TEXTO_NO_INTERPRETABLE';
+          nota = 'El PDF SÍ tiene capa de texto, pero este motor no supo interpretarla: solo el '
+            + `${Math.round(r.legibility * 100)} % de lo obtenido es texto legible. Suele ocurrir cuando las fuentes `
+            + 'van subconjuntadas y el documento escribe índices de glifo en vez de caracteres, lo que exigiría leer '
+            + 'el mapa «ToUnicode» de cada fuente —algo que este motor no implementa—. NO se publica lo ilegible ni '
+            + 'se sugiere nada a partir de ello: una interpretación incorrecta sería peor que no leer nada.';
+        } else if (r.text.length === 0) {
           estado = 'SIN_TEXTO';
-          nota = 'El PDF no tiene capa de texto: probablemente es un escaneo. Leerlo exigiría OCR, que esta '
-            + 'instalación NO tiene autorizado. No se envía el archivo a ningún tercero.';
+          nota = 'El PDF no tiene capa de texto: probablemente es un escaneo. Leerlo exigiría OCR, y este motor NO '
+            + 'implementa OCR —existen motores locales, como Tesseract; no hace falta un servicio externo—. '
+            + 'No se envía el archivo a ningún tercero.';
         } else {
           estado = 'EXTRAIDA';
           texto = r.text;
           nota = r.truncated
             ? `Texto extraído de ${r.streams} flujo(s) y CORTADO por los límites de procesamiento: está incompleto, y por eso se dice.`
-            : `Texto extraído de ${r.streams} flujo(s) de contenido del propio archivo, sin ningún servicio externo.`;
+            : `Texto extraído de ${r.streams} flujo(s) de contenido del propio archivo, en local. Legibilidad `
+              + `medida del resultado: ${Math.round(r.legibility * 100)} %.`;
         }
       } catch {
         estado = 'FALLIDA';
@@ -246,8 +261,13 @@ export class ExtractionService {
       disclaimer: 'La extracción NO acredita autenticidad, legalidad, calidad ni suficiencia documental, y no '
         + 'levanta ninguna compuerta. Un valor sugerido NO es un dato: lo es solo cuando una persona lo confirma, '
         + 'y aun así queda como registro propio: NO sobrescribe la versión del documento ni ningún dato operativo.',
-      no_external: 'Ningún archivo ni dato personal sale de esta instalación: el texto se lee en local. Los '
-        + 'formatos que exigirían OCR se declaran no soportados en vez de enviarse a un tercero.',
+      no_external: 'Ningún archivo ni dato personal sale de esta instalación: el texto se lee en local. Lo que '
+        + 'este motor no sabe leer se declara, en vez de enviarse a un tercero.',
+      engine_limits: 'Este motor lee la CAPA DE TEXTO de un PDF. No implementa OCR ni el mapa «ToUnicode» de '
+        + 'fuentes subconjuntadas, así que hay PDF legítimos cuya capa de texto no puede interpretar: cuando ocurre, '
+        + 'lo dice y no sugiere nada. El OCR NO obliga a usar servicios externos —hay motores locales, como '
+        + 'Tesseract—; simplemente no está incorporado aquí. Superar las pruebas de formatos propios NO acredita '
+        + 'compatibilidad general con cualquier PDF.',
     };
   }
 

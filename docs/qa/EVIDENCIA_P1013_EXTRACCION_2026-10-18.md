@@ -41,14 +41,24 @@ publicar ALTA sin rótulo. Y **ambiguo ⇒ sin valor** (`field_ambiguity_shape`)
 **Lo que no se interpreta**: `03/04/2026` **no se decide** entre marzo y abril —queda como candidato sin
 normalizar—; un año de dos cifras no se completa; una fecha imposible (`2026-02-30`) no se propone.
 
-## 4. Nada sale de esta instalación
+## 4. Nada sale de esta instalación — y una corrección sobre el OCR
 
-Un PDF **con capa de texto** se lee **en local**, descomprimiendo sus propios flujos de contenido. Lo que
-exigiría **OCR** —un PNG, o un PDF escaneado— **no se envía a ningún tercero**: se declara
-`FORMATO_NO_SOPORTADO` o `SIN_TEXTO` **con su motivo**.
+Un PDF **con capa de texto** se lee **en local**, descomprimiendo sus propios flujos de contenido. Un PNG o un
+PDF escaneado **no se leen**: se declaran `FORMATO_NO_SOPORTADO` o `SIN_TEXTO` **con su motivo**, y **no se
+envían a ningún tercero**.
 
-**Si se quisiera OCR, sería una dependencia externa a aprobar antes de activarla**: un modelo o servicio que
-recibiría documentos y datos personales. No está, y no se finge que esté.
+**Corrección (2026-10-18)**: una versión anterior de esta evidencia presentaba el OCR como si **exigiera** un
+servicio externo. **Es falso.** Hay motores de OCR que se ejecutan **enteramente en local** —**Tesseract**,
+por ejemplo, ofrece motor y programa de línea de comandos para imágenes
+(<https://github.com/tesseract-ocr/tesseract>)—. Por tanto:
+
+- **la ausencia de OCR aquí es una limitación del motor implementado**, no una consecuencia de no usar terceros;
+- incorporar OCR **no obligaría** a enviar documentos fuera: podría instalarse en local;
+- **no se incorpora ahora**, y esta entrega no lo prejuzga. Lo que sigue siendo cierto es lo que el producto
+  hace hoy: **no sale nada de la instalación** y lo no legible **se declara**, en vez de fingirse.
+
+**Pendiente heredado**: el texto que el producto devuelve en esas respuestas arrastra la misma redacción
+inexacta. Se corrige **dentro del siguiente candidato**, con su regresión, en vez de abrir una entrega aparte.
 
 ## 5. No sobrescribe, y está atado a la versión exacta
 
@@ -149,3 +159,37 @@ Una etiqueta **mencionada** bastaba para sugerir: el texto «Sin **emisor** rotu
 «rotulado ni fechas» como emisor **con confianza ALTA**. Lo encontró la prueba de «información ausente».
 Corregido: la etiqueta tiene que **rotular** —dos puntos para el emisor, o una fecha ISO justo detrás— y debe
 ser **palabra completa**. Queda fijado con su prueba unitaria.
+
+## 13. Comprobación dirigida de los límites del motor (2026-10-18, posterior al cierre)
+
+**Superar las pruebas con PDF que genera el propio autor no demuestra compatibilidad general.** Se hizo una
+comprobación acotada con un PDF producido por una **herramienta independiente** —el motor de impresión de
+**Chromium**, guardado como `apps/api/test/fixtures/chromium-capa-texto.pdf`— y empujando el motor contra sus
+bordes. **Destapó cuatro defectos**, corregidos con su regresión **dentro del siguiente candidato**, sin abrir
+una entrega aparte.
+
+| # | Qué se comprobó | Qué pasaba | Corrección |
+| --- | --- | --- | --- |
+| 1 | **PDF de otra herramienta** | Devolvía **miles de caracteres que no son el texto del documento** y los publicaba como `EXTRAIDA` | Se **mide si el resultado es texto** y, si no lo es, se publica `TEXTO_NO_INTERPRETABLE` **sin texto y sin sugerencias** |
+| 2 | **«Sin capa de texto» vs «no supe leerla»** | Ambas acababan en `SIN_TEXTO` | Estados **distintos**: `SIN_TEXTO` (no hay) y `TEXTO_NO_INTERPRETABLE` (hay, pero este motor no la entiende) |
+| 3 | **Multipágina** | De **tres** flujos de contenido leía **uno**: la palabra `endstream` contiene `stream`, y el barrido se comía el siguiente | Se reanuda **después** de `endstream`. Probado con tres flujos |
+| 4 | **Codificaciones** | Cadenas **hexadecimales** `<…>` se perdían enteras; **UTF-16BE** salía con el BOM dentro (`þÿHola`) | Ambas se **decodifican** |
+
+**El hallazgo más importante, y por qué una sola señal no bastaba.** Con el PDF de Chromium el texto
+descomprimido **parece ASCII imprimible** —la legibilidad por repertorio da **87 %**— pero son **índices de
+glifo**: `0DQDEt` es «Manabí» desplazado. Una medida de «caracteres razonables» lo habría dado por bueno. Lo
+delatan dos señales añadidas: **caracteres de control** donde debería haber espacios, y un texto largo **sin un
+solo espacio**. El motor publica **cuál** señal lo descartó, para que pueda comprobarse.
+
+**Lo que SÍ estaba bien**: los **límites de procesamiento** cortan y lo **declaran** (`truncated`), y un flujo
+con Flate corrupto **no revienta ni inventa**.
+
+**Clasificación y permisos del texto extraído**: comprobado que el texto de un documento de **datos
+personales** hereda su protección —quien no tiene `producer:read_identity` recibe **403** y el texto **no se
+filtra** por la ficha del documento—, también en las tablas y respuestas nuevas.
+
+**Lo que esta comprobación NO demuestra**: compatibilidad general con cualquier PDF. Se probó **un** generador
+independiente. El producto lo dice en cada respuesta (`engine_limits`): *superar las pruebas de formatos
+propios no acredita compatibilidad general*.
+
+**Migración 0054** añade el estado nuevo al CHECK; la tabla es append-only y las filas anteriores no se tocan.

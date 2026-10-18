@@ -55,6 +55,7 @@ import * as m0050 from './migrations/0050_p1006_intercambio_guia';
 import * as m0051 from './migrations/0051_p1010_presupuesto_preparacion';
 import * as m0052 from './migrations/0052_p1012_precio_prima_pagos';
 import * as m0053 from './migrations/0053_p1013_extraccion_asistida';
+import * as m0054 from './migrations/0054_p1013_texto_no_interpretable';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -111,6 +112,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0051_p1010_presupuesto_preparacion': m0051,
   '0052_p1012_precio_prima_pagos': m0052,
   '0053_p1013_extraccion_asistida': m0053,
+  '0054_p1013_texto_no_interpretable': m0054,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

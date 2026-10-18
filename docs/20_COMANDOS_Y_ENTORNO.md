@@ -460,6 +460,11 @@ si una variable está puesta se mira su **efecto** (por ejemplo `live_calls_enab
 ### Web por rol y Lot Hub (P0-027, 2026-10-12)
 
 - `npx jest --runInBand test/my-work.int-spec.ts` (desde `apps/api`).
+- `node e2e/review/limites.mjs`: recorrido de P1-015 sobre el despliegue — cada límite con su procedencia y
+  su efecto, comprobado **superando uno de verdad**; consumo medido que no se presenta como coste; español
+  declarado sin claves de traducción; acceso local sin insinuar SSO; solo lectura; aislamiento; **y las tres
+  regresiones de P1-013** (PDF ajeno no interpretable, redacción de OCR corregida, multipágina y
+  codificaciones). **Cambia datos DEMO**: sube documentos de ensayo identificados en su título.
 - `node e2e/review/extraccion.mjs`: recorrido de P1-013 sobre el despliegue — extracción correcta de un PDF
   con capa de texto, información ausente, resultado ambiguo con sus candidatos, documento sustituido,
   formato no soportado sin salir a ningún OCR, acceso denegado por permiso de extracción y por contenido
