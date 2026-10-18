@@ -189,7 +189,7 @@ organización **declare** su nivel 0–2, lo que añadiría un dato autodeclarad
 observarlos, y **ausencia de datos no se equipara a ausencia de digitalización**. Se mantiene la separación
 entre **madurez operativa**, **capacidades pendientes** del producto y **conclusión jurídica**.
 
-### D-52 — Base del precio, significado de la prima y quién registra el dinero (P1-012) — **PROPUESTA (2026-10-18)**
+### D-52 — Base del precio, significado de la prima y quién registra el dinero (P1-012) — **ADOPTADA (2026-10-18)**
 
 **Qué pide la fuente**. **S3 §32** dice que la mayoría de plataformas responde *«¿dónde está el cacao?»* y que
 Terra Link debería añadir ***«¿cuánto recibió el productor?»***, enumerando **precio, prima, calidad, volumen,
@@ -208,9 +208,23 @@ dato**, de modo que adoptar cualquier opción después **no reescriba** lo ya re
 | 2 | **Significado de la prima** | **(A)** importe **por unidad** o **fijo**, con **fundamento declarado obligatorio** y **nunca deducido** · **(B)** añadir **porcentaje** sobre el precio · **(C)** catálogo cerrado de primas (certificación, calidad, EUDR) en vez de fundamento libre | **(A)** es lo implementado y es lo único que hoy se puede sostener: no hay catálogo de primas ni regla de cálculo acordada. **(B)** exige fijar sobre qué base se aplica el porcentaje; **(C)** exige un catálogo versionado que nadie ha definido |
 | 3 | **Quién registra y quién corrige** | **(A)** permisos propios `economics:read` / `record` / `correct`, hoy en **ORG_ADMIN** y **MANAGER**, con **AUDITOR** de solo lectura y **técnico de campo sin acceso** · **(B)** que el operador de recepción registre el precio al recibir · **(C)** un rol comercial nuevo | **(A)** cumple «privacidad» de RF-43: leer una entrega **no** da acceso a su dinero. **(B)** acercaría el dato al momento real pero ampliaría quién ve precios; **(C)** es más limpio y cuesta un rol nuevo |
 
-**Lo implementado mientras tanto (provisional, no adoptado):** opción **(A)** en las tres. Las tres quedan
-**registradas en el propio dato** —`basis_kind` con su cantidad y unidad, `premium_kind` con su fundamento, y el
-autor de cada versión—, en tablas **append-only**: cambiar la decisión más adelante **no** reescribe el pasado.
+**Adoptada el 2026-10-18: opción (A) en los tres puntos.**
+
+1. **Base del precio declarada por registro**: «cantidad declarada en la entrega», «cantidad recibida (pesaje)»
+   o «sin base declarada». La base elegida se guarda **con su cantidad y su unidad tal como estaban al
+   declararla**, así que cambiar la entrega después **no** reescribe el importe registrado.
+2. **Prima por unidad o importe fijo, con fundamento obligatorio y nunca deducida.** Sin `premium_grounds` no se
+   registra —**422 `PREMIUM_GROUNDS_REQUIRED`**, con el CHECK `economics_premium_shape` imponiéndolo también en
+   la base—. **No** hay prima porcentual ni catálogo cerrado de tipos: si se quisieran, serían **una decisión
+   nueva**, no una lectura de esta.
+3. **Permisos económicos propios**: `economics:read` / `record` / `correct` en **ORG_ADMIN** y **MANAGER**,
+   **AUDITOR de solo lectura**, y el **técnico de campo sin acceso**. Leer una entrega **no** da acceso a su
+   dinero.
+
+**Ya implementado así** en `4f94e7b` (validado y desplegado el 2026-10-18): la adopción **ratifica** el
+comportamiento vigente y **no cambia código**, por lo que no repite validación ni despliegue. Las tres
+elecciones siguen **escritas en el propio dato** sobre tablas **append-only**, de modo que una revisión futura
+tampoco reescribiría lo registrado.
 
 **Lo que no está en discusión**, porque lo fija el requisito: **no se ejecutan transferencias**, un **pago es
 informado** por una persona, **un precio registrado no demuestra un pago**, **una prima ausente no es cero** y

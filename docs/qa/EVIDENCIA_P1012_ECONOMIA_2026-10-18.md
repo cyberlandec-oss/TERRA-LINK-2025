@@ -118,9 +118,10 @@ Incluye también `object-data.tar.gz`, `claves.env` con ACL restringida y `SHA25
 | `node e2e/review/economia.mjs` sobre el despliegue de `4f94e7b` | **18/18** |
 | Respaldo verificado por restauración aislada | **0 errores**, 97 tablas idénticas, 487 objetos |
 
-## 11. Decisiones pendientes (D-52, **propuestas**)
+## 11. Decisiones de producto (D-52, **adoptada el 2026-10-18**)
 
 Base del precio, significado de la prima y quién registra **no las fija la fuente**: son decisiones de
-producto. Lo implementado es un **contrato provisional**, y las tres quedan **escritas en el propio dato**
+producto, y se adoptó la **opción (A) en las tres**. La adopción **ratifica** el comportamiento ya validado en
+`4f94e7b`, así que **no cambia código** ni repite validación. Las tres quedan **escritas en el propio dato**
 —`basis_kind` con su cantidad y unidad, `premium_kind` con su fundamento, y el autor de cada versión—, sobre
 tablas append-only: **adoptar otra opción más adelante no reescribe lo ya registrado**.
