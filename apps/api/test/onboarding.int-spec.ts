@@ -214,4 +214,16 @@ describeDb('P1-004 onboarding y madurez 0–6 (PostgreSQL real)', () => {
     const filas = await h.db.selectFrom('risk_rule_set_adoptions').select('decision').where('organization_id', '=', orgA).execute();
     expect(filas.map((f) => f.decision).sort()).toEqual(['ADOPT', 'WITHDRAW']);
   });
+
+  // Un enlace del asistente que no existe convierte el paso en un callejón sin salida. Se fija la lista para
+  // que cambiarla sea deliberado; la comprobación de que cada destino ABRE de verdad está en
+  // `e2e/review/puesta-en-marcha.mjs`, que los recorre en el navegador.
+  it('cada paso enlaza a una pantalla del producto, y la lista está fijada', async () => {
+    const d = await diag(ADMIN);
+    const destinos = Object.fromEntries(d.steps.map((p) => [p.code, p.action_href?.replace(`${api(orgA).replace('/api/v1/organizations', '/organizaciones')}`, '') ?? null]));
+    expect(destinos).toEqual({
+      ORGANIZACION: '', EQUIPO: '/miembros', CATALOGOS: '/productos', CENTROS: '/centros',
+      PRODUCTORES: '/productores', PARCELAS: '/parcelas', IMPORTACION: '/importaciones', REVISION: '',
+    });
+  });
 });

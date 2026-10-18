@@ -295,7 +295,7 @@ export class OnboardingService {
         `${c.productos} producto(s) activo(s).`, 'product:read', `${base}/productos`, 'Administración de la organización'),
       paso('CENTROS', 'Centros y ubicaciones', c.centros > 0,
         'Sin centro no se puede confirmar una recepción.',
-        `${c.centros} ubicación(es) activa(s).`, 'location:read', `${base}/ubicaciones`, 'Administración de la organización'),
+        `${c.centros} ubicación(es) activa(s).`, 'location:read', `${base}/centros`, 'Administración de la organización'),
       paso('PRODUCTORES', 'Productores', c.productores > 0,
         'El origen empieza aquí: sin productores no hay cadena.',
         `${c.productores} productor(es) activo(s).`, null, `${base}/productores`, 'Técnico de campo o administración'),
