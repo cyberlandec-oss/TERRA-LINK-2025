@@ -98,6 +98,8 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     // que aplica la API. Estar en el menú no concede lectura de riesgo, parcelas ni identidad.
     // P1-010: presupuesto de preparación. Importes DECLARADOS por la organización, no tarifas del producto.
     if (ws.can('cost:read')) trazabilidad.push({ href: `${base}/presupuesto`, label: 'Presupuesto', match: (p) => p.startsWith(`${base}/presupuesto`) });
+    // P1-011: histórico temporal y alertas. Derivado de lo ya registrado; leerlo no cambia nada del dominio.
+    if (ws.can('plot:read') || ws.can('plot:read_assigned')) trazabilidad.push({ href: `${base}/historico`, label: 'Histórico', match: (p) => p.startsWith(`${base}/historico`) });
     if (ws.can('report:read')) trazabilidad.push({ href: `${base}/reportes`, label: 'Reportes', match: (p) => p.startsWith(`${base}/reportes`) });
     if (trazabilidad.length) groups.push({ title: 'Trazabilidad', items: trazabilidad });
     const admin: NavItem[] = [];

@@ -460,6 +460,11 @@ si una variable está puesta se mira su **efecto** (por ejemplo `live_calls_enab
 ### Web por rol y Lot Hub (P0-027, 2026-10-12)
 
 - `npx jest --runInBand test/my-work.int-spec.ts` (desde `apps/api`).
+- `node e2e/review/historico.mjs`: recorrido de P1-011 sobre el despliegue — la línea temporal reutiliza el
+  registro de cambios ya existente sin duplicarlo, las tres fechas separadas con la ausente declarada, los
+  años sin registros rotulados, comparar con sus limitaciones delante, alertas con problema, impacto, causa
+  y acción —y de solo lectura—, alcance por parcela, teclado y 390 px. **No cambia ningún dato**: todo el
+  histórico es derivado y de lectura.
 - `node e2e/review/presupuesto.mjs`: recorrido de P1-010 sobre el despliegue — nada precargado, ausencia que
   no es cero, decimal exacto, denominadores con su origen y fecha, reproducibilidad al cambiar una tarifa,
   permisos, teclado y 390 px. **Cambia datos DEMO**: registra parámetros y guarda una estimación (registros

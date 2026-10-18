@@ -9016,6 +9016,125 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/plots/{plotId}/timeline": {
+      "get": {
+        "operationId": "HistoryController_historial",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Histórico temporal de la parcela: lo registrado por período, con los años sin registros declarados",
+        "tags": [
+          "history"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/plots/{plotId}/timeline/compare": {
+      "get": {
+        "operationId": "HistoryController_comparar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Comparar dos versiones de geometría con sus datasets, cobertura y limitaciones",
+        "tags": [
+          "history"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/temporal-alerts": {
+      "get": {
+        "operationId": "HistoryController_alertas",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Alertas derivadas del histórico, con su causa y su acción (solo lectura)",
+        "tags": [
+          "history"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/buyers": {
       "get": {
         "operationId": "ShipmentsController_buyers",
