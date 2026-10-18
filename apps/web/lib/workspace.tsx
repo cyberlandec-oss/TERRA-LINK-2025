@@ -96,6 +96,8 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     if (ws.can('exchange:use')) trazabilidad.push({ href: `${base}/intercambio`, label: 'Intercambio', match: (p) => p.startsWith(`${base}/intercambio`) });
     // P0-030: `report:read` abre la pantalla de indicadores; cada indicador exige además el permiso de su dominio,
     // que aplica la API. Estar en el menú no concede lectura de riesgo, parcelas ni identidad.
+    // P1-010: presupuesto de preparación. Importes DECLARADOS por la organización, no tarifas del producto.
+    if (ws.can('cost:read')) trazabilidad.push({ href: `${base}/presupuesto`, label: 'Presupuesto', match: (p) => p.startsWith(`${base}/presupuesto`) });
     if (ws.can('report:read')) trazabilidad.push({ href: `${base}/reportes`, label: 'Reportes', match: (p) => p.startsWith(`${base}/reportes`) });
     if (trazabilidad.length) groups.push({ title: 'Trazabilidad', items: trazabilidad });
     const admin: NavItem[] = [];

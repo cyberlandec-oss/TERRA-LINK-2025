@@ -189,7 +189,7 @@ organización **declare** su nivel 0–2, lo que añadiría un dato autodeclarad
 observarlos, y **ausencia de datos no se equipara a ausencia de digitalización**. Se mantiene la separación
 entre **madurez operativa**, **capacidades pendientes** del producto y **conclusión jurídica**.
 
-### D-51 — De dónde salen los importes del «coste de preparación» (P1-010) — **PENDIENTE**
+### D-51 — De dónde salen los importes del «coste de preparación» (P1-010) — **ADOPTADA (2026-10-18)**
 
 **Qué entiende la fuente por «coste»**. **S3 §33** («GAP 7 — Coste de cumplimiento») pide responder *«¿cuánto me
 cuesta cumplir EUDR por productor?»* con una tabla de **conceptos y dinero** —georreferenciación, validación,
@@ -212,9 +212,18 @@ real», y las cifras de S3 §33 **no son tarifas**: usarlas sería inventarlas.
 | 3 | **Denominador de la asignación** | Por **productor** y por **tonelada**: ¿tonelada **declarada**, **recibida** o **del lote**? | `docs/18:211` pide ambas asignaciones; sin fijar el denominador, dos cifras correctas pueden contradecirse |
 | 4 | **Moneda** | Una por organización, o una por parámetro con conversión | Mezclar monedas sin declararlo produciría un total sin significado |
 
-**Efecto de no decidir**: **P1-010 no se empieza**. P1-009 no depende de ella y se entrega sola. Lo que la
-simulación ya produce —qué falta y de qué clase— es exactamente la **lista de trabajo** sobre la que después se
-podrán medir cantidades, sin haber comprometido ningún importe.
+**Resuelto el 2026-10-18, como contrato provisional para desarrollo local:**
+
+| # | Decisión adoptada |
+| --- | --- |
+| 1 | **Opción (A)**: los importes los introduce una persona autorizada como **parámetros presupuestarios**, con concepto, unidad, importe, moneda, vigencia, autor y versión. **No** son precios oficiales, costes medidos ni ofertas de proveedores; **no** se precargan los importes ilustrativos de S3 ni se consulta ningún servicio externo |
+| 2 | **Unidades**: georreferenciación → *visita prevista*; validación → *revisión prevista*, **identificando su tipo**; documentación → *expediente documental por preparar o revisar*; análisis satelital → *análisis presupuestado*; administración → *hora prevista*. Las **cantidades se declaran** y quedan **marcadas como estimadas**: una versión de geometría no demuestra una visita, una evaluación automática no demuestra una revisión humana y un trabajo satelital no demuestra un servicio facturado. Lo observado **explica** el trabajo pendiente y **no se convierte** en unidad de coste |
+| 3 | **Denominadores**: total, **coste por productor distinto del alcance** y **por tonelada del peso físico del ledger** —no el declarado ni el disponible tras reservas—, con cantidad, unidad y fecha de consulta. Sin denominador válido o con cero: **«no calculable»**, nunca cero ni infinito. Es una **distribución del presupuesto del escenario**, no un coste contable del lote, y **no se reparte entre productores concretos** |
+| 4 | **Moneda**: **USD** únicamente, sin conversiones ni tipos de cambio |
+
+**Lo que la adopción obliga además**: ausencia **no es cero** —el total se marca incompleto y separa lo
+conocido—, el cálculo debe **reproducirse** con las mismas versiones y entradas, y **una tarifa cambiada después
+no reescribe una estimación guardada**. Implementado en P1-010 (migración **0051**, tablas append-only).
 
 ### D-50 — Formato de intercambio con GUIA/Agrocalidad — **ADOPTADA, opción A (2026-10-18)**
 

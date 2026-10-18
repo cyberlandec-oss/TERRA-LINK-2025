@@ -460,6 +460,10 @@ si una variable está puesta se mira su **efecto** (por ejemplo `live_calls_enab
 ### Web por rol y Lot Hub (P0-027, 2026-10-12)
 
 - `npx jest --runInBand test/my-work.int-spec.ts` (desde `apps/api`).
+- `node e2e/review/presupuesto.mjs`: recorrido de P1-010 sobre el despliegue — nada precargado, ausencia que
+  no es cero, decimal exacto, denominadores con su origen y fecha, reproducibilidad al cambiar una tarifa,
+  permisos, teclado y 390 px. **Cambia datos DEMO**: registra parámetros y guarda una estimación (registros
+  append-only propios del módulo; no toca expedientes, inventario ni riesgo).
 - `node e2e/review/simulacion.mjs`: recorrido de P1-009 sobre el despliegue — veredicto y causas, el
   porcentaje con su advertencia, entradas y fecha, el escenario hipotético y lo que seguiría bloqueado,
   permisos, teclado y 390 px. **No cambia ningún dato**: la simulación es de lectura.

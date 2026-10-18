@@ -613,6 +613,19 @@ export interface LegalProfileRulesTable {
   applicability_condition: string; evidence_required: string; product_can_check: string;
   needs_legal_review: boolean; review_status: 'DRAFT' | 'REVIEWED'; gaps: string;
 }
+export interface BudgetParametersTable {
+  id: string; organization_id: string;
+  concept: 'GEOREFERENCIACION' | 'VALIDACION' | 'DOCUMENTACION' | 'ANALISIS_SATELITAL' | 'ADMINISTRACION';
+  unit: string; validation_kind: string | null; amount: string; currency: 'USD';
+  valid_from: string; valid_to: string | null; version: number; note: string | null;
+  created_by: string; created_at: Generated<Timestamp>; operation_id: string;
+}
+export interface CostEstimatesTable {
+  id: string; organization_id: string; scope_kind: 'LOT'; scope_id: string; currency: 'USD';
+  total_known: string; complete: boolean;
+  parameters: unknown; quantities: unknown; denominators: unknown; lines: unknown; observed: unknown;
+  created_by: string; created_at: Generated<Timestamp>; operation_id: string;
+}
 export interface ExchangeAgreementsTable {
   id: string; organization_id: string; counterpart: 'GUIA_AGROCALIDAD'; reference: string; scope: string;
   valid_from: string; valid_to: string | null; document_version_id: string | null;
@@ -905,6 +918,8 @@ export interface Database {
   legal_profile_reviews: LegalProfileReviewsTable;
   legal_profile_sources: LegalProfileSourcesTable;
   legal_profile_rules: LegalProfileRulesTable;
+  budget_parameters: BudgetParametersTable;
+  cost_estimates: CostEstimatesTable;
   exchange_agreements: ExchangeAgreementsTable;
   exchange_agreement_decisions: ExchangeAgreementDecisionsTable;
   exchange_acts: ExchangeActsTable;

@@ -8771,6 +8771,251 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/cost/parameters": {
+      "get": {
+        "operationId": "CostController_parametros",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Parámetros presupuestarios: vigentes, historial y conceptos pendientes de presupuestar",
+        "tags": [
+          "cost"
+        ]
+      },
+      "post": {
+        "operationId": "CostController_registrar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParametroDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Registrar una versión de parámetro presupuestario (importe declarado, no una tarifa)",
+        "tags": [
+          "cost"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/cost/estimates/preview": {
+      "post": {
+        "operationId": "CostController_estimar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EstimacionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Calcular el presupuesto de un escenario SIN guardarlo",
+        "tags": [
+          "cost"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/cost/estimates": {
+      "post": {
+        "operationId": "CostController_guardar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EstimacionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Guardar una estimación con los parámetros y cantidades que usó",
+        "tags": [
+          "cost"
+        ]
+      },
+      "get": {
+        "operationId": "CostController_estimaciones",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Estimaciones guardadas",
+        "tags": [
+          "cost"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/cost/estimates/{id}": {
+      "get": {
+        "operationId": "CostController_estimacion",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Una estimación guardada, tal como se calculó",
+        "tags": [
+          "cost"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/cost/estimates/{id}/download": {
+      "get": {
+        "operationId": "CostController_descargar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Descargar una estimación guardada con sus supuestos",
+        "tags": [
+          "cost"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/buyers": {
       "get": {
         "operationId": "ShipmentsController_buyers",
@@ -11979,6 +12224,101 @@
           "operation_id",
           "decision",
           "reason"
+        ]
+      },
+      "ParametroDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "concept": {
+            "type": "string",
+            "enum": [
+              "GEOREFERENCIACION",
+              "VALIDACION",
+              "DOCUMENTACION",
+              "ANALISIS_SATELITAL",
+              "ADMINISTRACION"
+            ]
+          },
+          "amount": {
+            "type": "string",
+            "description": "Importe decimal como texto, p. ej. \"2.50\""
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD"
+            ]
+          },
+          "valid_from": {
+            "type": "string"
+          },
+          "valid_to": {
+            "type": "string"
+          },
+          "validation_kind": {
+            "type": "string",
+            "description": "Obligatorio en VALIDACION: qué revisión se presupuesta"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "concept",
+          "amount",
+          "currency",
+          "valid_from"
+        ]
+      },
+      "CantidadDto": {
+        "type": "object",
+        "properties": {
+          "concept": {
+            "type": "string",
+            "enum": [
+              "GEOREFERENCIACION",
+              "VALIDACION",
+              "DOCUMENTACION",
+              "ANALISIS_SATELITAL",
+              "ADMINISTRACION"
+            ]
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Cantidad decimal como texto. Se declara: el sistema no la observa."
+          },
+          "basis": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "concept",
+          "quantity"
+        ]
+      },
+      "EstimacionDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "lot_id": {
+            "type": "string"
+          },
+          "quantities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CantidadDto"
+            }
+          }
+        },
+        "required": [
+          "lot_id",
+          "quantities"
         ]
       },
       "CreateBuyerDto": {
