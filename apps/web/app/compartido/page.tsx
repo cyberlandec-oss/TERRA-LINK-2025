@@ -23,7 +23,7 @@ import { Alert, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge, type T
 
 interface Concesion { id: string; organization: string; resource_type: string; can_read: boolean; can_download: boolean; expires_at: string }
 interface Indicador { code: string; label: string; state: string; note: string; basis?: { version?: string | null; evaluated_at?: string | null } }
-interface Periodo { precision: string; start: string | null; end: string | null; note: string }
+interface Periodo { precision: string; start: string | null; end: string | null; note: string; inherited_range?: { start: string; end: string; note: string } | null }
 
 interface Proyeccion {
   resource_type: string; nota: string; public_reference?: string | null;
@@ -48,8 +48,8 @@ const ESTADO: Record<string, { tono: Tone; texto: string }> = {
 };
 
 const PRECISION: Record<string, string> = {
-  DAY: 'precisión de día', MONTH: 'precisión de mes', UNKNOWN: 'precisión desconocida',
-  DERIVED: 'DEDUCIDO de la fecha de entrega', NONE: 'sin declarar',
+  DAY: 'precisión de día', MONTH: 'precisión de mes',
+  UNKNOWN: 'declarado desconocido', NONE: 'sin declarar',
 };
 
 export default function CompartidoPage() {
@@ -168,8 +168,16 @@ export default function CompartidoPage() {
               <strong>Período de producción:</strong>{' '}
               {abierta.datos.production_period.start
                 ? <>{abierta.datos.production_period.start} – {abierta.datos.production_period.end} ({PRECISION[abierta.datos.production_period.precision]})</>
-                : 'sin declarar'}
+                : <strong>desconocido</strong>}
               <br />{abierta.datos.production_period.note}
+            </p>
+          )}
+          {/* Procedencia histórica: SEPARADA del período, nunca presentada como cosecha declarada. */}
+          {abierta.datos.production_period?.inherited_range && (
+            <p className="muted">
+              <strong>Límites heredados (no es el período de producción):</strong>{' '}
+              {abierta.datos.production_period.inherited_range.start} – {abierta.datos.production_period.inherited_range.end}
+              <br />{abierta.datos.production_period.inherited_range.note}
             </p>
           )}
 

@@ -41,12 +41,12 @@ describeDb('P0-003 concesiones externas: alcance, vencimiento, revocación, clas
   }
 
   /** Lote con origen declarado (productor y parcela con geometría), en la organización indicada. */
-  async function crearLote(org: string, admin: string, codigo: string) {
+  async function crearLote(org: string, admin: string, codigo: string, harvest_period?: { precision: string; start?: string; end?: string }) {
     const { baba, centro } = comun[org];
     const prod = (await http().post(`${base(org)}/producers`).set(as(admin)).send({ producer_code: `${codigo}-P`, legal_name: `Finca ${codigo}` }).expect(201)).body.id;
     const parcela = (await http().post(`${base(org)}/plots`).set(as(admin)).send({ producer_id: prod, plot_code: `${codigo}-PAR`, crop: 'Cacao' }).expect(201)).body.id;
     await http().post(`${base(org)}/plots/${parcela}/geometry-versions`).set(as(admin)).send({ expected_version: 1, survey_method: 'MANUAL_COORDINATES', geometry: { type: 'Point', coordinates: [-80.16, -0.848] }, area_declared_ha: 2 }).expect(201);
-    const d = (await http().post(`${base(org)}/deliveries`).set(as(admin)).send({ operation_id: randomUUID(), producer_id: prod, product_id: baba, delivery_date: today, quantity_declared: '100', unit: 'KG', origins: [{ plot_id: parcela }], register: true }).expect(201)).body.delivery;
+    const d = (await http().post(`${base(org)}/deliveries`).set(as(admin)).send({ operation_id: randomUUID(), producer_id: prod, product_id: baba, delivery_date: today, quantity_declared: '100', unit: 'KG', origins: [{ plot_id: parcela }], ...(harvest_period ? { harvest_period } : {}), register: true }).expect(201)).body.delivery;
     const rec = (await http().post(`${base(org)}/deliveries/${d.id}/receptions`).set(as(admin)).send({ operation_id: randomUUID(), location_id: centro, received_at: new Date().toISOString(), weighing: { method: 'Báscula sintética', quantity: '100', unit: 'KG', weighed_on: today } }).expect(201)).body.reception_id;
     return (await http().post(`${base(org)}/lots`).set(as(admin)).send({ operation_id: randomUUID(), inputs: [{ reception_id: rec, quantity: '100' }] }).expect(201)).body.lot.id as string;
   }
@@ -433,14 +433,49 @@ describeDb('P0-003 concesiones externas: alcance, vencimiento, revocación, clas
     await revocar(g.id).expect(201);
   });
 
-  it('D-48(A) el período de producción conserva su precisión y no se deduce de la entrega', async () => {
-    const l = await loteNuevo();
-    const g = (await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: l, expires_at: futuro(), reason: 'Período' }).expect(201)).body.grant;
+  // El contrato adoptado PROHÍBE deducir el período de producción de la fecha de entrega. Los tres casos se
+  // comprueban extremo a extremo, sobre la proyección real que lee el comprador.
+  const periodoDe = async (l: string, motivo: string) => {
+    const g = (await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: l, expires_at: futuro(), reason: motivo }).expect(201)).body.grant;
     const v = (await leerConcedido(g.id).expect(200)).body;
-    expect(['DAY', 'MONTH', 'UNKNOWN', 'DERIVED', 'NONE']).toContain(v.production_period.precision);
-    // Lo deducido se declara deducido: nunca se presenta como cosecha declarada.
-    if (v.production_period.precision === 'DERIVED') expect(v.production_period.note).toMatch(/DEDUCIDO/);
-    if (v.production_period.precision === 'NONE') expect(v.production_period.start).toBeNull();
+    await revocar(g.id).expect(201);
+    return v.production_period as { precision: string; start: string | null; end: string | null; note: string; inherited_range: unknown };
+  };
+
+  it('PERÍODO 1/3 — cosecha declarada: conserva fechas y precisión originales', async () => {
+    const l = await crearLote(orgA, ADMIN, `PM${++n}`, { precision: 'MONTH', start: '2026-03', end: '2026-03' });
+    const p = await periodoDe(l, 'Período declarado');
+    expect(p).toMatchObject({ precision: 'MONTH', start: '2026-03', end: '2026-03', inherited_range: null });
+    // Los límites que la base guarda para consultar por rango NO se publican como si fuesen la declaración.
+    expect(JSON.stringify(p)).not.toContain('2026-03-01');
+    expect(JSON.stringify(p)).not.toContain('2026-03-31');
+  });
+
+  it('PERÍODO 2/3 — cosecha desconocida con fecha de entrega conocida: sigue DESCONOCIDO', async () => {
+    const l = await crearLote(orgA, ADMIN, `PU${++n}`, { precision: 'UNKNOWN' });
+    const p = await periodoDe(l, 'Período desconocido');
+    expect(p).toMatchObject({ precision: 'UNKNOWN', start: null, end: null, inherited_range: null });
+    // La entrega sí tiene fecha, y aun así no ocupa el período: entregar no es producir.
+    expect(JSON.stringify(p)).not.toContain(today);
+    expect(p.note).toMatch(/desconocido/i);
+  });
+
+  it('PERÍODO 3/3 — sin cosecha declarada: desconocido, nunca deducido de la entrega', async () => {
+    const p = await periodoDe(await loteNuevo(), 'Sin declarar');
+    expect(p).toMatchObject({ precision: 'NONE', start: null, end: null, inherited_range: null });
+    expect(JSON.stringify(p)).not.toContain(today);
+    expect(p.note).toMatch(/no se deduce de la fecha de entrega/i);
+  });
+
+  it('PERÍODO — ninguna proyección publica una precisión deducida', async () => {
+    const l = await crearLote(orgA, ADMIN, `PD${++n}`, { precision: 'DAY', start: '2026-04-02', end: '2026-04-09' });
+    const g = (await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: l, can_download: true, expires_at: futuro(), reason: 'Lectura y descarga' }).expect(201)).body.grant;
+    const v = (await leerConcedido(g.id).expect(200)).body;
+    expect(v.production_period).toMatchObject({ precision: 'DAY', start: '2026-04-02', end: '2026-04-09' });
+    // La descarga usa la MISMA proyección: tampoco ahí aparece una precisión deducida.
+    const d = await http().get(`/api/v1/granted/${g.id}/download`).set(as(EXTERNO)).expect(200);
+    expect(JSON.parse(d.text).recurso.production_period).toMatchObject({ precision: 'DAY', start: '2026-04-02' });
+    expect(d.text).not.toContain('DERIVED');
     await revocar(g.id).expect(201);
   });
 });

@@ -221,7 +221,8 @@ export class AccessGrantsService {
       // identificadores de recursos relacionados. El contenido NO sale de aquí; solo su lectura.
       const contenido = await this.dd.capture(this.db, { organizationId: org, organizationStatus: 'ACTIVE', membershipId: '', roles: [], permissions: [] }, l.id);
       const indicadores = indicadoresDe(contenido, evaluateRequirements(contenido));
-      // Período de producción (S1 §44): con su precisión DECLARADA; lo deducido se marca como deducido.
+      // Período de producción (S1 §44): SOLO lo declarado como cosecha. Sin declaración queda desconocido;
+      // la fecha de entrega no lo sustituye.
       const cosechas = (await sql<{ harvest_precision: string | null; harvest_start: string | null; harvest_end: string | null; harvest_derived_start: string | null; harvest_derived_end: string | null }>`
         SELECT DISTINCT d.harvest_precision, d.harvest_start::text, d.harvest_end::text, d.harvest_derived_start::text, d.harvest_derived_end::text
         FROM lot_inputs i JOIN receptions r ON r.id = i.reception_id JOIN deliveries d ON d.id = r.delivery_id

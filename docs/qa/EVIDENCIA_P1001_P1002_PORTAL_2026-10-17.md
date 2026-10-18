@@ -285,13 +285,36 @@ texto**.
 **Fecha y versión que sustentan cada resultado**: el riesgo lleva su número de evaluación y versión de reglas;
 la geolocalización, las versiones de geometría. Una evaluación histórica no puede parecer actual.
 
-## B.4 «Período», aclarado con las fuentes
+## B.4 «Período», aclarado con las fuentes — y **corregido el 2026-10-17 (adenda III)**
 
-Es el **período de producción** de **S1 §44** (`production_period`), **no** un filtro temporal del portal. El
-modelo ya guardaba `harvest_precision`, `harvest_start/end` y las fechas **deducidas**. Se publica con su
-**precisión declarada**; si se mezclan precisiones manda **la más gruesa**; y lo deducido de la fecha de
-entrega se marca **`DERIVED`**, nunca como cosecha declarada. La **vigencia del acceso** es otra cosa, y es
-`expires_at`. **Los dos conceptos no se mezclan.**
+Es el **período de producción** de **S1 §44** (`production_period`), **no** un filtro temporal del portal. La
+**vigencia del acceso** es otra cosa, y es `expires_at`. **Los dos conceptos no se mezclan.**
+
+**Lo que esta sección decía mal.** Afirmaba que las fechas `harvest_derived_*` se deducían **de la fecha de
+entrega** y que bastaba marcarlas `DERIVED`. **Las dos cosas estaban equivocadas**, y así se corrige:
+
+1. **Procedencia real.** `harvest_derived_*` **no sale de la fecha de entrega**: el CHECK
+   `deliveries_harvest_shape` (migración 0021) solo las admite cuando **expanden la cosecha declarada** —un
+   `DAY` se copia, un `MONTH` se abre a los límites de ese mes— para poder consultar por rango. Con la cosecha
+   `UNKNOWN` o sin declarar, **el propio CHECK las obliga a ser NULL**. Son un índice de la declaración.
+2. **Etiquetar no cumple el contrato.** El contrato prohíbe **deducir** el período de la fecha de entrega;
+   rastrear la procedencia no autoriza a publicar lo deducido **en el lugar del dato declarado**. La función
+   tenía una rama que lo habría hecho. **Se eliminó**: `periodoDeProduccion()` ya **no** puede devolver una
+   precisión deducida, y `DERIVED` desapareció del contrato publicado.
+
+**Comportamiento vigente** (`precision ∈ {DAY, MONTH, UNKNOWN, NONE}`):
+
+| Caso | Qué publica |
+| --- | --- |
+| **Cosecha declarada** | Las **fechas y la precisión originales**. Un `MONTH 2026-03` se publica como `2026-03`, **no** como `2026-03-01 – 2026-03-31` |
+| Precisiones mezcladas | Manda **la más gruesa**; y si solo parte de las entregas declaró, **se dice cuántas** y que el resto sigue desconocido |
+| **Cosecha desconocida, entrega conocida** | `UNKNOWN`, sin fechas: «el período de producción sigue desconocido: la fecha de entrega no lo sustituye, porque entregar no es producir» |
+| Sin cosecha declarada | `NONE`, sin fechas, diciendo que **no se deduce de la fecha de entrega** |
+| **Límites heredados sin declaración** | Se conservan en `inherited_range`, **separados** del período y con su procedencia escrita: **no** acreditan producción ni son cosecha declarada. El período permanece desconocido |
+
+**No se reconstruyó ni se corrigió ningún dato histórico**: no hubo migración ni escritura. Comprobado sobre la
+base real: **0** entregas y **0** correcciones con límites derivados sin declaración, y **0** con un límite
+derivado igual a la fecha de entrega.
 
 ## B.5 Comprobado
 

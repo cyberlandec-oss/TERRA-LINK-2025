@@ -53,38 +53,82 @@ function deRequisito(r: Requirement | undefined, cuandoFalta: EstadoIndicador = 
 }
 
 /**
- * Período de producción (S1 §44 `production_period`), **con su precisión declarada**.
+ * Período de producción (S1 §44 `production_period`), **solo con lo DECLARADO**.
  *
- * `DERIVADO` no es `DÍA`: cuando solo hay fechas deducidas de la entrega, se dice que son deducidas. Deducir
- * una cosecha de la fecha en que se entregó el cacao sería inventar un dato que nadie declaró.
+ * DE DÓNDE SALEN `harvest_derived_*`
+ * No de la fecha de entrega. El CHECK `deliveries_harvest_shape` (migración 0021) solo los admite cuando
+ * **expanden la cosecha declarada**: un `DAY` se copia tal cual y un `MONTH` se abre a los límites de ese mes,
+ * para poder consultar por rango. Con la cosecha `UNKNOWN` o sin declarar, el propio CHECK los obliga a ser
+ * NULL. Son un índice de la declaración, no una deducción sobre ella.
+ *
+ * POR QUÉ AQUÍ NO HAY PRECISIÓN «DERIVADA»
+ * Deducir no es declarar. El período que se publica se sostiene **únicamente** en lo que la organización
+ * declaró como cosecha; si no declaró, el período queda **desconocido**, y saber cuándo se entregó el cacao no
+ * dice cuándo se produjo. Por eso esta función **nunca** convierte límites derivados en período.
+ *
+ * LÍMITES HEREDADOS
+ * Si un dato histórico trajera límites derivados sin una declaración que los sustente —hoy imposible por el
+ * CHECK—, se **conservan** en `inherited_range`, **separados** del período, con su procedencia escrita: ni
+ * acreditan producción ni se presentan como cosecha declarada. No se reconstruyen ni se corrigen.
  */
 export interface PeriodoProduccion {
-  precision: 'DAY' | 'MONTH' | 'UNKNOWN' | 'DERIVED' | 'NONE';
+  /** Precisión **declarada**. `UNKNOWN`: la organización declaró no saberlo. `NONE`: no declaró nada. */
+  precision: 'DAY' | 'MONTH' | 'UNKNOWN' | 'NONE';
   start: string | null;
   end: string | null;
   note: string;
+  /** Procedencia histórica conservada aparte; nunca es el período. */
+  inherited_range: { start: string; end: string; note: string } | null;
 }
 
-export function periodoDeProduccion(
-  cosechas: Array<{ harvest_precision: string | null; harvest_start: string | null; harvest_end: string | null; harvest_derived_start: string | null; harvest_derived_end: string | null }>,
-): PeriodoProduccion {
-  const declaradas = cosechas.filter((c) => c.harvest_start && c.harvest_precision && c.harvest_precision !== 'UNKNOWN');
+type FilaCosecha = {
+  harvest_precision: string | null; harvest_start: string | null; harvest_end: string | null;
+  harvest_derived_start: string | null; harvest_derived_end: string | null;
+};
+
+const declarada = (c: FilaCosecha) => Boolean(c.harvest_start && c.harvest_precision && c.harvest_precision !== 'UNKNOWN');
+
+export function periodoDeProduccion(cosechas: FilaCosecha[]): PeriodoProduccion {
+  const declaradas = cosechas.filter(declarada);
+
+  // Límites derivados SIN declaración que los sustente: se conservan como procedencia, jamás como período.
+  const huerfanos = cosechas.filter((c) => c.harvest_derived_start && !declarada(c));
+  const inherited_range = huerfanos.length
+    ? {
+      start: huerfanos.map((c) => c.harvest_derived_start!).sort()[0],
+      end: huerfanos.map((c) => c.harvest_derived_end ?? c.harvest_derived_start!).sort().at(-1)!,
+      note: 'Límites heredados sin cosecha declarada que los sustente. Se conservan por su procedencia histórica; '
+        + 'NO son una cosecha declarada y NO acreditan cuándo se produjo el cacao.',
+    }
+    : null;
+
   if (declaradas.length) {
     const inicio = declaradas.map((c) => c.harvest_start!).sort()[0];
     const fin = declaradas.map((c) => c.harvest_end ?? c.harvest_start!).sort().at(-1)!;
-    // Si las entregas se declararon con precisiones distintas, manda la MÁS GRUESA: no se finge exactitud.
+    // Precisiones mezcladas: manda la MÁS GRUESA. No se finge exactitud.
     const precision = declaradas.some((c) => c.harvest_precision === 'MONTH') ? 'MONTH' : 'DAY';
-    return { precision, start: inicio, end: fin,
-      note: `Período declarado por la organización con precisión de ${precision === 'MONTH' ? 'mes' : 'día'}. Terra Link no lo verifica.` };
+    // Cobertura: un período declarado por parte de las entregas no cubre el lote entero, y se dice.
+    const parcial = declaradas.length < cosechas.length;
+    return {
+      precision, start: inicio, end: fin, inherited_range,
+      note: `Período declarado por la organización con precisión de ${precision === 'MONTH' ? 'mes' : 'día'}. `
+        + (parcial ? `Solo ${declaradas.length} de ${cosechas.length} entregas del lote declararon cosecha; el resto sigue desconocido. ` : '')
+        + 'Terra Link no lo verifica.',
+    };
   }
-  const derivadas = cosechas.filter((c) => c.harvest_derived_start);
-  if (derivadas.length) {
-    const inicio = derivadas.map((c) => c.harvest_derived_start!).sort()[0];
-    const fin = derivadas.map((c) => c.harvest_derived_end ?? c.harvest_derived_start!).sort().at(-1)!;
-    return { precision: 'DERIVED', start: inicio, end: fin,
-      note: 'DEDUCIDO de la fecha de entrega, no declarado como cosecha. No debe leerse como período de producción declarado.' };
+
+  if (cosechas.some((c) => c.harvest_precision === 'UNKNOWN')) {
+    return {
+      precision: 'UNKNOWN', start: null, end: null, inherited_range,
+      note: 'La organización declaró la cosecha como DESCONOCIDA. El período de producción sigue desconocido: '
+        + 'la fecha de entrega no lo sustituye, porque entregar no es producir.',
+    };
   }
-  return { precision: 'NONE', start: null, end: null, note: 'Sin período de cosecha declarado ni deducible.' };
+
+  return {
+    precision: 'NONE', start: null, end: null, inherited_range,
+    note: 'Sin cosecha declarada. El período de producción es desconocido y no se deduce de la fecha de entrega.',
+  };
 }
 
 /**
