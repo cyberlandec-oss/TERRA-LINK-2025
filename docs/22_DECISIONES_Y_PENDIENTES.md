@@ -189,6 +189,33 @@ organización **declare** su nivel 0–2, lo que añadiría un dato autodeclarad
 observarlos, y **ausencia de datos no se equipara a ausencia de digitalización**. Se mantiene la separación
 entre **madurez operativa**, **capacidades pendientes** del producto y **conclusión jurídica**.
 
+### D-51 — De dónde salen los importes del «coste de preparación» (P1-010) — **PENDIENTE**
+
+**Qué entiende la fuente por «coste»**. **S3 §33** («GAP 7 — Coste de cumplimiento») pide responder *«¿cuánto me
+cuesta cumplir EUDR por productor?»* con una tabla de **conceptos y dinero** —georreferenciación, validación,
+documentación, análisis satelital, administración— que suma un **total por productor**, para que la asociación
+pueda negociar («el comprador europeo debe financiar $6,20/productor»). Las cifras que aparecen son un
+**«Ejemplo»**. **RF-41** (`docs/03:57`) exige «costes **medidos** y asignación explicada» y **P1-010**
+(`docs/18:211`) «**coste real/moneda**, asignación por productor/tonelada y **supuestos visibles**».
+
+**Por qué no se puede entregar hoy**: en Terra Link **no existe ninguna cifra monetaria medida**. Lo único
+parecido es `satellite_providers.cost_note`, que es **texto** copiado de la documentación de cada candidato, y
+además **no hay proveedor seleccionado ni contratado** (P0-028, **D-09 parte B**). Sin importes no hay «coste
+real», y las cifras de S3 §33 **no son tarifas**: usarlas sería inventarlas.
+
+**Lo que hay que decidir, junto:**
+
+| # | Decisión | Opciones | Efecto |
+| --- | --- | --- | --- |
+| 1 | **De dónde salen los importes unitarios** | **(A)** parámetros **declarados por la organización**, versionados, con **moneda y vigencia**, multiplicados por cantidades que el sistema sí mide · **(B)** esperar a tener contabilidad real y proveedor contratado · **(C)** usar el ejemplo de S3 como tarifa | Sin esto **no hay dinero que mostrar**. (C) queda descartada: sería inventar tarifas. **Recomendada: (A)**, dejando escrito que son **supuestos de la organización**, nunca tarifas de Terra Link |
+| 2 | **Qué cantidad mide cada concepto** | ¿Una georreferenciación es **una versión de geometría** o una visita? ¿Un análisis satelital es **un trabajo lanzado** o uno con resultado? ¿La documentación se cuenta por **documento** o por **versión**? | Cambia el total sin cambiar los importes. Hay que fijarlo y escribirlo junto al resultado |
+| 3 | **Denominador de la asignación** | Por **productor** y por **tonelada**: ¿tonelada **declarada**, **recibida** o **del lote**? | `docs/18:211` pide ambas asignaciones; sin fijar el denominador, dos cifras correctas pueden contradecirse |
+| 4 | **Moneda** | Una por organización, o una por parámetro con conversión | Mezclar monedas sin declararlo produciría un total sin significado |
+
+**Efecto de no decidir**: **P1-010 no se empieza**. P1-009 no depende de ella y se entrega sola. Lo que la
+simulación ya produce —qué falta y de qué clase— es exactamente la **lista de trabajo** sobre la que después se
+podrán medir cantidades, sin haber comprometido ningún importe.
+
 ### D-50 — Formato de intercambio con GUIA/Agrocalidad — **ADOPTADA, opción A (2026-10-18)**
 
 **El problema**: **RF-37** admite el intercambio «**solo canal/acuerdo comprobados**» y `docs/15` condiciona la

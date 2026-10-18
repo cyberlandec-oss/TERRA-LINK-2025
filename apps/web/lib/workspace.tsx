@@ -85,6 +85,9 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     if (ws.can('risk:read')) trazabilidad.push({ href: `${base}/riesgo`, label: 'Riesgo', match: (p) => p.startsWith(`${base}/riesgo`) });
     if (ws.can('mitigation:read')) trazabilidad.push({ href: `${base}/mitigaciones`, label: 'Mitigaciones', match: (p) => p.startsWith(`${base}/mitigaciones`) });
     if (ws.can('dd:read')) trazabilidad.push({ href: `${base}/diligencia`, label: 'Debida diligencia', match: (p) => p.startsWith(`${base}/diligencia`) });
+    // P1-009: simulación de preparación. Trabaja sobre el expediente, así que exige leerlo; es solo lectura
+    // y no habilita nada.
+    if (ws.can('dd:read')) trazabilidad.push({ href: `${base}/simulacion`, label: 'Simulación', match: (p) => p.startsWith(`${base}/simulacion`) });
     // P1-005: el catálogo de perfiles es un catálogo de sistema, como los hitos CTE. Entrar no acredita nada:
     // el perfil es parcial y su revisión jurídica sigue pendiente.
     if (ws.can('traceability:read_catalog')) trazabilidad.push({ href: `${base}/perfil-juridico`, label: 'Perfil jurídico', match: (p) => p.startsWith(`${base}/perfil-juridico`) });

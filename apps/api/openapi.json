@@ -8725,6 +8725,52 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/simulations/lots/{lotId}": {
+      "get": {
+        "operationId": "SimulationController_simular",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assume",
+            "required": false,
+            "in": "query",
+            "description": "Códigos de requisito que se suponen resueltos, separados por coma",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Simular la preparación de un lote: estado real, escenario hipotético y lo que seguiría bloqueado (solo lectura)",
+        "tags": [
+          "simulation"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/buyers": {
       "get": {
         "operationId": "ShipmentsController_buyers",
