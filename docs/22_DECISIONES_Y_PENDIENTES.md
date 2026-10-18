@@ -152,7 +152,7 @@ que **no se hace sin decisión explícita**.
 **Fuera de esta decisión**: entregar el paquete DD, levantar la clasificación, mostrar identidad, geometrías o
 documentos, y prometer un DDS. Nada de eso entra.
 
-### D-49 — Correspondencia «señal observable → nivel de madurez» — **PROPUESTA (2026-10-18)**
+### D-49 — Correspondencia «señal observable → nivel de madurez» — **ADOPTADA, opción A (2026-10-18)**
 
 **El problema**: **S3 §16** nombra los siete niveles —*No digitalizado, Registros manuales, Excel/formularios,
 Trazabilidad digital, Trazabilidad + riesgo, EUDR operacional, Inteligencia comercial*— precedidos de un «Por
@@ -168,11 +168,26 @@ diagnosticar hace falta una correspondencia, y esa correspondencia **es una deci
 | Los niveles **0 a 2** ocurren **fuera de Terra Link** | **NO_DETERMINABLES**. Una organización sin datos **no** es «nivel 0»: el sistema no distingue «no digitalizada» de «todavía no ha cargado nada» |
 | **Vigencia** | Una adopción retirada deja de contar; el diagnóstico se calcula al leerlo y no guarda marcas |
 
-**Opciones si se quiere cambiar**: (A) conservar la presencia como umbral —lo implementado—; (B) fijar umbrales
-cuantitativos por nivel, que **habría que decidir y justificar**, porque ninguna fuente los da; (C) pedir a cada
-organización que **declare** su nivel 0–2, que añadiría un dato autodeclarado y no verificable.
-**Efecto de no decidir**: el diagnóstico sigue funcionando con (A) y marcado como propuesta; **no afecta a
-ninguna compuerta**, porque la madurez no levanta ninguna.
+**Opción adoptada: (A)** — diagnóstico por **presencia de evidencias**, con reglas explícitas y versionadas.
+**Adoptada para desarrollo local el 2026-10-18.**
+
+**Qué significa exactamente esta adopción, y qué no**:
+
+- Es una **decisión provisional de producto**. **No** es un umbral derivado de la fuente, **no** es una
+  certificación de madurez y **no** levanta ninguna compuerta.
+- **La presencia también es una decisión de producto**, y conserva esa etiqueta. No es «lo único honesto»: es
+  lo que se decidió, por ser la regla más simple que no exige acordar cifras.
+- **Los umbrales cuantitativos no serían «inventados»** si se acordaran y justificaran. La diferencia real es
+  que **las fuentes no los definen**: habría que decidirlos, escribirlos y poder defenderlos. Queda como vía
+  abierta, no descartada.
+
+**Las otras dos opciones siguen disponibles**: (B) **umbrales cuantitativos por nivel**, legítimos si se
+acuerdan y se justifican —ninguna fuente los da, así que su fundamento tendría que ser propio—; (C) que cada
+organización **declare** su nivel 0–2, lo que añadiría un dato autodeclarado y no verificable.
+
+**Lo que esta adopción NO cambia**: los niveles **0 a 2 siguen NO DETERMINADOS** cuando Terra Link no puede
+observarlos, y **ausencia de datos no se equipara a ausencia de digitalización**. Se mantiene la separación
+entre **madurez operativa**, **capacidades pendientes** del producto y **conclusión jurídica**.
 
 ### Pendientes trazados de `UX_UI §11` (centro de operaciones) — **NO IMPLEMENTADOS**
 

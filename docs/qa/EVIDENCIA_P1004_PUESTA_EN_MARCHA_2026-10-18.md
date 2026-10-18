@@ -105,8 +105,14 @@ agregados de ventana, que se calculan **antes** del tope. Ahora `total` es el re
 
 ## 10. Límites, dichos
 
-- **D-49 queda PROPUESTA**, no adoptada. El diagnóstico funciona y **no afecta a ninguna compuerta**, porque la
-  madurez no levanta ninguna. Las opciones y su efecto están en `docs/22`.
+- **D-49(A) quedó ADOPTADA el 2026-10-18** como **regla provisional de producto**: diagnóstico por presencia de
+  evidencias, con reglas explícitas y versionadas. **No** es un umbral derivado de la fuente ni una
+  certificación de madurez, y no afecta a ninguna compuerta. **Precisión incorporada en la adopción**: unos
+  umbrales cuantitativos **no serían «inventados»** si se acordaran y justificaran —la diferencia es que **las
+  fuentes no los definen**—, y **la presencia también es una decisión de producto**, con esa etiqueta. Las
+  opciones (B) y (C) siguen abiertas; ver `docs/22`.
+- El texto que la API devuelve sobre el umbral se ajusta en el **siguiente candidato**, no en una entrega
+  aparte: decía «cualquier cifra mayor sería inventada», que es más fuerte de lo correcto.
 - **Indicadores y actividad reciente de `UX_UI §11`** siguen **sin implementar**; quedan **trazados** en
   `docs/22` sin reabrir P1-003 y sin declararse hechos.
 - **`puesta-en-marcha.mjs` cambia datos DEMO durante el recorrido y los restituye**: crea un registro y lo
