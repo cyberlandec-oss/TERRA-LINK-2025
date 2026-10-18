@@ -130,6 +130,28 @@ Etiquetas en español en `organization_types.label_es`. Desde la migración `000
 
 Resueltas el 2026-10-09: **D-01** (stack NestJS/Next.js/PostGIS, ADR-0001, adoptado por delegación del usuario) y **D-02** (monorepo nuevo `cyberlandec-oss/TERRA-LINK-2025`). Pendiente: ratificación del responsable técnico.
 
+### D-48 — Indicadores del Buyer Portal (ÚNICA pendiente de RF-32/P1-001)
+
+**Abierta el 2026-10-17.** Es lo único que separa a RF-32 y P1-001 de su cierre; todo lo demás está demostrado.
+
+**S3 §22.8** dibuja el Buyer Portal con once indicadores: origen identificado · productores · parcelas ·
+geolocalización validada · deforestación revisada · legalidad revisada · trazabilidad completa · balance de
+masa · evidencias · riesgo final · DDS. **Hoy se entregan los tres primeros.** **RF-32** nombra además
+«evidencia» de forma explícita.
+
+| Opción | Qué implica | Efecto |
+| --- | --- | --- |
+| **(a) Conjunto completo de §22.8, como ESTADOS** | Los ocho restantes **como estado** —«revisada / no revisada / no evaluable»—, nunca como dato: sin coordenadas, sin identidad, sin documentos | **Cierra RF-32 y P1-001.** Varios dirían hoy «no evaluable» (riesgo `UNDETERMINED`, legalidad sin perfil aprobado, deforestación sin satélite) y **mostrarlo así es lo correcto** |
+| **(b) Solo «evidencias»** | Únicamente el indicador que RF-32 nombra | Cumple la letra de RF-32; deja **S3 §22.8 incompleto** |
+| **(c) No ampliar** | Dejar la proyección como está | RF-32 y P1-001 **siguen abiertas** por un criterio que sí está en la fuente |
+
+**Recomendación: (a)**, porque son **estados derivados de lo que el expediente ya calcula** y no levantan la
+clasificación. **Consecuencia de no decidir**: las dos historias quedan abiertas por una ampliación de campos
+que **no se hace sin decisión explícita**.
+
+**Fuera de esta decisión**: entregar el paquete DD, levantar la clasificación, mostrar identidad, geometrías o
+documentos, y prometer un DDS. Nada de eso entra.
+
 ## Decisiones operativas de esta entrega
 
 - Mantener los originales intactos y separarlos de las instrucciones activas.

@@ -162,3 +162,69 @@ de una concesión— y el recorrido completo para ella. Queda fuera, y **sin dec
 ## 8. Métricas
 
 **Sin cambio.** Las historias no se cierran por entregar una audiencia de las varias que su enunciado admite.
+
+
+---
+
+# Addendum — Contraste de aceptación y cierre de RF-33 / P1-002 (2026-10-17)
+
+Contraste **documental**, sin validación ni reconstrucción, más **una cobertura técnica** que ya estaba
+definida y autorizada.
+
+## A.1 Lo que el contraste encontró
+
+**«Por audiencia» no está en las fuentes.** La palabra «audiencia» aparece **una vez** en las cuatro fuentes, y
+es la cabecera de lectores de S1. La redacción «QR/pasaporte digital **por audiencia**» es de `docs/03`, un
+documento **derivado**. Las únicas audiencias que las fuentes describen son **la interna** y **el comprador con
+acceso controlado** (S3 §22.8), y las dos están implementadas.
+
+**Corrijo lo que dije en la entrega anterior**: mantener RF-33 y P1-002 abiertas «porque faltan audiencias» era
+**una interpretación añadida durante el desarrollo**, no un criterio de la fuente.
+
+La tabla completa, criterio por criterio con su referencia exacta, está en
+`docs/decisiones/CONTRASTE_ACEPTACION_RF32_RF33_2026-10-17.md`.
+
+## A.2 Resultado
+
+| Historia / requisito | Estado | Condición pendiente |
+| --- | --- | --- |
+| **RF-33** | **DEMOSTRADO** | — |
+| **P1-002** | **DONE_LOCAL** | — |
+| **RF-32** | **ABIERTA** | Indicadores de **S3 §22.8**, incluida «evidencias» → **decisión D-48** |
+| **P1-001** | **ABIERTA** | La misma, más aclarar «período» (vigencia del acceso, cumplida, frente a rango de datos, inexistente) |
+
+**Cifras**: catálogo **32 de 60 = 53,3 %** (sube RF-33). **MVP sin cambio: 30 de 44 = 68,2 %**, porque RF-33 es
+**P1** y no entra en el alcance del MVP. Historias del MVP **25 de 32**, sin cambio: P1-002 es una historia P1.
+
+## A.3 La cobertura que faltaba, cerrada
+
+El contraste destapó que **lote, embarque e instantánea** estaban implementados pero **solo el lote estaba
+demostrado**. Era un hueco de verificación de algo **ya autorizado**, sin campos nuevos, así que se cerró:
+
+| Caso añadido | Qué comprueba |
+| --- | --- |
+| Concesión de **EMBARQUE** | Entrega código, estado, destino **declarado** e ítems; **sin** comprador, identidades ni identificador interno; la referencia resuelve como `GRANTEE`; al revocar deja de resolver y de leerse |
+| Concesión de **INSTANTÁNEA** | Entrega expediente, número, preparación, huella y **requisitos como código y estado**; **sin** contenido, geometrías ni documentos; declara que **no acredita presentación de DDS** |
+
+`access-grants.int-spec.ts` pasa de 17 a **19**. **Solo se añadieron pruebas**: ninguna línea de producción
+cambió, y por eso **no se repitió `validate` ni se reconstruyó**, conforme a la instrucción de este cierre.
+
+## A.4 ADR-0002, actualizado sin ratificar de más
+
+Se marcó **PARCIALMENTE ADOPTADO**, cláusula por cláusula: `organization_id`, autorización por acción y
+recurso, integridad por tenant, membresías, **grants tipados con vigencia y revocación** y «sin joins
+implícitos» quedan **adoptados y ejecutados**. **Siguen siendo propuesta** la **RLS** —que no existe y cuya
+propia cláusula la condiciona a un contexto seguro probado— y los **campos compartidos configurables**.
+
+## A.5 ¿Exige el portal un paquete DD?
+
+**No.** S3 §22.8 lo presenta como pantalla de indicadores «con acceso controlado», y **«DDS» es un indicador,
+no una descarga**. El criterio «descarga autorizada» queda cumplido con la vista compartida, **y la distinción
+se conserva**: una vista compartida interna **no sustituye un paquete DD**. Si alguna vez se decidiera
+entregarlo, sería **otro criterio**, con dependencia exacta en la aprobación del expediente (hoy bloqueada por
+D-05.B, D-07.5, D-07.6 y P1-005).
+
+## A.6 La única decisión pendiente
+
+**D-48 — Indicadores del Buyer Portal**, registrada en `docs/22` con tres opciones, recomendación y efecto. Es
+**lo único** que separa a RF-32 y P1-001 de su cierre.

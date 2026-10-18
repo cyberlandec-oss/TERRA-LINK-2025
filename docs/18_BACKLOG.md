@@ -199,8 +199,8 @@ Aceptación: recorrido con dataset/usuarios de piloto, Android real, discrepanci
 
 | ID | Resultado | Dependencia | Aceptación mínima |
 | --- | --- | --- | --- |
-| P1-001 | Buyer Portal | P0-022/029, grants | Recurso/fields/período compartidos; revocación bloquea nueva consulta; QA-02/14 |
-| P1-002 | QR/pasaporte | P1-001 | Referencia pública sin IDs/PII, vistas por audiencia, no sustituye DDS |
+| P1-001 | Buyer Portal | P0-022/029, grants | **ABIERTA** por dos condiciones concretas (2026-10-17): (1) los **indicadores de S3 §22.8**, incluida «evidencias» — **ampliación de campos: decisión D-48**; (2) aclarar si «período» es la vigencia del acceso (cumplida) o un rango de datos (inexistente). **Demostrado ya**: recurso concreto, vencimiento, revocación que bloquea nueva consulta, aislamiento QA-02, portal del destinatario y descarga autorizada sobre lote, embarque e instantánea |
+| P1-002 | QR/pasaporte | P1-001 | **DONE_LOCAL (2026-10-17)**. Referencia opaca sin IDs/PII (verificada por decodificación del QR), audiencias `MEMBER` y `GRANTEE` —las que describen las fuentes—, y «no sustituye DDS» declarado en API, pantalla y archivo. Contraste: `docs/decisiones/CONTRASTE_ACEPTACION_RF32_RF33_2026-10-17.md` |
 | P1-003 | My Work ampliado | P0-021/022/027/029 | Cola personal/supervisión y filtros reales; acción resuelve dominio; QA-11/14 |
 | P1-004 | Onboarding y madurez | P0-026/027 | Wizard, evidencia de nivel 0–6, tareas; madurez no conclusión jurídica |
 | P1-005 | Perfil Ecuador legal validado | P0-019/020 | Fuente/requisito/aplicabilidad/documento/regla/version/aprobador; pruebas de vigencia |

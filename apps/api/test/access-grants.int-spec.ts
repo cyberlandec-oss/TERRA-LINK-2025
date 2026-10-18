@@ -305,4 +305,52 @@ describeDb('P0-003 concesiones externas: alcance, vencimiento, revocación, clas
     await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: l, can_read: false, can_download: true, expires_at: futuro(), reason: 'Solo descarga' }).expect(201);
     await resolver(ref, EXTERNO).expect(404);
   });
+
+  // ---------------------------------------------------------------- RF-32: lote Y EMBARQUE (y la instantánea)
+
+  it('RF-32 la concesión de un EMBARQUE entrega su proyección, sin identidad', async () => {
+    const comprador = (await http().post(`${base(orgA)}/buyers`).set(as(ADMIN))
+      .send({ operation_id: randomUUID(), code: `IMP-${randomUUID().slice(0, 6).toUpperCase()}`, name: 'Importador Sintético', country: 'NL' }).expect(201)).body.buyer.id;
+    const emb = (await http().post(`${base(orgA)}/shipments`).set(as(ADMIN))
+      .send({ operation_id: randomUUID(), buyer_id: comprador, destination_country: 'DE', origin_location_id: comun[orgA].centro }).expect(201)).body.shipment;
+
+    const g = (await conceder({ grantee_user_id: externoId, resource_type: 'SHIPMENT', resource_id: emb.id, expires_at: futuro(), reason: 'Embarque compartido' }).expect(201)).body.grant;
+    const v = (await leerConcedido(g.id).expect(200)).body;
+    expect(v).toMatchObject({ resource_type: 'SHIPMENT', shipment_code: emb.shipment_code, destination_country: 'DE' });
+    expect(typeof v.items).toBe('number');
+    // Ni el comprador declarado, ni identidades, ni el identificador interno del embarque.
+    const texto = JSON.stringify(v);
+    for (const prohibido of ['Importador Sintético', 'buyer_id', 'legal_name', emb.id]) expect(texto).not.toContain(prohibido);
+    // Y el destino se declara como declarado, no como verificado.
+    expect(v.nota).toMatch(/no lo verifica/i);
+
+    // La referencia del embarque también resuelve para el destinatario, como audiencia externa.
+    const ref = (await refDe('SHIPMENT', emb.id))!;
+    expect((await resolver(ref, EXTERNO).expect(200)).body).toMatchObject({ entity_type: 'SHIPMENT', audience: 'GRANTEE' });
+    await revocar(g.id).expect(201);
+    // Revocada, deja de resolver y de leerse.
+    await resolver(ref, EXTERNO).expect(404);
+    await leerConcedido(g.id).expect(404);
+  });
+
+  it('RF-32 la concesión de una INSTANTÁNEA entrega requisitos y huella, sin contenido del expediente', async () => {
+    const l = await crearLote(orgA, ADMIN, 'CS');
+    const caso = (await http().post(`${base(orgA)}/dd-cases`).set(as(ADMIN))
+      .send({ operation_id: randomUUID(), lot_id: l, scope_note: 'Expediente sintético para concesión' }).expect(201)).body.case;
+    const snap = (await http().post(`${base(orgA)}/dd-cases/${caso.id}/snapshots`).set(as(ADMIN))
+      .send({ operation_id: randomUUID() }).expect(201)).body.snapshot;
+
+    const g = (await conceder({ grantee_user_id: externoId, resource_type: 'DD_SNAPSHOT', resource_id: snap.id, expires_at: futuro(), reason: 'Instantánea compartida' }).expect(201)).body.grant;
+    const v = (await leerConcedido(g.id).expect(200)).body;
+    expect(v).toMatchObject({ resource_type: 'DD_SNAPSHOT', case_number: caso.case_number, snapshot_number: snap.snapshot_number });
+    expect(v.content_hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(Array.isArray(v.requirements)).toBe(true);
+    // Requisitos como CÓDIGO y ESTADO: ni el contenido de la instantánea, ni geometrías, ni documentos.
+    for (const r of v.requirements) expect(Object.keys(r).sort()).toEqual(['code', 'status']);
+    const texto = JSON.stringify(v);
+    for (const prohibido of ['geometry', 'coordinates', 'legal_name', 'document_number', 'plots']) expect(texto).not.toContain(prohibido);
+    // Y declara que la preparación interna no acredita presentación ni conformidad.
+    expect(v.nota).toMatch(/NO acredita presentación de DDS/i);
+    await revocar(g.id).expect(201);
+  });
 });
