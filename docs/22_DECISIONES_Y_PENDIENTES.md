@@ -189,19 +189,21 @@ organización **declare** su nivel 0–2, lo que añadiría un dato autodeclarad
 observarlos, y **ausencia de datos no se equipara a ausencia de digitalización**. Se mantiene la separación
 entre **madurez operativa**, **capacidades pendientes** del producto y **conclusión jurídica**.
 
-### D-53 — Qué falta para responder las preguntas comerciales que quedan (P1-014) — **PROPUESTA (2026-10-18)**
+### D-53 — Evoluciones posibles de la inteligencia comercial (P1-014) — **ABIERTA, no bloqueante (2026-10-18)**
 
 **Qué pide la fuente**. **S3 §41** («GAP 15 — pasar de *compliance* a inteligencia comercial») condiciona todo a
 tener «productor + parcela + calidad + volumen + trazabilidad + riesgo + precio» y lista **seis preguntas**.
 **RF-45** (`docs/03:61`) pide «analytics / supplier score comercial», con una condición dura: **métrica
 independiente del riesgo legal**. **P1-014** (`docs/18:215`) añade «denominadores y permiso».
 
+**Esto NO es una condición de cierre de RF-45.** El contraste literal lo dejó claro: RF-45 está en la tabla de **evolución** (`docs/03:45`), su columna exigible es **Restricción** —«métrica independiente de riesgo legal»— y la **aceptación mínima** (`docs/18:215`) pide «**Métricas** … separadas …, **denominadores** y **permiso**». **Ningún criterio pide un score compuesto**, y las seis preguntas de S3 §41 van tras «**Podemos empezar a responder**» (`docs/sources/S3:1503`). RF-45 quedó **DEMOSTRADA** el 2026-10-18; lo de abajo son **evoluciones posibles**, a decidir solo si se quieren, y **nada de ello está adoptado**.
+
 **Qué se entregó el 2026-10-18**: los indicadores que **no exigen inventar nada** —precio medio ponderado por
 grupo compatible, cobertura del dato económico, pagos informados sobre lo acordado, volumen recibido,
 decisiones de calidad, presupuesto estimado y parcelas con geometría—, cada uno **autodescrito** (qué mide,
 fórmula, unidad, período, denominador, cobertura, procedencia y límites) y **separado del riesgo regulatorio**.
 
-**Qué NO se entregó, y por qué no se fingió:**
+**Evoluciones posibles —ninguna adoptada, ninguna bloqueante:**
 
 | # | Decisión | Opciones | Efecto |
 | --- | --- | --- | --- |

@@ -14,10 +14,17 @@ corresponde respaldo**.
 | **P1-014** (`docs/18:215`): «métricas comerciales **separadas** del riesgo jurídico» | Lo mismo, en la pantalla | **CUMPLIDO**: el riesgo tiene su propia sección, rotulada «no es un indicador comercial» |
 | **P1-014**: «**denominadores**» | Decir sobre qué se divide | **CUMPLIDO**: cada cociente publica su denominador con etiqueta y valor; sin denominador válido, **NO_CALCULABLE** |
 | **P1-014**: «**permiso**» | Autorizar el agregado | **CUMPLIDO**: `analytics:read` abre la pantalla y **cada indicador exige el permiso de su dominio**; la descarga exige además `report:export` |
-| **RF-45**: «**supplier score** comercial» | Un score | **PENDIENTE — condición exacta**: un score exige **ponderar** dimensiones y **ninguna fuente fija los pesos**. Abierto en **D-53 §1**. No se publica ningún número compuesto |
+| **RF-45** (`docs/03:61`), columna **Capacidad**: «Analytics/**supplier score** comercial» | Nombra la capacidad; **no es la columna exigible** —en la tabla de **evolución** (`docs/03:45`) lo exigible es la **Restricción**— | **NO ES CRITERIO DE CIERRE**. No se publica score: exigiría **ponderar** con pesos que ninguna fuente fija. Queda como **evolución** en **D-53**, sin adoptar |
 
-**RF-45 queda PARCIAL**, y su condición no es la escasez de datos: es **la decisión de ponderación (D-53 §1)**.
-Con datos abundantes, el score seguiría sin poder calcularse honestamente.
+**RF-45 queda DEMOSTRADA.** El contraste literal de las columnas lo sostiene: la tabla de `docs/03:45` es de
+**«Requisitos de evolución»** y su cuarta columna es **«Restricción»**, no «Validación»; la **aceptación
+mínima** de `docs/18:215` enumera **tres** condiciones —separación, denominadores, permiso— en **plural** y
+**sin score**. Las seis preguntas de **S3 §41** van precedidas de «**Podemos empezar a responder**»
+(`docs/sources/S3:1503`), tras un condicional: son **posibilidades de evolución**. El único «score» de la
+documentación interna (`docs/12:41`) advierte **contra** manipularlo.
+
+**Corrección de un cierre anterior de esta misma evidencia**: en la primera versión del 2026-10-18 di RF-45
+por PARCIAL exigiendo un score compuesto. Eso **añadía una condición de cierre por interpretación**, convirtiendo «métrica» en «score ponderado». Queda corregido aquí.
 
 ## 2. Qué se entregó
 
@@ -109,7 +116,7 @@ todos pasan a **SIN_DATOS con su porqué**. Las dos caras están demostradas.
 | `npm run validate` sobre `1967366` | **APROBADA**: 849 pruebas, 72 E2E, 0 fallos |
 | `node e2e/review/indicadores.mjs` sobre el despliegue de `1967366` | **22/22** |
 
-## 10. Decisiones abiertas
+## 10. Evoluciones abiertas (D-53, **no bloqueantes**)
 
-**D-53 (propuesta)**: composición del score y sus pesos, umbral de «datos suficientes», atribución de precio a
-un comprador y serie de rendimiento. Ninguna se resolvió en silencio, y ninguna bloquea lo entregado.
+Composición del score y sus pesos, umbral de «datos suficientes», atribución de precio a un comprador y serie
+de rendimiento. **Ninguna es criterio de RF-45**, ninguna está adoptada y ninguna se resolvió en silencio.
