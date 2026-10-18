@@ -103,7 +103,8 @@ export class MyWorkService {
     const hoy = new Date().toISOString().slice(0, 10);
     const prAssignee = sql`pr.assigned_membership_id`;
     const filas: Fila[] = [];
-    const totales: Record<string, number> = {};
+    /** Por tipo: cuántas coinciden de verdad, cuántas son personales y cuántas se devolvieron. */
+    const totales: Record<string, { n: number; mias: number; devueltas: number }> = {};
     const mia = asg === 'ME' ? ctx.membershipId : asg === 'UNASSIGNED' ? null : asg ?? undefined;
 
     /** Filtro de responsable, en SQL, sobre la columna real de cada tarea. */
@@ -115,11 +116,30 @@ export class MyWorkService {
     /** Filtro de estado del dominio, en SQL. */
     const filtroEstado = (col: RawBuilder<unknown> | string) => (estado === null ? sql<boolean>`TRUE` : sql<boolean>`${typeof col === 'string' ? sql.lit(col) : col} = ${estado}`);
 
-    const agregar = (code: string, total: number, nuevas: Array<Omit<Fila, 'queue' | 'priority' | 'priority_rule' | 'due_state'>>) => {
-      totales[code] = total;
+    // «Es mía» como predicado SQL. `col = null` significa que el dominio no registra responsable para ese tipo,
+    // y entonces la tarea nunca es personal. `IS TRUE` / `IS NOT TRUE` para que un responsable NULL caiga del
+    // lado de supervisión en vez de desaparecer por la lógica ternaria.
+    const esMia = (col: RawBuilder<unknown> | null, siempreMia: boolean) =>
+      (siempreMia ? sql<boolean>`TRUE` : col ? sql<boolean>`${col} = ${ctx.membershipId}` : sql<boolean>`FALSE`);
+    /**
+     * Filtro de COLA, en SQL y no en memoria.
+     *
+     * Tiene que ir dentro de la consulta: si se aplicara después del tope por tipo, una cola personal situada
+     * detrás de las primeras 50 tareas autorizadas saldría vacía y el recuento mentiría.
+     */
+    const filtroCola = (col: RawBuilder<unknown> | null, siempreMia = false) => {
+      if (!queue) return sql<boolean>`TRUE`;
+      const m = esMia(col, siempreMia);
+      return queue === 'MINE' ? sql<boolean>`(${m}) IS TRUE` : sql<boolean>`(${m}) IS NOT TRUE`;
+    };
+    /** Cuántas de las que coinciden son personales. Se calcula en la base, antes del tope. */
+    const contarMias = (col: RawBuilder<unknown> | null, siempreMia = false) =>
+      (siempreMia ? sql`count(*) OVER ()` : col ? sql`count(*) FILTER (WHERE (${esMia(col, false)}) IS TRUE) OVER ()` : sql`0`);
+
+    const agregar = (code: string, total: number, mias: number, nuevas: Array<Omit<Fila, 'queue' | 'priority' | 'priority_rule' | 'due_state'>>) => {
+      totales[code] = { n: total, mias, devueltas: nuevas.length };
       for (const fila of nuevas) {
         const cola: Cola = fila.assignee?.membership_id === ctx.membershipId ? 'MINE' : 'SUPERVISION';
-        if (queue && queue !== cola) continue;
         filas.push({ ...fila, queue: cola, ...porPlazo(code, fila.due_date, hoy) });
       }
     };
@@ -127,17 +147,18 @@ export class MyWorkService {
     // 1) Borradores de entrega por completar y registrar (delivery:create / _assigned).
     const delWrite = this.scope(ctx, 'delivery:create', 'delivery:create_assigned', prAssignee);
     if (active && delWrite) {
-      const rows = (await sql<{ id: string; delivery_code: string; producer_code: string; resp: string | null; nombre: string | null; n: string }>`
+      const rows = (await sql<{ id: string; delivery_code: string; producer_code: string; resp: string | null; nombre: string | null; n: string; nm: string }>`
         SELECT d.id, d.delivery_code, pr.producer_code, pr.assigned_membership_id AS resp,
-               btrim(coalesce(u.first_name,'') || ' ' || coalesce(u.last_name,'')) AS nombre, count(*) OVER ()::text AS n
+               btrim(coalesce(u.first_name,'') || ' ' || coalesce(u.last_name,'')) AS nombre,
+               count(*) OVER ()::text AS n, ${contarMias(prAssignee)}::text AS nm
         FROM deliveries d
         JOIN producers pr ON pr.id = d.producer_id AND pr.organization_id = d.organization_id
         LEFT JOIN memberships m ON m.id = pr.assigned_membership_id AND m.organization_id = pr.organization_id
         LEFT JOIN users u ON u.id = m.user_id
         WHERE d.organization_id = ${orgId} AND d.status = 'DRAFT' AND ${delWrite}
-          AND ${filtroResp(prAssignee)} AND ${filtroEstado('DRAFT')}
+          AND ${filtroResp(prAssignee)} AND ${filtroEstado('DRAFT')} AND ${filtroCola(prAssignee)}
         ORDER BY d.created_at LIMIT ${LIMIT}`.execute(this.db)).rows;
-      agregar('DELIVERY_DRAFTS', rows.length ? Number(rows[0].n) : 0, rows.map((r) => ({
+      agregar('DELIVERY_DRAFTS', rows.length ? Number(rows[0].n) : 0, rows.length ? Number(rows[0].nm) : 0, rows.map((r) => ({
         code: 'DELIVERY_DRAFTS', title: 'Entregas en borrador',
         entity: { type: 'DELIVERY', id: r.id, code: `${r.delivery_code} · ${r.producer_code}`, href: `${base}/entregas/${r.id}` },
         reason: 'Borrador sin registrar: faltan datos obligatorios o la confirmación.',
@@ -151,18 +172,19 @@ export class MyWorkService {
     // 2) Entregas registradas sin ninguna recepción (reception:confirm, lectura de entregas).
     const delRead = this.scope(ctx, 'delivery:read', 'delivery:read_assigned', prAssignee);
     if (active && delRead && this.has(ctx, 'reception:confirm')) {
-      const rows = (await sql<{ id: string; delivery_code: string; producer_code: string; resp: string | null; nombre: string | null; n: string }>`
+      const rows = (await sql<{ id: string; delivery_code: string; producer_code: string; resp: string | null; nombre: string | null; n: string; nm: string }>`
         SELECT d.id, d.delivery_code, pr.producer_code, pr.assigned_membership_id AS resp,
-               btrim(coalesce(u.first_name,'') || ' ' || coalesce(u.last_name,'')) AS nombre, count(*) OVER ()::text AS n
+               btrim(coalesce(u.first_name,'') || ' ' || coalesce(u.last_name,'')) AS nombre,
+               count(*) OVER ()::text AS n, ${contarMias(prAssignee)}::text AS nm
         FROM deliveries d
         JOIN producers pr ON pr.id = d.producer_id AND pr.organization_id = d.organization_id
         LEFT JOIN memberships m ON m.id = pr.assigned_membership_id AND m.organization_id = pr.organization_id
         LEFT JOIN users u ON u.id = m.user_id
         WHERE d.organization_id = ${orgId} AND d.status = 'REGISTERED' AND ${delRead}
           AND NOT EXISTS (SELECT 1 FROM receptions r WHERE r.delivery_id = d.id AND r.organization_id = d.organization_id)
-          AND ${filtroResp(prAssignee)} AND ${filtroEstado('REGISTERED')}
+          AND ${filtroResp(prAssignee)} AND ${filtroEstado('REGISTERED')} AND ${filtroCola(prAssignee)}
         ORDER BY d.registered_at LIMIT ${LIMIT}`.execute(this.db)).rows;
-      agregar('DELIVERIES_TO_RECEIVE', rows.length ? Number(rows[0].n) : 0, rows.map((r) => ({
+      agregar('DELIVERIES_TO_RECEIVE', rows.length ? Number(rows[0].n) : 0, rows.length ? Number(rows[0].nm) : 0, rows.map((r) => ({
         code: 'DELIVERIES_TO_RECEIVE', title: 'Entregas por recibir',
         entity: { type: 'DELIVERY', id: r.id, code: `${r.delivery_code} · ${r.producer_code}`, href: `${base}/entregas/${r.id}` },
         reason: 'Registrada y sin recepción física.',
@@ -175,20 +197,21 @@ export class MyWorkService {
     }
     // 3) Resultados de calidad sin decisión (quality:decide, lectura de entregas).
     if (active && delRead && this.has(ctx, 'quality:decide')) {
-      const rows = (await sql<{ id: string; delivery_code: string; resp: string | null; nombre: string | null; n: string }>`
+      const resp = sql`p.resp`;
+      const rows = (await sql<{ id: string; delivery_code: string; resp: string | null; nombre: string | null; n: string; nm: string }>`
         WITH pend AS (
           SELECT DISTINCT d.id, d.delivery_code, pr.assigned_membership_id AS resp FROM quality_results q
           JOIN quality_samples s ON s.id = q.sample_id AND s.organization_id = q.organization_id
           JOIN receptions r ON r.id = s.reception_id JOIN deliveries d ON d.id = r.delivery_id
           JOIN producers pr ON pr.id = d.producer_id AND pr.organization_id = d.organization_id
           WHERE q.organization_id = ${orgId} AND ${delRead} AND q.decision = 'PENDING'
-            AND ${filtroResp(prAssignee)} AND ${filtroEstado('PENDING')}
+            AND ${filtroResp(prAssignee)} AND ${filtroEstado('PENDING')} AND ${filtroCola(prAssignee)}
             AND q.id = (SELECT q2.id FROM quality_results q2 WHERE q2.sample_id = q.sample_id ORDER BY q2.recorded_at DESC, q2.id DESC LIMIT 1))
         SELECT p.id, p.delivery_code, p.resp, btrim(coalesce(u.first_name,'') || ' ' || coalesce(u.last_name,'')) AS nombre,
-               (SELECT count(*) FROM pend)::text AS n
+               count(*) OVER ()::text AS n, ${contarMias(resp)}::text AS nm
         FROM pend p LEFT JOIN memberships m ON m.id = p.resp AND m.organization_id = ${orgId} LEFT JOIN users u ON u.id = m.user_id
         ORDER BY p.delivery_code LIMIT ${LIMIT}`.execute(this.db)).rows;
-      agregar('QUALITY_PENDING', rows.length ? Number(rows[0].n) : 0, rows.map((r) => ({
+      agregar('QUALITY_PENDING', rows.length ? Number(rows[0].n) : 0, rows.length ? Number(rows[0].nm) : 0, rows.map((r) => ({
         code: 'QUALITY_PENDING', title: 'Resultados de calidad pendientes de decisión',
         entity: { type: 'DELIVERY', id: r.id, code: r.delivery_code, href: `${base}/entregas/${r.id}` },
         reason: 'Hay un resultado registrado sin liberar ni rechazar.',
@@ -208,9 +231,9 @@ export class MyWorkService {
         JOIN producers a ON a.id = r.producer_a_id AND a.organization_id = r.organization_id
         JOIN producers b ON b.id = r.producer_b_id AND b.organization_id = r.organization_id
         WHERE r.organization_id = ${orgId} AND r.status = 'PENDING'
-          AND ${filtroResp(null)} AND ${filtroEstado('PENDING')}
+          AND ${filtroResp(null)} AND ${filtroEstado('PENDING')} AND ${filtroCola(null)}
         ORDER BY a.producer_code, b.producer_code LIMIT ${LIMIT}`.execute(this.db)).rows;
-      agregar('DUPLICATE_REVIEWS', rows.length ? Number(rows[0].n) : 0, rows.map((r) => ({
+      agregar('DUPLICATE_REVIEWS', rows.length ? Number(rows[0].n) : 0, 0, rows.map((r) => ({
         code: 'DUPLICATE_REVIEWS', title: 'Posibles duplicados de productor',
         entity: { type: 'PRODUCER_MATCH', id: r.id, code: r.etiqueta, href: `${base}/productores/coincidencias` },
         reason: 'Coincidencia de identidad pendiente de revisión.',
@@ -224,18 +247,19 @@ export class MyWorkService {
     //    La superficie declarada no es ubicación; la tarea se resuelve solo con un punto o un polígono.
     const plotWrite = this.scope(ctx, 'plot:update', 'plot:update_assigned', prAssignee);
     if (active && plotWrite) {
-      const rows = (await sql<{ id: string; plot_code: string; resp: string | null; nombre: string | null; n: string }>`
+      const rows = (await sql<{ id: string; plot_code: string; resp: string | null; nombre: string | null; n: string; nm: string }>`
         SELECT p.id, p.plot_code, pr.assigned_membership_id AS resp,
-               btrim(coalesce(u.first_name,'') || ' ' || coalesce(u.last_name,'')) AS nombre, count(*) OVER ()::text AS n
+               btrim(coalesce(u.first_name,'') || ' ' || coalesce(u.last_name,'')) AS nombre,
+               count(*) OVER ()::text AS n, ${contarMias(prAssignee)}::text AS nm
         FROM plots p
         JOIN producers pr ON pr.id = p.producer_id AND pr.organization_id = p.organization_id
         LEFT JOIN plot_versions v ON v.id = p.current_version_id AND v.plot_id = p.id
         LEFT JOIN memberships m ON m.id = pr.assigned_membership_id AND m.organization_id = pr.organization_id
         LEFT JOIN users u ON u.id = m.user_id
         WHERE p.organization_id = ${orgId} AND p.status = 'ACTIVE' AND (p.current_version_id IS NULL OR v.geometry_type IS NULL) AND ${plotWrite}
-          AND ${filtroResp(prAssignee)} AND ${filtroEstado('ACTIVE')}
+          AND ${filtroResp(prAssignee)} AND ${filtroEstado('ACTIVE')} AND ${filtroCola(prAssignee)}
         ORDER BY p.plot_code LIMIT ${LIMIT}`.execute(this.db)).rows;
-      agregar('PLOTS_WITHOUT_LOCATION', rows.length ? Number(rows[0].n) : 0, rows.map((r) => ({
+      agregar('PLOTS_WITHOUT_LOCATION', rows.length ? Number(rows[0].n) : 0, rows.length ? Number(rows[0].nm) : 0, rows.map((r) => ({
         code: 'PLOTS_WITHOUT_LOCATION', title: 'Parcelas sin ubicación',
         entity: { type: 'PLOT', id: r.id, code: r.plot_code, href: `${base}/parcelas/${r.id}` },
         reason: 'Sin punto ni polígono vigente. La superficie declarada no es ubicación y no resuelve esta tarea.',
@@ -257,9 +281,9 @@ export class MyWorkService {
         LEFT JOIN memberships m ON m.id = a.assignee_membership_id AND m.organization_id = a.organization_id
         LEFT JOIN users u ON u.id = m.user_id
         WHERE a.organization_id = ${orgId} AND a.assignee_membership_id = ${ctx.membershipId} AND a.status = 'OPEN'
-          AND ${filtroResp(mAssignee)} AND ${filtroEstado(sql`a.status`)}
+          AND ${filtroResp(mAssignee)} AND ${filtroEstado(sql`a.status`)} AND ${filtroCola(mAssignee, true)}
         ORDER BY a.due_date, a.created_at LIMIT ${LIMIT}`.execute(this.db)).rows;
-      agregar('MITIGATIONS_ASSIGNED', rows.length ? Number(rows[0].n) : 0, rows.map((r) => ({
+      agregar('MITIGATIONS_ASSIGNED', rows.length ? Number(rows[0].n) : 0, rows.length ? Number(rows[0].n) : 0, rows.map((r) => ({
         code: 'MITIGATIONS_ASSIGNED', title: 'Mitigaciones asignadas a ti',
         entity: { type: 'MITIGATION', id: r.id, code: `${r.lot_code} · ${r.factor_code}`, href: `${base}/mitigaciones/${r.id}` },
         reason: 'Acción abierta: aporta los soportes y envíala a verificación.',
@@ -278,9 +302,9 @@ export class MyWorkService {
         FROM mitigation_actions a JOIN lots l ON l.id = a.subject_id AND l.organization_id = a.organization_id
         WHERE a.organization_id = ${orgId} AND a.status = 'SUBMITTED'
           AND NOT EXISTS (SELECT 1 FROM mitigation_submissions s WHERE s.action_id = a.id AND s.submitted_by = ${user.id})
-          AND ${filtroResp(null)} AND ${filtroEstado(sql`a.status`)}
+          AND ${filtroResp(null)} AND ${filtroEstado(sql`a.status`)} AND ${filtroCola(null)}
         ORDER BY a.due_date, a.created_at LIMIT ${LIMIT}`.execute(this.db)).rows;
-      agregar('MITIGATIONS_TO_VERIFY', rows.length ? Number(rows[0].n) : 0, rows.map((r) => ({
+      agregar('MITIGATIONS_TO_VERIFY', rows.length ? Number(rows[0].n) : 0, 0, rows.map((r) => ({
         code: 'MITIGATIONS_TO_VERIFY', title: 'Mitigaciones por verificar',
         entity: { type: 'MITIGATION', id: r.id, code: `${r.lot_code} · ${r.factor_code}`, href: `${base}/mitigaciones/${r.id}` },
         reason: 'Enviada por otra persona: verifica o rechaza con motivo.',
@@ -306,20 +330,22 @@ export class MyWorkService {
     };
     const PRIMERA: Record<string, Fila> = {};
     for (const fila of filas) PRIMERA[fila.code] ??= fila;
-    const tasks: Task[] = Object.entries(totales).filter(([code, n]) => n > 0 && PRIMERA[code]).map(([code, n]) => ({
-      code, title: PRIMERA[code].title, reason: PRIMERA[code].reason, action: PRIMERA[code].action, count: n,
+    const tasks: Task[] = Object.entries(totales).filter(([code, t]) => t.n > 0 && PRIMERA[code]).map(([code, t]) => ({
+      code, title: PRIMERA[code].title, reason: PRIMERA[code].reason, action: PRIMERA[code].action, count: t.n,
       items: filas.filter((x) => x.code === code).slice(0, EJEMPLOS).map((x) => ({ id: x.entity.id, label: x.entity.code, href: x.entity.href })),
       list_href: LISTA[code],
     }));
 
-    const mine = filas.filter((x) => x.queue === 'MINE').length;
-    const sinFiltros = !queue && mia === undefined && !estado;
+    // Los recuentos salen de la base, no de las filas devueltas: recortar la lista no puede hacer creer que
+    // hay menos trabajo del que hay, ni vaciar una cola que sí tiene tareas más allá del tope.
+    const suma = Object.values(totales);
+    const total = suma.reduce((a, t) => a + t.n, 0);
+    const mine = suma.reduce((a, t) => a + t.mias, 0);
     return {
       organization_id: orgId, organization_status: ctx.organizationStatus, generated_at: new Date().toISOString(),
-      queues: { mine, supervision: filas.length - mine },
+      queues: { mine, supervision: total - mine },
       filters: { queue: queue ?? null, assignee: asg ?? null, status: estado, applied_in: 'BACKEND' },
-      rows: filas, total: filas.length,
-      truncated: sinFiltros && Object.entries(totales).some(([code, n]) => n > filas.filter((x) => x.code === code).length),
+      rows: filas, total, shown: filas.length, truncated: total > filas.length,
       tasks,
       note: active
         ? 'Solo tareas que tu rol puede completar, dentro de tu alcance. Cada fila desaparece cuando el dominio la resuelve: aquí no se marca nada por hecho.'

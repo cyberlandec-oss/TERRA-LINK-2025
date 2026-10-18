@@ -54,6 +54,9 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     } else {
       inicio.push({ href: base, label: 'Mi espacio', match: (p) => p === base });
     }
+    // P1-004: la puesta en marcha la ve cualquier miembro (organization:read); el detalle va por alcance
+    // y los enlaces a cada módulo siguen dependiendo de su permiso.
+    if (ws.can('organization:read')) inicio.push({ href: `${base}/onboarding`, label: 'Puesta en marcha', match: (p) => p.startsWith(`${base}/onboarding`) });
     groups.push({ title: 'Inicio', items: inicio });
     const origen: NavItem[] = [];
     if (ws.can('producer:read') || ws.can('producer:read_assigned')) {

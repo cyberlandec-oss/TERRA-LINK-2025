@@ -30,7 +30,7 @@ interface FilaTrabajo {
 interface ColaTrabajo {
   queues: { mine: number; supervision: number };
   filters: { queue: string | null; assignee: string | null; status: string | null };
-  rows: FilaTrabajo[]; total: number; truncated: boolean;
+  rows: FilaTrabajo[]; total: number; shown: number; truncated: boolean;
   tasks: Array<{ code: string; count: number }>;
   note: string; priority_note: string;
 }
@@ -146,7 +146,7 @@ function MyWork({ orgId }: { orgId: string }) {
                   {queue !== 'MINE' && seccion('Supervisión', 'SUPERVISION', 'No hay trabajo del equipo pendiente de supervisión.')}
                 </>
               )}
-              {data.truncated && <p className="muted">Se muestran las primeras filas de cada tipo; los recuentos son los reales.</p>}
+              {data.truncated && <p className="muted">Se muestran {data.shown} de {data.total} tareas que coinciden. Los recuentos de arriba son los reales; afina los filtros para ver el resto.</p>}
             </>
           )}
     </section>

@@ -151,7 +151,7 @@ describeDb('P0-027 Mi trabajo y Lot Hub (PostgreSQL real)', () => {
     reason: string; impact: string; assignee: { membership_id: string; name: string } | null; assignee_note: string;
     due_date: string | null; due_state: string; priority: string; priority_rule: string; status: string; action: string;
   }
-  interface ColaW { queues: { mine: number; supervision: number }; filters: Record<string, unknown>; rows: FilaW[]; total: number; tasks: Array<{ code: string; count: number }> }
+  interface ColaW { queues: { mine: number; supervision: number }; filters: Record<string, unknown>; rows: FilaW[]; total: number; shown: number; truncated: boolean; tasks: Array<{ code: string; count: number }> }
   const cola = async (actor: string, query = '', esperado = 200) => (await http().get(`${api(orgA)}/my-work${query}`).set(as(actor)).expect(esperado)).body as ColaW;
 
   it('P1-003 cola PERSONAL y de SUPERVISIÓN separadas: la separación la decide la autorización', async () => {
@@ -242,5 +242,46 @@ describeDb('P0-027 Mi trabajo y Lot Hub (PostgreSQL real)', () => {
     await http().post(`${api(orgA)}/plots/${plot}/geometry-versions`).set(as(T1))
       .send({ expected_version: rv, survey_method: 'MANUAL_COORDINATES', geometry: { type: 'Point', coordinates: [-80.1602, -0.8481] } }).expect(201);
     expect(await enCola()).toBe(false);
+  });
+
+  // Caso DISCRIMINANTE del tope por tipo: con más de 50 tareas autorizadas y las PERSONALES situadas después
+  // del primer bloque, el filtro de cola tiene que encontrarlas igual. Si el tope se aplicase antes de filtrar,
+  // la cola personal saldría vacía y los recuentos mentirían.
+  it('P1-003 con más de 50 tareas, el filtro de cola alcanza las personales que caen tras el tope', async () => {
+    const miMembresia = await membershipId(ADMIN);
+    const propio = (await http().post(`${api(orgA)}/producers`).set(as(ADMIN))
+      .send({ producer_code: 'W-9', legal_name: 'Finca del administrador', assigned_membership_id: miMembresia }).expect(201)).body.id;
+    // 55 parcelas ajenas que ordenan ANTES (W-3-*) y 2 propias que ordenan DESPUÉS (W-9-*).
+    for (let i = 0; i < 55; i++) {
+      await http().post(`${api(orgA)}/plots`).set(as(ADMIN)).send({ producer_id: p2, plot_code: `W-3-${String(i).padStart(3, '0')}`, crop: 'Cacao' }).expect(201);
+    }
+    for (const c of ['W-9-M01', 'W-9-M02']) {
+      await http().post(`${api(orgA)}/plots`).set(as(ADMIN)).send({ producer_id: propio, plot_code: c, crop: 'Cacao' }).expect(201);
+    }
+
+    // Sin filtro: el recuento es el REAL del dominio, no el de las filas devueltas, y el recorte se declara.
+    const todo = await cola(ADMIN, '?status=ACTIVE');
+    expect(todo.total).toBeGreaterThan(50);
+    expect(todo.rows.length).toBeLessThan(todo.total);
+    expect(todo.truncated).toBe(true);
+    expect(todo.queues.mine).toBe(2);
+    expect(todo.queues.supervision).toBe(todo.total - 2);
+
+    // El filtro de cola encuentra las personales aunque ordenen detrás de 55 ajenas.
+    const personal = await cola(ADMIN, '?queue=MINE&status=ACTIVE');
+    expect(personal.rows.map((r) => r.entity.code).sort()).toEqual(['W-9-M01', 'W-9-M02']);
+    expect(personal.total).toBe(2);
+    expect(personal.truncated).toBe(false);
+    expect(personal.queues).toMatchObject({ mine: 2, supervision: 0 });
+
+    // Y la supervisión es exactamente el complemento, sin colar las propias.
+    const supervision = await cola(ADMIN, '?queue=SUPERVISION&status=ACTIVE');
+    expect(supervision.total).toBe(todo.total - 2);
+    expect(supervision.rows.some((r) => r.entity.code.startsWith('W-9'))).toBe(false);
+    expect(supervision.queues).toMatchObject({ mine: 0 });
+
+    // El mismo filtro por responsable concreto da el mismo conjunto: las dos vías coinciden.
+    const porResponsable = await cola(ADMIN, `?assignee=${miMembresia}&status=ACTIVE`);
+    expect(porResponsable.rows.map((r) => r.entity.code).sort()).toEqual(['W-9-M01', 'W-9-M02']);
   });
 });

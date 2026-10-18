@@ -8392,6 +8392,35 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/onboarding": {
+      "get": {
+        "operationId": "OnboardingController_diagnostico",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Onboarding y diagnóstico de madurez 0–6 con la evidencia de cada nivel (no acredita conformidad)",
+        "tags": [
+          "onboarding"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/buyers": {
       "get": {
         "operationId": "ShipmentsController_buyers",

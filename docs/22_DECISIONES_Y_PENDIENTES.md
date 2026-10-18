@@ -152,6 +152,40 @@ que **no se hace sin decisión explícita**.
 **Fuera de esta decisión**: entregar el paquete DD, levantar la clasificación, mostrar identidad, geometrías o
 documentos, y prometer un DDS. Nada de eso entra.
 
+### D-49 — Correspondencia «señal observable → nivel de madurez» — **PROPUESTA (2026-10-18)**
+
+**El problema**: **S3 §16** nombra los siete niveles —*No digitalizado, Registros manuales, Excel/formularios,
+Trazabilidad digital, Trazabilidad + riesgo, EUDR operacional, Inteligencia comercial*— precedidos de un «Por
+ejemplo», y **no fija ningún umbral, porcentaje ni condición de paso**. Ninguna otra fuente lo hace. Para
+diagnosticar hace falta una correspondencia, y esa correspondencia **es una decisión de producto**.
+
+**Lo implementado (P1-004), declarado como propuesta y visible en la propia respuesta de la API**:
+
+| Regla | Cómo queda |
+| --- | --- |
+| Cada nivel se sostiene en **señales observables** del dato existente | Cada señal lleva su evidencia, su alcance, su fecha y su fuente |
+| El único umbral es **la presencia** | «Existe al menos un registro». La fuente no da ninguno y **cualquier cifra mayor sería inventada**; se dice así en la respuesta |
+| Los niveles **0 a 2** ocurren **fuera de Terra Link** | **NO_DETERMINABLES**. Una organización sin datos **no** es «nivel 0»: el sistema no distingue «no digitalizada» de «todavía no ha cargado nada» |
+| **Vigencia** | Una adopción retirada deja de contar; el diagnóstico se calcula al leerlo y no guarda marcas |
+
+**Opciones si se quiere cambiar**: (A) conservar la presencia como umbral —lo implementado—; (B) fijar umbrales
+cuantitativos por nivel, que **habría que decidir y justificar**, porque ninguna fuente los da; (C) pedir a cada
+organización que **declare** su nivel 0–2, que añadiría un dato autodeclarado y no verificable.
+**Efecto de no decidir**: el diagnóstico sigue funcionando con (A) y marcado como propuesta; **no afecta a
+ninguna compuerta**, porque la madurez no levanta ninguna.
+
+### Pendientes trazados de `UX_UI §11` (centro de operaciones) — **NO IMPLEMENTADOS**
+
+Se registran aquí para que queden **trazados sin reabrir P1-003**, cuyos criterios (`docs/18:204`: cola,
+filtros, acción y QA-11/14) están cubiertos y **no los incluyen**:
+
+| Capacidad de `UX_UI §11` | Estado | Dónde correspondería |
+| --- | --- | --- |
+| **Indicadores** con numerador/denominador, unidad, período y actualización | **No implementado**; no se declara hecho | Centro de operaciones; se solapa con **P1-014** (analítica) y con los indicadores ya entregados en el portal (**D-48**) |
+| **Actividad reciente** autorizada, con hora y vínculo a la entidad | **No implementado**; el histórico existe en auditoría y eventos, sin esta superficie | Centro de operaciones; depende de `audit:read`/`events` |
+
+Ninguna de las dos es criterio de P1-003 ni de P1-004, y **ninguna se usa como condición de cierre**.
+
 ## Decisiones operativas de esta entrega
 
 - Mantener los originales intactos y separarlos de las instrucciones activas.
