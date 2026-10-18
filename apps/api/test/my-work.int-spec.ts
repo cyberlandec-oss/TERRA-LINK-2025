@@ -144,4 +144,103 @@ describeDb('P0-027 Mi trabajo y Lot Hub (PostgreSQL real)', () => {
     expect((await http().get(`${api(orgA)}/lots/${two.lot}`).set(as(ADMIN)).expect(200)).body.upstream.receptions[0]).toMatchObject({ plots: ['W-1-OCULTA2', 'W-1-P1'], plots_restricted: false, origin_known: true });
     expect((await http().get(`${api(orgA)}/lots/${none.lot}`).set(as(ADMIN)).expect(200)).body.upstream.receptions[0]).toMatchObject({ plots: [], plots_restricted: false, origin_known: false });
   });
+
+  // ------------------------------------------------------------------ P1-003 (RF-34; docs/14 §My Work; UX_UI §11)
+  interface FilaW {
+    code: string; queue: 'MINE' | 'SUPERVISION'; entity: { type: string; id: string; code: string; href: string };
+    reason: string; impact: string; assignee: { membership_id: string; name: string } | null; assignee_note: string;
+    due_date: string | null; due_state: string; priority: string; priority_rule: string; status: string; action: string;
+  }
+  interface ColaW { queues: { mine: number; supervision: number }; filters: Record<string, unknown>; rows: FilaW[]; total: number; tasks: Array<{ code: string; count: number }> }
+  const cola = async (actor: string, query = '', esperado = 200) => (await http().get(`${api(orgA)}/my-work${query}`).set(as(actor)).expect(esperado)).body as ColaW;
+
+  it('P1-003 cola PERSONAL y de SUPERVISIÓN separadas: la separación la decide la autorización', async () => {
+    // El técnico solo alcanza lo asignado: todo lo suyo es cola personal y no supervisa a nadie.
+    const t = await cola(T1);
+    expect(t.rows.length).toBeGreaterThan(0);
+    expect(t.rows.every((r) => r.queue === 'MINE')).toBe(true);
+    expect(t.queues).toMatchObject({ supervision: 0 });
+    expect(t.queues.mine).toBe(t.rows.length);
+    // El administrador ve el mismo trabajo, pero como SUPERVISIÓN: no es su responsabilidad personal.
+    const a = await cola(ADMIN);
+    const deT1 = a.rows.filter((r) => r.assignee?.name && r.entity.code.includes('W-1'));
+    expect(deT1.length).toBeGreaterThan(0);
+    expect(deT1.every((r) => r.queue === 'SUPERVISION')).toBe(true);
+    expect(a.queues.mine).toBe(0);
+    expect(a.queues.supervision).toBe(a.rows.length);
+  });
+
+  it('P1-003 la fila trae lo que docs/14 exige, y el plazo NO se inventa', async () => {
+    const [fila] = (await cola(T1)).rows;
+    expect(fila).toMatchObject({
+      code: expect.any(String), queue: 'MINE', reason: expect.any(String), impact: expect.any(String),
+      status: expect.any(String), action: expect.any(String), priority: expect.stringMatching(/ALTA|MEDIA|BAJA/),
+    });
+    expect(fila.entity).toMatchObject({ type: expect.any(String), id: expect.any(String), code: expect.any(String), href: expect.stringContaining(orgA) });
+    expect(fila.assignee).toMatchObject({ membership_id: await membershipId(T1) });
+    // Estas tareas no tienen plazo en el dominio: se dice, no se inventa uno.
+    expect(fila.due_date).toBeNull();
+    expect(fila.due_state).toBe('NONE');
+    expect(fila.priority_rule).toMatch(/no registra plazo/i);
+    // Y la prioridad es explicable: siempre viene con su motivo.
+    expect((await cola(T1)).rows.every((r) => r.priority_rule.length > 20)).toBe(true);
+  });
+
+  it('P1-003 los filtros son REALES y se aplican en el backend', async () => {
+    const todo = await cola(ADMIN);
+    expect(todo.filters).toMatchObject({ queue: null, assignee: null, status: null, applied_in: 'BACKEND' });
+
+    // queue: el administrador no tiene cola personal, así que MINE viene vacía y SUPERVISION completa.
+    expect((await cola(ADMIN, '?queue=MINE')).rows).toEqual([]);
+    expect((await cola(ADMIN, '?queue=SUPERVISION')).rows.length).toBe(todo.rows.length);
+
+    // status: filtra de verdad, no es una etiqueta.
+    const borradores = await cola(ADMIN, '?status=DRAFT');
+    expect(borradores.rows.length).toBeGreaterThan(0);
+    expect(borradores.rows.every((r) => r.status === 'DRAFT')).toBe(true);
+    expect(borradores.rows.length).toBeLessThan(todo.rows.length);
+    const parcelas = await cola(ADMIN, '?status=ACTIVE');
+    expect(parcelas.rows.every((r) => r.code === 'PLOTS_WITHOUT_LOCATION')).toBe(true);
+
+    // assignee: ME, UNASSIGNED y una membresía concreta.
+    expect((await cola(ADMIN, '?assignee=ME')).rows).toEqual([]);     // nada le está asignado
+    const mias = await cola(T1, '?assignee=ME');
+    expect(mias.rows.length).toBeGreaterThan(0);
+    expect(mias.rows.every((r) => r.assignee?.membership_id === mias.rows[0].assignee?.membership_id)).toBe(true);
+    const sinDuenno = await cola(ADMIN, '?assignee=UNASSIGNED');
+    expect(sinDuenno.rows.length).toBeGreaterThan(0);
+    expect(sinDuenno.rows.every((r) => r.assignee === null)).toBe(true);
+    const idT1 = await membershipId(T1);
+    const deTecnico = await cola(ADMIN, `?assignee=${idT1}`);
+    expect(deTecnico.rows.length).toBeGreaterThan(0);
+    expect(deTecnico.rows.every((r) => r.assignee?.membership_id === idT1)).toBe(true);
+
+    // Un valor que no existe es un error, no un filtro que no filtra.
+    await http().get(`${api(orgA)}/my-work?queue=TODAS`).set(as(ADMIN)).expect(400);
+    await http().get(`${api(orgA)}/my-work?assignee=cualquiera`).set(as(ADMIN)).expect(400);
+  });
+
+  it('P1-003 filtrar NO amplía el alcance: el técnico no alcanza lo ajeno ni pidiéndolo', async () => {
+    const admin = await membershipId(ADMIN);
+    const ajeno = await cola(T1, `?assignee=${admin}`);
+    expect(ajeno.rows).toEqual([]);
+    for (const q of ['', '?queue=SUPERVISION', '?assignee=UNASSIGNED', `?assignee=${admin}`, '?status=DRAFT', '?status=ACTIVE']) {
+      expect(JSON.stringify(await cola(T1, q))).not.toContain('W-2');
+    }
+  });
+
+  it('P1-003 la fila sale al RESOLVER EL DOMINIO, no por marcarla aquí', async () => {
+    // No existe ninguna forma de completar una tarea desde Mi trabajo: solo se lee.
+    await http().post(`${api(orgA)}/my-work`).set(as(T1)).send({}).expect(404);
+    await http().patch(`${api(orgA)}/my-work`).set(as(T1)).send({}).expect(404);
+
+    const codigo = 'W-1-CIERRE';
+    const plot = (await http().post(`${api(orgA)}/plots`).set(as(ADMIN)).send({ producer_id: p1, plot_code: codigo, crop: 'Cacao' }).expect(201)).body.id;
+    const enCola = async () => (await cola(T1)).rows.some((r) => r.entity.code === codigo);
+    expect(await enCola()).toBe(true);
+    const rv = Number((await h.db.selectFrom('plots').select('row_version').where('id', '=', plot).executeTakeFirstOrThrow()).row_version);
+    await http().post(`${api(orgA)}/plots/${plot}/geometry-versions`).set(as(T1))
+      .send({ expected_version: rv, survey_method: 'MANUAL_COORDINATES', geometry: { type: 'Point', coordinates: [-80.1602, -0.8481] } }).expect(201);
+    expect(await enCola()).toBe(false);
+  });
 });

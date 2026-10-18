@@ -8344,6 +8344,36 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "queue",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "MINE",
+                "SUPERVISION"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "assignee",
+            "required": false,
+            "in": "query",
+            "description": "ME, UNASSIGNED o identificador de membresía",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Estado del dominio de la tarea (DRAFT, REGISTERED, PENDING, ACTIVE, OPEN, SUBMITTED)",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8356,7 +8386,7 @@
             "bearer": []
           }
         ],
-        "summary": "Mi trabajo: tareas observables del dominio que tu rol puede completar, dentro de tu alcance",
+        "summary": "Mi trabajo: cola personal y de supervisión, con filtros reales aplicados en el backend",
         "tags": [
           "work"
         ]

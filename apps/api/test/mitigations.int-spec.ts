@@ -225,4 +225,42 @@ describeDb('P0-021 mitigaciones: causa, soportes por versión, separación de fu
     expect(await triggered()).toBe(0);
     expect((await get(m2.id)).reevaluation.status).toBe('SUPERSEDED');
   });
+
+  // QA-11 + P1-003 — «cola actualizada por acción real». La cola de Mi trabajo tiene que moverse por el ciclo de
+  // vida del dominio, no por marcar nada en la portada, y la separación de funciones tiene que notarse en ella.
+  it('P1-003/QA-11 la cola de Mi trabajo se mueve con el ciclo real de la mitigación, y respeta la separación de funciones', async () => {
+    interface FilaW { code: string; queue: string; entity: { id: string }; due_date: string | null; due_state: string; priority: string; priority_rule: string; status: string; evidence_required: string | null }
+    const cola = async (actor: string, query = '') => (await http().get(`${base(orgA)}/my-work${query}`).set(as(actor)).expect(200)).body as { queues: { mine: number; supervision: number }; rows: FilaW[] };
+    const fila = async (actor: string, id: string, query = '') => (await cola(actor, query)).rows.find((r) => r.entity.id === id);
+
+    const { evaluation } = await blockedLot();
+    const m = (await create(evaluation.id).expect(201)).body.mitigation;
+
+    // 1) Creada y asignada: aparece en la cola PERSONAL del responsable, con el plazo REAL del dominio.
+    const asignada = await fila(E1, m.id);
+    expect(asignada).toMatchObject({ code: 'MITIGATIONS_ASSIGNED', queue: 'MINE', status: 'OPEN', due_date: '2026-12-31', due_state: 'SCHEDULED' });
+    expect(asignada!.evidence_required).toBeTruthy();
+    expect(asignada!.priority_rule).toMatch(/Vence el 2026-12-31/);
+    // Quien la creó no la tiene como trabajo propio: todavía no hay nada que verificar.
+    expect(await fila(E2, m.id)).toBeUndefined();
+
+    // 2) Acción real del dominio: aportar soporte NO la saca de la cola (adjuntar no es haber terminado).
+    await support(m.id, { document_version_id: (await doc()).versions[0].id }).expect(201);
+    expect(await fila(E1, m.id)).toMatchObject({ queue: 'MINE', status: 'OPEN' });
+
+    // 3) Entregar sí: sale de la cola personal del ejecutor y entra en la de SUPERVISIÓN de otra persona.
+    expect((await submit(m.id)).status).toBe(201);
+    expect(await fila(E1, m.id)).toBeUndefined();
+    const porVerificar = await fila(E2, m.id);
+    expect(porVerificar).toMatchObject({ code: 'MITIGATIONS_TO_VERIFY', queue: 'SUPERVISION', status: 'SUBMITTED' });
+    expect((await cola(E2)).queues.supervision).toBeGreaterThan(0);
+    // Separación de funciones: quien entregó NO se la encuentra para verificar, ni filtrando.
+    expect(await fila(E1, m.id, '?queue=SUPERVISION')).toBeUndefined();
+    expect(await fila(E1, m.id, '?status=SUBMITTED')).toBeUndefined();
+
+    // 4) Verificar es otra acción real del dominio: la fila desaparece de las dos colas.
+    expect((await decide(m.id, 'VERIFIED', E2)).status).toBe(201);
+    expect(await fila(E2, m.id)).toBeUndefined();
+    expect(await fila(E1, m.id)).toBeUndefined();
+  });
 });

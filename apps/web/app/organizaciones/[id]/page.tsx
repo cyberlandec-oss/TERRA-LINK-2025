@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ApiError, ROLE_LABELS, api, type Organization } from '../../../lib/api';
 import { useWorkspace } from '../../../lib/workspace';
@@ -16,38 +17,138 @@ const PENDING_BY_ROLE: Record<string, Array<{ capability: string; story: string 
 };
 const PLATFORM_PENDING = { capability: 'Acceso a datos operativos de una organización', story: 'Requiere elevación auditada (D-04, pendiente). La administración de plataforma no da acceso implícito' };
 
-interface WorkTask { code: string; title: string; reason: string; action: string; count: number; items: Array<{ id: string; label: string; href: string }>; list_href: string }
+interface FilaTrabajo {
+  code: string; title: string; queue: 'MINE' | 'SUPERVISION';
+  entity: { type: string; id: string; code: string; href: string };
+  reason: string; impact: string;
+  assignee: { membership_id: string; name: string } | null; assignee_note: string;
+  due_date: string | null; due_state: 'OVERDUE' | 'DUE_SOON' | 'SCHEDULED' | 'NONE';
+  priority: 'ALTA' | 'MEDIA' | 'BAJA'; priority_rule: string;
+  status: string; evidence_required: string | null;
+  action: string; action_href: string;
+}
+interface ColaTrabajo {
+  queues: { mine: number; supervision: number };
+  filters: { queue: string | null; assignee: string | null; status: string | null };
+  rows: FilaTrabajo[]; total: number; truncated: boolean;
+  tasks: Array<{ code: string; count: number }>;
+  note: string; priority_note: string;
+}
 
-/** Mi trabajo (UX_UI §11): tareas observables que el rol puede completar, dentro de su alcance (GET my-work). */
+const TONO_PRIORIDAD: Record<string, 'blocked' | 'review' | 'neutral'> = { ALTA: 'blocked', MEDIA: 'review', BAJA: 'neutral' };
+const ESTADOS: Array<[string, string]> = [
+  ['DRAFT', 'Borrador'], ['REGISTERED', 'Registrada'], ['PENDING', 'Pendiente'],
+  ['ACTIVE', 'Activa'], ['OPEN', 'Abierta'], ['SUBMITTED', 'Entregada'],
+];
+const PLAZO: Record<string, string> = { OVERDUE: 'Vencido', DUE_SOON: 'Próximo', SCHEDULED: 'Con plazo', NONE: 'Sin plazo en el dominio' };
+
+/**
+ * Mi trabajo (RF-34, P1-003; docs/14 §My Work; UX_UI §11; QA-14).
+ *
+ * Dos colas separadas y filtros REALES: lo que se elige aquí viaja al backend, que es quien filtra y quien
+ * autoriza. Los filtros viven en la URL, así que abrir una tarea y volver conserva la vista.
+ * Aquí NO se completa nada: cada fila desaparece cuando su caso de uso del dominio la resuelve.
+ */
 function MyWork({ orgId }: { orgId: string }) {
-  const [data, setData] = useState<{ tasks: WorkTask[]; note: string } | null>(null);
+  const router = useRouter();
+  const params = useSearchParams();
+  const queue = params.get('cola') ?? '';
+  const assignee = params.get('responsable') ?? '';
+  const status = params.get('estado') ?? '';
+  const hayFiltros = Boolean(queue || assignee || status);
+
+  const [data, setData] = useState<ColaTrabajo | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
+
   const load = useCallback(async () => {
     setError(null);
-    try { setData(await api<{ tasks: WorkTask[]; note: string }>(`/api/v1/organizations/${orgId}/my-work`)); } catch (err) { setError(err as ApiError); }
-  }, [orgId]);
+    const q = new URLSearchParams();
+    if (queue) q.set('queue', queue);
+    if (assignee) q.set('assignee', assignee);
+    if (status) q.set('status', status);
+    const cadena = q.toString();
+    try { setData(await api<ColaTrabajo>(`/api/v1/organizations/${orgId}/my-work${cadena ? `?${cadena}` : ''}`)); }
+    catch (err) { setError(err as ApiError); }
+  }, [orgId, queue, assignee, status]);
   useEffect(() => { setData(null); void load(); }, [load]);
+
+  /** El filtro vive en la URL: volver de una tarea devuelve la misma vista filtrada. */
+  const cambiar = (clave: string, valor: string) => {
+    const q = new URLSearchParams(params.toString());
+    if (valor) q.set(clave, valor); else q.delete(clave);
+    const cadena = q.toString();
+    router.replace(`/organizaciones/${orgId}${cadena ? `?${cadena}` : ''}`, { scroll: false });
+  };
+
+  const seccion = (titulo: string, cola: 'MINE' | 'SUPERVISION', vacio: string) => {
+    const filas = (data?.rows ?? []).filter((r) => r.queue === cola);
+    return (
+      <section aria-labelledby={`cola-${cola}`}>
+        <h3 id={`cola-${cola}`}>{titulo} <StatusBadge tone="neutral">{filas.length}</StatusBadge></h3>
+        {filas.length === 0 ? <p className="muted">{vacio}</p> : (
+          <div className="table-wrap"><table aria-label={titulo}>
+            <thead><tr>
+              <th scope="col">Prioridad</th><th scope="col">Tarea</th><th scope="col">Entidad</th>
+              <th scope="col">Responsable</th><th scope="col">Plazo</th><th scope="col">Estado</th><th scope="col">Acción</th>
+            </tr></thead>
+            <tbody>{filas.map((r) => (
+              <tr key={`${r.code}-${r.entity.id}`}>
+                <td><StatusBadge tone={TONO_PRIORIDAD[r.priority]}>{r.priority}</StatusBadge>
+                  <div className="muted">{r.priority_rule}</div></td>
+                <td>{r.title}<div className="muted">{r.reason}</div><div className="muted">{r.impact}</div>
+                  {r.evidence_required && <div className="muted">Evidencia requerida: {r.evidence_required}</div>}</td>
+                <td><Link href={r.entity.href}>{r.entity.code}</Link></td>
+                <td>{r.assignee?.name ?? 'Sin responsable'}<div className="muted">{r.assignee_note}</div></td>
+                <td>{r.due_date ?? '—'}<div className="muted">{PLAZO[r.due_state]}</div></td>
+                <td>{r.status}</td>
+                <td><Link href={r.action_href}>{r.action}</Link></td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        )}
+      </section>
+    );
+  };
+
   return (
     <section className="card" aria-labelledby="mi-trabajo">
       <h2 id="mi-trabajo">Mi trabajo</h2>
       {error ? <ErrorPanel error={error} onRetry={load} />
         : !data ? <Loading label="Cargando tus pendientes…" />
-          : data.tasks.length === 0 ? <p>No tienes pendientes en esta organización. <span className="muted">{data.note}</span></p>
-            : (
-              <>
-                <p className="muted">{data.note}</p>
-                <ul className="plain" aria-label="Pendientes">
-                  {data.tasks.map((t) => (
-                    <li key={t.code} className="work-item">
-                      <h3>{t.title} <StatusBadge tone="review">{t.count}</StatusBadge></h3>
-                      <p className="muted">{t.reason}</p>
-                      {t.items.length > 0 && <ul className="plain">{t.items.map((i) => <li key={i.id}><Link href={i.href}>{i.label}</Link></li>)}</ul>}
-                      <Link href={t.list_href}>{t.action}{t.count > t.items.length ? ` (ver ${t.count})` : ''}</Link>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
+          : (
+            <>
+              <p className="muted">{data.note}</p>
+              <fieldset aria-label="Filtros de la cola">
+                <label htmlFor="f-cola">Cola</label>
+                <select id="f-cola" value={queue} onChange={(e) => cambiar('cola', e.target.value)}>
+                  <option value="">Todas</option><option value="MINE">Personal</option><option value="SUPERVISION">Supervisión</option>
+                </select>
+                <label htmlFor="f-resp">Responsable</label>
+                <select id="f-resp" value={assignee} onChange={(e) => cambiar('responsable', e.target.value)}>
+                  <option value="">Cualquiera</option><option value="ME">Yo</option><option value="UNASSIGNED">Sin responsable</option>
+                </select>
+                <label htmlFor="f-estado">Estado</label>
+                <select id="f-estado" value={status} onChange={(e) => cambiar('estado', e.target.value)}>
+                  <option value="">Cualquiera</option>
+                  {ESTADOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+                {hayFiltros && <button type="button" onClick={() => router.replace(`/organizaciones/${orgId}`, { scroll: false })}>Quitar filtros</button>}
+              </fieldset>
+              <p className="muted">
+                Personal: {data.queues.mine} · Supervisión: {data.queues.supervision}. El filtro lo aplica el servidor;
+                no amplía lo que puedes ver. {data.priority_note}
+              </p>
+              {data.total === 0 ? (
+                <p>{hayFiltros ? 'Ningún pendiente coincide con estos filtros.' : 'No tienes pendientes en esta organización.'}</p>
+              ) : (
+                <>
+                  {queue !== 'SUPERVISION' && seccion('Cola personal', 'MINE', 'No hay tareas asignadas a ti.')}
+                  {queue !== 'MINE' && seccion('Supervisión', 'SUPERVISION', 'No hay trabajo del equipo pendiente de supervisión.')}
+                </>
+              )}
+              {data.truncated && <p className="muted">Se muestran las primeras filas de cada tipo; los recuentos son los reales.</p>}
+            </>
+          )}
     </section>
   );
 }
