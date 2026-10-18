@@ -139,7 +139,7 @@ Las quince corresponden a historias **P1**, ninguna iniciada.
 | RF-38 | Integración oficial EUDR-IS | P1-007 | **BLOQUEADO** — rol y canal oficiales no verificados |
 | RF-39 | ERP / API / webhooks | P1-008 | **NO DEMOSTRADO** |
 | RF-40 | Simulador de preparación | P1-009 | **DEMOSTRADO** (2026-10-18): simulación por lote de **solo lectura** —sin `POST` ni `PATCH` y sin guardar escenarios—, con **entradas y fecha visibles**, las **mismas reglas** que el preflight y **el veredicto decidido por las causas, no por el porcentaje**. Separa estado real, escenario hipotético y lo que seguiría bloqueado, clasificado en dato, decisión o capacidad. **No habilita READY ni el despacho.** Evidencia: `docs/qa/EVIDENCIA_P1009_SIMULADOR_2026-10-18.md` |
-| RF-41 | Coste de preparación | P1-010 | **NO DEMOSTRADO** |
+| RF-41 | Coste de preparación | P1-010 | **DEMOSTRADO** (2026-10-18): presupuesto con importes **declarados por la organización** (D-51), en **USD**, versionados y con vigencia; **nada precargado** del ejemplo de S3. Cantidades **declaradas y marcadas como estimadas**; lo observado va **aparte y con su fecha**. Ausencia **no es cero**: el total se marca incompleto. Reparto por **productor distinto del grafo de origen** y por **tonelada del peso físico del ledger**; sin denominador válido, **no calculable**. **Reproducible**: cambiar una tarifa no reescribe una estimación guardada. Evidencia: `docs/qa/EVIDENCIA_P1010_PRESUPUESTO_2026-10-18.md` |
 | RF-42 | Histórico temporal y alertas | P1-011 | **NO DEMOSTRADO** |
 | RF-43 | Precio, prima y pagos | P1-012 | **NO DEMOSTRADO** |
 | RF-44 | Extracción asistida de documentos | P1-013 | **NO DEMOSTRADO** |
@@ -201,7 +201,7 @@ criterio de cierre de ninguna historia concreta.
 
 *(La tabla conserva el corte del 2026-10-16; la cifra vigente está debajo.)*
 
-**Sí se puede calcular**, y es **60,0 %** al 2026-10-18: **36 de 60** (RF-32 y RF-33 cerradas el 2026-10-17; **RF-34**, **RF-35** y **RF-40** el 2026-10-18). Partía de 42 % (25/59) y suben ocho
+**Sí se puede calcular**, y es **61,7 %** al 2026-10-18: **37 de 60** (RF-32 y RF-33 cerradas el 2026-10-17; **RF-34**, **RF-35**, **RF-40** y **RF-41** el 2026-10-18). Partía de 42 % (25/59) y suben ocho
 requisitos: **RF-47** (2026-10-16), **RF-03** y **RNF-01** (al cerrarse P0-003), **RNF-10** y **RNF-12**
 (avisos verificados y ensayo de retorno) y **RNF-13** (métricas y trazas). El denominador pasó de 59 a **60**
 al registrarse **RNF-13**: el catálogo estaba incompleto, no se amplió el alcance. La diferencia con el 75 % no es una contradicción: son medidas de cosas
