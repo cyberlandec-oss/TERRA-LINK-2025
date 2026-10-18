@@ -90,3 +90,31 @@ ambas cuentas reciben filas sin filtro, así que un `0` significa «nada», no �
   `UX_UI §11` describe para el «centro de operaciones». **No son criterio de P1-003** (`docs/18:204` pide cola,
   filtros, acción y QA-11/14) y no se usan como condición de cierre ni se dan por hechos.
 - Las compuertas no se tocan: `UNDETERMINED`, READY, despacho y llamadas satelitales siguen como estaban.
+
+---
+
+## Adenda — corrección del filtro de cola (2026-10-18)
+
+**Señalado en revisión**: en el fragmento compartido, las consultas aplicaban `LIMIT 50` por tipo y **después**
+se filtraba `MINE`/`SUPERVISION` **en memoria**.
+
+**Confirmado, y era un defecto real**, con dos consecuencias más de las señaladas:
+
+1. Con más de 50 tareas autorizadas y las personales situadas **después** del primer bloque, `?queue=MINE`
+   devolvía **vacío**.
+2. `queues.mine` y `queues.supervision` se contaban sobre **las filas devueltas**, así que un recorte los
+   dejaba por debajo del trabajo real.
+3. `truncated` solo se calculaba **sin filtros**: un resultado filtrado y recortado parecía completo.
+
+**Reproducido antes de corregir**, con un caso discriminante: 55 parcelas de un productor sin responsable
+—que ordenan antes— y 2 de un productor asignado a quien consulta —que ordenan después—. `total` devolvía
+**50**, y la cola personal no aparecía.
+
+**Corrección**: el filtro de cola se expresa **en SQL** (`(responsable = yo) IS TRUE` / `IS NOT TRUE`, para que
+un responsable nulo caiga del lado de supervisión y no desaparezca por lógica ternaria), y los recuentos salen
+de la base con **agregados de ventana**, que se calculan **antes** del tope. La respuesta distingue ahora
+`total` (lo que coincide de verdad), `shown` (lo devuelto) y `truncated`; la pantalla lo dice: «se muestran *n*
+de *N*».
+
+**Comprobado**: `my-work.int-spec.ts` **12/12**, con el caso discriminante entre ellas. La corrección se
+integró en el candidato de **P1-004** (`84e1322`, **APROBADA**, 768 pruebas), **sin entrega separada**.

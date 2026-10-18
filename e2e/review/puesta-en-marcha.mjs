@@ -43,8 +43,12 @@ async function sesion(local) {
   const perms = await (await fetch(`${API}/api/v1/me/permissions`, { headers: { authorization: `Bearer ${token}` } })).json();
   return { cuenta: c, token, orgId: perms.organizations?.[0]?.organization_id ?? null };
 }
-const pedir = async (token, metodo, path) => {
-  const r = await fetch(`${API}${path}`, { method: metodo, headers: { authorization: `Bearer ${token}` } });
+const pedir = async (token, metodo, path, cuerpo) => {
+  const r = await fetch(`${API}${path}`, {
+    method: metodo,
+    headers: { authorization: `Bearer ${token}`, ...(cuerpo ? { 'content-type': 'application/json' } : {}) },
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+  });
   const texto = await r.text();
   let body = null; try { body = JSON.parse(texto); } catch { /* no JSON */ }
   return { status: r.status, body, texto };
@@ -115,14 +119,23 @@ await caso('TRES CLASES de bloqueo, separadas: dato, capacidad y decisión', asy
 
 await caso('NO LEVANTA COMPUERTAS: nivel 4 con la conclusión todavía UNDETERMINED', async () => {
   const d = await diagnostico(admin.token, COOP);
-  const lotes = await pedir(admin.token, 'GET', `/api/v1/organizations/${COOP}/lots`);
-  const lote = exigeEntrada('lote de la cooperativa', (lotes.body?.items ?? lotes.body ?? [])[0]?.id);
-  const riesgo = await pedir(admin.token, 'GET', `/api/v1/organizations/${COOP}/risk/lots/${lote}/evaluations`);
-  const evs = riesgo.body?.evaluations ?? riesgo.body?.items ?? riesgo.body ?? [];
-  const concl = [...new Set((Array.isArray(evs) ? evs : []).map((e) => e.conclusion))];
+  // La lista de riesgo de la organización: si no trajera evaluaciones, este caso NO puede salir OK, porque
+  // «todas son UNDETERMINED» sobre un conjunto vacío no afirma nada.
+  const riesgo = await pedir(admin.token, 'GET', `/api/v1/organizations/${COOP}/risk/lots`);
+  const lista = Array.isArray(riesgo.body) ? riesgo.body : [];
+  const evaluados = lista.filter((l) => l.evaluation_id);
+  exigeEntrada('lotes evaluados de la cooperativa', evaluados.length || undefined);
+  const concl = [];
+  for (const l of evaluados) {
+    const det = await pedir(admin.token, 'GET', `/api/v1/organizations/${COOP}/risk/lots/${l.lot_id}`);
+    const c = det.body?.latest?.risk_result?.conclusion;
+    exigeEntrada(`conclusión de ${l.lot_code}`, c);
+    if (!concl.includes(c)) concl.push(c);
+  }
+  const conEvaluacion = evaluados;
   return [d.level.reached === 4 && /NO levanta ninguna compuerta/.test(d.disclaimer)
-    && concl.every((c) => c === 'UNDETERMINED'),
-  `nivel=${d.level.reached} · conclusiones=${concl.join(',') || 'sin evaluaciones'} · aviso presente`];
+    && concl.length > 0 && concl.every((c) => c === 'UNDETERMINED'),
+  `nivel=${d.level.reached} · ${conEvaluacion.length} lote(s) evaluado(s), conclusiones=${concl.join(',')} · aviso presente`];
 });
 
 await caso('ALCANCE: el técnico ve el estado, pero el número se acota o no se entrega', async () => {
@@ -174,6 +187,8 @@ try {
     await page.goto(`${WEB}/organizaciones/${COOP}`);
     await page.getByRole('link', { name: 'Puesta en marcha' }).first().click();
     await page.getByRole('heading', { level: 1, name: 'Puesta en marcha y madurez' }).waitFor({ timeout: 20000 });
+    // El encabezado aparece antes que el diagnóstico: hay que esperar a que el nivel esté dibujado.
+    await page.getByRole('heading', { name: 'Nivel', exact: true }).waitFor({ timeout: 20000 });
     const t = await page.locator('main').innerText();
     return [/Nivel 4/.test(t) && /Trazabilidad \+ riesgo/.test(t) && /todas sus señales se observan/.test(t),
       `nivel visible=${/Nivel 4/.test(t)} · con fundamento=${/todas sus señales se observan/.test(t)}`];
@@ -236,28 +251,63 @@ try {
   const s = await entrar(acopio);
   await caso('RECORRIDO: identificar lo pendiente, completarlo en su módulo y ver el nivel actualizado', async () => {
     await abrir(s.page, ORG_ACOPIO);
+    // Repetible SIN volverse vacuo: el paso se recorre de verdad y al final se **restituye** el entorno
+    // desactivando lo creado, con su motivo. Desactivar no borra nada —la historia queda— y de paso demuestra
+    // el camino inverso: el diagnóstico sigue al dato también cuando el dato se retira.
+    const COMPLETABLES = [
+      { code: 'CENTROS', fila: 'Centros y ubicaciones', encabezado: /Centros|Ubicaciones/i, nombre: 'Centro de acopio principal',
+        etiquetaCodigo: 'Código', etiquetaNombre: 'Nombre',
+        listar: async () => (await pedir(acopio.token, 'GET', `/api/v1/organizations/${ORG_ACOPIO}/locations`)).body,
+        restituir: async (x) => pedir(acopio.token, 'POST', `/api/v1/organizations/${ORG_ACOPIO}/locations/${x.id}/status`,
+          { expected_version: x.row_version, status: 'INACTIVE', reason: 'Restituye el entorno tras la revisión de puesta en marcha' }) },
+      { code: 'PRODUCTORES', fila: 'Productores', encabezado: /Productores/i, nombre: 'Finca de prueba de puesta en marcha',
+        etiquetaCodigo: 'Código de productor', etiquetaNombre: 'Razón social',
+        listar: async () => { const r = await pedir(acopio.token, 'GET', `/api/v1/organizations/${ORG_ACOPIO}/producers`); return r.body?.items ?? r.body; },
+        restituir: async (x) => pedir(acopio.token, 'POST', `/api/v1/organizations/${ORG_ACOPIO}/producers/${x.id}/archive`,
+          { expected_version: x.row_version, reason: 'Restituye el entorno tras la revisión de puesta en marcha' }) },
+    ];
+
+    // Si una pasada anterior dejó algo hecho, se restituye primero: así el caso siempre recorre de verdad.
+    for (const x of COMPLETABLES) {
+      const d0 = await diagnostico(acopio.token, ORG_ACOPIO);
+      if (paso(d0, x.code).state !== 'HECHO') continue;
+      const creados = ((await x.listar()) ?? []).filter((r) => String(r.code ?? r.producer_code ?? '').startsWith('MARCHA-'));
+      for (const r of creados) await x.restituir(r);
+    }
+
     const antes = await diagnostico(acopio.token, ORG_ACOPIO);
-    if (paso(antes, 'CENTROS').state !== 'PENDIENTE') throw new Error('el paso CENTROS ya está hecho en DEMO: el caso no se ejecuta en falso');
-    const textoAntes = await s.page.locator('main').innerText();
-    const sinNivel = /Sin nivel observable/.test(textoAntes);
+    const elegido = COMPLETABLES.find((x) => paso(antes, x.code).state === 'PENDIENTE');
+    if (!elegido) throw new Error(`en DEMO no queda un paso pendiente de los que esta revisión completa (${COMPLETABLES.map((x) => `${x.code}=${paso(antes, x.code).state}`).join(', ')}): el caso NO se ejecuta en falso`);
+    const nivelAntes = antes.level.reached;
+    await abrir(s.page, ORG_ACOPIO);
 
     // Se abre la acción DESDE el asistente, no por una ruta inventada.
-    const fila = s.page.getByRole('table', { name: 'Pasos de puesta en marcha' }).locator('tbody tr').filter({ hasText: 'Centros y ubicaciones' });
+    const fila = s.page.getByRole('table', { name: 'Pasos de puesta en marcha' }).locator('tbody tr').filter({ hasText: elegido.fila });
     await fila.getByRole('link', { name: 'Abrir' }).click();
-    await s.page.getByRole('heading', { level: 1, name: /Centros|Ubicaciones/i }).waitFor({ timeout: 20000 });
+    await s.page.getByRole('heading', { level: 1, name: elegido.encabezado }).waitFor({ timeout: 20000 });
 
     const codigo = `MARCHA-${Date.now().toString().slice(-5)}`;
-    await s.page.getByLabel('Código').fill(codigo);
-    await s.page.getByLabel('Nombre').fill('Centro de acopio principal');
+    await s.page.getByLabel(elegido.etiquetaCodigo, { exact: true }).first().fill(codigo);
+    await s.page.getByLabel(elegido.etiquetaNombre, { exact: true }).first().fill(elegido.nombre);
     await s.page.getByRole('button', { name: /Registrar|Crear|Guardar/ }).first().click();
     await s.page.getByText(codigo).first().waitFor({ timeout: 20000 });
 
     await abrir(s.page, ORG_ACOPIO);
     const despues = await diagnostico(acopio.token, ORG_ACOPIO);
-    const hecho = paso(despues, 'CENTROS').state === 'HECHO';
-    const enPantalla = /Centros y ubicaciones/.test(await s.page.locator('main').innerText());
-    return [sinNivel && hecho && enPantalla,
-      `antes: sin nivel=${sinNivel}, CENTROS=PENDIENTE · después: CENTROS=${paso(despues, 'CENTROS').state} con ${paso(despues, 'CENTROS').evidence}`];
+    const hecho = paso(despues, elegido.code).state === 'HECHO';
+    // En pantalla tiene que verse la evidencia NUEVA del paso, no solo cambiar en la API.
+    const texto = await s.page.locator('main').innerText();
+    const enPantalla = texto.includes(paso(despues, elegido.code).evidence) && /Asistente de puesta en marcha/.test(texto);
+    // Restitución: se desactiva lo creado y el paso vuelve a PENDIENTE. El entorno queda como estaba y queda
+    // demostrado que el diagnóstico sigue al dato en los dos sentidos.
+    const creado = ((await elegido.listar()) ?? []).find((r) => String(r.code ?? r.producer_code ?? '') === codigo);
+    exigeEntrada(`registro creado ${codigo}`, creado?.id);
+    await elegido.restituir(creado);
+    const restituido = await diagnostico(acopio.token, ORG_ACOPIO);
+    const vuelve = paso(restituido, elegido.code).state === 'PENDIENTE';
+
+    return [hecho && enPantalla && vuelve,
+      `${elegido.code}: PENDIENTE → ${paso(despues, elegido.code).state} («${paso(despues, elegido.code).evidence}») · nivel ${nivelAntes ?? 'ninguno'} → ${despues.level.reached ?? 'ninguno'} · restituido a ${paso(restituido, elegido.code).state}`];
   });
   await s.ctx.close();
 } finally {

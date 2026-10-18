@@ -133,7 +133,7 @@ Las quince corresponden a historias **P1**, ninguna iniciada.
 | RF-32 | Buyer Portal | P1-001 | **DEMOSTRADO** (2026-10-17): concesión, vencimiento, revocación, aislamiento, portal, descarga autorizada y **los once indicadores de S3 §22.8** como estados, sobre **lote, embarque e instantánea**. **D-48(A) adoptada e implementada** |
 | RF-33 | QR / pasaporte digital | P1-002 | **DEMOSTRADO** (2026-10-17): QR verificado **por decodificación**, recorrido completo y **dos audiencias** —las que las fuentes describen—. «Por audiencia» **no es exigencia de ninguna fuente**: `CONTRASTE_ACEPTACION_RF32_RF33_2026-10-17.md` §1 |
 | RF-34 | My Work ampliado | P1-003 | **DEMOSTRADO** (2026-10-18): cola **personal** y de **supervisión** separadas por la autorización, **filtros reales** en el backend que no amplían el alcance, fila completa de docs/14 con **prioridad explicable** y sin plazos inventados, y la fila sale **al resolver el dominio** (recorrido real en navegador). QA-11 y QA-14 comprobadas |
-| RF-35 | Onboarding y madurez | P1-004 | **NO DEMOSTRADO** |
+| RF-35 | Onboarding y madurez | P1-004 | **DEMOSTRADO** (2026-10-18): asistente de 8 pasos (UX_UI §10.4) y diagnóstico de los **siete niveles de S3 §16 con la evidencia de cada señal**. La fuente **no fija umbrales**: la correspondencia señal→nivel queda como **D-49 PROPUESTA**, visible en la respuesta; el único umbral es la presencia. Una organización sin datos **no** es «nivel 0». Se distinguen dato faltante, capacidad no implementada y decisión pendiente. **No levanta compuertas** |
 | RF-36 | Perfil de legalidad Ecuador | P1-005 | **BLOQUEADO** — es la dependencia de `LEGAL_PROFILE` en el expediente |
 | RF-37 | Intercambio GUIA/Agrocalidad | P1-006 | **BLOQUEADO** — canal externo no verificado |
 | RF-38 | Integración oficial EUDR-IS | P1-007 | **BLOQUEADO** — rol y canal oficiales no verificados |
@@ -201,7 +201,7 @@ criterio de cierre de ninguna historia concreta.
 
 *(La tabla conserva el corte del 2026-10-16; la cifra vigente está debajo.)*
 
-**Sí se puede calcular**, y es **56,7 %** al 2026-10-18: **34 de 60** (RF-32 y RF-33 cerradas el 2026-10-17; **RF-34** el 2026-10-18). Partía de 42 % (25/59) y suben ocho
+**Sí se puede calcular**, y es **58,3 %** al 2026-10-18: **35 de 60** (RF-32 y RF-33 cerradas el 2026-10-17; **RF-34** y **RF-35** el 2026-10-18). Partía de 42 % (25/59) y suben ocho
 requisitos: **RF-47** (2026-10-16), **RF-03** y **RNF-01** (al cerrarse P0-003), **RNF-10** y **RNF-12**
 (avisos verificados y ensayo de retorno) y **RNF-13** (métricas y trazas). El denominador pasó de 59 a **60**
 al registrarse **RNF-13**: el catálogo estaba incompleto, no se amplió el alcance. La diferencia con el 75 % no es una contradicción: son medidas de cosas
