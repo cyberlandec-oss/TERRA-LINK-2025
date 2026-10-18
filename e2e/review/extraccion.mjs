@@ -309,12 +309,16 @@ try {
     const { ctx: c2, page: p2 } = await entrar(auditor);
     await p2.goto(`${WEB}/organizaciones/${COOP}/documentos/${docOk.id}/extraccion/${vOk.id}`);
     await p2.getByRole('heading', { level: 1, name: 'Extracción asistida' }).waitFor({ timeout: 20000 });
+    // Se espera a la TABLA antes de contar: «0 botones» sobre una pantalla aún vacía no demuestra nada.
+    await p2.locator('table[aria-label="Sugerencias de extracción"]').waitFor({ timeout: 20000 });
+    const filas = await p2.locator('table[aria-label="Sugerencias de extracción"] tbody tr').count();
     const t = await p2.locator('main').innerText();
+    const motivo = /proponer no es confirmar/i.test(t);
     const botones = await p2.getByRole('button', { name: 'Revisar' }).count();
     const extrae = await p2.getByRole('button', { name: /Extraer/ }).count();
     await c2.close();
-    return [/proponer no es confirmar/i.test(t) && botones === 0 && extrae === 0,
-      `motivo mostrado · botones de revisar=${botones} · de extraer=${extrae}`];
+    return [filas > 0 && motivo && botones === 0 && extrae === 0,
+      `${filas} sugerencia(s) a la vista · motivo mostrado=${motivo} · botones de revisar=${botones} · de extraer=${extrae}`];
   });
 
   await caso('TECLADO: se confirma una sugerencia sin ratón', async () => {
