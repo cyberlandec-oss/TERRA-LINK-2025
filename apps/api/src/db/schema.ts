@@ -613,6 +613,30 @@ export interface LegalProfileRulesTable {
   applicability_condition: string; evidence_required: string; product_can_check: string;
   needs_legal_review: boolean; review_status: 'DRAFT' | 'REVIEWED'; gaps: string;
 }
+export interface ExchangeAgreementsTable {
+  id: string; organization_id: string; counterpart: 'GUIA_AGROCALIDAD'; reference: string; scope: string;
+  valid_from: string; valid_to: string | null; document_version_id: string | null;
+  created_by: string; created_at: Generated<Timestamp>; operation_id: string;
+}
+export interface ExchangeAgreementDecisionsTable {
+  id: string; organization_id: string; agreement_id: string; decision: 'VERIFY' | 'WITHDRAW';
+  reason: string; decided_by: string; decided_at: Generated<Timestamp>; operation_id: string;
+}
+export interface ExchangeActsTable {
+  id: string; organization_id: string; agreement_id: string; kind: 'EXPORT' | 'RECONCILE';
+  format_version: string; row_count: number; content_hash: string; summary: unknown;
+  performed_by: string; performed_at: Generated<Timestamp>; operation_id: string;
+}
+export interface ExchangeDifferencesTable {
+  id: string; organization_id: string; act_id: string; external_key: string; entity_type: 'PRODUCER';
+  entity_id: string | null; kind: 'ONLY_EXTERNAL' | 'ONLY_OURS' | 'FIELD_DIFFERS';
+  field: string | null; external_value: string | null; our_value: string | null; created_at: Generated<Timestamp>;
+}
+export interface ExchangeDifferenceDecisionsTable {
+  id: string; organization_id: string; difference_id: string;
+  decision: 'ACCEPT_EXTERNAL' | 'KEEP_OURS' | 'NEEDS_REVIEW';
+  reason: string; decided_by: string; decided_at: Generated<Timestamp>; operation_id: string;
+}
 export interface LegalProfileAdoptionsTable {
   id: string; organization_id: string; version: string; decision: 'ADOPT' | 'WITHDRAW';
   reason: string; decided_by: string; decided_at: Generated<Timestamp>; operation_id: string;
@@ -881,6 +905,11 @@ export interface Database {
   legal_profile_reviews: LegalProfileReviewsTable;
   legal_profile_sources: LegalProfileSourcesTable;
   legal_profile_rules: LegalProfileRulesTable;
+  exchange_agreements: ExchangeAgreementsTable;
+  exchange_agreement_decisions: ExchangeAgreementDecisionsTable;
+  exchange_acts: ExchangeActsTable;
+  exchange_differences: ExchangeDifferencesTable;
+  exchange_difference_decisions: ExchangeDifferenceDecisionsTable;
   legal_profile_adoptions: LegalProfileAdoptionsTable;
   legal_assessments: LegalAssessmentsTable;
   legal_assessment_items: LegalAssessmentItemsTable;

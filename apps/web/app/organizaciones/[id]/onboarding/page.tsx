@@ -23,7 +23,8 @@ interface NivelD { level: number; name: string; source: string; state: string; w
 interface PasoD { code: string; title: string; state: string; why: string; evidence: string; action_href: string | null; who: string }
 interface Diag {
   organization_status: string;
-  criterion: { id: string; version: string; status: string; note: string; threshold: string };
+  scope_of_diagnosis: 'ORGANIZACION' | 'MI_ALCANCE';
+  criterion: { id: string; version: string; status: string; option?: string; note: string; threshold: string };
   level: { reached: number | null; name: string | null; basis: string };
   levels: NivelD[]; steps: PasoD[];
   blockers: {
@@ -43,6 +44,7 @@ const NIVEL: Record<string, { tono: 'valid' | 'review' | 'blocked' | 'neutral'; 
 const SENAL: Record<string, { tono: 'valid' | 'review' | 'blocked' | 'neutral'; texto: string }> = {
   OBSERVADA: { tono: 'valid', texto: 'Observada' },
   NO_OBSERVADA: { tono: 'review', texto: 'Sin observar' },
+  RESTRINGIDA: { tono: 'neutral', texto: 'Fuera de tu alcance' },
   NO_IMPLEMENTADA: { tono: 'neutral', texto: 'No implementada' },
   SIN_DECIDIR: { tono: 'review', texto: 'Decisión pendiente' },
   FUERA_DEL_SISTEMA: { tono: 'neutral', texto: 'Fuera de Terra Link' },
@@ -54,7 +56,7 @@ const PASO: Record<string, { tono: 'valid' | 'review' | 'blocked' | 'neutral'; t
   RESTRINGIDO: { tono: 'neutral', texto: 'Tu rol no lo hace' },
 };
 const ALCANCE: Record<string, string> = {
-  ORGANIZACION: 'toda la organización', ASIGNADOS: 'solo lo asignado a ti', RESTRINGIDO: 'sin acceso al detalle',
+  ORGANIZACION: 'toda la organización', ASIGNADOS: 'solo lo asignado a ti', RESTRINGIDO: 'fuera de tu alcance',
 };
 
 export default function OnboardingPage() {
@@ -88,8 +90,17 @@ export default function OnboardingPage() {
                 <p>{data.disclaimer}</p>
               </Alert>
 
+              {data.scope_of_diagnosis === 'MI_ALCANCE' && (
+                <Alert tone="review" title="Este diagnóstico es el de tu alcance, no el de toda la organización.">
+                  <p>
+                    Solo se cuenta lo que tu rol puede leer. Los niveles cuyas señales no alcanzas aparecen como
+                    <strong> no determinables</strong>, no como «no alcanzados»: afirmar que algo no existe exigiría poder mirarlo.
+                  </p>
+                </Alert>
+              )}
+
               <section className="card" aria-labelledby="nivel">
-                <h2 id="nivel">Nivel</h2>
+                <h2 id="nivel">Nivel{data.scope_of_diagnosis === 'MI_ALCANCE' ? ' (de tu alcance)' : ''}</h2>
                 <p>
                   {data.level.reached === null
                     ? <strong>Sin nivel observable</strong>
@@ -98,7 +109,7 @@ export default function OnboardingPage() {
                 <p className="muted">{data.level.basis}</p>
                 <p className="muted">{data.freshness}</p>
                 <p className="muted">
-                  <strong>Criterio {data.criterion.id} ({data.criterion.version}, {data.criterion.status}):</strong>{' '}
+                  <strong>Criterio {data.criterion.id}{data.criterion.option ? ` opción ${data.criterion.option}` : ''} ({data.criterion.version}, {data.criterion.status}):</strong>{' '}
                   {data.criterion.note} {data.criterion.threshold}
                 </p>
               </section>

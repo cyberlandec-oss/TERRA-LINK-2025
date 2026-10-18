@@ -20,13 +20,26 @@ import { CurrentUser, type AuthUser } from '../auth/auth';
 // CÓMO SE RESUELVE ESO AQUÍ, SIN INVENTAR
 //   · Cada nivel se sostiene en **señales observables** del dato que ya existe, cada una con su **evidencia y
 //     procedencia**. Nada se deduce de encuestas ni de autodeclaraciones.
-//   · El único umbral es **la presencia**: «existe al menos un/a …». La fuente no da ninguno, y **cualquier
-//     cifra mayor que uno sería inventada**. Se dice así, en la propia respuesta.
+//   · El único umbral es **la presencia**: «existe al menos un/a …». **También eso es una decisión de
+//     producto** (D-49, opción A), y conserva esa etiqueta en la respuesta. Unos umbrales cuantitativos no
+//     serían ilegítimos: serían igual de válidos si se acordaran y justificaran. La diferencia real es que
+//     **las fuentes no los definen**, así que su fundamento tendría que ser propio.
 //   · Los **niveles 0 a 2 ocurren fuera de Terra Link** —papel, registros manuales, Excel— y aquí son
 //     **NO_DETERMINABLES**: el sistema no puede distinguir una organización no digitalizada de una que
 //     todavía no ha cargado nada. Decir «nivel 0» sería afirmar algo que no se ha observado.
 //   · El resultado **se calcula al leerlo**, sobre el dato vigente. No hay casilla guardada que pueda quedar
 //     en desacuerdo con la realidad: si un dato cambia o caduca, el diagnóstico cambia con él.
+//
+// DE QUÉ ES EL DIAGNÓSTICO: DE LA ORGANIZACIÓN, O DE TU ALCANCE
+// **Un nivel y un estado agregado también informan, aunque se oculte el recuento.** Si el estado se calculara
+// sobre toda la organización y el número sobre el alcance de quien lee, bastaría con que otra persona cargara
+// una parcela ajena para que alguien sin acceso a ella lo notara. Por eso **cada señal se evalúa dentro del
+// alcance de quien lee**:
+//   · con lectura de organización, el diagnóstico es **de la organización**;
+//   · con lectura solo de lo asignado, el diagnóstico es **de tu alcance**, y así se declara;
+//   · sin lectura de un dominio, su señal es **RESTRINGIDA** —sin estado y sin número— y el nivel que depende
+//     de ella queda **NO DETERMINABLE para quien lee**, no «no alcanzado».
+// Cambiar datos fuera del alcance de una persona **no puede** cambiar lo que esa persona ve.
 //
 // LO QUE EL DIAGNÓSTICO **NO** ES
 // Madurez operativa **no** es conformidad jurídica, y **no levanta ninguna compuerta**: ni `READY`, ni el
@@ -34,13 +47,15 @@ import { CurrentUser, type AuthUser } from '../auth/auth';
 // `UNDETERMINED`. Tampoco concede acceso: el asistente enseña **a dónde ir**, y cada módulo sigue exigiendo
 // su permiso.
 //
-// D-49 (PROPUESTA): la correspondencia «señal observable → nivel» es una decisión de producto, porque la
-// fuente solo da los nombres. Queda escrita, versionada y visible en la respuesta para poder discutirla; no
-// se presenta como exigencia de la fuente.
+// D-49, opción A — **ADOPTADA el 2026-10-18 para desarrollo local**: la correspondencia «señal observable →
+// nivel» es una **decisión provisional de producto**, porque la fuente solo da los nombres. Queda escrita,
+// versionada y visible en la respuesta; **no** se presenta como exigencia de la fuente, **no** es una
+// certificación de madurez y **no** levanta ninguna compuerta. Las alternativas —umbrales cuantitativos
+// acordados, o un nivel 0–2 declarado por la organización— siguen abiertas en `docs/22`.
 
-export const CRITERIO = { id: 'D-49', version: '0.1.0', status: 'PROPUESTA' } as const;
+export const CRITERIO = { id: 'D-49', version: '1.0.0', status: 'ADOPTADA', option: 'A' } as const;
 
-type EstadoSenal = 'OBSERVADA' | 'NO_OBSERVADA' | 'NO_IMPLEMENTADA' | 'SIN_DECIDIR' | 'FUERA_DEL_SISTEMA';
+type EstadoSenal = 'OBSERVADA' | 'NO_OBSERVADA' | 'RESTRINGIDA' | 'NO_IMPLEMENTADA' | 'SIN_DECIDIR' | 'FUERA_DEL_SISTEMA';
 type EstadoNivel = 'ALCANZADO' | 'NO_ALCANZADO' | 'NO_DETERMINABLE' | 'NO_IMPLEMENTADO';
 type Alcance = 'ORGANIZACION' | 'ASIGNADOS' | 'RESTRINGIDO';
 
@@ -63,17 +78,23 @@ const NOMBRES: Record<number, string> = {
 };
 const S3 = 'S3 §16 («Digital Maturity Engine»)';
 
-const UMBRAL = 'El umbral es la PRESENCIA: existe al menos un registro. La fuente no fija ninguno y cualquier cifra mayor sería inventada.';
+const UMBRAL = 'El umbral es la PRESENCIA: existe al menos un registro. Las fuentes no definen ninguno, '
+  + 'así que este es una decisión de producto (D-49, opción A), no un umbral derivado de la fuente. '
+  + 'Unos umbrales cuantitativos serían igual de legítimos si se acordaran y justificaran; sencillamente no vienen dados.';
 
 interface Conteos {
   miembros: number; productos: number; centros: number;
   productores: number; productores_mios: number;
   parcelas_geo: number; parcelas_geo_mias: number;
-  entregas: number; recepciones: number; lotes: number;
+  entregas: number; entregas_mias: number;
+  recepciones: number; recepciones_mias: number;
+  lotes: number;
   adopciones_riesgo: number; evaluaciones: number;
   expedientes: number; instantaneas_ready: number; perfil_adoptado: number;
   importaciones: number;
-  ult_productor: string | null; ult_parcela: string | null; ult_lote: string | null; ult_evaluacion: string | null;
+  ult_productor: string | null; ult_productor_mio: string | null;
+  ult_parcela: string | null; ult_parcela_mia: string | null;
+  ult_lote: string | null; ult_evaluacion: string | null;
 }
 
 @Injectable()
@@ -108,7 +129,12 @@ export class OnboardingService {
           WHERE p.organization_id = ${orgId} AND p.status = 'ACTIVE' AND v.geometry_type IS NOT NULL
             AND pr.assigned_membership_id = ${membershipId})::text AS parcelas_geo_mias,
         (SELECT count(*) FROM deliveries WHERE organization_id = ${orgId} AND status = 'REGISTERED')::text AS entregas,
+        (SELECT count(*) FROM deliveries d JOIN producers pr ON pr.id = d.producer_id AND pr.organization_id = d.organization_id
+          WHERE d.organization_id = ${orgId} AND d.status = 'REGISTERED' AND pr.assigned_membership_id = ${membershipId})::text AS entregas_mias,
         (SELECT count(*) FROM receptions WHERE organization_id = ${orgId})::text AS recepciones,
+        (SELECT count(*) FROM receptions r JOIN deliveries d ON d.id = r.delivery_id
+          JOIN producers pr ON pr.id = d.producer_id AND pr.organization_id = d.organization_id
+          WHERE r.organization_id = ${orgId} AND pr.assigned_membership_id = ${membershipId})::text AS recepciones_mias,
         (SELECT count(*) FROM lots WHERE organization_id = ${orgId})::text AS lotes,
         -- Append-only: ADOPT y WITHDRAW son FILAS, no un estado. Vigente = cuya ÚLTIMA decisión es ADOPT.
         -- Contar los ADOPT daría por vigente una adopción ya retirada.
@@ -123,7 +149,11 @@ export class OnboardingService {
           WHERE l.decision = 'ADOPT')::text AS perfil_adoptado,
         (SELECT count(*) FROM import_batches WHERE organization_id = ${orgId} AND status = 'COMMITTED')::text AS importaciones,
         (SELECT max(created_at)::text FROM producers WHERE organization_id = ${orgId}) AS ult_productor,
+        (SELECT max(created_at)::text FROM producers WHERE organization_id = ${orgId} AND assigned_membership_id = ${membershipId}) AS ult_productor_mio,
         (SELECT max(v.created_at)::text FROM plots p JOIN plot_versions v ON v.plot_id = p.id WHERE p.organization_id = ${orgId}) AS ult_parcela,
+        (SELECT max(v.created_at)::text FROM plots p JOIN plot_versions v ON v.plot_id = p.id
+          JOIN producers pr ON pr.id = p.producer_id AND pr.organization_id = p.organization_id
+          WHERE p.organization_id = ${orgId} AND pr.assigned_membership_id = ${membershipId}) AS ult_parcela_mia,
         (SELECT max(created_at)::text FROM lots WHERE organization_id = ${orgId}) AS ult_lote,
         (SELECT max(evaluated_at)::text FROM risk_evaluations WHERE organization_id = ${orgId}) AS ult_evaluacion
       `.execute(this.db);
@@ -133,11 +163,14 @@ export class OnboardingService {
       miembros: n('miembros'), productos: n('productos'), centros: n('centros'),
       productores: n('productores'), productores_mios: n('productores_mios'),
       parcelas_geo: n('parcelas_geo'), parcelas_geo_mias: n('parcelas_geo_mias'),
-      entregas: n('entregas'), recepciones: n('recepciones'), lotes: n('lotes'),
+      entregas: n('entregas'), entregas_mias: n('entregas_mias'),
+      recepciones: n('recepciones'), recepciones_mias: n('recepciones_mias'), lotes: n('lotes'),
       adopciones_riesgo: n('adopciones_riesgo'), evaluaciones: n('evaluaciones'),
       expedientes: n('expedientes'), instantaneas_ready: n('instantaneas_ready'), perfil_adoptado: n('perfil_adoptado'),
       importaciones: n('importaciones'),
-      ult_productor: f.ult_productor, ult_parcela: f.ult_parcela, ult_lote: f.ult_lote, ult_evaluacion: f.ult_evaluacion,
+      ult_productor: f.ult_productor, ult_productor_mio: f.ult_productor_mio,
+      ult_parcela: f.ult_parcela, ult_parcela_mia: f.ult_parcela_mia,
+      ult_lote: f.ult_lote, ult_evaluacion: f.ult_evaluacion,
     };
   }
 
@@ -147,25 +180,35 @@ export class OnboardingService {
     const c = await this.conteos(orgId, ctx.membershipId);
     const base = `/organizaciones/${orgId}`;
 
-    /** Señal observable: el ESTADO es de la organización; el número, del alcance de quien lee. */
-    const senal = (code: string, question: string, total: number, source: string,
-      vista: { scope: Alcance; count: number }, as_of: string | null, note: string): Senal => ({
-      code, question, state: total > 0 ? 'OBSERVADA' : 'NO_OBSERVADA',
+    /**
+     * Señal observable **dentro del alcance de quien lee**. Sin alcance no hay estado: `RESTRINGIDA` no es
+     * «no observada», porque afirmar que algo no existe exigiría poder mirarlo.
+     */
+    const senal = (code: string, question: string, source: string,
+      vista: { scope: Alcance; count: number; as_of: string | null }, note: string): Senal => ({
+      code, question,
+      state: vista.scope === 'RESTRINGIDO' ? 'RESTRINGIDA' : vista.count > 0 ? 'OBSERVADA' : 'NO_OBSERVADA',
       evidence: {
         count: vista.scope === 'RESTRINGIDO' ? null : vista.count,
-        scope: vista.scope, as_of,
+        scope: vista.scope, as_of: vista.scope === 'RESTRINGIDO' ? null : vista.as_of,
         note: vista.scope === 'RESTRINGIDO'
-          ? 'Tu rol no puede leer este detalle; el estado sí es el de la organización. No se entrega el número.'
+          ? 'Tu rol no puede leer este dominio, así que aquí no se afirma nada sobre él: ni cuántos hay, ni si los hay.'
           : vista.scope === 'ASIGNADOS'
-            ? `${note} El número corresponde SOLO a lo que tienes asignado, no al total de la organización.`
+            ? `${note} Se cuenta SOLO lo que tienes asignado: este diagnóstico es el de tu alcance, no el de toda la organización.`
             : note,
       },
       source,
     });
-    const porPermiso = (p: Permission, n: number, asignado?: Permission, nMio = 0) => {
+    /** Elige el número y la fecha que corresponden al alcance de lectura de esta persona. */
+    const porPermiso = (p: Permission, n: number, fecha: string | null = null,
+      asignado?: Permission, nMio = 0, fechaMia: string | null = null) => {
       const a = this.alcance(ctx, p, asignado);
-      return { scope: a, count: a === 'ASIGNADOS' ? nMio : n };
+      return a === 'ASIGNADOS'
+        ? { scope: a, count: nMio, as_of: fechaMia }
+        : { scope: a, count: n, as_of: fecha };
     };
+    /** El diagnóstico es «de la organización» solo si nada se ha tenido que acotar. */
+    let acotado = false;
 
     // ---------------------------------------------------------------- niveles
     const fueraDelSistema = (code: string, question: string): Senal => ({
@@ -184,49 +227,58 @@ export class OnboardingService {
       });
     }
 
+    const vistaProductores = porPermiso('producer:read', c.productores, c.ult_productor, 'producer:read_assigned', c.productores_mios, c.ult_productor_mio);
+    const vistaParcelas = porPermiso('plot:read', c.parcelas_geo, c.ult_parcela, 'plot:read_assigned', c.parcelas_geo_mias, c.ult_parcela_mia);
+    const vistaEntregas = porPermiso('delivery:read', c.entregas, null, 'delivery:read_assigned', c.entregas_mias);
+    const vistaRecepciones = porPermiso('delivery:read', c.recepciones, null, 'delivery:read_assigned', c.recepciones_mias);
+    const vistaLotes = porPermiso('lot:read', c.lotes, c.ult_lote);
+    const vistaCatalogo = porPermiso('risk:read', c.adopciones_riesgo);
+    const vistaEvaluaciones = porPermiso('risk:read', c.evaluaciones, c.ult_evaluacion);
+    const vistaExpedientes = porPermiso('dd:read', c.expedientes);
+    const vistaPerfil = porPermiso('traceability:read_catalog', c.perfil_adoptado);
+    acotado = [vistaProductores, vistaParcelas, vistaEntregas, vistaRecepciones, vistaLotes,
+      vistaCatalogo, vistaEvaluaciones, vistaExpedientes, vistaPerfil].some((v) => v.scope !== 'ORGANIZACION');
+
     const n3: Senal[] = [
-      senal('PRODUCTORES', '¿Hay productores registrados?', c.productores, S3,
-        porPermiso('producer:read', c.productores, 'producer:read_assigned', c.productores_mios), c.ult_productor,
+      senal('PRODUCTORES', '¿Hay productores registrados?', S3, vistaProductores,
         'Productores activos registrados en Terra Link.'),
-      senal('PARCELAS_CON_GEOMETRIA', '¿Hay parcelas con geometría vigente?', c.parcelas_geo, S3,
-        porPermiso('plot:read', c.parcelas_geo, 'plot:read_assigned', c.parcelas_geo_mias), c.ult_parcela,
+      senal('PARCELAS_CON_GEOMETRIA', '¿Hay parcelas con geometría vigente?', S3, vistaParcelas,
         'Parcelas activas cuya versión vigente tiene punto o polígono. La superficie declarada no cuenta como ubicación.'),
-      senal('ENTREGAS_REGISTRADAS', '¿Hay entregas registradas, no solo borradores?', c.entregas, S3,
-        porPermiso('delivery:read', c.entregas, 'delivery:read_assigned', c.entregas), null,
+      senal('ENTREGAS_REGISTRADAS', '¿Hay entregas registradas, no solo borradores?', S3, vistaEntregas,
         'Entregas en estado REGISTERED. Un borrador no acredita operación digital.'),
-      senal('RECEPCIONES', '¿Se confirma la recepción física en el sistema?', c.recepciones, S3,
-        porPermiso('delivery:read', c.recepciones, 'delivery:read_assigned', c.recepciones), null,
+      senal('RECEPCIONES', '¿Se confirma la recepción física en el sistema?', S3, vistaRecepciones,
         'Recepciones confirmadas con su pesaje.'),
-      senal('LOTES', '¿Se conforman lotes a partir de recepciones?', c.lotes, S3,
-        porPermiso('lot:read', c.lotes), c.ult_lote, 'Lotes conformados desde el inventario.'),
+      senal('LOTES', '¿Se conforman lotes a partir de recepciones?', S3, vistaLotes,
+        'Lotes conformados desde el inventario.'),
     ];
     const n4: Senal[] = [
-      senal('CATALOGO_DE_RIESGO', '¿La organización adoptó una versión del catálogo de reglas?', c.adopciones_riesgo, S3,
-        porPermiso('risk:read', c.adopciones_riesgo), null,
+      senal('CATALOGO_DE_RIESGO', '¿La organización adoptó una versión del catálogo de reglas?', S3, vistaCatalogo,
         'Adopción explícita de una versión del catálogo. Sin adopción no hay reglas vigentes para esta organización.'),
-      senal('EVALUACIONES_DE_RIESGO', '¿Se han evaluado lotes con esas reglas?', c.evaluaciones, S3,
-        porPermiso('risk:read', c.evaluaciones), c.ult_evaluacion,
+      senal('EVALUACIONES_DE_RIESGO', '¿Se han evaluado lotes con esas reglas?', S3, vistaEvaluaciones,
         'Evaluaciones de riesgo registradas. El resultado de cada una NO forma parte de la madurez: una evaluación con hallazgos cuenta igual que una sin ellos.'),
     ];
     const n5: Senal[] = [
-      senal('EXPEDIENTES', '¿Se preparan expedientes de debida diligencia?', c.expedientes, S3,
-        porPermiso('dd:read', c.expedientes), null, 'Expedientes abiertos.'),
+      senal('EXPEDIENTES', '¿Se preparan expedientes de debida diligencia?', S3, vistaExpedientes, 'Expedientes abiertos.'),
       {
         code: 'INSTANTANEA_READY', question: '¿Existe una instantánea del expediente en estado READY?',
-        state: c.instantaneas_ready > 0 ? 'OBSERVADA' : 'SIN_DECIDIR',
+        state: vistaExpedientes.scope === 'RESTRINGIDO' ? 'RESTRINGIDA' : c.instantaneas_ready > 0 ? 'OBSERVADA' : 'SIN_DECIDIR',
         evidence: {
-          count: this.has(ctx, 'dd:read') ? c.instantaneas_ready : null,
-          scope: this.alcance(ctx, 'dd:read'), as_of: null,
-          note: 'Hoy ninguna puede estarlo: READY depende de decisiones abiertas (D-05.B, D-07.5, D-07.6) y del perfil jurídico (P1-005). Es una decisión pendiente, no un dato que falte por cargar.',
+          count: vistaExpedientes.scope === 'RESTRINGIDO' ? null : c.instantaneas_ready,
+          scope: vistaExpedientes.scope, as_of: null,
+          note: vistaExpedientes.scope === 'RESTRINGIDO'
+            ? 'Tu rol no puede leer los expedientes, así que aquí no se afirma nada sobre ellos.'
+            : 'Hoy ninguna puede estarlo: READY depende de decisiones abiertas (D-05.B, D-07.5, D-07.6) y del perfil jurídico (P1-005). Es una decisión pendiente, no un dato que falte por cargar.',
         },
         source: S3,
       },
       {
         code: 'PERFIL_JURIDICO', question: '¿Hay un perfil jurídico adoptado y revisado?',
-        state: c.perfil_adoptado > 0 ? 'SIN_DECIDIR' : 'NO_OBSERVADA',
+        state: vistaPerfil.scope === 'RESTRINGIDO' ? 'RESTRINGIDA' : c.perfil_adoptado > 0 ? 'SIN_DECIDIR' : 'NO_OBSERVADA',
         evidence: {
-          count: c.perfil_adoptado, scope: 'ORGANIZACION', as_of: null,
-          note: 'Adoptar el catálogo no es tenerlo revisado por una persona competente. P1-005 sigue abierta y **la madurez no sustituye esa revisión**.',
+          count: vistaPerfil.scope === 'RESTRINGIDO' ? null : c.perfil_adoptado, scope: vistaPerfil.scope, as_of: null,
+          note: vistaPerfil.scope === 'RESTRINGIDO'
+            ? 'Tu rol no puede leer el catálogo jurídico, así que aquí no se afirma nada sobre él.'
+            : 'Adoptar el catálogo no es tenerlo revisado por una persona competente. P1-005 sigue abierta y **la madurez no sustituye esa revisión**.',
         },
         source: S3,
       },
@@ -242,6 +294,11 @@ export class OnboardingService {
     const evalua = (signals: Senal[], anteriorAlcanzado: boolean): { state: EstadoNivel; why: string } => {
       if (signals.some((s) => s.state === 'NO_IMPLEMENTADA')) {
         return { state: 'NO_IMPLEMENTADO', why: 'Depende de una capacidad que Terra Link aún no implementa.' };
+      }
+      // Sin poder leer sus señales no se puede afirmar nada de este nivel: ni que se alcanza, ni que no.
+      const ciegas = signals.filter((s) => s.state === 'RESTRINGIDA').map((s) => s.code);
+      if (ciegas.length) {
+        return { state: 'NO_DETERMINABLE', why: `Tu rol no puede leer las señales de este nivel (${ciegas.join(', ')}), así que con tu alcance no se puede afirmar nada sobre él.` };
       }
       const faltan = signals.filter((s) => s.state !== 'OBSERVADA');
       if (faltan.length) {
@@ -314,14 +371,18 @@ export class OnboardingService {
       organization_id: orgId, organization_status: ctx.organizationStatus, generated_at: new Date().toISOString(),
       criterion: {
         ...CRITERIO,
-        note: 'S3 §16 nombra los siete niveles con un «Por ejemplo» y NO fija umbrales, porcentajes ni condiciones. La correspondencia señal→nivel es una decisión de producto (D-49), no una exigencia de la fuente.',
+        note: 'S3 §16 nombra los siete niveles con un «Por ejemplo» y no define umbrales, porcentajes ni condiciones. La correspondencia señal→nivel es una decisión PROVISIONAL de producto (D-49, opción A, adoptada el 2026-10-18 para desarrollo local): no es una exigencia de la fuente ni una certificación de madurez.',
         threshold: UMBRAL,
       },
+      scope_of_diagnosis: acotado ? 'MI_ALCANCE' : 'ORGANIZACION',
       level: {
         reached, name: reached === null ? null : NOMBRES[reached],
-        basis: reached === null
+        basis: (reached === null
           ? 'Ningún nivel observable alcanzado. Los niveles 0 a 2 ocurren fuera de Terra Link y no se afirman.'
-          : `Nivel ${reached} («${NOMBRES[reached]}»): todas sus señales se observan en el dato vigente, y las de los niveles observables anteriores también.`,
+          : `Nivel ${reached} («${NOMBRES[reached]}»): todas sus señales se observan en el dato vigente, y las de los niveles observables anteriores también.`)
+          + (acotado
+            ? ' Este diagnóstico es el de TU ALCANCE, no el de toda la organización: solo cuenta lo que puedes leer, y los niveles cuyas señales no alcanzas quedan no determinables.'
+            : ' Este diagnóstico es el de toda la organización.'),
       },
       levels: niveles,
       steps: pasos,

@@ -30,7 +30,7 @@ Fallback: evidencia manual versionada y evaluación pendiente; simuladores solo 
 | --- | --- | --- |
 | WHISP | **ADAPTADOR DE DESARROLLO** (D-09 parte A, 2026-10-15): implementado contra el contrato oficial fechado (`docs/decisiones/P0-028-WHISP-CONTRATO.md`, OpenAPI 2.3.0) y probado **solo contra servidores controlados**. Llamadas reales **deshabilitadas** por configuración | Parte B: términos aceptados, autorización de datos (D-14), custodia de la clave e interruptor `SATELLITE_LIVE_CALLS` |
 | GFW / EU Forest Observatory / otro satélite | POR_VERIFICAR; documentados como candidatos, sin adaptador | API, términos, cobertura, coste, seguridad y credenciales comprobadas |
-| GUIA/Agrocalidad | PROPUESTA | Acuerdo/canal oficial o formato autorizado; no asumir API disponible |
+| GUIA/Agrocalidad | **INTERCAMBIO POR ARCHIVO, CERRADO TRAS ACUERDO VERIFICADO** (P1-006, 2026-10-18): implementado el *fallback* —exportar el padrón propio y conciliar el de la contraparte— con **mapeo declarado, conciliación que no escribe datos, registro de actos y acuerdo de intercambio**. **Ninguna llamada de red**: no se asume API. El canal lo **verifica la plataforma** (`exchange:verify`), no la organización | Para un canal **real**: acuerdo/canal oficial o **formato autorizado** por GUIA/Agrocalidad. El formato propio es **D-50, NO OFICIAL**; al existir uno autorizado se publica otra versión y los actos antiguos conservan la suya |
 | EUDR-IS/TRACES | PROPUESTA | Documentación vigente, rol/representación, credenciales y prueba ACCEPTANCE |
 | ERP | PROPUESTA | Contrato de evento, referencia, tenant y conciliación |
 | Correo/SMS/WhatsApp | Fuera de habilitación automática | Proveedor/consentimiento/contexto real; no enviar por instalar Markdown |

@@ -94,9 +94,14 @@ await caso('NINGÚN porcentaje ni puntuación de avance en la respuesta', async 
 
 await caso('CRITERIO declarado como decisión de producto, con su umbral escrito', async () => {
   const d = await diagnostico(admin.token, COOP);
-  return [d.criterion?.id === 'D-49' && d.criterion.status === 'PROPUESTA'
-    && /NO fija umbrales/.test(d.criterion.note) && /PRESENCIA/.test(d.criterion.threshold),
-  `${d.criterion?.id} ${d.criterion?.version} (${d.criterion?.status})`];
+  // Adoptada (opción A) el 2026-10-18, y conserva la etiqueta de decisión de producto: la presencia no se
+  // presenta como «lo único honesto», y unos umbrales acordados serían igual de legítimos.
+  const esDecision = /decisión PROVISIONAL de producto/.test(d.criterion?.note ?? '')
+    && /decisión de producto/.test(d.criterion?.threshold ?? '')
+    && /serían igual de legítimos si se acordaran y justificaran/.test(d.criterion?.threshold ?? '');
+  return [d.criterion?.id === 'D-49' && d.criterion.status === 'ADOPTADA' && d.criterion.option === 'A'
+    && /no define umbrales/.test(d.criterion.note) && /PRESENCIA/.test(d.criterion.threshold) && esDecision,
+  `${d.criterion?.id}(${d.criterion?.option}) ${d.criterion?.version} ${d.criterion?.status} · etiquetada como decisión=${esDecision}`];
 });
 
 await caso('EVIDENCIA: cada señal observada trae número, alcance, fecha cuando existe y fuente', async () => {
@@ -138,14 +143,29 @@ await caso('NO LEVANTA COMPUERTAS: nivel 4 con la conclusión todavía UNDETERMI
   `nivel=${d.level.reached} · ${conEvaluacion.length} lote(s) evaluado(s), conclusiones=${concl.join(',')} · aviso presente`];
 });
 
-await caso('ALCANCE: el técnico ve el estado, pero el número se acota o no se entrega', async () => {
+await caso('ALCANCE: el diagnóstico del técnico es EL SUYO, y lo declara', async () => {
   const d = await diagnostico(tecnico.token, COOP);
+  const a = await diagnostico(admin.token, COOP);
   const prod = senal(d, 3, 'PRODUCTORES');
   const riesgo = senal(d, 4, 'CATALOGO_DE_RIESGO');
-  const acotado = prod.evidence.scope === 'ASIGNADOS' && /SOLO a lo que tienes asignado/.test(prod.evidence.note);
-  const sinNumero = riesgo.evidence.count === null && riesgo.evidence.scope === 'RESTRINGIDO';
-  return [acotado && sinNumero && prod.state === 'OBSERVADA',
-    `productores: alcance=${prod.evidence.scope} n=${prod.evidence.count} · riesgo: ${riesgo.evidence.scope} sin número=${sinNumero}`];
+  const acotado = prod.evidence.scope === 'ASIGNADOS' && /Se cuenta SOLO lo que tienes asignado/.test(prod.evidence.note);
+  // Lo que no puede leer no se afirma: ni cuántos hay, ni si los hay.
+  const ciego = riesgo.state === 'RESTRINGIDA' && riesgo.evidence.count === null;
+  const nivelNoDeterminable = d.levels.find((n) => n.level === 4).state === 'NO_DETERMINABLE';
+  return [d.scope_of_diagnosis === 'MI_ALCANCE' && a.scope_of_diagnosis === 'ORGANIZACION'
+    && acotado && ciego && nivelNoDeterminable && /tu alcance/i.test(d.level.basis),
+  `técnico=${d.scope_of_diagnosis} · administración=${a.scope_of_diagnosis} · riesgo=${riesgo.state} · nivel 4=${d.levels.find((n) => n.level === 4).state}`];
+});
+
+await caso('AUTORIZACIÓN: el nivel y los estados tampoco revelan lo que está fuera del alcance', async () => {
+  // Dos lecturas seguidas del técnico tienen que ser idénticas mientras él no cambie nada, aunque la
+  // organización siga trabajando. La prueba dirigida con un cambio ajeno real está en onboarding.int-spec.
+  const uno = await diagnostico(tecnico.token, COOP);
+  const dos = await diagnostico(tecnico.token, COOP);
+  const restringidas = uno.levels.flatMap((n) => n.signals).filter((s) => s.state === 'RESTRINGIDA');
+  const sinFecha = restringidas.every((s) => s.evidence.as_of === null && s.evidence.count === null);
+  return [JSON.stringify(uno.levels) === JSON.stringify(dos.levels) && restringidas.length > 0 && sinFecha,
+    `${restringidas.length} señal(es) restringidas, todas sin número ni fecha=${sinFecha}`];
 });
 
 await caso('NO CONCEDE ACCESO: sin permiso, el paso no ofrece enlace; y otra organización es 404', async () => {

@@ -168,11 +168,11 @@ export async function apiUpload<T>(path: string, form: FormData): Promise<{ stat
 }
 
 /** Descarga autorizada: el servidor revalida permisos; no hay URL pública. Guarda el archivo con su nombre. */
-export async function apiDownload(path: string, fallbackName: string): Promise<{ filename: string; sha256: string | null; bytes: number }> {
+export async function apiDownload(path: string, fallbackName: string, method: 'GET' | 'POST' = 'GET'): Promise<{ filename: string; sha256: string | null; bytes: number }> {
   const token = session.get();
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
+    res = await fetch(`${API_URL}${path}`, { method, headers: token ? { authorization: `Bearer ${token}` } : {} });
   } catch {
     throw new ApiError(0, { code: 'NETWORK', message: 'No se pudo contactar el servidor. Revisa tu conexión y reintenta.', request_id: null });
   }

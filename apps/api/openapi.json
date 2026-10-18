@@ -8421,6 +8421,310 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/exchange/format": {
+      "get": {
+        "operationId": "ExchangeController_formato",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Formato de intercambio declarado y su mapeo a los elementos de la guía (NO oficial)",
+        "tags": [
+          "exchange"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/exchange/agreements": {
+      "get": {
+        "operationId": "ExchangeController_acuerdos",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Acuerdos de intercambio y su estado",
+        "tags": [
+          "exchange"
+        ]
+      },
+      "post": {
+        "operationId": "ExchangeController_registrar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcuerdoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Registrar un acuerdo de intercambio (registrar NO habilita el intercambio)",
+        "tags": [
+          "exchange"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/exchange/agreements/{id}/decisions": {
+      "post": {
+        "operationId": "ExchangeController_decidir",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionAcuerdoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Verificar el canal (solo plataforma) o retirar el acuerdo",
+        "tags": [
+          "exchange"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/exchange/acts": {
+      "get": {
+        "operationId": "ExchangeController_actos",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Registro de actos de intercambio",
+        "tags": [
+          "exchange"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/exchange/acts/{id}": {
+      "get": {
+        "operationId": "ExchangeController_acto",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Un acto de intercambio y sus diferencias",
+        "tags": [
+          "exchange"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/exchange/export": {
+      "post": {
+        "operationId": "ExchangeController_exportar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Exportar el padrón propio en el formato de intercambio (exige canal verificado)",
+        "tags": [
+          "exchange"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/exchange/reconcile": {
+      "post": {
+        "operationId": "ExchangeController_conciliar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Conciliar un archivo de la contraparte: produce diferencias, NO escribe datos",
+        "tags": [
+          "exchange"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/exchange/differences/{id}/decisions": {
+      "post": {
+        "operationId": "ExchangeController_resolver",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionDiferenciaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Resolver una diferencia con su motivo (no sobrescribe el dato operativo)",
+        "tags": [
+          "exchange"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/buyers": {
       "get": {
         "operationId": "ShipmentsController_buyers",
@@ -11545,6 +11849,90 @@
         "required": [
           "operation_id",
           "plan_hash"
+        ]
+      },
+      "AcuerdoDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "counterpart": {
+            "type": "string",
+            "enum": [
+              "GUIA_AGROCALIDAD"
+            ]
+          },
+          "reference": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "description": "Qué se intercambia, declarado por quien firma"
+          },
+          "valid_from": {
+            "type": "string"
+          },
+          "valid_to": {
+            "type": "string"
+          },
+          "document_version_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "counterpart",
+          "reference",
+          "scope",
+          "valid_from"
+        ]
+      },
+      "DecisionAcuerdoDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "VERIFY",
+              "WITHDRAW"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "decision",
+          "reason"
+        ]
+      },
+      "DecisionDiferenciaDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "ACCEPT_EXTERNAL",
+              "KEEP_OURS",
+              "NEEDS_REVIEW"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "decision",
+          "reason"
         ]
       },
       "CreateBuyerDto": {

@@ -111,6 +111,11 @@ export type Permission =
   // previsualizar y confirmar importaciones. NO concede nada sobre las entidades: cada fila exige además el permiso y el
   // alcance de la entidad (p. ej. producer:create, producer:update/_assigned, producer:read_identity).
   | 'import:manage'
+  // P1-006 — intercambio con un registro externo (GUIA/Agrocalidad). `manage` registra el acuerdo y retira;
+  // `use` exporta y concilia. **Verificar el canal NO está aquí**: es un permiso de plataforma, porque una
+  // organización no puede certificar su propio canal (RF-37: «solo canal/acuerdo comprobados»).
+  | 'exchange:manage'
+  | 'exchange:use'
   // P0-029 (docs/07 «shipment: reserve, release_dispatch, dispatch»; EXPORT_MANAGER «reservar, preparar, liberar despacho si
   // gates pasan»): leer embarques y compradores; gestionarlos (crear, ítems, cancelar); reservar y liberar en el ledger;
   // despachar (solo si el preflight y la compuerta SHIPMENT_DISPATCH pasan).
@@ -139,7 +144,10 @@ export type PlatformPermission =
   // RNF-13 (S1 §77): leer métricas y trazas del servicio. Es INFRAESTRUCTURA saneada —método, ruta en patrón,
   // clase de estado, duración—, nunca datos de una organización, y por eso NO necesita la elevación D-04 ni la
   // habilita. Si algún día la instrumentación tuviera que mirar datos de negocio, eso sería otra decisión.
-  | 'observability:read';
+  | 'observability:read'
+  // P1-006: verificar el acuerdo/canal de intercambio con un registro externo. Separado de la organización
+  // a propósito: quien va a intercambiar no puede declarar comprobado su propio canal.
+  | 'exchange:verify';
 
 const ALL_MEMBER_READ: Permission[] = ['organization:read'];
 
@@ -156,8 +164,8 @@ const PLOT_ALL: Permission[] = [
 // Permisos de productor: propuesta provisional derivada de S1 §9 (FIELD_TECHNICIAN producer:create/read)
 // y doc 07/14 («solo asignaciones» para el técnico). Pendiente de ratificación con el resto de la matriz.
 export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  ORG_ADMIN: ['audit:read', 'audit:export', 'organization:read', 'organization:update', 'membership:read', 'membership:assign', 'grant:manage', ...PRODUCER_ALL, ...PLOT_ALL, 'product:read', 'traceability:read_catalog', 'product:manage', 'events:reprocess', 'document:read', 'document:upload', 'document:review', 'evidence:read', 'evidence:link', 'evidence:verify', 'delivery:read', 'delivery:read_assigned', 'delivery:create', 'delivery:create_assigned', 'delivery:correct', 'reception:confirm', 'reception:correct', 'location:read', 'location:manage', 'quality:record', 'quality:decide', 'lot:read', 'lot:create', 'lot:release_input', 'process:manage', 'process:close', 'stock:read', 'stock:move', 'stock:adjust', 'stock:incorporate', 'risk:read', 'risk:evaluate', 'risk:review', 'risk:approve_rules', 'mitigation:read', 'mitigation:manage', 'mitigation:contribute', 'mitigation:verify', 'dd:read', 'dd:manage', 'dd:approve_package', 'dd:export_package', 'sync:use', 'device:manage', 'import:manage', 'shipment:read', 'shipment:manage', 'stock:reserve', 'shipment:dispatch', 'report:read', 'report:export', 'satellite:read', 'satellite:request'],
-  MANAGER: [...ALL_MEMBER_READ, 'membership:read', 'producer:read', 'producer:read_identity', 'producer:create', 'producer:update', 'producer:assign', 'producer:archive', 'producer:review_duplicates', 'plot:read', 'plot:create', 'plot:update', 'plot:archive', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'evidence:read', 'evidence:link', 'delivery:read', 'delivery:create', 'delivery:correct', 'reception:confirm', 'location:read', 'lot:read', 'lot:create', 'stock:read', 'sync:use', 'import:manage', 'report:read'],
+  ORG_ADMIN: ['audit:read', 'audit:export', 'organization:read', 'organization:update', 'membership:read', 'membership:assign', 'grant:manage', ...PRODUCER_ALL, ...PLOT_ALL, 'product:read', 'traceability:read_catalog', 'product:manage', 'events:reprocess', 'document:read', 'document:upload', 'document:review', 'evidence:read', 'evidence:link', 'evidence:verify', 'delivery:read', 'delivery:read_assigned', 'delivery:create', 'delivery:create_assigned', 'delivery:correct', 'reception:confirm', 'reception:correct', 'location:read', 'location:manage', 'quality:record', 'quality:decide', 'lot:read', 'lot:create', 'lot:release_input', 'process:manage', 'process:close', 'stock:read', 'stock:move', 'stock:adjust', 'stock:incorporate', 'risk:read', 'risk:evaluate', 'risk:review', 'risk:approve_rules', 'mitigation:read', 'mitigation:manage', 'mitigation:contribute', 'mitigation:verify', 'dd:read', 'dd:manage', 'dd:approve_package', 'dd:export_package', 'sync:use', 'device:manage', 'import:manage', 'exchange:manage', 'exchange:use', 'shipment:read', 'shipment:manage', 'stock:reserve', 'shipment:dispatch', 'report:read', 'report:export', 'satellite:read', 'satellite:request'],
+  MANAGER: [...ALL_MEMBER_READ, 'membership:read', 'producer:read', 'producer:read_identity', 'producer:create', 'producer:update', 'producer:assign', 'producer:archive', 'producer:review_duplicates', 'plot:read', 'plot:create', 'plot:update', 'plot:archive', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'evidence:read', 'evidence:link', 'delivery:read', 'delivery:create', 'delivery:correct', 'reception:confirm', 'location:read', 'lot:read', 'lot:create', 'stock:read', 'sync:use', 'import:manage', 'exchange:use', 'report:read'],
   FIELD_TECHNICIAN: [...ALL_MEMBER_READ, 'producer:read_assigned', 'producer:read_identity', 'producer:create', 'producer:update_assigned',
     'plot:read_assigned', 'plot:create_assigned', 'plot:update_assigned', 'plot:read_geometry', 'plot:evaluate_gis_assigned', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'evidence:read', 'evidence:link', 'delivery:read_assigned', 'delivery:create_assigned', 'location:read', 'sync:use'],
   RECEPTION_OPERATOR: [...ALL_MEMBER_READ, 'product:read', 'traceability:read_catalog', 'delivery:read', 'delivery:create', 'reception:confirm', 'reception:correct', 'location:read', 'quality:record', 'lot:read', 'lot:create', 'stock:read'],
@@ -174,7 +182,7 @@ export const PLATFORM_PERMISSIONS: Record<'SUPER_ADMIN', PlatformPermission[]> =
   // organization:onboard_admin: solo invitar (y ver/revocar invitaciones de) ORG_ADMIN en una organización
   // donde no es miembro. NO da acceso a miembros, datos personales ni operación: eso requiere la
   // política de elevación auditada (D-04, pendiente). No hay bypass global de SUPER_ADMIN.
-  SUPER_ADMIN: ['organization:create', 'organization:suspend', 'organization:list_all', 'organization:onboard_admin', 'user:deactivate', 'observability:read'],
+  SUPER_ADMIN: ['organization:create', 'organization:suspend', 'organization:list_all', 'organization:onboard_admin', 'user:deactivate', 'observability:read', 'exchange:verify'],
 };
 
 export function permissionsForRoles(roles: string[]): Permission[] {

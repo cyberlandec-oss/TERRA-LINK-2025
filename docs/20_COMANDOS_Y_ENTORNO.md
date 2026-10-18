@@ -460,6 +460,9 @@ si una variable está puesta se mira su **efecto** (por ejemplo `live_calls_enab
 ### Web por rol y Lot Hub (P0-027, 2026-10-12)
 
 - `npx jest --runInBand test/my-work.int-spec.ts` (desde `apps/api`).
+- `node e2e/review/intercambio.mjs`: recorrido de P1-006 sobre el despliegue — formato no oficial, canal
+  cerrado, verificación de plataforma, exportar, conciliar, decidir una diferencia, permisos, teclado y
+  390 px. **Repetible**: retira el acuerdo al terminar, dejando el canal cerrado como estaba.
 - `node e2e/review/puesta-en-marcha.mjs`: recorrido de P1-004 sobre el despliegue — nivel con su fundamento,
   evidencia por señal, las tres clases de bloqueo, enlaces del asistente, teclado, 390 px y el recorrido
   completo (identificar lo pendiente → completarlo → ver el resultado). **Repetible**: crea un registro en

@@ -26,6 +26,7 @@ describeDb('P1-004 onboarding y madurez 0–6 (PostgreSQL real)', () => {
     level: { reached: number | null; name: string | null; basis: string };
     levels: NivelD[]; steps: PasoD[];
     blockers: { missing_data: Array<{ code: string }>; not_implemented: Array<{ code: string }>; undecided: Array<{ code: string }> };
+    scope_of_diagnosis: string;
     freshness: string; disclaimer: string;
   }
   const diag = async (actor: string, org = orgA) => (await http().get(`${api(org)}/onboarding`).set(as(actor)).expect(200)).body as Diag;
@@ -73,10 +74,13 @@ describeDb('P1-004 onboarding y madurez 0–6 (PostgreSQL real)', () => {
 
   it('el criterio se declara como decisión de producto, con su umbral escrito', async () => {
     const d = await diag(ADMIN_V, vacia);
-    expect(d.criterion).toMatchObject({ id: 'D-49', status: 'PROPUESTA' });
-    expect(d.criterion.note).toMatch(/NO fija umbrales/);
+    expect(d.criterion).toMatchObject({ id: 'D-49', status: 'ADOPTADA', option: 'A' });
+    expect(d.criterion.note).toMatch(/no define umbrales/);
+    expect(d.criterion.note).toMatch(/decisión PROVISIONAL de producto/);
     expect(d.criterion.threshold).toMatch(/PRESENCIA/);
-    expect(d.criterion.threshold).toMatch(/cualquier cifra mayor sería inventada/);
+    // La presencia es una decisión de producto, no «lo único honesto»: unos umbrales acordados valdrían igual.
+    expect(d.criterion.threshold).toMatch(/decisión de producto/);
+    expect(d.criterion.threshold).toMatch(/serían igual de legítimos si se acordaran y justificaran/);
   });
 
   it('el nivel 3 se alcanza cuando sus señales se OBSERVAN, y cada una trae su evidencia', async () => {
@@ -147,15 +151,19 @@ describeDb('P1-004 onboarding y madurez 0–6 (PostgreSQL real)', () => {
 
   it('alcance y permisos: el detalle se acota; sin permiso no se entrega número; otra organización 404', async () => {
     const t = await diag(TEC);
-    // El estado de la organización se mantiene, pero el número es el de lo asignado y se declara.
+    // El diagnóstico es EL DE SU ALCANCE: el estado se evalúa sobre lo que puede leer, y se dice.
     const prod = senal(t, 3, 'PRODUCTORES');
-    expect(prod.state).toBe('OBSERVADA');
     expect(prod.evidence.scope).toBe('ASIGNADOS');
-    expect(prod.evidence.note).toMatch(/SOLO a lo que tienes asignado/);
-    // Riesgo: el técnico no lo lee, así que no recibe número.
+    expect(prod.evidence.note).toMatch(/Se cuenta SOLO lo que tienes asignado/);
+    expect(prod.state).toBe(prod.evidence.count! > 0 ? 'OBSERVADA' : 'NO_OBSERVADA');
+    // Riesgo: no lo lee, así que la señal es RESTRINGIDA y no se afirma nada —ni que no hay—.
     const riesgo = senal(t, 4, 'CATALOGO_DE_RIESGO');
-    expect(riesgo.evidence).toMatchObject({ count: null, scope: 'RESTRINGIDO' });
-    expect(riesgo.evidence.note).toMatch(/no se entrega el número/i);
+    expect(riesgo.state).toBe('RESTRINGIDA');
+    expect(riesgo.evidence).toMatchObject({ count: null, scope: 'RESTRINGIDO', as_of: null });
+    expect(riesgo.evidence.note).toMatch(/ni cuántos hay, ni si los hay/i);
+    // Y el nivel que depende de ellas no se declara «no alcanzado», sino NO DETERMINABLE con su alcance.
+    expect(nivel(t, 4).state).toBe('NO_DETERMINABLE');
+    expect(nivel(t, 4).why).toMatch(/no puede leer las señales de este nivel/i);
     // El onboarding no abre módulos: sin permiso, el paso no ofrece enlace.
     expect(paso(t, 'EQUIPO')).toMatchObject({ state: 'RESTRINGIDO', action_href: null });
     expect(paso(t, 'PARCELAS').action_href).toContain('/parcelas');
@@ -225,5 +233,40 @@ describeDb('P1-004 onboarding y madurez 0–6 (PostgreSQL real)', () => {
       ORGANIZACION: '', EQUIPO: '/miembros', CATALOGOS: '/productos', CENTROS: '/centros',
       PRODUCTORES: '/productores', PARCELAS: '/parcelas', IMPORTACION: '/importaciones', REVISION: '',
     });
+  });
+
+  // AUTORIZACIÓN — el nivel y los estados agregados también informan, aunque el recuento se oculte. Cambiar
+  // SOLO datos fuera del alcance de una persona no puede cambiar lo que esa persona ve.
+  it('cambiar datos FUERA del alcance no altera el diagnóstico de quien no los puede leer', async () => {
+    const antes = await diag(TEC);
+
+    // Productor y parcela de OTRO responsable: el técnico no los lee ni los verá nunca.
+    const ajeno = (await http().post(`${api(orgA)}/producers`).set(as(ADMIN))
+      .send({ producer_code: 'MD-AJENO', legal_name: 'Finca ajena al técnico' }).expect(201)).body.id;
+    const parcelaAjena = (await http().post(`${api(orgA)}/plots`).set(as(ADMIN))
+      .send({ producer_id: ajeno, plot_code: 'MD-AJENO-P', crop: 'Cacao' }).expect(201)).body.id;
+    const rv = Number((await h.db.selectFrom('plots').select('row_version').where('id', '=', parcelaAjena).executeTakeFirstOrThrow()).row_version);
+    await http().post(`${api(orgA)}/plots/${parcelaAjena}/geometry-versions`).set(as(ADMIN))
+      .send({ expected_version: rv, survey_method: 'MANUAL_COORDINATES', geometry: { type: 'Point', coordinates: [-80.17, -0.849] } }).expect(201);
+
+    const despues = await diag(TEC);
+    // CONTROL: quien SÍ los lee ve el cambio, así que un «no cambió» no significa «no pasó nada».
+    const admin = await diag(ADMIN);
+    expect(senal(admin, 3, 'PRODUCTORES').evidence.count).toBeGreaterThan(senal(antes, 3, 'PRODUCTORES').evidence.count!);
+
+    // Para el técnico, nada de lo suyo cambia: ni recuentos, ni estados, ni nivel.
+    expect(senal(despues, 3, 'PRODUCTORES').evidence.count).toBe(senal(antes, 3, 'PRODUCTORES').evidence.count);
+    expect(senal(despues, 3, 'PARCELAS_CON_GEOMETRIA').evidence.count).toBe(senal(antes, 3, 'PARCELAS_CON_GEOMETRIA').evidence.count);
+    for (const l of [3, 4, 5, 6]) expect(nivel(despues, l).state).toBe(nivel(antes, l).state);
+    expect(despues.level.reached).toBe(antes.level.reached);
+    expect(JSON.stringify(despues.levels)).toEqual(JSON.stringify(antes.levels));
+  });
+
+  it('el diagnóstico declara DE QUÉ es: de la organización o del alcance de quien lo lee', async () => {
+    const a = await diag(ADMIN);
+    const t = await diag(TEC);
+    expect(a.scope_of_diagnosis).toBe('ORGANIZACION');
+    expect(t.scope_of_diagnosis).toBe('MI_ALCANCE');
+    expect(t.level.basis).toMatch(/tu alcance/i);
   });
 });

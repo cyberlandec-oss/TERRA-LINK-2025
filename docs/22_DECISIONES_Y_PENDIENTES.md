@@ -189,6 +189,32 @@ organización **declare** su nivel 0–2, lo que añadiría un dato autodeclarad
 observarlos, y **ausencia de datos no se equipara a ausencia de digitalización**. Se mantiene la separación
 entre **madurez operativa**, **capacidades pendientes** del producto y **conclusión jurídica**.
 
+### D-50 — Formato de intercambio con GUIA/Agrocalidad — **ADOPTADA, opción A (2026-10-18)**
+
+**El problema**: **RF-37** admite el intercambio «**solo canal/acuerdo comprobados**» y `docs/15` condiciona la
+integración a «acuerdo/canal oficial o **formato autorizado**; **no asumir API disponible**». Hoy **no hay
+canal, acuerdo ni formato oficial en mano**, y sin algún formato no hay intercambio posible ni siquiera por
+archivo.
+
+| Opción | Qué supone | Efecto |
+| --- | --- | --- |
+| **(A) Formato propio, versionado y declarado NO OFICIAL**, con mapeo explícito a los cinco elementos de la guía ecuatoriana | Se puede exportar y conciliar **hoy**, por archivo, sin fingir una especificación ajena | **Adoptada.** Cada acto guarda **con qué versión se hizo**; al existir un formato autorizado se publica otra versión sin reescribir el pasado |
+| (B) Esperar al formato oficial | Nada que entregar hasta que exista el canal | La historia queda parada por completo |
+| (C) Inventar un «CSV de GUIA» | Presentaría como ajena una especificación propia | Descartada: sería afirmar algo que no se ha comprobado |
+
+**Lo que la adopción incluye**: el formato v`1.0.0-no-oficial` exporta **código, nombre, ubicación
+administrativa y número de parcelas**. **No** exporta **geometrías ni coordenadas**, **ni el documento de
+identidad**, y lo dice en el propio archivo; incluirlos sería **otra decisión, con otra base legal**. Volumen y
+movimientos los enumera la guía, pero su intercambio **no está acordado** y no se incluye.
+
+**Compuerta, y quién la abre**: la organización **registra** el acuerdo —referencia, alcance, vigencia y
+evidencia documental—; **la administración de plataforma lo verifica** (`exchange:verify`). Registrar **no
+habilita** nada. Sin acuerdo **verificado y vigente**, exportar y conciliar responden **409**.
+
+**Lo que NO hace, y es parte de la decisión**: ninguna llamada de red; **conciliar no escribe** en los datos
+operativos —produce diferencias que alguien decide, y la corrección se hace por el caso de uso del dominio—; y
+que un registro externo liste a un operador **no acredita legalidad** (eso es P1-005, que sigue abierta).
+
 ### Pendientes trazados de `UX_UI §11` (centro de operaciones) — **NO IMPLEMENTADOS**
 
 Se registran aquí para que queden **trazados sin reabrir P1-003**, cuyos criterios (`docs/18:204`: cola,
