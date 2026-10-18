@@ -62,7 +62,7 @@ try {
     check('error: «Mi trabajo» muestra error accesible (role=alert) con reintento, distinto de vacío', hasRetry && !/No tienes pendientes/.test(await page.locator('main').innerText()), '', await shot(page, 'error'));
     fail = false;
     if (hasRetry) await retry.click();
-    await page.locator('section[aria-labelledby="mi-trabajo"] li.work-item').first().waitFor({ timeout: 15000 });
+    await page.locator('section[aria-labelledby="mi-trabajo"] table tbody tr').first().waitFor({ timeout: 15000 });
     check('reintento: la sección se recupera sin recargar la página', true);
     // Error aislado en una sección del Lot Hub: el resto del lote sigue visible.
     await page.route('**/mitigations?lot_id=*', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'INTERNAL', message: 'Error simulado en la prueba.', request_id: 'prueba' } }) }));

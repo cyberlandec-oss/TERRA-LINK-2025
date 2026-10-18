@@ -113,8 +113,11 @@ try {
       // Mi trabajo: mismas tareas que la API.
       const work = (await apiCall(`/api/v1/organizations/${org.id}/my-work`, tk)).body;
       await page.getByRole('heading', { name: 'Mi trabajo' }).waitFor({ timeout: 15000 });
-      const ui = await page.locator('section[aria-labelledby="mi-trabajo"] li.work-item').count();
-      row.mi_trabajo = ui === work.tasks.length ? `${work.tasks.length} tarea(s): ${work.tasks.map((t) => `${t.code}(${t.count})`).join(', ') || 'ninguna'}` : `DIFERENCIA ui=${ui} api=${work.tasks.length}`;
+      // P1-003: la portada lista una fila por TAREA CONCRETA (no por grupo), así que se compara con `rows`.
+      const ui = await page.locator('section[aria-labelledby="mi-trabajo"] table tbody tr').count();
+      row.mi_trabajo = ui === work.rows.length
+        ? `${work.rows.length} fila(s) [personal ${work.queues.mine} · supervisión ${work.queues.supervision}]: ${work.tasks.map((t) => `${t.code}(${t.count})`).join(', ') || 'ninguna'}`
+        : `DIFERENCIA ui=${ui} api=${work.rows.length}`;
       row.captura = await shot(page, `${local}-${slugOrg(c.organizacion)}-inicio`);
       // Lot Hub de la Cooperativa.
       await page.goto(`${BASE}/organizaciones/${coop}/lotes/${hubLot.id}`);
