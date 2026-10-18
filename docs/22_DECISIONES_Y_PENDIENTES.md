@@ -130,9 +130,9 @@ Etiquetas en español en `organization_types.label_es`. Desde la migración `000
 
 Resueltas el 2026-10-09: **D-01** (stack NestJS/Next.js/PostGIS, ADR-0001, adoptado por delegación del usuario) y **D-02** (monorepo nuevo `cyberlandec-oss/TERRA-LINK-2025`). Pendiente: ratificación del responsable técnico.
 
-### D-48 — Indicadores del Buyer Portal (ÚNICA pendiente de RF-32/P1-001)
+### D-48 — Indicadores del Buyer Portal — **ADOPTADA (opción A)**
 
-**Abierta el 2026-10-17.** Es lo único que separa a RF-32 y P1-001 de su cierre; todo lo demás está demostrado.
+**Adoptada el 2026-10-17 para desarrollo local**, e **implementada** en la misma entrega: los once indicadores de S3 §22.8 como **estados** del recurso concedido, con seis estados que distinguen favorable, desfavorable, pendiente, desactualizado, no evaluable y sin evaluar. **Con ella se cerraron RF-32 y P1-001.**
 
 **S3 §22.8** dibuja el Buyer Portal con once indicadores: origen identificado · productores · parcelas ·
 geolocalización validada · deforestación revisada · legalidad revisada · trazabilidad completa · balance de

@@ -228,3 +228,92 @@ D-05.B, D-07.5, D-07.6 y P1-005).
 
 **D-48 — Indicadores del Buyer Portal**, registrada en `docs/22` con tres opciones, recomendación y efecto. Es
 **lo único** que separa a RF-32 y P1-001 de su cierre.
+
+
+---
+
+# Addendum II — D-48(A) implementada: RF-32 y P1-001 CERRADAS (2026-10-17)
+
+| | |
+| --- | --- |
+| Candidato | **`7082799`** |
+| Validación | `2026-10-18T00-31-52` — **APROBADA** |
+| Pruebas | **72 suites, 735** unitarias e integración · **72** E2E · 0 fallos |
+| Migraciones | **49**, sin cambios |
+| Respaldo | **No corresponde**: sin migración, sin cambio criptográfico, sin intervención sobre datos |
+
+## B.1 Los once indicadores, sin motor nuevo
+
+Cada indicador se deriva de **`evaluateRequirements()`** sobre el contenido que el expediente ya calcula para
+ese lote. **No se construyó otro motor** de riesgo, legalidad ni balance: si mañana cambia una regla, el
+indicador cambia con ella.
+
+| Indicador | De dónde sale |
+| --- | --- |
+| Origen identificado | `ORIGIN_DECLARED` |
+| Productores · Parcelas | Agregados que la proyección ya daba |
+| Geolocalización validada **(técnica)** | `GEOMETRY_TECHNICAL`, con aviso de que **no acredita el perfil jurídico** |
+| Deforestación revisada | `DEFORESTATION_ANALYSIS`, con aviso de que **no es conclusión regulatoria** |
+| Legalidad revisada | `LEGAL_PROFILE` |
+| Trazabilidad completa | `origin_status` del lote |
+| Balance de masa | `QUANTITIES_CONSISTENT` |
+| Evidencias | Recuento **por estado** de revisión |
+| Riesgo final | `REGULATORY_CONCLUSION`, y **`DESACTUALIZADO`** si la evaluación ya no es vigente |
+| DDS presentada | **`NO_EVALUABLE` por límite del producto**, no por un pendiente del lote |
+
+## B.2 Seis estados, porque son seis cosas distintas
+
+`FAVORABLE` · `DESFAVORABLE` · `PENDIENTE` · `DESACTUALIZADO` · `NO_EVALUABLE` · `SIN_EVALUAR`.
+
+**Lo desconocido no se convierte en conforme**, y hay una prueba que lo vigila: hoy **deforestación, legalidad
+y riesgo final no pueden salir favorables** —sin satélite, sin perfil aprobado y con la conclusión en
+`UNDETERMINED`—, y si algún día salen, esa prueba falla.
+
+## B.3 Las tres distinciones, escritas en cada indicador
+
+| Distinción | Dónde se dice |
+| --- | --- |
+| Geolocalización **técnica** ≠ perfil jurídico | En la etiqueta y en la nota del indicador |
+| Análisis de deforestación ≠ conclusión regulatoria | En su nota |
+| Preparación del expediente ≠ **DDS presentada** | En el indicador de DDS |
+
+**Evidencias** comunica **disponibilidad y revisión**, nunca suficiencia: «que una evidencia esté cargada y
+supere el análisis antimalware no la vuelve suficiente. No da acceso a los originales». La redacción evita las
+palabras que la prueba de fugas documentales prohíbe — **antes que relajar esa comprobación, se reescribió el
+texto**.
+
+**Fecha y versión que sustentan cada resultado**: el riesgo lleva su número de evaluación y versión de reglas;
+la geolocalización, las versiones de geometría. Una evaluación histórica no puede parecer actual.
+
+## B.4 «Período», aclarado con las fuentes
+
+Es el **período de producción** de **S1 §44** (`production_period`), **no** un filtro temporal del portal. El
+modelo ya guardaba `harvest_precision`, `harvest_start/end` y las fechas **deducidas**. Se publica con su
+**precisión declarada**; si se mezclan precisiones manda **la más gruesa**; y lo deducido de la fecha de
+entrega se marca **`DERIVED`**, nunca como cosecha declarada. La **vigencia del acceso** es otra cosa, y es
+`expires_at`. **Los dos conceptos no se mezclan.**
+
+## B.5 Comprobado
+
+**Integración** (`access-grants.int-spec.ts`, **24**): los once presentes; lo desconocido nunca favorable; las
+tres distinciones; **sin fugas** de identidad, coordenadas, contenido documental ni identificadores —tampoco en
+**la descarga**, que usa la misma proyección—; y el período con su precisión.
+
+**Despliegue** (`portal-comprador.mjs`, **15/15**): nueve indicadores de estado más los dos recuentos en
+pantalla, el aviso de que «no evaluable» y «sin evaluar» **no significan conforme**, el período con su
+precisión, **teclado**, **390 px**, aislamiento, vencimiento y revocación. Sin regresión: `referencia-qr.mjs`
+**15/15**.
+
+## B.6 Cierre
+
+| Historia / requisito | Estado |
+| --- | --- |
+| **RF-32** | **DEMOSTRADO** |
+| **P1-001** | **DONE_LOCAL** |
+| **RF-33** · **P1-002** | Ya cerradas en el addendum I |
+
+**Cobertura: 33 de 60 = 55,0 %.** **MVP sin cambio: 30 de 44 = 68,2 %** —RF-32 y RF-33 son **P1**—. Historias
+del MVP **25 de 32**, sin cambio: P1-001 y P1-002 son historias P1.
+
+**Evolución, no criterio pendiente**: más audiencias, campos configurables por concesión, entrega de un
+`DD_PACKAGE` al comprador y la **RLS** de ADR-0002. Ninguna la exige la fuente para estas historias.

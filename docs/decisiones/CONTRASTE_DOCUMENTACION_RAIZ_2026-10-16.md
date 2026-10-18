@@ -130,7 +130,7 @@ Las quince corresponden a historias **P1**, ninguna iniciada.
 
 | RF | Capacidad | Historia | Estado |
 | --- | --- | --- | --- |
-| RF-32 | Buyer Portal | P1-001 | **PARCIAL** (2026-10-17): concesión, vencimiento, revocación, aislamiento, portal del destinatario y descarga autorizada **demostrados**, incluidos **lote, embarque e instantánea**. Faltan los **indicadores de S3 §22.8** (incluida «evidencias»): **ampliación de campos que exige la decisión D-48** |
+| RF-32 | Buyer Portal | P1-001 | **DEMOSTRADO** (2026-10-17): concesión, vencimiento, revocación, aislamiento, portal, descarga autorizada y **los once indicadores de S3 §22.8** como estados, sobre **lote, embarque e instantánea**. **D-48(A) adoptada e implementada** |
 | RF-33 | QR / pasaporte digital | P1-002 | **DEMOSTRADO** (2026-10-17): QR verificado **por decodificación**, recorrido completo y **dos audiencias** —las que las fuentes describen—. «Por audiencia» **no es exigencia de ninguna fuente**: `CONTRASTE_ACEPTACION_RF32_RF33_2026-10-17.md` §1 |
 | RF-34 | My Work ampliado | P1-003 | **NO DEMOSTRADO** — existe la cola básica dentro de P0-027, no el alcance de P1-003 |
 | RF-35 | Onboarding y madurez | P1-004 | **NO DEMOSTRADO** |
@@ -201,7 +201,7 @@ criterio de cierre de ninguna historia concreta.
 
 *(La tabla conserva el corte del 2026-10-16; la cifra vigente está debajo.)*
 
-**Sí se puede calcular**, y es **53,3 %** al 2026-10-17: **32 de 60** (RF-33 cerrada contra sus criterios originales). Partía de 42 % (25/59) y suben siete
+**Sí se puede calcular**, y es **55,0 %** al 2026-10-17: **33 de 60** (RF-32 y RF-33 cerradas contra sus criterios originales). Partía de 42 % (25/59) y suben ocho
 requisitos: **RF-47** (2026-10-16), **RF-03** y **RNF-01** (al cerrarse P0-003), **RNF-10** y **RNF-12**
 (avisos verificados y ensayo de retorno) y **RNF-13** (métricas y trazas). El denominador pasó de 59 a **60**
 al registrarse **RNF-13**: el catálogo estaba incompleto, no se amplió el alcance. La diferencia con el 75 % no es una contradicción: son medidas de cosas

@@ -39,9 +39,9 @@ audiencias»— **era una interpretación añadida durante el desarrollo**, no u
 | 9 | **P1-001** (`docs/18:202`): «Recurso […] compartido» | La concesión es de **un recurso concreto**; otro recurso de la misma organización no se abre | `access-grants.int-spec.ts` | **Ninguna** |
 | 10 | **P1-001**: «revocación bloquea nueva consulta» | Revocado: `404` en resolución y vista, portal vacío | `portal-comprador.mjs` | **Ninguna** |
 | 11 | **P1-001**: QA-02 (aislamiento) | Tercera organización sin concesión: `404`. Sin concesión, el rol `BUYER` no abre nada | `portal-comprador.mjs` | **Ninguna** |
-| 12 | **RF-32**: «Buyer Portal con lote/**embarque**» | `resource_type` admite `LOT`, `SHIPMENT` y `DD_SNAPSHOT`; la proyección y el portal los contemplan | `access-grants.ts` · portal | **SÍ**: el camino de **embarque** y el de **instantánea** **no están demostrados**. Las pruebas y el recorrido solo ejercitan `LOT` |
-| 13 | **RF-32**: «**evidencia**» · **S3 §22.8**: «✓ Evidencias» y los demás indicadores | La vista del lote entrega código, producto, estado, origen y agregados de productores y parcelas. **No** entrega evidencias ni el resto de indicadores | `access-grants.ts` §`proyeccion()` | **SÍ**: falta el conjunto de indicadores de S3 §22.8. **Es ampliación de campos ⇒ decisión explícita** (§5) |
-| 14 | **P1-001**: «**period** compartido» | La concesión tiene **vencimiento** (hasta cuándo se puede consultar) | `access_grants.expires_at` | **A aclarar**: si «período» significa *vigencia del acceso*, está cumplido; si significa *rango de datos compartidos*, no existe. La fuente no lo define |
+| 12 | **RF-32**: «Buyer Portal con lote/**embarque**» | `LOT`, `SHIPMENT` y `DD_SNAPSHOT`, cada uno con su proyección | `access-grants.int-spec.ts`: embarque (código, estado, destino declarado, ítems, **sin comprador ni identidades**) e instantánea (requisitos como código y estado, **sin contenido**) | **Ninguna** (cerrada el 2026-10-17) |
+| 13 | **RF-32**: «**evidencia**» · **S3 §22.8**: los once indicadores | **D-48(A) adoptada**: los **once** —dos recuentos y nueve estados— derivados de `evaluateRequirements()`, con **seis estados** que distinguen favorable, desfavorable, pendiente, desactualizado, no evaluable y sin evaluar | `access-grants.int-spec.ts` (24) · `portal-comprador.mjs` **15/15** | **Ninguna** (cerrada el 2026-10-17) |
+| 14 | **P1-001**: «**period** compartido» | **Aclarado**: es el **período de producción** (`production_period`, **S1 §44**), no un filtro temporal del portal. Se publica con su **precisión declarada**; lo deducido de la fecha de entrega se marca **DEDUCIDO**, nunca como cosecha declarada. La **vigencia del acceso** es otra cosa, y es `expires_at` | `indicadores.ts` §`periodoDeProduccion()` · pruebas y recorrido | **Ninguna** (aclarada el 2026-10-17) |
 | 15 | **P1-001**: «descarga autorizada» · S3 §22.8 | Descarga condicionada a `can_download`, con la **misma** proyección, identificada como **vista compartida interna** | `portal-comprador.mjs` (descarga real) | **Ninguna** (§3) |
 
 ## 3. ¿Exige el portal descargar un paquete DD?
@@ -72,38 +72,43 @@ ambos tienen el perfil completo**, así que el paquete queda determinado por su 
 rol que exportase con perfil más estrecho**, dos paquetes de la misma instantánea tendrían huellas distintas y
 la identidad dejaría de ser la instantánea. `catalog.spec.ts` **falla** si eso ocurre.
 
-## 5. La ÚNICA decisión pendiente
+## 5. D-48 — ADOPTADA (opción A)
 
-Todo lo demás está decidido o demostrado. Queda una sola, y es la del criterio 13.
+Era la única decisión pendiente del criterio 13, y **quedó adoptada el 2026-10-17 para desarrollo local**:
+**completar los once indicadores de S3 §22.8**, mostrados como **estados del recurso expresamente concedido**.
 
-### D-48 — ¿Qué indicadores ve el comprador en la vista compartida?
+**Contrato de compartición aplicado:**
 
-**S3 §22.8** dibuja el Buyer Portal con: origen identificado · productores · parcelas · **geolocalización
-validada** · **deforestación revisada** · **legalidad revisada** · **trazabilidad completa** · **balance de
-masa** · **evidencias** · **riesgo final** · **DDS**. Hoy se entregan los **tres primeros**.
+| Regla | Cómo se cumple |
+| --- | --- |
+| Ampliar la proyección **solo** con estados | Nueve estados y dos recuentos. **Sin** identidad, coordenadas, contenido documental ni acceso a recursos relacionados |
+| La concesión sigue siendo de **una instancia** | Sin cambios: recurso concreto, lectura y descarga independientes, vencimiento y revocación |
+| Proyección **en el backend**, también en la descarga | La descarga usa **la misma** `proyeccion()`; hay prueba de que el archivo trae los indicadores y no trae lo prohibido |
+| **Reutilizar** evaluaciones | `evaluateRequirements()` sobre el contenido que el expediente ya calcula. **No se construyó** otro motor de riesgo, legalidad ni balance |
 
-| Opción | Qué implica | Efecto |
-| --- | --- | --- |
-| **(a) Conjunto completo de §22.8, como ESTADOS** | Añadir a la proyección los ocho indicadores restantes, **como estado**, nunca como dato: «revisada / no revisada / no evaluable», sin coordenadas, sin identidad y sin documentos | **Cierra RF-32 y P1-001.** Varios dirían hoy «no evaluable» —riesgo final `UNDETERMINED`, legalidad sin perfil aprobado, deforestación sin satélite— y **eso es exactamente lo que hay que mostrar**, no ocultarlo |
-| **(b) Solo «evidencias»** | Añadir únicamente el indicador que **RF-32 nombra explícitamente** | Cumple la letra de RF-32; **deja S3 §22.8 incompleto** |
-| **(c) No ampliar** | Dejar la proyección como está | **RF-32 y P1-001 quedan abiertas indefinidamente** por un criterio que sí está en la fuente |
-
-**Recomendación: (a).** Son **estados derivados de lo que el expediente ya calcula** —los requisitos de la
-instantánea—, no datos nuevos: no levantan la clasificación, no exponen identidad ni geometrías, y mostrar
-«no evaluable» donde corresponde es coherente con el resto del producto. **Consecuencia de no decidir**: RF-32
-y P1-001 siguen abiertas, no por falta de trabajo técnico, sino por una ampliación de campos que **no se hace
-sin decisión**.
-
-**Lo que esta decisión NO incluye**: entregar el paquete DD, levantar la clasificación, mostrar identidad de
-productores, geometrías o documentos, ni prometer un DDS.
+**Lo que la decisión NO incluyó, y sigue fuera**: entregar el paquete DD, levantar la clasificación, mostrar
+identidad, geometrías o documentos, y prometer un DDS.
 
 ## 6. Resultado del contraste
 
+**Actualizado el 2026-10-17, tras adoptar D-48(A) y cerrar los criterios 12, 13 y 14.**
+
 | Historia / requisito | Estado |
 | --- | --- |
-| **RF-33** | **Todos sus criterios demostrados** → **DONE_LOCAL** |
+| **RF-33** | **Todos sus criterios demostrados** → **DEMOSTRADO** |
 | **P1-002** | **Todos sus criterios demostrados** → **DONE_LOCAL** |
-| **RF-32** | **ABIERTA** por los criterios **12** (embarque e instantánea sin demostrar) y **13** (indicadores de S3 §22.8) |
-| **P1-001** | **ABIERTA** por los mismos dos, más la aclaración del criterio **14** («período») |
+| **RF-32** | **Todos sus criterios demostrados** → **DEMOSTRADO** |
+| **P1-001** | **Todos sus criterios demostrados** → **DONE_LOCAL** |
 
 **RF-47** ya estaba demostrada y no cambia.
+
+### Lo que NO se usó como condición de cierre
+
+Ninguna **audiencia hipotética**: §1 muestra que «por audiencia» no es exigencia de ninguna fuente. Ningún
+**campo adicional no exigido**: los once indicadores salen de **S3 §22.8**, que es la fuente, y nada más se
+añadió. Ninguna **interpretación añadida durante el desarrollo**.
+
+### Lo que sigue siendo evolución, no criterio pendiente
+
+Más audiencias, campos configurables por concesión, entrega de un `DD_PACKAGE` al comprador y la **RLS** de
+ADR-0002. **Nada de eso lo exige la fuente para estas historias**, y por tanto **no las mantiene abiertas**.
