@@ -218,3 +218,19 @@ button.small { padding: 4px 10px; font-size: 0.875rem; }
 .event-list .event.correction { border-left: 3px solid var(--tl-review, #b7791f); padding-left: var(--tl-space-2); }
 .work-item { padding: var(--tl-space-3) 0; border-top: 1px solid var(--tl-border-subtle); }
 .work-item h3 { margin: 0 0 var(--tl-space-1); }
+
+/* P1-013: texto extraído de un documento. Monoespaciado, desplazable y acotado: es material de lectura,
+   no un dato confirmado, y no debe dominar la pantalla. */
+.code-block {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 18rem;
+  overflow: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface-2, #f6f7f8);
+}

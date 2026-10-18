@@ -42,6 +42,7 @@ export default function DocumentDetailPage() {
         <h2 id="versions-h">Versiones</h2>
         <ol className="plain" aria-label="Versiones del documento">
           {d.versions.map((v) => <VersionItem key={v.id} v={v} canReview={ws.can('document:review')} canUpload={ws.can('document:upload')}
+            extractionHref={ws.can('document:read') ? `/organizaciones/${orgId}/documentos/${d.id}/extraccion/${v.id}` : null}
             onDownload={() => act(() => apiDownload(`${base}/versions/${v.id}/content`, v.file_name ?? 'documento'), `Versión ${v.version_number} descargada.`)}
             onRetry={() => act(() => api(`${base}/versions/${v.id}/scan`, { method: 'POST' }), 'Análisis reintentado.')}
             onReview={(decision, reason) => act(() => api(`${base}/versions/${v.id}/reviews`, { method: 'POST', body: { decision, reason } }), 'Revisión registrada para esta versión.')} />)}
@@ -59,8 +60,9 @@ export default function DocumentDetailPage() {
   );
 }
 
-function VersionItem({ v, canReview, canUpload, onDownload, onRetry, onReview }: {
-  v: DocVersion; canReview: boolean; canUpload: boolean; onDownload: () => void; onRetry: () => void; onReview: (d: 'ACCEPTED' | 'REJECTED', r: string) => void;
+function VersionItem({ v, canReview, canUpload, extractionHref, onDownload, onRetry, onReview }: {
+  v: DocVersion; canReview: boolean; canUpload: boolean; extractionHref: string | null;
+  onDownload: () => void; onRetry: () => void; onReview: (d: 'ACCEPTED' | 'REJECTED', r: string) => void;
 }) {
   const [reason, setReason] = useState('');
   const id = `rv-${v.id}`;
@@ -71,6 +73,8 @@ function VersionItem({ v, canReview, canUpload, onDownload, onRetry, onReview }:
       <dl className="props">
         <dt>Archivo</dt><dd>{v.file_name ?? 'restringido'} · {v.mime_type} · {kb(v.size_bytes)}</dd>
         <dt>SHA-256 (servidor)</dt><dd><code className="hash">{v.sha256}</code></dd>
+        {/* P1-013: la extracción cuelga de ESTA versión, no del documento. */}
+        {extractionHref && <><dt>Extracción asistida</dt><dd><a href={extractionHref}>Ver o extraer de esta versión</a></dd></>}
         <dt>Análisis antimalware</dt><dd>{v.scan.status}{v.scan.error_code ? ` · ${v.scan.error_code}` : ''}{v.scan.signature ? ` · ${v.scan.signature}` : ''}</dd>
         <dt>Emisor / emisión / vencimiento</dt><dd>{v.issuer ?? '—'} / {v.issued_at ?? '—'} / {v.expires_at ?? '—'} · {VALIDITY[v.validity]}</dd>
         <dt>Revisión de esta versión</dt><dd>{v.review ? `${v.review.decision === 'ACCEPTED' ? 'Aceptada' : 'Rechazada'}: ${v.review.reason}${v.review.reviewer_is_uploader ? ' (revisó quien la subió)' : ''}` : 'Sin revisar (las revisiones no se heredan entre versiones)'}</dd>

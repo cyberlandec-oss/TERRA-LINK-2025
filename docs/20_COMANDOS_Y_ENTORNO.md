@@ -460,6 +460,11 @@ si una variable está puesta se mira su **efecto** (por ejemplo `live_calls_enab
 ### Web por rol y Lot Hub (P0-027, 2026-10-12)
 
 - `npx jest --runInBand test/my-work.int-spec.ts` (desde `apps/api`).
+- `node e2e/review/extraccion.mjs`: recorrido de P1-013 sobre el despliegue — extracción correcta de un PDF
+  con capa de texto, información ausente, resultado ambiguo con sus candidatos, documento sustituido,
+  formato no soportado sin salir a ningún OCR, acceso denegado por permiso de extracción y por contenido
+  personal, recorrido sugerir → revisar → confirmar/descartar, teclado y 390 px. **Cambia datos DEMO**:
+  crea **documentos de ensayo** identificados en su título y extrae sobre ellos (tablas append-only).
 - `node e2e/review/indicadores.mjs`: recorrido de P1-014 sobre el despliegue — que los cálculos **responden**
   (no una pantalla que siempre diga «sin datos»), exclusiones contadas con su razón, ausencia que no es cero,
   cada indicador autodescrito, las tres ausencias distinguidas (sin datos / no calculable / restringido),

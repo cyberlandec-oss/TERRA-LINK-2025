@@ -9499,6 +9499,167 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/documents/{documentId}/versions/{versionId}/extraction": {
+      "get": {
+        "operationId": "ExtractionController_ver",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Texto extraído, valores sugeridos con su procedencia, y lo que una persona revisó",
+        "tags": [
+          "extraction"
+        ]
+      },
+      "post": {
+        "operationId": "ExtractionController_extraer",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtraerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Extraer el texto de ESTA versión y proponer valores. No confirma nada",
+        "tags": [
+          "extraction"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/documents/{documentId}/versions/{versionId}/extraction/fields/{fieldId}/review": {
+      "post": {
+        "operationId": "ExtractionController_decidir",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fieldId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecidirDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Confirmar o descartar una sugerencia. Exige revisión humana con permiso propio",
+        "tags": [
+          "extraction"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/buyers": {
       "get": {
         "operationId": "ShipmentsController_buyers",
@@ -11489,13 +11650,23 @@
           "operation_id": {
             "type": "string"
           },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "CONFIRMADO",
+              "DESCARTADO"
+            ]
+          },
+          "confirmed_value": {
+            "type": "string"
+          },
           "reason": {
             "type": "string"
           }
         },
         "required": [
           "operation_id",
-          "reason"
+          "decision"
         ]
       },
       "RequeueDto": {
@@ -13002,6 +13173,17 @@
           "currency",
           "paid_on",
           "method_declared"
+        ]
+      },
+      "ExtraerDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id"
         ]
       },
       "CreateBuyerDto": {

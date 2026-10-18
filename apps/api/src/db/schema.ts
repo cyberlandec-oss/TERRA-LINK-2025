@@ -506,6 +506,21 @@ export interface DocumentVersionScansTable {
   id: Generated<string>; organization_id: string; version_id: string; result: 'CLEAN' | 'INFECTED' | 'FAILED'; engine: string;
   signature: string | null; error_code: string | null; scanned_at: Generated<Timestamp>;
 }
+export interface DocumentExtractionsTable {
+  id: string; organization_id: string; version_id: string; run_number: number;
+  status: 'EXTRAIDA' | 'SIN_TEXTO' | 'FORMATO_NO_SOPORTADO' | 'FALLIDA';
+  engine: string; engine_version: string; source_sha256: string; text_chars: number; pages: number | null;
+  extracted_text: string | null; note: string; extracted_by: string; extracted_at: Generated<Timestamp>; operation_id: string;
+}
+export interface DocumentExtractionFieldsTable {
+  id: string; organization_id: string; extraction_id: string; field_code: 'ISSUER' | 'ISSUED_AT' | 'EXPIRES_AT';
+  suggested_value: string | null; basis: 'ETIQUETA_EXPLICITA' | 'PATRON_UNICO' | 'PATRON_AMBIGUO';
+  confidence: 'ALTA' | 'MEDIA' | 'BAJA'; source_excerpt: string | null; source_offset: number | null; candidates: unknown;
+}
+export interface DocumentExtractionDecisionsTable {
+  id: string; organization_id: string; field_id: string; decision: 'CONFIRMADO' | 'DESCARTADO';
+  confirmed_value: string | null; reason: string | null; decided_by: string; decided_at: Generated<Timestamp>; operation_id: string;
+}
 export interface DocumentVersionReviewsTable {
   id: Generated<string>; organization_id: string; version_id: string; decision: 'ACCEPTED' | 'REJECTED'; reason: string; reviewer_id: string; reviewed_at: Generated<Timestamp>;
 }
@@ -931,6 +946,9 @@ export interface Database {
   legal_profile_reviews: LegalProfileReviewsTable;
   legal_profile_sources: LegalProfileSourcesTable;
   legal_profile_rules: LegalProfileRulesTable;
+  document_extractions: DocumentExtractionsTable;
+  document_extraction_fields: DocumentExtractionFieldsTable;
+  document_extraction_decisions: DocumentExtractionDecisionsTable;
   delivery_economics: DeliveryEconomicsTable;
   delivery_payments: DeliveryPaymentsTable;
   budget_parameters: BudgetParametersTable;
