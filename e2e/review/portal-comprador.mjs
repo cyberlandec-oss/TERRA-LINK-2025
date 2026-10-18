@@ -137,6 +137,31 @@ try {
     return [enfocado && sinIdentidad, `foco=${enfocado} · sin identidad en pantalla=${sinIdentidad}`];
   });
 
+  await caso('INDICADORES: los once de S3 §22.8 se ven, con estado y significado', async () => {
+    await esperar(/Estado del lote/);
+    const filas = await page.locator('table[aria-label="Indicadores del lote"] tbody tr').count();
+    const t = await page.locator('body').innerText();
+    // Dos recuentos (productores, parcelas) + nueve estados = los once de la fuente.
+    const recuentos = /Productores/.test(t) && /Parcelas/.test(t);
+    return [filas === 9 && recuentos, `${filas} indicadores de estado + recuentos=${recuentos}`];
+  });
+
+  await caso('INDICADORES: lo desconocido NO se presenta como conforme', async () => {
+    const t = await page.locator('body').innerText();
+    const avisa = /no significan conforme/i.test(t);
+    const hayNoEvaluable = /No evaluable|Sin evaluar/.test(t);
+    // Y las distinciones que no se pueden perder están escritas en pantalla.
+    const distingue = /no es una conclusión regulatoria/i.test(t) && /NO presenta declaraciones/i.test(t);
+    return [avisa && hayNoEvaluable && distingue, `avisa=${avisa} · estados no concluyentes visibles=${hayNoEvaluable} · distinciones=${distingue}`];
+  });
+
+  await caso('PERÍODO: se muestra con su precisión, y lo deducido se declara deducido', async () => {
+    const t = await page.locator('body').innerText();
+    const hay = /Período de producción/.test(t);
+    const honesto = /sin declarar|precisión de (día|mes)|DEDUCIDO/i.test(t);
+    return [hay && honesto, `visible=${hay} · precisión declarada=${honesto}`];
+  });
+
   await caso('DESCARGA: entrega la vista compartida interna, identificada como tal', async () => {
     const [descarga] = await Promise.all([
       page.waitForEvent('download', { timeout: 20000 }),

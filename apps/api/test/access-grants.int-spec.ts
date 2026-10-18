@@ -353,4 +353,94 @@ describeDb('P0-003 concesiones externas: alcance, vencimiento, revocación, clas
     expect(v.nota).toMatch(/NO acredita presentación de DDS/i);
     await revocar(g.id).expect(201);
   });
+
+  // ---------------------------------------------------------------- RF-32 / D-48(A): los once indicadores
+
+  const INDICADORES = ['ORIGEN_IDENTIFICADO', 'GEOLOCALIZACION_VALIDADA', 'DEFORESTACION_REVISADA', 'LEGALIDAD_REVISADA',
+    'TRAZABILIDAD_COMPLETA', 'BALANCE_DE_MASA', 'EVIDENCIAS', 'RIESGO_FINAL', 'DDS'];
+  const ESTADOS = ['FAVORABLE', 'DESFAVORABLE', 'PENDIENTE', 'DESACTUALIZADO', 'NO_EVALUABLE', 'SIN_EVALUAR'];
+
+  it('D-48(A) la vista del lote trae los once indicadores de S3 §22.8', async () => {
+    const l = await loteNuevo();
+    const g = (await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: l, expires_at: futuro(), reason: 'Indicadores' }).expect(201)).body.grant;
+    const v = (await leerConcedido(g.id).expect(200)).body;
+
+    // Dos son recuentos; nueve son estados. Once en total, como la pantalla de la fuente.
+    expect(typeof v.productores).toBe('number');
+    expect(typeof v.parcelas).toBe('number');
+    expect(v.indicators.map((i: { code: string }) => i.code)).toEqual(INDICADORES);
+    for (const i of v.indicators) {
+      expect(ESTADOS).toContain(i.state);
+      expect(i.note.length).toBeGreaterThan(20);   // cada estado explica qué significa
+    }
+    await revocar(g.id).expect(201);
+  });
+
+  it('D-48(A) NO convierte lo desconocido en conforme', async () => {
+    const l = await loteNuevo();
+    const g = (await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: l, expires_at: futuro(), reason: 'Desconocido' }).expect(201)).body.grant;
+    const v = (await leerConcedido(g.id).expect(200)).body;
+    const por = (c: string) => v.indicators.find((i: { code: string }) => i.code === c);
+
+    // Sin satélite contratado, sin perfil jurídico aprobado y con la conclusión clavada en UNDETERMINED,
+    // estos NO pueden salir favorables. Si alguna vez salen, es que se rebajó el criterio.
+    expect(por('DEFORESTACION_REVISADA').state).not.toBe('FAVORABLE');
+    expect(por('LEGALIDAD_REVISADA').state).not.toBe('FAVORABLE');
+    expect(por('RIESGO_FINAL').state).not.toBe('FAVORABLE');
+    // Y la DDS no es un pendiente del lote: es un límite del producto.
+    expect(por('DDS').state).toBe('NO_EVALUABLE');
+    expect(por('DDS').note).toMatch(/NO presenta declaraciones/i);
+    await revocar(g.id).expect(201);
+  });
+
+  it('D-48(A) conserva las tres distinciones que no se pueden perder', async () => {
+    const l = await loteNuevo();
+    const g = (await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: l, expires_at: futuro(), reason: 'Distinciones' }).expect(201)).body.grant;
+    const v = (await leerConcedido(g.id).expect(200)).body;
+    const por = (c: string) => v.indicators.find((i: { code: string }) => i.code === c);
+
+    expect(por('GEOLOCALIZACION_VALIDADA').note).toMatch(/TÉCNICA|técnica/);
+    expect(por('GEOLOCALIZACION_VALIDADA').label).toMatch(/técnica/i);
+    expect(por('DEFORESTACION_REVISADA').note).toMatch(/no es una conclusión regulatoria/i);
+    expect(por('RIESGO_FINAL').note).toMatch(/NO es la conclusión regulatoria|no se presume/i);
+    expect(por('DDS').note).toMatch(/no es una DDS presentada|NO presenta/i);
+    // Evidencias: disponibilidad y revisión, nunca suficiencia.
+    expect(por('EVIDENCIAS').note).toMatch(/no la vuelve suficiente/i);
+    expect(por('EVIDENCIAS').note).toMatch(/No da acceso a los originales/i);
+    await revocar(g.id).expect(201);
+  });
+
+  it('D-48(A) los indicadores NO filtran identidad, coordenadas ni identificadores', async () => {
+    const l = await loteNuevo();
+    const g = (await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: l, can_download: true, expires_at: futuro(), reason: 'Sin fugas' }).expect(201)).body.grant;
+    const v = (await leerConcedido(g.id).expect(200)).body;
+    const texto = JSON.stringify(v);
+
+    for (const prohibido of ['geometry', 'coordinates', 'legal_name', 'first_name', 'document_number', 'producer_code', 'object_key', 'sha256']) {
+      expect(texto).not.toContain(prohibido);
+    }
+    // Ni identificadores internos del lote, ni de sus parcelas o entregas.
+    expect(texto).not.toContain(l);
+    expect(texto).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+
+    // Y la DESCARGA usa la MISMA proyección: ocultar en pantalla no bastaría.
+    const d = await http().get(`/api/v1/granted/${g.id}/download`).set(as(EXTERNO)).expect(200);
+    const paquete = JSON.parse(d.text);
+    expect(paquete.recurso.indicators.map((i: { code: string }) => i.code)).toEqual(INDICADORES);
+    for (const prohibido of ['geometry', 'coordinates', 'legal_name', 'document_number']) {
+      expect(d.text).not.toContain(prohibido);
+    }
+    await revocar(g.id).expect(201);
+  });
+
+  it('D-48(A) el período de producción conserva su precisión y no se deduce de la entrega', async () => {
+    const l = await loteNuevo();
+    const g = (await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: l, expires_at: futuro(), reason: 'Período' }).expect(201)).body.grant;
+    const v = (await leerConcedido(g.id).expect(200)).body;
+    expect(['DAY', 'MONTH', 'UNKNOWN', 'DERIVED', 'NONE']).toContain(v.production_period.precision);
+    // Lo deducido se declara deducido: nunca se presenta como cosecha declarada.
+    if (v.production_period.precision === 'DERIVED') expect(v.production_period.note).toMatch(/DEDUCIDO/);
+    if (v.production_period.precision === 'NONE') expect(v.production_period.start).toBeNull();
+    await revocar(g.id).expect(201);
+  });
 });

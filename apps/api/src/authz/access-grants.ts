@@ -12,6 +12,9 @@ import type { Database } from '../db/schema';
 import { AuthorizationService } from './authorization.service';
 import type { Permission } from './catalog';
 import { referenciaDe } from '../traceability/public-references';
+import { DdService } from '../dd/dd';
+import { evaluateRequirements } from '../dd/requirements';
+import { indicadoresDe, periodoDeProduccion } from '../sharing/indicadores';
 
 // P0-003 / D-P0003.1 opción A — Concesiones externas de LECTURA y DESCARGA, sin portal comprador.
 //
@@ -54,6 +57,8 @@ export class AccessGrantsService {
     @Inject(DB) private readonly db: Kysely<Database>,
     private readonly authz: AuthorizationService,
     private readonly audit: AuditService,
+    /** RF-32: los indicadores salen de la MISMA evaluación del expediente, no de un motor paralelo. */
+    private readonly dd: DdService,
   ) {}
 
   /** Lo mismo para «no existe» y «no te corresponde»: una concesión no es un oráculo de existencia. */
@@ -211,10 +216,22 @@ export class AccessGrantsService {
                (SELECT count(DISTINCT o.plot_id)::int FROM lot_inputs i JOIN receptions r ON r.id = i.reception_id JOIN delivery_origins o ON o.delivery_id = r.delivery_id WHERE i.lot_id = l.id) AS parcelas
         FROM lots l JOIN products p ON p.id = l.product_id WHERE l.id = ${g.resource_id} AND l.organization_id = ${org}`.execute(this.db)).rows[0];
       if (!l) throw this.opaca;
+      // D-48(A) — Los once indicadores de S3 §22.8. Se construyen desde el contenido que el expediente ya
+      // calcula para ESTE lote y se proyectan como ESTADO: ni geometrías, ni identidad, ni documentos, ni
+      // identificadores de recursos relacionados. El contenido NO sale de aquí; solo su lectura.
+      const contenido = await this.dd.capture(this.db, { organizationId: org, organizationStatus: 'ACTIVE', membershipId: '', roles: [], permissions: [] }, l.id);
+      const indicadores = indicadoresDe(contenido, evaluateRequirements(contenido));
+      // Período de producción (S1 §44): con su precisión DECLARADA; lo deducido se marca como deducido.
+      const cosechas = (await sql<{ harvest_precision: string | null; harvest_start: string | null; harvest_end: string | null; harvest_derived_start: string | null; harvest_derived_end: string | null }>`
+        SELECT DISTINCT d.harvest_precision, d.harvest_start::text, d.harvest_end::text, d.harvest_derived_start::text, d.harvest_derived_end::text
+        FROM lot_inputs i JOIN receptions r ON r.id = i.reception_id JOIN deliveries d ON d.id = r.delivery_id
+        WHERE i.lot_id = ${l.id} AND d.organization_id = ${org}`.execute(this.db)).rows;
       return { resource_type: 'LOT', lot_code: l.lot_code, status: l.status, product: l.product,
         origin_status: l.origin_status, productores: l.productores, parcelas: l.parcelas,
+        production_period: periodoDeProduccion(cosechas),
+        indicators: indicadores,
         public_reference: await referenciaDe(this.db, org, 'LOT', l.id),
-        nota: 'Agregados sin identidad: la concesión no levanta la clasificación de datos.' };
+        nota: 'Agregados y estados sin identidad: la concesión no levanta la clasificación de datos. Ningún indicador acredita conformidad EUDR ni sustituye una DDS.' };
     }
     if (g.resource_type === 'SHIPMENT') {
       const s = (await sql<{ id: string; shipment_code: string; status: string; destination_country: string; dispatch_at: string | null; items: number }>`

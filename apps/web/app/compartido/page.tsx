@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api, apiDownload, session } from '../../lib/api';
-import { Alert, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../lib/ui';
+import { Alert, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge, type Tone } from '../../lib/ui';
 
 // P1-001 / P1-002 — Acceso del destinatario de una concesión: **su** lista, **su** vista y **su** descarga.
 //
@@ -22,8 +22,12 @@ import { Alert, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge } from 
 // descarga es una **vista compartida interna**: **no** es un paquete DD ni una declaración oficial.
 
 interface Concesion { id: string; organization: string; resource_type: string; can_read: boolean; can_download: boolean; expires_at: string }
+interface Indicador { code: string; label: string; state: string; note: string; basis?: { version?: string | null; evaluated_at?: string | null } }
+interface Periodo { precision: string; start: string | null; end: string | null; note: string }
+
 interface Proyeccion {
   resource_type: string; nota: string; public_reference?: string | null;
+  indicators?: Indicador[]; production_period?: Periodo;
   lot_code?: string; status?: string; product?: string; origin_status?: string; productores?: number; parcelas?: number;
   shipment_code?: string; destination_country?: string; dispatch_at?: string | null; items?: number;
   case_number?: string; snapshot_number?: number; readiness?: string; content_hash?: string;
@@ -31,6 +35,22 @@ interface Proyeccion {
 }
 
 const TIPO: Record<string, string> = { LOT: 'Lote', SHIPMENT: 'Embarque', DD_SNAPSHOT: 'Instantánea de diligencia' };
+
+// Seis estados, seis tonos. Nada se pinta de «conforme» salvo lo que de verdad es favorable, y el texto
+// acompaña al color: UX-D exige no depender solo del color.
+const ESTADO: Record<string, { tono: Tone; texto: string }> = {
+  FAVORABLE: { tono: 'valid', texto: 'Favorable' },
+  DESFAVORABLE: { tono: 'blocked', texto: 'Desfavorable' },
+  PENDIENTE: { tono: 'review', texto: 'Pendiente' },
+  DESACTUALIZADO: { tono: 'review', texto: 'Desactualizado' },
+  NO_EVALUABLE: { tono: 'neutral', texto: 'No evaluable' },
+  SIN_EVALUAR: { tono: 'neutral', texto: 'Sin evaluar' },
+};
+
+const PRECISION: Record<string, string> = {
+  DAY: 'precisión de día', MONTH: 'precisión de mes', UNKNOWN: 'precisión desconocida',
+  DERIVED: 'DEDUCIDO de la fecha de entrega', NONE: 'sin declarar',
+};
 
 export default function CompartidoPage() {
   const [grants, setGrants] = useState<Concesion[] | null>(null);
@@ -143,6 +163,36 @@ export default function CompartidoPage() {
               <dt className="muted">Huella</dt><dd><code>{abierta.datos.content_hash?.slice(0, 16)}…</code></dd></>)}
             {abierta.datos.public_reference && (<><dt className="muted">Referencia pública</dt><dd><code>{abierta.datos.public_reference}</code></dd></>)}
           </dl>
+          {abierta.datos.production_period && (
+            <p className="muted">
+              <strong>Período de producción:</strong>{' '}
+              {abierta.datos.production_period.start
+                ? <>{abierta.datos.production_period.start} – {abierta.datos.production_period.end} ({PRECISION[abierta.datos.production_period.precision]})</>
+                : 'sin declarar'}
+              <br />{abierta.datos.production_period.note}
+            </p>
+          )}
+
+          {abierta.datos.indicators && abierta.datos.indicators.length > 0 && (
+            <>
+              <h3>Estado del lote</h3>
+              <p className="muted">
+                Cada indicador es un <strong>estado</strong>, no un dato del recurso.
+                <strong> «No evaluable» y «sin evaluar» no significan conforme.</strong>
+              </p>
+              <div className="table-wrap"><table aria-label="Indicadores del lote">
+                <thead><tr><th scope="col">Indicador</th><th scope="col">Estado</th><th scope="col">Qué significa</th></tr></thead>
+                <tbody>{abierta.datos.indicators.map((i) => (
+                  <tr key={i.code}>
+                    <td>{i.label}{i.basis?.version && <div className="muted">{i.basis.version}</div>}</td>
+                    <td><StatusBadge tone={ESTADO[i.state]?.tono ?? 'neutral'}>{ESTADO[i.state]?.texto ?? i.state}</StatusBadge></td>
+                    <td className="muted">{i.note}</td>
+                  </tr>
+                ))}</tbody>
+              </table></div>
+            </>
+          )}
+
           {abierta.datos.requirements && abierta.datos.requirements.length > 0 && (
             <div className="table-wrap"><table aria-label="Requisitos de la instantánea">
               <thead><tr><th scope="col">Requisito</th><th scope="col">Estado</th></tr></thead>
