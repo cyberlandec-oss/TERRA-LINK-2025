@@ -460,6 +460,11 @@ si una variable está puesta se mira su **efecto** (por ejemplo `live_calls_enab
 ### Web por rol y Lot Hub (P0-027, 2026-10-12)
 
 - `npx jest --runInBand test/my-work.int-spec.ts` (desde `apps/api`).
+- `node e2e/review/economia.mjs`: recorrido de P1-012 sobre el despliegue — nada precargado, ausencia que no es
+  cero, prima que no se deduce sin fundamento, sin conversiones de unidad ni moneda, precio que no es pago,
+  corrección con motivo e historial, concurrencia, privacidad frente a la entrega y al expediente DD,
+  permisos, teclado y 390 px. **Cambia datos DEMO**: crea **entregas de ensayo** identificadas en su nota y
+  registra sobre ellas precio, prima y pagos (tablas append-only propias del módulo).
 - `node e2e/review/historico.mjs`: recorrido de P1-011 sobre el despliegue — la línea temporal reutiliza el
   registro de cambios ya existente sin duplicarlo, las tres fechas separadas con la ausente declarada, los
   años sin registros rotulados, comparar con sus limitaciones delante, alertas con problema, impacto, causa

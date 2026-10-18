@@ -189,6 +189,33 @@ organización **declare** su nivel 0–2, lo que añadiría un dato autodeclarad
 observarlos, y **ausencia de datos no se equipara a ausencia de digitalización**. Se mantiene la separación
 entre **madurez operativa**, **capacidades pendientes** del producto y **conclusión jurídica**.
 
+### D-52 — Base del precio, significado de la prima y quién registra el dinero (P1-012) — **PROPUESTA (2026-10-18)**
+
+**Qué pide la fuente**. **S3 §32** dice que la mayoría de plataformas responde *«¿dónde está el cacao?»* y que
+Terra Link debería añadir ***«¿cuánto recibió el productor?»***, enumerando **precio, prima, calidad, volumen,
+frecuencia, pagos** e incentivos. **RF-43** (`docs/03:59`) lo recoge como «Registro de precio, prima y **pagos
+informados**», con dos condiciones: «**no ejecutar transferencias**; **moneda y privacidad**». **P1-012**
+(`docs/18:213`) añade «dato **informado/versionado** y moneda; privacidad; **ninguna transferencia automática**».
+
+**Qué NO decide la fuente**. Ni S3 ni los requisitos dicen **sobre qué cantidad** se aplica el precio, **qué es**
+una prima, ni **quién** la registra. No son datos ausentes: son **decisiones de producto** que hay que tomar y
+justificar. Lo implementado el 2026-10-18 es un **contrato provisional** que deja las tres **visibles en el
+dato**, de modo que adoptar cualquier opción después **no reescriba** lo ya registrado.
+
+| # | Decisión | Opciones | Efecto |
+| --- | --- | --- | --- |
+| 1 | **Base del precio** | **(A)** se **declara por registro** entre «cantidad declarada en la entrega», «cantidad recibida (pesaje)» y «sin base» · **(B)** la organización fija **una sola** base y el sistema la aplica siempre · **(C)** siempre la **recibida**, y sin recepción no hay precio | Cambia el importe sin cambiar el precio: 250 kg declarados y 248 pesados dan totales distintos. **Recomendada: (A)** —queda escrito cuál se usó y con qué cantidad—, revisable a (B) si la operación resulta uniforme |
+| 2 | **Significado de la prima** | **(A)** importe **por unidad** o **fijo**, con **fundamento declarado obligatorio** y **nunca deducido** · **(B)** añadir **porcentaje** sobre el precio · **(C)** catálogo cerrado de primas (certificación, calidad, EUDR) en vez de fundamento libre | **(A)** es lo implementado y es lo único que hoy se puede sostener: no hay catálogo de primas ni regla de cálculo acordada. **(B)** exige fijar sobre qué base se aplica el porcentaje; **(C)** exige un catálogo versionado que nadie ha definido |
+| 3 | **Quién registra y quién corrige** | **(A)** permisos propios `economics:read` / `record` / `correct`, hoy en **ORG_ADMIN** y **MANAGER**, con **AUDITOR** de solo lectura y **técnico de campo sin acceso** · **(B)** que el operador de recepción registre el precio al recibir · **(C)** un rol comercial nuevo | **(A)** cumple «privacidad» de RF-43: leer una entrega **no** da acceso a su dinero. **(B)** acercaría el dato al momento real pero ampliaría quién ve precios; **(C)** es más limpio y cuesta un rol nuevo |
+
+**Lo implementado mientras tanto (provisional, no adoptado):** opción **(A)** en las tres. Las tres quedan
+**registradas en el propio dato** —`basis_kind` con su cantidad y unidad, `premium_kind` con su fundamento, y el
+autor de cada versión—, en tablas **append-only**: cambiar la decisión más adelante **no** reescribe el pasado.
+
+**Lo que no está en discusión**, porque lo fija el requisito: **no se ejecutan transferencias**, un **pago es
+informado** por una persona, **un precio registrado no demuestra un pago**, **una prima ausente no es cero** y
+**no se convierten unidades ni monedas en silencio**.
+
 ### D-51 — De dónde salen los importes del «coste de preparación» (P1-010) — **ADOPTADA (2026-10-18)**
 
 **Qué entiende la fuente por «coste»**. **S3 §33** («GAP 7 — Coste de cumplimiento») pide responder *«¿cuánto me

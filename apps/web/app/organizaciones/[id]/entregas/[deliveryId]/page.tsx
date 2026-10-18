@@ -43,6 +43,14 @@ export default function DeliveryDetailPage() {
       </>} />
       <Alert tone="info">{d.disclaimer}</Alert>
 
+      {/* P1-012: el dinero vive detrás de SU permiso. Sin él, ni el enlace aparece ni la entrega lo publica. */}
+      {ws.can('economics:read') && (
+        <p>
+          <a href={`/organizaciones/${ws.activeOrg?.id}/entregas/${d.id}/economia`}>Precio, prima y pagos informados</a>{' '}
+          <span className="muted">— lo acordado con el productor. Un precio registrado no demuestra un pago.</span>
+        </p>
+      )}
+
       <section className="card" aria-labelledby="dl-decl">
         <h2 id="dl-decl">Declaración</h2>
         <dl className="props">

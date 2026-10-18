@@ -436,6 +436,19 @@ export interface GisEvaluationComparisonsTable {
 
 export interface ProductStatesTable { code: string; label: string; sort_order: number; source: string }
 export interface MeasurementUnitsTable { code: string; label: string; symbol: string; dimension: 'MASS'; source: string }
+export interface DeliveryEconomicsTable {
+  id: string; organization_id: string; delivery_id: string; record_number: number; corrects_record_id: string | null; reason: string | null;
+  price_amount: string | null; price_currency: string | null; price_unit: string | null;
+  basis_kind: 'CANTIDAD_DECLARADA_EN_ENTREGA' | 'CANTIDAD_RECIBIDA' | 'SIN_BASE_DECLARADA'; basis_quantity: string | null; basis_unit: string | null;
+  premium_amount: string | null; premium_kind: 'POR_UNIDAD' | 'IMPORTE_FIJO' | null; premium_currency: string | null; premium_unit: string | null; premium_grounds: string | null;
+  source: 'DECLARADO_POR_LA_ORGANIZACION' | 'DECLARADO_POR_EL_PRODUCTOR' | 'ACTA_O_DOCUMENTO'; source_note: string | null; source_document_id: string | null; agreed_on: string | null;
+  created_by: string; created_at: Generated<Timestamp>; operation_id: string;
+}
+export interface DeliveryPaymentsTable {
+  id: string; organization_id: string; delivery_id: string; payment_number: number; corrects_payment_id: string | null; reason: string | null;
+  amount: string; currency: string; paid_on: string; method_declared: string; reference_declared: string | null;
+  informed_by: string; informed_at: Generated<Timestamp>; operation_id: string;
+}
 export interface ProductsTable {
   id: string;
   organization_id: string;
@@ -918,6 +931,8 @@ export interface Database {
   legal_profile_reviews: LegalProfileReviewsTable;
   legal_profile_sources: LegalProfileSourcesTable;
   legal_profile_rules: LegalProfileRulesTable;
+  delivery_economics: DeliveryEconomicsTable;
+  delivery_payments: DeliveryPaymentsTable;
   budget_parameters: BudgetParametersTable;
   cost_estimates: CostEstimatesTable;
   exchange_agreements: ExchangeAgreementsTable;

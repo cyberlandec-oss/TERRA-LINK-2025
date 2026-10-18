@@ -9135,6 +9135,219 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/deliveries/{deliveryId}/economics": {
+      "get": {
+        "operationId": "EconomicsController_ver",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deliveryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Precio, prima y pagos informados de una entrega, con su procedencia e historial",
+        "tags": [
+          "economics"
+        ]
+      },
+      "post": {
+        "operationId": "EconomicsController_registrar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deliveryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrarDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Registrar el dato económico de una entrega (una sola vez; después se corrige)",
+        "tags": [
+          "economics"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/deliveries/{deliveryId}/economics/corrections": {
+      "post": {
+        "operationId": "EconomicsController_corregir",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deliveryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorregirDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Corregir el dato económico con un motivo; la versión anterior se conserva",
+        "tags": [
+          "economics"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/deliveries/{deliveryId}/payments": {
+      "post": {
+        "operationId": "EconomicsController_pago",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deliveryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PagoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Informar un pago (o corregir uno informado). Terra Link NO ejecuta transferencias",
+        "tags": [
+          "economics"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/producers/{producerId}/economics": {
+      "get": {
+        "operationId": "EconomicsController_porProductor",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "producerId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "¿Cuánto se acordó con este productor? Suma solo lo sumable y cuenta aparte lo demás",
+        "tags": [
+          "economics"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/buyers": {
       "get": {
         "operationId": "ShipmentsController_buyers",
@@ -12438,6 +12651,206 @@
         "required": [
           "lot_id",
           "quantities"
+        ]
+      },
+      "RegistrarDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "price_amount": {
+            "type": "string"
+          },
+          "price_currency": {
+            "type": "string"
+          },
+          "price_unit": {
+            "type": "string",
+            "enum": [
+              "KG",
+              "QQ",
+              "TON",
+              "LB"
+            ]
+          },
+          "basis_kind": {
+            "type": "string",
+            "enum": [
+              "CANTIDAD_DECLARADA_EN_ENTREGA",
+              "CANTIDAD_RECIBIDA",
+              "SIN_BASE_DECLARADA"
+            ]
+          },
+          "premium_amount": {
+            "type": "string"
+          },
+          "premium_kind": {
+            "type": "string",
+            "enum": [
+              "POR_UNIDAD",
+              "IMPORTE_FIJO"
+            ]
+          },
+          "premium_currency": {
+            "type": "string"
+          },
+          "premium_unit": {
+            "type": "string",
+            "enum": [
+              "KG",
+              "QQ",
+              "TON",
+              "LB"
+            ]
+          },
+          "premium_grounds": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "DECLARADO_POR_LA_ORGANIZACION",
+              "DECLARADO_POR_EL_PRODUCTOR",
+              "ACTA_O_DOCUMENTO"
+            ]
+          },
+          "source_note": {
+            "type": "string"
+          },
+          "source_document_id": {
+            "type": "string"
+          },
+          "agreed_on": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "basis_kind",
+          "source"
+        ]
+      },
+      "CorregirDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "price_amount": {
+            "type": "string"
+          },
+          "price_currency": {
+            "type": "string"
+          },
+          "price_unit": {
+            "type": "string",
+            "enum": [
+              "KG",
+              "QQ",
+              "TON",
+              "LB"
+            ]
+          },
+          "basis_kind": {
+            "type": "string",
+            "enum": [
+              "CANTIDAD_DECLARADA_EN_ENTREGA",
+              "CANTIDAD_RECIBIDA",
+              "SIN_BASE_DECLARADA"
+            ]
+          },
+          "premium_amount": {
+            "type": "string"
+          },
+          "premium_kind": {
+            "type": "string",
+            "enum": [
+              "POR_UNIDAD",
+              "IMPORTE_FIJO"
+            ]
+          },
+          "premium_currency": {
+            "type": "string"
+          },
+          "premium_unit": {
+            "type": "string",
+            "enum": [
+              "KG",
+              "QQ",
+              "TON",
+              "LB"
+            ]
+          },
+          "premium_grounds": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "DECLARADO_POR_LA_ORGANIZACION",
+              "DECLARADO_POR_EL_PRODUCTOR",
+              "ACTA_O_DOCUMENTO"
+            ]
+          },
+          "source_note": {
+            "type": "string"
+          },
+          "source_document_id": {
+            "type": "string"
+          },
+          "agreed_on": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "expected_record_number": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "operation_id",
+          "basis_kind",
+          "source",
+          "reason",
+          "expected_record_number"
+        ]
+      },
+      "PagoDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "paid_on": {
+            "type": "string"
+          },
+          "method_declared": {
+            "type": "string"
+          },
+          "reference_declared": {
+            "type": "string"
+          },
+          "corrects_payment_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "amount",
+          "currency",
+          "paid_on",
+          "method_declared"
         ]
       },
       "CreateBuyerDto": {
