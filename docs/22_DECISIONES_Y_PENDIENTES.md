@@ -189,6 +189,31 @@ organización **declare** su nivel 0–2, lo que añadiría un dato autodeclarad
 observarlos, y **ausencia de datos no se equipara a ausencia de digitalización**. Se mantiene la separación
 entre **madurez operativa**, **capacidades pendientes** del producto y **conclusión jurídica**.
 
+### D-53 — Qué falta para responder las preguntas comerciales que quedan (P1-014) — **PROPUESTA (2026-10-18)**
+
+**Qué pide la fuente**. **S3 §41** («GAP 15 — pasar de *compliance* a inteligencia comercial») condiciona todo a
+tener «productor + parcela + calidad + volumen + trazabilidad + riesgo + precio» y lista **seis preguntas**.
+**RF-45** (`docs/03:61`) pide «analytics / supplier score comercial», con una condición dura: **métrica
+independiente del riesgo legal**. **P1-014** (`docs/18:215`) añade «denominadores y permiso».
+
+**Qué se entregó el 2026-10-18**: los indicadores que **no exigen inventar nada** —precio medio ponderado por
+grupo compatible, cobertura del dato económico, pagos informados sobre lo acordado, volumen recibido,
+decisiones de calidad, presupuesto estimado y parcelas con geometría—, cada uno **autodescrito** (qué mide,
+fórmula, unidad, período, denominador, cobertura, procedencia y límites) y **separado del riesgo regulatorio**.
+
+**Qué NO se entregó, y por qué no se fingió:**
+
+| # | Decisión | Opciones | Efecto |
+| --- | --- | --- | --- |
+| 1 | **Composición del «supplier score»** | **(A)** no publicar score y dejar los indicadores separados —lo implementado— · **(B)** score con pesos **declarados por la organización**, versionados, como los parámetros de D-51 · **(C)** pesos fijos del producto | Un número único **exige ponderar** precio, calidad, volumen y trazabilidad, y **ninguna fuente fija esos pesos**. **(C)** queda descartada: serían pesos inventados por Terra Link. **Recomendada: (B)** si se quiere el score, con los pesos **visibles y versionados**; mientras tanto, **(A)** |
+| 2 | **Umbral de «datos suficientes»** | **(A)** no fijar ninguno y **publicar la cobertura** —lo implementado— · **(B)** un mínimo declarado por la organización, por indicador · **(C)** un mínimo fijo del producto | Un umbral decide **cuándo una cifra se considera creíble**: inventarlo convierte una opinión en regla. **Recomendada: (A)**; **(B)** si hace falta ocultar cifras de muy baja cobertura, siempre **diciendo cuál es el mínimo y quién lo puso** |
+| 3 | **Atribución de precio a un comprador** | **(A)** no atribuir —lo implementado— · **(B)** registrar **precio de venta** por embarque o comprador · **(C)** derivarlo del grafo de origen | «¿Qué comprador paga mejor?» **no se puede responder hoy**: el dato económico es lo que la organización paga al **productor**, no lo que cobra del comprador. **(C)** sería atribuir un precio sin relación que lo sustente. **Recomendada: (B)**, que es desarrollo nuevo, no una decisión suelta |
+| 4 | **Rendimiento y potencial de expansión** | **(A)** no responder —lo implementado— · **(B)** registrar producción por parcela y período con su superficie | «¿Qué fincas pueden aumentar producción?» exige una **serie de rendimiento** que no existe. Responderla hoy sería **inventar el dato** |
+
+**Lo que no está en discusión**, porque lo fija RF-45: la métrica comercial **no usa** la conclusión de riesgo,
+la severidad ni el resultado técnico; **`UNDETERMINED` no significa riesgo bajo**; y una clasificación técnica
+parcial **conserva sus límites y su cobertura**.
+
 ### D-52 — Base del precio, significado de la prima y quién registra el dinero (P1-012) — **ADOPTADA (2026-10-18)**
 
 **Qué pide la fuente**. **S3 §32** dice que la mayoría de plataformas responde *«¿dónde está el cacao?»* y que

@@ -100,6 +100,8 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     if (ws.can('cost:read')) trazabilidad.push({ href: `${base}/presupuesto`, label: 'Presupuesto', match: (p) => p.startsWith(`${base}/presupuesto`) });
     // P1-011: histórico temporal y alertas. Derivado de lo ya registrado; leerlo no cambia nada del dominio.
     if (ws.can('plot:read') || ws.can('plot:read_assigned')) trazabilidad.push({ href: `${base}/historico`, label: 'Histórico', match: (p) => p.startsWith(`${base}/historico`) });
+    // P1-014: indicadores comerciales. Permiso propio; cada indicador exige además el de su dominio.
+    if (ws.can('analytics:read')) trazabilidad.push({ href: `${base}/indicadores`, label: 'Indicadores', match: (p) => p.startsWith(`${base}/indicadores`) });
     if (ws.can('report:read')) trazabilidad.push({ href: `${base}/reportes`, label: 'Reportes', match: (p) => p.startsWith(`${base}/reportes`) });
     if (trazabilidad.length) groups.push({ title: 'Trazabilidad', items: trazabilidad });
     const admin: NavItem[] = [];

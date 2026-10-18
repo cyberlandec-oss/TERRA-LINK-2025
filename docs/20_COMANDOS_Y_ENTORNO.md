@@ -460,6 +460,12 @@ si una variable está puesta se mira su **efecto** (por ejemplo `live_calls_enab
 ### Web por rol y Lot Hub (P0-027, 2026-10-12)
 
 - `npx jest --runInBand test/my-work.int-spec.ts` (desde `apps/api`).
+- `node e2e/review/indicadores.mjs`: recorrido de P1-014 sobre el despliegue — que los cálculos **responden**
+  (no una pantalla que siempre diga «sin datos»), exclusiones contadas con su razón, ausencia que no es cero,
+  cada indicador autodescrito, las tres ausencias distinguidas (sin datos / no calculable / restringido),
+  riesgo aparte, lo no implementado con su condición, permisos sobre agregados y descargas, teclado y 390 px.
+  **Cambia datos DEMO**: crea **entregas de ensayo** identificadas en su nota, con precios en dos monedas y
+  dos unidades para poder discriminar.
 - `node e2e/review/economia.mjs`: recorrido de P1-012 sobre el despliegue — nada precargado, ausencia que no es
   cero, prima que no se deduce sin fundamento, sin conversiones de unidad ni moneda, precio que no es pago,
   corrección con motivo e historial, concurrencia, privacidad frente a la entrega y al expediente DD,
