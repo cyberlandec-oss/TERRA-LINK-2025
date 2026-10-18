@@ -1,8 +1,9 @@
 # Evidencia — P1-011 «Histórico temporal y alertas» (2026-10-18)
 
-**Validación**: pendiente de consolidar con el SHA del candidato (ver §10). **Despliegue de trabajo**:
-`/version` → `f7378a7+sucio`, esquema **`0051`** — **no hay migración nueva**: todo el histórico se deriva de
-tablas que ya existían, así que **no corresponde respaldo**.
+**Validación**: `npm run validate` **APROBADA** sobre `ca517e1` — **817** pruebas, **72** E2E, 0 fallos
+(`validation-results/2026-10-18T17-09-10-317Z`). **Despliegue**: `/version` → `ca517e1` (`BUILD_ARG`), esquema
+**`0051`** — **no hay migración nueva**: todo el histórico se deriva de tablas que ya existían, así que **no
+corresponde respaldo**.
 
 ## 1. Qué piden los criterios originales, y qué se hizo con eso
 
@@ -109,7 +110,8 @@ El selector de parcelas no llegaba a dibujarse. Corregido leyendo `items` y —l
 | `node e2e/review/historico.mjs` | **18/18** sobre el despliegue |
 | `node e2e/review/estados-web.mjs` | **APROBADO** (regresión del menú) |
 | `node e2e/review/web-por-rol.mjs` | **APROBADO** (22 combinaciones, 19 cuentas) |
-| `npm run validate` sobre el SHA del candidato | pendiente — se anota aquí al cerrar |
+| `npm run validate` sobre `ca517e1` | **APROBADA**: 817 pruebas, 72 E2E, 0 fallos |
+| `node e2e/review/historico.mjs` sobre el despliegue de `ca517e1` | **18/18** |
 
 **Límite de esta revisión**: el conjunto DEMO es todo de 2026, así que **no contiene ningún año vacío**. El
 rótulo `SIN_REGISTROS` lo demuestra `history.int-spec.ts`, **no** la revisión en navegador, y el arnés lo dice
