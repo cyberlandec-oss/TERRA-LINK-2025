@@ -97,6 +97,42 @@ await caso('AISLAMIENTO: una tercera organización sin concesión no resuelve ni
   return [r.status === 404 && l.status === 404, `resolución=${r.status} · vista=${l.status}`];
 });
 
+// --------------------------------------------- PERÍODO DE PRODUCCIÓN (corrección del 2026-10-17)
+// El contrato PROHÍBE deducir el período de producción de la fecha de entrega. Los datos DEMO dan los dos
+// casos decisivos: un lote con cosecha DECLARADA por mes y otro con cosecha DESCONOCIDA y entrega con fecha.
+{
+  const todos = (lotes.body?.items ?? lotes.body ?? []);
+  const idDe = (codigo) => exigeEntrada(`lote ${codigo}`, todos.find((l) => l.lot_code === codigo)?.id);
+  const conConcesion = async (loteId, fn) => {
+    const c = await pedir(admin.token, 'POST', `/api/v1/organizations/${COOP}/access-grants`, {
+      operation_id: randomUUID(), grantee_user_id: compradorId, resource_type: 'LOT', resource_id: loteId,
+      can_read: true, expires_at: new Date(Date.now() + 3600000).toISOString(), reason: 'Revisión del período',
+    });
+    const g = exigeEntrada('concesión del período', c.body?.grant?.id);
+    try { return await fn(await pedir(comprador.token, 'GET', `/api/v1/granted/${g}`)); }
+    finally { await pedir(admin.token, 'POST', `/api/v1/organizations/${COOP}/access-grants/${g}/revoke`, { operation_id: randomUUID(), reason: 'Fin de la revisión del período' }); }
+  };
+
+  await caso('PERÍODO declarado: se publica 2026-09 con precisión de mes, NO los límites expandidos', () =>
+    conConcesion(idDe('LOT-2026-00001'), (v) => {
+      const pp = v.body?.production_period;
+      if (!pp) return [false, 'la vista no trae production_period'];
+      const t = JSON.stringify(pp);
+      return [v.status === 200 && pp.precision === 'MONTH' && pp.start === '2026-09' && !t.includes('2026-09-01') && !t.includes('2026-10-13'),
+        `precisión=${pp.precision} · ${pp.start}..${pp.end} · sin límites expandidos=${!t.includes('2026-09-01')} · sin fecha de entrega=${!t.includes('2026-10-13')}`];
+    }));
+
+  await caso('PERÍODO desconocido: con entrega fechada, sigue DESCONOCIDO y sin precisión deducida', () =>
+    conConcesion(idDe('LOT-2026-00002'), (v) => {
+      const pp = v.body?.production_period;
+      if (!pp) return [false, 'la vista no trae production_period'];
+      const t = JSON.stringify(pp);
+      return [v.status === 200 && pp.precision === 'UNKNOWN' && pp.start === null && pp.end === null
+        && !t.includes('2026-10-13') && !t.includes('DERIVED'),
+        `precisión=${pp.precision} · fechas=${pp.start ?? 'ninguna'} · sin fecha de entrega=${!t.includes('2026-10-13')} · sin DERIVED=${!t.includes('DERIVED')}`];
+    }));
+}
+
 // ------------------------------------------------------------------ NAVEGADOR
 const navegador = await chromium.launch();
 try {
@@ -155,11 +191,13 @@ try {
     return [avisa && hayNoEvaluable && distingue, `avisa=${avisa} · estados no concluyentes visibles=${hayNoEvaluable} · distinciones=${distingue}`];
   });
 
-  await caso('PERÍODO: se muestra con su precisión, y lo deducido se declara deducido', async () => {
+  await caso('PERÍODO en pantalla: precisión declarada o «desconocido», nunca una deducción', async () => {
     const t = await page.locator('body').innerText();
     const hay = /Período de producción/.test(t);
-    const honesto = /sin declarar|precisión de (día|mes)|DEDUCIDO/i.test(t);
-    return [hay && honesto, `visible=${hay} · precisión declarada=${honesto}`];
+    const honesto = /precisión de (día|mes)|declarado desconocido|sin declarar|desconocido/i.test(t);
+    // Lo que NO puede aparecer: una precisión deducida de la fecha de entrega.
+    const limpio = !/DEDUCIDO de la fecha de entrega|DERIVED/i.test(t);
+    return [hay && honesto && limpio, `visible=${hay} · precisión honesta=${honesto} · sin deducción=${limpio}`];
   });
 
   await caso('DESCARGA: entrega la vista compartida interna, identificada como tal', async () => {

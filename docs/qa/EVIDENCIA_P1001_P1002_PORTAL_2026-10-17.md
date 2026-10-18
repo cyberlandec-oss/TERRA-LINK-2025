@@ -312,6 +312,17 @@ entrega** y que bastaba marcarlas `DERIVED`. **Las dos cosas estaban equivocadas
 | Sin cosecha declarada | `NONE`, sin fechas, diciendo que **no se deduce de la fecha de entrega** |
 | **Límites heredados sin declaración** | Se conservan en `inherited_range`, **separados** del período y con su procedencia escrita: **no** acreditan producción ni son cosecha declarada. El período permanece desconocido |
 
+**Comprobado en el despliegue** (`3257028`, `portal-comprador.mjs` **17/17**), con los dos casos decisivos que
+los datos DEMO ya contenían:
+
+| Lote DEMO | Lo declarado | Lo que publica la vista |
+| --- | --- | --- |
+| `LOT-2026-00001` | cosecha `MONTH 2026-09` (límites guardados `2026-09-01`/`2026-09-30`), entregada el `2026-10-13` | `MONTH`, `2026-09 – 2026-09`. **Sin** `2026-09-01` y **sin** la fecha de entrega |
+| `LOT-2026-00002` | cosecha `UNKNOWN`, entregada el `2026-10-13` | `UNKNOWN`, **sin fechas**. **Sin** la fecha de entrega y **sin** `DERIVED` |
+
+**Pruebas dirigidas**: `indicadores.spec.ts` **8/8** (incluye el caso de los límites heredados) y
+`access-grants.int-spec.ts` **PERÍODO 1/3–3/3** más el de lectura y descarga (**27/27** en la suite).
+
 **No se reconstruyó ni se corrigió ningún dato histórico**: no hubo migración ni escritura. Comprobado sobre la
 base real: **0** entregas y **0** correcciones con límites derivados sin declaración, y **0** con un límite
 derivado igual a la fecha de entrega.
