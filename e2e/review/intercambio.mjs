@@ -189,6 +189,10 @@ try {
     await page.goto(`${WEB}/organizaciones/${COOP}/intercambio`);
     await page.getByRole('heading', { level: 1, name: /Intercambio con GUIA/ }).waitFor({ timeout: 20000 });
     await page.getByRole('heading', { name: 'Acuerdo de intercambio' }).waitFor({ timeout: 20000 });
+    // El encabezado aparece antes que los datos: hay que esperar al desenlace real de la carga.
+    await page.locator('main')
+      .getByText(/Verificado y vigente|Registrado, sin verificar|Retirado|Todavía no hay ningún acuerdo registrado/)
+      .first().waitFor({ timeout: 20000 });
   };
 
   const { ctx, page } = await entrar(admin);
@@ -197,6 +201,7 @@ try {
     await page.goto(`${WEB}/organizaciones/${COOP}`);
     await page.getByRole('link', { name: 'Intercambio', exact: true }).first().click();
     await page.getByRole('heading', { level: 1, name: /Intercambio con GUIA/ }).waitFor({ timeout: 20000 });
+    await page.getByRole('heading', { name: 'Registro de actos' }).waitFor({ timeout: 20000 });
     const t = await page.locator('main').innerText();
     return [/no se conecta con GUIA/i.test(t) && /se intercambian archivos/i.test(t) && /no se envía nada a ningún servicio externo/i.test(t),
       `aviso de que no hay conexión presente=${/no se conecta con GUIA/i.test(t)}`];
@@ -210,6 +215,7 @@ try {
   });
 
   await caso('PANTALLA: el registro de actos muestra la exportación y la conciliación', async () => {
+    await page.getByRole('table', { name: 'Actos de intercambio' }).waitFor({ timeout: 20000 });
     const t = await page.locator('main').innerText();
     const tabla = await page.getByRole('table', { name: 'Actos de intercambio' }).isVisible();
     return [tabla && /Exportación/.test(t) && /Conciliación/.test(t), `tabla=${tabla} · exportación y conciliación listadas`];
