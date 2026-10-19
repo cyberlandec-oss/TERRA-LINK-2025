@@ -405,6 +405,62 @@ describeDb('P1-008 integración por webhooks (PostgreSQL real, receptor local)',
     expect(lista.event_catalog).not.toContain('ProducerCreated');
   });
 
+  it('LISTAS PAGINADAS con límite y orden estable (docs/09:7): ni se corta en silencio ni repite filas', async () => {
+    // Antes la lista de intentos devolvía «los últimos 100» sin decirlo: un corte silencioso, no una página.
+    const todos: Array<{ id: string; sent_at: string }> = [];
+    let cursor: string | null = null;
+    let paginas = 0;
+    do {
+      const q: string = `?limit=3${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+      const r = (await http().get(`${wh(orgA)}/attempts${q}`).set(as(ADMIN)).expect(200)).body;
+      expect(r.limit).toBe(3);
+      expect(r.attempts.length).toBeLessThanOrEqual(3);
+      expect(r.pagination_note).toMatch(/no repita ni omita/i);
+      todos.push(...r.attempts);
+      cursor = r.next_cursor;
+      paginas += 1;
+      expect(paginas).toBeLessThan(60);          // no se recorre infinito
+    } while (cursor);
+    expect(paginas).toBeGreaterThan(1);          // de verdad hubo varias páginas
+
+    // Ni una fila repetida ni una perdida: el total paginado coincide con el de una sola consulta amplia.
+    expect(new Set(todos.map((a) => a.id)).size).toBe(todos.length);
+    const completo = (await http().get(`${wh(orgA)}/attempts?limit=100`).set(as(ADMIN)).expect(200)).body;
+    expect(completo.next_cursor).toBeNull();
+    expect(todos.length).toBe(completo.attempts.length);
+    expect(todos.map((a) => a.id).sort()).toEqual(completo.attempts.map((a: { id: string }) => a.id).sort());
+
+    // Orden estable: instante descendente.
+    const fechas = todos.map((a) => a.sent_at);
+    expect([...fechas].sort().reverse()).toEqual(fechas);
+
+    // El límite tiene tope y el cursor inválido se rechaza, no se ignora.
+    expect((await http().get(`${wh(orgA)}/attempts?limit=500`).set(as(ADMIN))).status).toBe(400);
+    expect((await http().get(`${wh(orgA)}/attempts?cursor=no-es-un-cursor`).set(as(ADMIN))).status).toBe(400);
+
+    // Y la lista de destinos sigue el mismo contrato.
+    const d1 = (await http().get(`${wh(orgA)}?limit=2`).set(as(ADMIN)).expect(200)).body;
+    expect(d1.destinations.length).toBeLessThanOrEqual(2);
+    expect(d1.limit).toBe(2);
+    expect(typeof d1.next_cursor === 'string' || d1.next_cursor === null).toBe(true);
+    if (d1.next_cursor) {
+      // El orden lo fija el motor con SU colación; lo que el contrato exige es que sea ESTABLE, no que
+      // coincida con el de JavaScript. Así que se compara con la propia lista completa, no con un `sort()`.
+      const completos: string[] = [];
+      let c: string | null = null;
+      do {
+        const url: string = `${wh(orgA)}?limit=2${c ? `&cursor=${encodeURIComponent(c)}` : ''}`;
+        const r: { destinations: Array<{ code: string }>; next_cursor: string | null } = (await http().get(url).set(as(ADMIN)).expect(200)).body;
+        completos.push(...r.destinations.map((x) => x.code));
+        c = r.next_cursor;
+      } while (c);
+      const deUnaVez = (await http().get(`${wh(orgA)}?limit=100`).set(as(ADMIN)).expect(200)).body
+        .destinations.map((x: { code: string }) => x.code);
+      expect(new Set(completos).size).toBe(completos.length);   // sin repetir
+      expect(completos).toEqual(deUnaVez);                      // mismo orden y nada perdido
+    }
+  });
+
   it('URL: se rechaza lo que no es una dirección admisible', async () => {
     expect((await configurar('malo', { url: 'no-es-una-url' })).status).toBe(422);
     expect((await configurar('malo2', { url: 'ftp://host/x' })).status).toBe(422);

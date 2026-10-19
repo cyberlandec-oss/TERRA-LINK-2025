@@ -3,7 +3,8 @@ import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiProperty, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min } from 'class-validator';
 import { sql, type Kysely, type Transaction } from 'kysely';
 import { DB } from '../db/database';
 import type { Database } from '../db/schema';
@@ -65,6 +66,44 @@ class DestinoDto {
   @ApiProperty({ required: false }) @IsOptional() @IsBoolean() active?: boolean;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @Length(5, 500) reason?: string;
 }
+/**
+ * Consulta de intentos. `docs/09:7` exige «Listas **paginadas con límites y orden estable**; filtros
+ * whitelist»: aquí están el límite declarado, el cursor y el único filtro admitido.
+ */
+class DestinosQueryDto {
+  @ApiProperty({ required: false }) @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(200) cursor?: string;
+}
+
+class IntentosQueryDto {
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @Length(2, 60) code?: string;
+  @ApiProperty({ required: false }) @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(200) cursor?: string;
+}
+
+/**
+ * Cursor de clave: instante del intento **e identificador**. El instante solo no sirve de desempate —dos
+ * intentos pueden caer en el mismo microsegundo— y sin desempate una página puede repetir u omitir filas.
+ */
+const codificarCursor = (enviadoEn: string, id: string) => Buffer.from(JSON.stringify([enviadoEn, id])).toString('base64url');
+function descodificarCursor(c: string): [string, string] {
+  try {
+    const v = JSON.parse(Buffer.from(c, 'base64url').toString('utf8'));
+    if (Array.isArray(v) && typeof v[0] === 'string' && typeof v[1] === 'string') return [v[0], v[1]];
+  } catch { /* cursor inválido */ }
+  throw new AppError(400, 'VALIDATION_FAILED', 'Cursor no válido.');
+}
+
+/** El cursor de destinos es su código: la clave de orden ya es única por organización. */
+function descodificarCursorCodigo(c: string): string {
+  const v = Buffer.from(c, 'base64url').toString('utf8');
+  if (!v || v.length > 60) throw new AppError(400, 'VALIDATION_FAILED', 'Cursor no válido.');
+  return v;
+}
+
+/** Tope por página. Un cliente puede pedir menos; más, no. */
+const MAX_POR_PAGINA = 100;
+
 class VerificarDto {
   @ApiProperty() @IsString() @Length(1, 10000) body!: string;
   @ApiProperty() @Matches(/^t=\d+,v1=[0-9a-f]{64}$/) signature!: string;
@@ -219,8 +258,10 @@ export class WebhookService {
     };
   }
 
-  async listar(user: AuthUser, orgId: string) {
+  async listar(user: AuthUser, orgId: string, q: DestinosQueryDto = {}) {
     await this.authz.require(user, orgId, 'integration:read', { mutation: false });
+    const limite = Math.min(q.limit ?? 50, MAX_POR_PAGINA);
+    const desde = q.cursor ? descodificarCursorCodigo(q.cursor) : null;
     const filas = await sql<{
       id: string; code: string; version: number; url: string; secret_fingerprint: string;
       event_types: string[]; active: boolean; reason: string | null; created_at: string; author: string | null; entregas: number; fallos: number;
@@ -232,10 +273,14 @@ export class WebhookService {
       FROM webhook_destinations d
       LEFT JOIN users u ON u.id = d.created_by
       WHERE d.organization_id = ${orgId}
-      ORDER BY d.code, d.version DESC`.execute(this.db);
+        AND (${desde}::text IS NULL OR d.code > ${desde})
+      ORDER BY d.code, d.version DESC
+      LIMIT ${limite + 1}`.execute(this.db);
 
+    const hayMas = filas.rows.length > limite;
+    const pagina = filas.rows.slice(0, limite);
     return {
-      destinations: filas.rows.map((d) => ({
+      destinations: pagina.map((d) => ({
         id: d.id, code: d.code, version: d.version, url: d.url,
         /** El secreto NO se publica: solo su huella, para poder compararlo sin revelarlo. */
         secret_fingerprint: d.secret_fingerprint,
@@ -243,6 +288,9 @@ export class WebhookService {
         created_at: d.created_at, author: d.author ?? 'PLATAFORMA',
         delivered: d.entregas, failed: d.fallos,
       })),
+      limit: limite,
+      /** `null` cuando no queda ninguno más. El total NO se publica aquí. */
+      next_cursor: hayMas && pagina.length ? Buffer.from(pagina[pagina.length - 1].code, 'utf8').toString('base64url') : null,
       /** Lo que se puede suscribir. Si no está aquí, no se publica: no hay suscripción a ciegas. */
       event_catalog: TIPOS_DE_EVENTO,
       local_destinations_allowed: permiteLocales(),
@@ -263,8 +311,13 @@ export class WebhookService {
     };
   }
 
-  async intentos(user: AuthUser, orgId: string, code?: string) {
+  async intentos(user: AuthUser, orgId: string, q: IntentosQueryDto = {}) {
     await this.authz.require(user, orgId, 'integration:read', { mutation: false });
+    const limite = Math.min(q.limit ?? 50, MAX_POR_PAGINA);
+    const code = q.code?.trim() || null;
+    // Orden ESTABLE: instante descendente y, a igualdad, identificador. Sin el desempate una página podría
+    // repetir u omitir un intento, que es justo lo que una lista paginada no puede hacer.
+    const corte = q.cursor ? descodificarCursor(q.cursor) : null;
     const filas = await sql<{
       id: string; code: string; delivery_id: string; attempt: number; status: string; http_status: number | null;
       response_excerpt: string | null; error: string | null; duration_ms: number | null; sent_at: string;
@@ -275,12 +328,26 @@ export class WebhookService {
       FROM webhook_attempts a
       JOIN webhook_destinations d ON d.id = a.destination_id
       JOIN domain_events e ON e.event_id = a.event_id
-      WHERE a.organization_id = ${orgId} AND (${code ?? null}::text IS NULL OR d.code = ${code ?? null})
-      ORDER BY a.sent_at DESC LIMIT 100`.execute(this.db);
+      WHERE a.organization_id = ${orgId}
+        AND (${code}::text IS NULL OR d.code = ${code})
+        AND (${corte ? corte[0] : null}::timestamptz IS NULL
+             OR (a.sent_at, a.id) < (${corte ? corte[0] : null}::timestamptz, ${corte ? corte[1] : null}::uuid))
+      ORDER BY a.sent_at DESC, a.id DESC
+      LIMIT ${limite + 1}`.execute(this.db);
+
+    const hayMas = filas.rows.length > limite;
+    const pagina = filas.rows.slice(0, limite);
+    const ultimo = pagina[pagina.length - 1];
     return {
-      attempts: filas.rows,
+      attempts: pagina,
+      limit: limite,
+      /** `null` cuando no queda nada por leer. Mientras no lo sea, **falta** por ver: no es el total. */
+      next_cursor: hayMas && ultimo ? codificarCursor(ultimo.sent_at, ultimo.id) : null,
       note: 'Cada intento, con su resultado. Los reintentos los gobierna el bus de eventos: la misma cola, con '
         + 'su espera creciente y su cola muerta, que ya se consulta en el historial de eventos.',
+      pagination_note: `Página de ${pagina.length} intento(s) de un total que NO se publica aquí. Mientras `
+        + '«next_cursor» no sea nulo quedan más: pídelos con ese cursor. El orden es por instante de envío '
+        + 'descendente, con el identificador como desempate, para que una página no repita ni omita filas.',
     };
   }
 
@@ -432,8 +499,10 @@ export class WebhookController {
 
   @Get()
   @ApiOperation({ summary: 'Destinos configurados, con su huella de secreto y sus entregas' })
-  listar(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string) {
-    return this.service.listar(u, o);
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'cursor', required: false })
+  listar(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Query() q: DestinosQueryDto) {
+    return this.service.listar(u, o, q);
   }
 
   @Post()
@@ -444,10 +513,12 @@ export class WebhookController {
   }
 
   @Get('attempts')
-  @ApiOperation({ summary: 'Resultado de cada intento de entrega' })
+  @ApiOperation({ summary: 'Resultado de cada intento de entrega, paginado' })
   @ApiQuery({ name: 'code', required: false })
-  intentos(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Query('code') code?: string) {
-    return this.service.intentos(u, o, code);
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'cursor', required: false })
+  intentos(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Query() q: IntentosQueryDto) {
+    return this.service.intentos(u, o, q);
   }
 
   @Post(':code/verify-signature')

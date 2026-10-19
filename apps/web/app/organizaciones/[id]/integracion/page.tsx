@@ -20,9 +20,18 @@ interface Destino {
 }
 interface Vista {
   destinations: Destino[];
+  limit: number;
+  next_cursor: string | null;
   event_catalog: string[];
   local_destinations_allowed: boolean;
   mode_note: string; signature_note: string; idempotency_note: string; delivery_guarantee: string;
+}
+interface PaginaIntentos {
+  attempts: Intento[];
+  limit: number;
+  next_cursor: string | null;
+  note: string;
+  pagination_note: string;
 }
 interface Intento {
   id: string; code: string; delivery_id: string; attempt: number; status: string;
@@ -41,6 +50,8 @@ export default function IntegracionPage() {
 
   const [v, setV] = useState<Vista | null>(null);
   const [intentos, setIntentos] = useState<Intento[] | null>(null);
+  const [pagina, setPagina] = useState<PaginaIntentos | null>(null);
+  const [masDestinos, setMasDestinos] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const [filtro, setFiltro] = useState('');
 
@@ -57,14 +68,40 @@ export default function IntegracionPage() {
     setError(null);
     try {
       const base = `/api/v1/organizations/${orgId}/integration/webhooks`;
-      setV(await api<Vista>(base));
+      const lista = await api<Vista>(base);
+      setV(lista);
+      setMasDestinos(lista.next_cursor !== null);
       const q = filtro ? `?code=${encodeURIComponent(filtro)}` : '';
-      setIntentos((await api<{ attempts: Intento[] }>(`${base}/attempts${q}`)).attempts);
+      const p = await api<PaginaIntentos>(`${base}/attempts${q}`);
+      setPagina(p);
+      setIntentos(p.attempts);
     } catch (err) { setError(err as ApiError); }
   }, [orgId, filtro]);
   useEffect(() => { void cargar(); }, [cargar]);
 
   const existente = v?.destinations.find((d) => d.code === code.trim());
+
+  /** Trae la siguiente página SIN perder lo ya mostrado: la lista no se corta, se continúa. */
+  async function masIntentos() {
+    if (!orgId || !pagina?.next_cursor) return;
+    const base = `/api/v1/organizations/${orgId}/integration/webhooks`;
+    const q = `?${filtro ? `code=${encodeURIComponent(filtro)}&` : ''}cursor=${encodeURIComponent(pagina.next_cursor)}`;
+    try {
+      const p = await api<PaginaIntentos>(`${base}/attempts${q}`);
+      setPagina(p);
+      setIntentos((prev) => [...(prev ?? []), ...p.attempts]);
+    } catch (err) { setError(err as ApiError); }
+  }
+
+  async function masDestinosCargar() {
+    if (!orgId || !v?.next_cursor) return;
+    const base = `/api/v1/organizations/${orgId}/integration/webhooks`;
+    try {
+      const siguiente = await api<Vista>(`${base}?cursor=${encodeURIComponent(v.next_cursor)}`);
+      setV({ ...siguiente, destinations: [...v.destinations, ...siguiente.destinations] });
+      setMasDestinos(siguiente.next_cursor !== null);
+    } catch (err) { setError(err as ApiError); }
+  }
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
@@ -214,6 +251,9 @@ export default function IntegracionPage() {
                 ))}</tbody>
               </table></div>
             )}
+            {masDestinos && (
+              <button className="secondary" onClick={() => void masDestinosCargar()}>Cargar más destinos</button>
+            )}
             <p className="muted">{v.signature_note}</p>
             <p className="muted">{v.idempotency_note}</p>
             <Alert tone="review" title="Procesar una sola vez es cosa de tu sistema.">
@@ -267,6 +307,10 @@ export default function IntegracionPage() {
                 ))}</tbody>
               </table></div>
             )}
+            {pagina?.next_cursor && (
+              <button className="secondary" onClick={() => void masIntentos()}>Cargar más intentos</button>
+            )}
+            {pagina && <p className="muted">{pagina.pagination_note}</p>}
             <p className="muted">
               Un intento fallido queda <strong>registrado igual</strong>, con su causa: el bus reintenta con
               espera creciente y, si se agota, la entrega queda en la cola muerta, que se consulta en

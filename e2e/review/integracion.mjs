@@ -344,6 +344,33 @@ try {
       `intentos recibidos ${fallidas} → ${porRuta(code).length} tras apagar y reponer el receptor · entregas logradas=${logradas}`];
   });
 
+  await caso('LISTAS PAGINADAS (docs/09:7): límite, cursor y orden estable, sin corte silencioso', async () => {
+    // Antes la lista de intentos devolvía «los últimos 100» sin decirlo. Eso no es una página: es un corte
+    // invisible, y quien integra no podía saber que faltaba algo.
+    const vistos = [];
+    let cursor = null;
+    let paginas = 0;
+    do {
+      const q = `?limit=3${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+      const r = await pedir(admin.token, 'GET', `${wh()}/attempts${q}`);
+      if (r.status !== 200) throw new Error(`intentos respondió ${r.status}`);
+      if (r.body.limit !== 3) throw new Error(`el límite pedido no se respetó: ${r.body.limit}`);
+      vistos.push(...r.body.attempts);
+      cursor = r.body.next_cursor;
+      paginas += 1;
+      if (paginas > 200) throw new Error('la paginación no termina');
+    } while (cursor);
+
+    const unicos = new Set(vistos.map((a) => a.id)).size;
+    const fechas = vistos.map((a) => a.sent_at);
+    const ordenado = [...fechas].sort().reverse().join('|') === fechas.join('|');
+    const limiteAlto = await pedir(admin.token, 'GET', `${wh()}/attempts?limit=500`);
+    const cursorMalo = await pedir(admin.token, 'GET', `${wh()}/attempts?cursor=no-es-un-cursor`);
+    return [unicos === vistos.length && paginas > 1 && ordenado
+      && limiteAlto.status === 400 && cursorMalo.status === 400,
+    `${vistos.length} intentos en ${paginas} páginas, ninguno repetido · orden estable=${ordenado} · límite excesivo → ${limiteAlto.status} · cursor inválido → ${cursorMalo.status}`];
+  });
+
   await caso('PERMISOS: consultar es otro permiso, y el técnico no tiene ninguno de los dos', async () => {
     const lista = await pedir(tecnico.token, 'GET', wh());
     const intentos = await pedir(tecnico.token, 'GET', `${wh()}/attempts`);
@@ -436,6 +463,23 @@ try {
       const filas = await page.locator('table[aria-label="Intentos de entrega"] tbody tr').count();
       return [filas >= 2 && /ENTREGADO/.test(t) && /RECHAZADO/.test(t) && /mantenimiento/.test(t),
         `${filas} intentos a la vista · se ven el logrado y el rechazado, con lo que contestó el receptor`];
+    });
+
+    await caso('PANTALLA: la página se continúa, y se DICE que hay más en vez de cortar en silencio', async () => {
+      await abrir(page);
+      await page.locator('table[aria-label="Intentos de entrega"]').waitFor({ timeout: 20000 });
+      const antes = await page.locator('table[aria-label="Intentos de entrega"] tbody tr').count();
+      const t = await page.locator('main').innerText();
+      const avisa = /quedan más|next_cursor/i.test(t);
+      const boton = page.getByRole('button', { name: 'Cargar más intentos' });
+      if (await boton.count() === 0) {
+        return [antes > 0 && avisa, `${antes} intentos y no hay más páginas: no se ofrece continuar`];
+      }
+      await boton.first().click();
+      await page.waitForTimeout(1500);
+      const despues = await page.locator('table[aria-label="Intentos de entrega"] tbody tr').count();
+      return [despues > antes && avisa,
+        `${antes} → ${despues} intentos al continuar la lista · la pantalla avisa de que quedan más`];
     });
 
     await caso('PANTALLA: el formulario ofrece SOLO los eventos que existen', async () => {
