@@ -247,7 +247,7 @@ try {
     const r = await pedir(admin.token, 'GET', `${wh()}/attempts?code=${CODE}`);
     const ids = new Set(r.body.attempts.map((a) => a.delivery_id));
     return [porRuta(CODE).length === antes && r.body.attempts.length === 1 && ids.size === 1
-      && /no se le reenvía/i.test((await pedir(admin.token, 'GET', wh())).body.idempotency_note),
+      && /no reenvía un evento cuya entrega REGISTRÓ como lograda/i.test((await pedir(admin.token, 'GET', wh())).body.idempotency_note),
     `entregas recibidas ${antes} → ${porRuta(CODE).length} · ${r.body.attempts.length} intento(s) · identificador estable`];
   });
 

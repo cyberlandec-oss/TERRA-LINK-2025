@@ -201,7 +201,7 @@ criterio de cierre de ninguna historia concreta.
 
 *(La tabla conserva el corte del 2026-10-16; la cifra vigente está debajo.)*
 
-**Sí se puede calcular**, y es **68,3 %** al 2026-10-18: **41 de 60** (RF-32 y RF-33 cerradas el 2026-10-17; **RF-34**, **RF-35**, **RF-40**, **RF-41**, **RF-42**, **RF-43**, **RF-44** y **RF-45** el 2026-10-18). Partía de 42 % (25/59) y suben ocho
+**Sí se puede calcular**, y es **70,0 %** al 2026-10-19: **42 de 60** (RF-32 y RF-33 cerradas el 2026-10-17; **RF-34**, **RF-35**, **RF-40**, **RF-41**, **RF-42**, **RF-43**, **RF-44** y **RF-45** el 2026-10-18; **RF-39** el 2026-10-19). Partía de 42 % (25/59) y suben nueve
 requisitos: **RF-47** (2026-10-16), **RF-03** y **RNF-01** (al cerrarse P0-003), **RNF-10** y **RNF-12**
 (avisos verificados y ensayo de retorno) y **RNF-13** (métricas y trazas). El denominador pasó de 59 a **60**
 al registrarse **RNF-13**: el catálogo estaba incompleto, no se amplió el alcance. La diferencia con el 75 % no es una contradicción: son medidas de cosas
