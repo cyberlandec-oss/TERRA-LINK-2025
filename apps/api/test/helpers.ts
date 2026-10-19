@@ -6,6 +6,7 @@ import { createApp } from '../src/bootstrap';
 import type { AppConfig } from '../src/config';
 import { instrumentarConsulta } from '../src/observability/db-hook';
 import { createDb, migrateToLatest } from '../src/db/database';
+import { S3ObjectStore } from '../src/storage/object-store';
 import type { Database } from '../src/db/schema';
 import { hashPassword } from '../src/auth/passwords';
 import { appendFileSync, mkdirSync } from 'fs';
@@ -54,6 +55,31 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
   };
 }
 
+/**
+ * Vacía el bucket de PRUEBAS antes de cada suite, igual que se recrea el esquema.
+ *
+ * Por qué hace falta: la base `*_test` se recrea en cada corrida, pero el bucket no, así que los objetos se
+ * acumulaban **entre corridas** —más de mil—. El barrido de almacenamiento (`discover()`) los encola todos
+ * como huérfanos y llena su lote, de modo que una prueba podía quedarse sin que su propia tarea se
+ * reclamara. El fallo aparecía tarde, en una suite ajena, y empeoraba con cada validación.
+ *
+ * El nombre del bucket se comprueba aquí: esta función **no puede** tocar el de desarrollo.
+ */
+async function vaciarBucketDePruebas(config: AppConfig): Promise<void> {
+  const bucket = config.objectStore.bucket;
+  if (!bucket.endsWith('-test')) throw new Error(`Bucket de pruebas inesperado: «${bucket}». No se borra nada.`);
+  const store = new S3ObjectStore(config.objectStore);
+  try {
+    const objetos = await store.list('');
+    for (const o of objetos) await store.delete(o.key);
+  } catch {
+    // Si el almacén no está disponible, lo dirá la prueba que lo use: aquí no se oculta nada ni se falla
+    // por una limpieza.
+  } finally {
+    store.close();
+  }
+}
+
 export async function setupHarness(overrides: Partial<AppConfig> = {}) {
   if (!new URL(TEST_URL!).pathname.endsWith('_test')) throw new Error('TEST_DATABASE_URL debe apuntar a una base *_test');
   const db: Kysely<Database> = createDb(
@@ -65,6 +91,7 @@ export async function setupHarness(overrides: Partial<AppConfig> = {}) {
   const t0 = Date.now();
   await sql`DROP SCHEMA IF EXISTS public CASCADE`.execute(db);
   await sql`CREATE SCHEMA public`.execute(db);
+  await vaciarBucketDePruebas(testConfig(overrides));
   const t1 = Date.now();
   await migrateToLatest(db);
   const t2 = Date.now();
