@@ -238,6 +238,28 @@ describeDb('P1-008 integración por webhooks (PostgreSQL real, receptor local)',
     expect(porRuta('erp-falla').length).toBeGreaterThanOrEqual(2);
   });
 
+  it('APAGAR un destino lo apaga de verdad: deja de recibir eventos nuevos', async () => {
+    recibidas.length = 0;
+    respuesta = { status: 200, body: 'ok' };
+    await configurar('erp-apagable').expect(201);
+    await crearProductor('WH-ON').expect(201);
+    await entregar();
+    const conEncendido = porRuta('erp-apagable').length;
+    expect(conEncendido).toBe(1);
+
+    // Apagar es registrar otra versión inactiva, con su motivo: nada se edita ni se borra.
+    const off = await configurar('erp-apagable', { active: false, reason: 'Se retira la integración.' }).expect(201);
+    expect(off.body.destinations.find((d: { code: string }) => d.code === 'erp-apagable').active).toBe(false);
+
+    await crearProductor('WH-OFF').expect(201);
+    await entregar();
+    expect(porRuta('erp-apagable')).toHaveLength(conEncendido);   // el evento nuevo NO llegó
+    // Y la versión anterior sigue ahí: el historial no se pierde al apagar.
+    const versiones = await h.db.selectFrom('webhook_destinations').select(['version', 'active'])
+      .where('organization_id', '=', orgA).where('code', '=', 'erp-apagable').orderBy('version').execute();
+    expect(versiones.map((v) => v.active)).toEqual([true, false]);
+  });
+
   it('PERMISOS: configurar exige su permiso y consultar es otro; el técnico no tiene ninguno', async () => {
     expect((await configurar('erp-tec', {}, TEC)).status).toBe(403);
     expect((await http().get(wh(orgA)).set(as(TEC))).status).toBe(403);

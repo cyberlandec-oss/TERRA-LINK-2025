@@ -2,7 +2,7 @@
 //
 //   node e2e/review/integracion.mjs [--web http://localhost:3000] [--base http://localhost:4000]
 //
-// El receptor lo levanta este mismo arnés en 127.0.0.1. **No se contacta ningún destino externo.**
+// El receptor lo levanta este mismo arnés, en este equipo. **No se contacta ningún destino externo.**
 //
 // Lo que tiene que quedar demostrado, de principio a fin:
 //   1. **configuración autorizada**: quien tiene el permiso configura un destino; quien no, no;
@@ -29,6 +29,10 @@ const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? proces
 const WEB = arg('--web', 'http://localhost:3000');
 const API = arg('--base', 'http://localhost:4000');
 const COOP = 'e8dbdab9-08ec-4867-908e-f23138dbca28';
+// Por dónde alcanza la API a este receptor. La API corre en un contenedor, así que su `127.0.0.1` es el
+// contenedor, no este equipo: el nombre por defecto es el que Docker publica para el anfitrión. Con la API
+// en el propio equipo, `--receptor 127.0.0.1`.
+const RECEPTOR = arg('--receptor', 'host.docker.internal');
 const SELLO = new Date().toISOString().slice(11, 19).replace(/:/g, '');
 
 const resultados = [];
@@ -83,9 +87,11 @@ const receptor = createServer((req, res) => {
     res.end(respuesta.body);
   });
 });
-await new Promise((r) => receptor.listen(0, '127.0.0.1', r));
+// Escucha en todas las interfaces porque quien tiene que alcanzarlo es el contenedor de la API, no este
+// proceso. Vive lo que dura la revisión y se cierra al terminar.
+await new Promise((r) => receptor.listen(0, '0.0.0.0', r));
 const PUERTO = receptor.address().port;
-const destinoUrl = (code) => `http://127.0.0.1:${PUERTO}/recibe/${code}`;
+const destinoUrl = (code) => `http://${RECEPTOR}:${PUERTO}/recibe/${code}`;
 const porRuta = (code) => recibidas.filter((r) => r.path === `/recibe/${code}`);
 const esperar = async (cond, ms = 20000) => {
   const fin = Date.now() + ms;
@@ -191,13 +197,15 @@ try {
     const code = `ensayo-dd-${SELLO}`;
     const cfg = await configurar(admin.token, code, { event_types: ['DdSnapshotCaptured', 'DdPackageExported'] });
     if (cfg.status !== 201) throw new Error(`configurar el destino de expediente respondió ${cfg.status}`);
-    const casos = await pedir(admin.token, 'GET', `/api/v1/organizations/${COOP}/dd/cases`);
-    const expediente = (casos.body?.items ?? casos.body ?? [])[0];
-    if (!expediente) return [true, 'el DEMO no tiene expedientes: nada que demostrar, y no se finge uno'];
+    const casos = await pedir(admin.token, 'GET', `/api/v1/organizations/${COOP}/dd-cases`);
+    // La lista TIENE que responder: una ruta equivocada devolvía «no hay expedientes» y el caso pasaba
+    // sin comprobar nada. Si no responde 200, esto falla en vez de darse por bueno.
+    if (casos.status !== 200) throw new Error(`la lista de expedientes respondió ${casos.status}`);
+    const expediente = exigeEntrada('expediente del DEMO', (casos.body?.cases ?? [])[0]);
 
     const antes = porRuta(code).length;
-    const snap = await pedir(admin.token, 'POST', `/api/v1/organizations/${COOP}/dd/cases/${expediente.id}/snapshots`, { operation_id: randomUUID() });
-    if (snap.status !== 201) return [true, `capturar instantánea respondió ${snap.status}: no se fuerza el expediente`];
+    const snap = await pedir(admin.token, 'POST', `/api/v1/organizations/${COOP}/dd-cases/${expediente.id}/snapshots`, { operation_id: randomUUID() });
+    if (snap.status !== 201) throw new Error(`capturar instantánea respondió ${snap.status} ${JSON.stringify(snap.body?.error)}`);
     const llego = await esperar(() => porRuta(code).length > antes);
     if (!llego) throw new Error('no llegó la entrega del evento de expediente');
     const c = JSON.parse(porRuta(code).at(-1).body);
@@ -253,7 +261,8 @@ try {
       const fin = Date.now() + 60000;
       while (Date.now() < fin) {
         const r = await pedir(admin.token, 'GET', `${wh()}/attempts?code=${CODE_FALLA}`);
-        const ok = (r.body?.attempts ?? []).find((a) => a.status === 'ENTREGADO');
+        // LA MISMA entrega, no otra cualquiera: lo que se demuestra es que ESE envío se recupera.
+        const ok = (r.body?.attempts ?? []).find((a) => a.status === 'ENTREGADO' && a.delivery_id === hayFallo.delivery_id);
         if (ok) return ok;
         await new Promise((res) => setTimeout(res, 1000));
       }
@@ -294,6 +303,22 @@ try {
     const no = await pedir(admin.token, 'POST', `${wh()}/${CODE}/verify-signature`, { body: cuerpo, signature: mala });
     return [si.body?.valid === true && no.body?.valid === false,
       `firma propia → válida=${si.body?.valid} · firma ajena → válida=${no.body?.valid}`];
+  });
+
+  await caso('APAGAR UN DESTINO lo apaga: deja de recibir, y se demuestra con un evento nuevo', async () => {
+    const apagado = await configurar(admin.token, CODE, { active: false, reason: 'Fin del ensayo de revisión.' });
+    if (apagado.status !== 201) throw new Error(`apagar respondió ${apagado.status} ${JSON.stringify(apagado.body?.error)}`);
+    const antes = porRuta(CODE).length;
+    const prod = await pedir(admin.token, 'POST', `/api/v1/organizations/${COOP}/producers`, {
+      producer_code: `WHX-${SELLO}`, legal_name: `Finca de ensayo apagado ${SELLO}`,
+    });
+    if (prod.status !== 201) throw new Error(`crear productor respondió ${prod.status}`);
+    // Se espera lo que tardaría una entrega: si llegara, se vería.
+    await new Promise((r) => setTimeout(r, 6000));
+    const lista = await pedir(admin.token, 'GET', wh());
+    const d = lista.body.destinations.find((x) => x.code === CODE);
+    return [porRuta(CODE).length === antes && d.active === false && d.version === 2,
+      `entregas ${antes} → ${porRuta(CODE).length} tras el evento nuevo · destino en versión ${d.version}, activo=${d.active}`];
   });
 
   // ------------------------------------------------------------------ navegador
@@ -390,6 +415,17 @@ try {
     await navegador.close();
   }
 } finally {
+  // Los destinos de ensayo se APAGAN al terminar: si no, quedan apuntando a un receptor que ya no existe y
+  // el bus reintenta contra la nada en cada evento posterior. Append-only: apagar es otra versión con motivo.
+  try {
+    const lista = await pedir(admin.token, 'GET', wh());
+    for (const d of (lista.body?.destinations ?? []).filter((x) => x.code.startsWith('ensayo-') && x.active)) {
+      await pedir(admin.token, 'POST', wh(), {
+        operation_id: randomUUID(), code: d.code, url: d.url, event_types: d.event_types,
+        active: false, reason: 'Fin de la revisión: el receptor de ensayo ya no existe.',
+      });
+    }
+  } catch { /* la limpieza no decide el resultado */ }
   await new Promise((r) => receptor.close(() => r()));
 }
 

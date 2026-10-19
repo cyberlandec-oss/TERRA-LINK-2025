@@ -311,13 +311,15 @@ export function webhookConsumer(db: Kysely<Database>, cipher: PiiCipher): EventC
     // que provoca el propio fallo: un rechazo sin rastro es peor que un rechazo.
     async handle(_trx: Transaction<Database>, event: DomainEvent) {
       // Solo los destinos de la organización DEL EVENTO: el aislamiento es por dato, no por filtro de interfaz.
-      const destinos = await sql<{ id: string; code: string; version: number; url: string; secret_cipher: string; event_types: string[] }>`
-        SELECT DISTINCT ON (d.code) d.id, d.code, d.version, d.url, d.secret_cipher, d.event_types
+      const destinos = await sql<{ id: string; code: string; version: number; url: string; secret_cipher: string; event_types: string[]; active: boolean }>`
+        SELECT DISTINCT ON (d.code) d.id, d.code, d.version, d.url, d.secret_cipher, d.event_types, d.active
         FROM webhook_destinations d
         WHERE d.organization_id = ${event.organization_id}
         ORDER BY d.code, d.version DESC`.execute(db);
 
-      const activos = destinos.rows.filter((d) => d.event_types.includes(event.event_type));
+      // `active` se aplica aquí: apagar un destino es registrar una versión inactiva, y desde ese momento
+      // deja de recibir. Publicar el campo sin aplicarlo era ofrecer un interruptor que no apagaba nada.
+      const activos = destinos.rows.filter((d) => d.active && d.event_types.includes(event.event_type));
       if (activos.length === 0) return;
 
       const fallos: string[] = [];
