@@ -2,18 +2,18 @@
   "name": "@terra-link/api",
   "private": true,
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "dev": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/main.js",
+    "build": "tsc -p tsconfig.build.json && node -e \"const f=require('fs');f.mkdirSync('dist/extraction',{recursive:true});f.copyFileSync('src/extraction/pdf-subproceso.mjs','dist/extraction/pdf-subproceso.mjs')\"",
+    "dev": "tsc -p tsconfig.build.json && node -e \"const f=require('fs');f.mkdirSync('dist/extraction',{recursive:true});f.copyFileSync('src/extraction/pdf-subproceso.mjs','dist/extraction/pdf-subproceso.mjs')\" && node --env-file-if-exists=../../.env dist/main.js",
     "start": "node --env-file-if-exists=../../.env dist/main.js",
-    "worker": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/worker-main.js",
-    "migrate": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/db/migrate-cli.js",
-    "seed:dev": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/db/seed-dev.js",
-    "seed:demo": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/db/seed-demo.js",
-    "rekey:pii": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/db/rekey-pii.js",
-    "openapi": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/openapi-export.js",
+    "worker": "tsc -p tsconfig.build.json && node -e \"const f=require('fs');f.mkdirSync('dist/extraction',{recursive:true});f.copyFileSync('src/extraction/pdf-subproceso.mjs','dist/extraction/pdf-subproceso.mjs')\" && node --env-file-if-exists=../../.env dist/worker-main.js",
+    "migrate": "tsc -p tsconfig.build.json && node -e \"const f=require('fs');f.mkdirSync('dist/extraction',{recursive:true});f.copyFileSync('src/extraction/pdf-subproceso.mjs','dist/extraction/pdf-subproceso.mjs')\" && node --env-file-if-exists=../../.env dist/db/migrate-cli.js",
+    "seed:dev": "tsc -p tsconfig.build.json && node -e \"const f=require('fs');f.mkdirSync('dist/extraction',{recursive:true});f.copyFileSync('src/extraction/pdf-subproceso.mjs','dist/extraction/pdf-subproceso.mjs')\" && node --env-file-if-exists=../../.env dist/db/seed-dev.js",
+    "seed:demo": "tsc -p tsconfig.build.json && node -e \"const f=require('fs');f.mkdirSync('dist/extraction',{recursive:true});f.copyFileSync('src/extraction/pdf-subproceso.mjs','dist/extraction/pdf-subproceso.mjs')\" && node --env-file-if-exists=../../.env dist/db/seed-demo.js",
+    "rekey:pii": "tsc -p tsconfig.build.json && node -e \"const f=require('fs');f.mkdirSync('dist/extraction',{recursive:true});f.copyFileSync('src/extraction/pdf-subproceso.mjs','dist/extraction/pdf-subproceso.mjs')\" && node --env-file-if-exists=../../.env dist/db/rekey-pii.js",
+    "openapi": "tsc -p tsconfig.build.json && node -e \"const f=require('fs');f.mkdirSync('dist/extraction',{recursive:true});f.copyFileSync('src/extraction/pdf-subproceso.mjs','dist/extraction/pdf-subproceso.mjs')\" && node --env-file-if-exists=../../.env dist/openapi-export.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint src test --max-warnings 0",
-    "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand"
+    "test": "jest --runInBand"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1149.0",

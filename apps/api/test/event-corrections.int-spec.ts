@@ -228,7 +228,10 @@ describeDb('P0-015 correcciones, historial y entregas DEAD', () => {
       const ev = await update(p2, { legal_name: 'Finca dos (dead)' });
       failures = 2;
       await drain(worker('w-falla'));
-      const dead = await h.db.selectFrom('event_deliveries').selectAll().where('event_id', '=', ev).executeTakeFirstOrThrow();
+      // Se filtra por consumidor A PROPÓSITO: un evento tiene una entrega POR consumidor, y esta prueba
+      // habla de la del consumidor que falla. Sin el filtro, leía una cualquiera.
+      const dead = await h.db.selectFrom('event_deliveries').selectAll()
+        .where('event_id', '=', ev).where('consumer', '=', 'organization-event-stats').executeTakeFirstOrThrow();
       expect(dead).toMatchObject({ status: 'DEAD', attempts: 2, last_error: 'ERROR_ERROR' });
       expect(JSON.stringify(dead)).not.toContain('0912345678'); // sin mensajes con datos
       const list = (await http().get(`${base(orgA)}/event-deliveries?status=DEAD`).set(as('admin-a@test.local')).expect(200)).body;
@@ -242,10 +245,12 @@ describeDb('P0-015 correcciones, historial y entregas DEAD', () => {
       const [a, b] = await Promise.all([1, 2].map(() => http().post(`${base(orgA)}/event-deliveries/${ev}/organization-event-stats/requeue`).set(as('admin-a@test.local')).send({ reason: 'Consumidor corregido' })));
       expect([a.status, b.status].sort()).toEqual([200, 409]);
       await drain(worker('w-ok'));
-      const done = await h.db.selectFrom('event_deliveries').selectAll().where('event_id', '=', ev).executeTakeFirstOrThrow();
+      const done = await h.db.selectFrom('event_deliveries').selectAll()
+        .where('event_id', '=', ev).where('consumer', '=', 'organization-event-stats').executeTakeFirstOrThrow();
       expect(done).toMatchObject({ status: 'DONE', attempts: 3, manual_requeues: 1 });
       expect(await count('ProducerUpdated')).toBe(baseline + 1);
-      const history = await h.db.selectFrom('event_delivery_attempts').select(['outcome', 'error_code']).where('event_id', '=', ev).orderBy('id').execute();
+      const history = await h.db.selectFrom('event_delivery_attempts').select(['outcome', 'error_code'])
+        .where('event_id', '=', ev).where('consumer', '=', 'organization-event-stats').orderBy('id').execute();
       expect(history.map((x) => x.outcome)).toEqual(['FAILED', 'DEAD', 'MANUAL_REQUEUE', 'DONE']);
       expect((await h.db.selectFrom('domain_events').select(sql<number>`count(*)::int`.as('n')).where('aggregate_id', '=', p2).where('event_type', '=', 'ProducerUpdated').where('payload', '@>', sql`'{}'::jsonb`).executeTakeFirstOrThrow()).n).toBeGreaterThan(0);
       expect((await h.db.selectFrom('audit_logs').select('action').where('action', '=', 'event_delivery.requeue').execute())).toHaveLength(1);

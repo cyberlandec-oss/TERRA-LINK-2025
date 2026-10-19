@@ -115,6 +115,9 @@ function navFor(ws: Workspace, orgId: string | null): Array<{ title: string; ite
     if (ws.can('location:manage')) admin.push({ href: `${base}/centros`, label: 'Centros de acopio', match: (p) => p.startsWith(`${base}/centros`) });
     if (ws.can('audit:read')) admin.push({ href: `${base}/auditoria`, label: 'Auditoría', match: (p) => p.startsWith(`${base}/auditoria`) });
     if (ws.can('events:reprocess')) admin.push({ href: `${base}/entregas-eventos`, label: 'Entregas de eventos', match: (p) => p.startsWith(`${base}/entregas-eventos`) });
+    // P1-008: destinos de integración y resultado de cada entrega. Leerlo exige `integration:read`;
+    // configurarlos, `integration:manage`. Estar en el menú no concede ninguno de los dos.
+    if (ws.can('integration:read')) admin.push({ href: `${base}/integracion`, label: 'Integración (webhooks)', match: (p) => p.startsWith(`${base}/integracion`) });
     if (admin.length) groups.push({ title: 'Administración', items: admin });
   }
   const general: NavItem[] = [{ href: '/organizaciones', label: ws.isPlatformAdmin ? 'Organizaciones (plataforma)' : 'Mis organizaciones', match: (p) => p === '/organizaciones' }];

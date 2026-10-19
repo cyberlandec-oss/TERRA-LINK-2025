@@ -9689,6 +9689,156 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/integration/webhooks": {
+      "get": {
+        "operationId": "WebhookController_listar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Destinos configurados, con su huella de secreto y sus entregas",
+        "tags": [
+          "integration"
+        ]
+      },
+      "post": {
+        "operationId": "WebhookController_configurar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DestinoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Configurar o rotar un destino. El secreto se devuelve UNA sola vez",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/integration/webhooks/attempts": {
+      "get": {
+        "operationId": "WebhookController_intentos",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Resultado de cada intento de entrega",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/integration/webhooks/{code}/verify-signature": {
+      "post": {
+        "operationId": "WebhookController_verificar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerificarDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Comprobar una firma, para validar la integración del receptor",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/buyers": {
       "get": {
         "operationId": "ShipmentsController_buyers",
@@ -13213,6 +13363,53 @@
         },
         "required": [
           "operation_id"
+        ]
+      },
+      "DestinoDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "event_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "code",
+          "url",
+          "event_types"
+        ]
+      },
+      "VerificarDto": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "body",
+          "signature"
         ]
       },
       "CreateBuyerDto": {

@@ -506,6 +506,17 @@ export interface DocumentVersionScansTable {
   id: Generated<string>; organization_id: string; version_id: string; result: 'CLEAN' | 'INFECTED' | 'FAILED'; engine: string;
   signature: string | null; error_code: string | null; scanned_at: Generated<Timestamp>;
 }
+export interface WebhookDestinationsTable {
+  id: string; organization_id: string; code: string; version: number; url: string;
+  secret_cipher: string; secret_fingerprint: string; event_types: string[]; active: boolean;
+  reason: string | null; created_by: string; created_at: Generated<Timestamp>; operation_id: string;
+}
+export interface WebhookAttemptsTable {
+  id: string; organization_id: string; destination_id: string; event_id: string; delivery_id: string;
+  attempt: number; status: 'ENTREGADO' | 'RECHAZADO' | 'ERROR_DE_RED' | 'OMITIDO';
+  http_status: number | null; response_excerpt: string | null; error: string | null;
+  duration_ms: number | null; sent_at: Generated<Timestamp>;
+}
 export interface DocumentExtractionsTable {
   id: string; organization_id: string; version_id: string; run_number: number;
   status: 'EXTRAIDA' | 'SIN_TEXTO' | 'TEXTO_NO_INTERPRETABLE' | 'FORMATO_NO_SOPORTADO' | 'FALLIDA';
@@ -946,6 +957,8 @@ export interface Database {
   legal_profile_reviews: LegalProfileReviewsTable;
   legal_profile_sources: LegalProfileSourcesTable;
   legal_profile_rules: LegalProfileRulesTable;
+  webhook_destinations: WebhookDestinationsTable;
+  webhook_attempts: WebhookAttemptsTable;
   document_extractions: DocumentExtractionsTable;
   document_extraction_fields: DocumentExtractionFieldsTable;
   document_extraction_decisions: DocumentExtractionDecisionsTable;

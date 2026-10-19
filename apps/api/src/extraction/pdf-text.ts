@@ -1,4 +1,6 @@
 import { inflateSync } from 'node:zlib';
+import { fork } from 'node:child_process';
+import { join } from 'node:path';
 
 // P1-013 — Lectura del texto de un PDF, **en local y con decodificación real**.
 //
@@ -50,13 +52,12 @@ export const MAX_PAGES = 200;
 export const MAX_MS_OPERACION = 10_000;
 /** Plazo total de la lectura. */
 export const MAX_MS_TOTAL = 30_000;
+/** Tope de memoria del decodificador. Al superarlo el proceso muere: la bomba no llega al servicio. */
+export const MAX_MB_SUBPROCESO = 512;
 /** Tope por flujo al auditar la estructura. */
 export const MAX_STREAM_BYTES = 4_000_000;
 /** Tope de objetos inspeccionados al auditar la estructura. */
 export const MAX_OBJETOS = 20_000;
-
-/** Caracteres que delatan un mapeo fallido. Es una red adicional, no la comprobación. */
-const SIN_MAPEAR = /[�-]/;
 
 export interface AuditoriaFuentes {
   /** Fuentes compuestas encontradas. */
@@ -76,32 +77,64 @@ export interface TextoPdf {
   hasTextLayer: boolean;
   /** `false` si no se puede garantizar que el texto sea el del documento: no se publica nada. */
   interpretable: boolean;
-  reason: 'OK' | 'SIN_CAPA_DE_TEXTO' | 'FUENTE_SIN_MAPA' | 'SOPORTE_INDETERMINADO' | 'NO_SE_PUDO_ABRIR' | 'TIEMPO_AGOTADO';
+  reason: 'OK' | 'SIN_CAPA_DE_TEXTO' | 'FUENTE_SIN_MAPA' | 'SOPORTE_INDETERMINADO' | 'NO_SE_PUDO_ABRIR'
+    | 'TIEMPO_AGOTADO' | 'LIMITE_EXCEDIDO';
   /** Fragmentos con caracteres sin mapear. */
   unmapped_items: number;
   /** Auditoría estructural de las fuentes. */
   fonts: AuditoriaFuentes;
 }
 
-interface DocumentoPdf {
-  numPages: number;
-  getPage: (n: number) => Promise<{ getTextContent: () => Promise<{ items: Array<{ str?: string; hasEOL?: boolean }> }> }>;
-  destroy: () => Promise<void>;
+/** Ruta del decodificador. Vive junto a este archivo, tanto en `src` como en `dist`. */
+const SUBPROCESO = join(__dirname, 'pdf-subproceso.mjs');
+
+interface RespuestaSubproceso {
+  reason: 'OK' | 'NO_SE_PUDO_ABRIR';
+  text?: string;
+  pages?: number;
+  truncated?: boolean;
+  hasTextLayer?: boolean;
+  unmapped_items?: number;
 }
 
-// El componente se carga UNA vez, al cargar este módulo. Hacerlo dentro de la petición dejaba importaciones
-// tardías —incluido el trabajador de pdf.js— que llegaban a dispararse después de que el entorno de pruebas
-// se hubiera desmontado, y hacían fallar la lectura.
-const PDFJS = (Function('return import("pdfjs-dist/legacy/build/pdf.mjs")') as () => Promise<{
-  getDocument: (opts: Record<string, unknown>) => { promise: Promise<DocumentoPdf>; destroy: () => Promise<void> };
-}>)();
-const PDFJS_WORKER = (Function('return import("pdfjs-dist/legacy/build/pdf.worker.mjs")') as () => Promise<unknown>)();
+/**
+ * Ejecuta la decodificación en **otro proceso** y lo **mata** si se pasa del plazo.
+ *
+ * Esto es lo que convierte el límite en un límite: un control de tiempo dentro del mismo proceso no
+ * interrumpe una apertura ni una página bloqueadas —el plazo vence, pero el trabajo sigue—. Aquí el trabajo
+ * **termina** y su memoria, hilos y descriptores los **libera el sistema operativo**. El tope de memoria
+ * acota además las bombas de descompresión: el hijo muere, el servicio no.
+ */
+export function decodificar(
+  bytes: Buffer,
+  opciones: { ms?: number; script?: string } = {},
+): Promise<{ r: RespuestaSubproceso | null; agotado: boolean; excedido: boolean; pid: number | undefined }> {
+  const ms = opciones.ms ?? MAX_MS_TOTAL;
+  const script = opciones.script ?? SUBPROCESO;
+  return new Promise((resolve) => {
+    let hecho = false;
+    const fin = (v: { r: RespuestaSubproceso | null; agotado: boolean; excedido: boolean }) => {
+      if (hecho) return;
+      hecho = true;
+      clearTimeout(reloj);
+      // SIGKILL, no SIGTERM: un hijo atascado en un bucle cerrado no atiende una señal que pueda ignorar.
+      try { hijo.kill('SIGKILL'); } catch { /* ya terminado */ }
+      resolve({ ...v, pid: hijo.pid });
+    };
 
-/** Rechaza al vencer el plazo, para que un archivo que se atasca **no** bloquee el proceso. */
-function conPlazo<T>(p: Promise<T>, ms: number, etiqueta: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`TIEMPO_AGOTADO:${etiqueta}`)), ms);
-    p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+    const hijo = fork(script, [JSON.stringify({ maxChars: MAX_CHARS, maxPages: MAX_PAGES })], {
+      silent: true,
+      // Sin heredar los argumentos del proceso padre: el hijo solo necesita su tope de memoria.
+      execArgv: [`--max-old-space-size=${MAX_MB_SUBPROCESO}`],
+    });
+    const reloj = setTimeout(() => fin({ r: null, agotado: true, excedido: false }), ms);
+
+    hijo.on('message', (m) => fin({ r: m as RespuestaSubproceso, agotado: false, excedido: false }));
+    hijo.on('error', () => fin({ r: null, agotado: false, excedido: false }));
+    // Si termina sin contestar, se quedó sin memoria o lo mató una señal: es un límite, no un PDF ilegible.
+    hijo.on('exit', (code, signal) => fin({ r: null, agotado: false, excedido: code !== 0 || signal !== null }));
+    hijo.stdin?.on('error', () => fin({ r: null, agotado: false, excedido: false }));
+    hijo.stdin?.end(bytes);
   });
 }
 
@@ -131,7 +164,8 @@ export function auditarFuentes(bytes: Buffer): AuditoriaFuentes {
     const datos = Buffer.from(o.body.slice(ini + 'stream'.length, fin).replace(/^\r?\n/, ''), 'latin1');
     if (datos.length === 0 || datos.length > MAX_STREAM_BYTES) { indeterminados += 1; continue; }
     let plano: string;
-    try { plano = inflateSync(datos).toString('latin1'); } catch { indeterminados += 1; continue; }
+    // Tope de SALIDA, no de entrada: un flujo pequeño que se expande sin fin se corta aquí.
+    try { plano = inflateSync(datos, { maxOutputLength: MAX_STREAM_BYTES }).toString('latin1'); } catch { indeterminados += 1; continue; }
     const n = Number(/\/N\s+(\d+)/.exec(o.body)?.[1] ?? 0);
     const first = Number(/\/First\s+(\d+)/.exec(o.body)?.[1] ?? 0);
     if (!n || !first) { indeterminados += 1; continue; }
@@ -163,67 +197,15 @@ export async function textoDePdf(bytes: Buffer): Promise<TextoPdf> {
   const fonts = auditarFuentes(bytes);
   const base = { text: '', pages: 0, truncated: false, hasTextLayer: false, unmapped_items: 0, fonts };
 
-  let doc: DocumentoPdf;
-  let tarea: { destroy: () => Promise<void> } | null = null;
-  try {
-    const pdfjs = await PDFJS;
-    await PDFJS_WORKER;
-    const t = pdfjs.getDocument({
-      data: new Uint8Array(bytes),
-      // Sin red, sin tipografías del sistema y sin evaluación dinámica: lectura local y acotada.
-      useSystemFonts: false,
-      isEvalSupported: false,
-      disableFontFace: true,
-      stopAtErrors: false,
-    });
-    tarea = t;
-    doc = await conPlazo(t.promise, MAX_MS_OPERACION, 'abrir');
-  } catch (e) {
-    // Si la apertura se atasca, se cancela la tarea para liberar el trabajador y la memoria.
-    await tarea?.destroy().catch(() => undefined);
-    const agotado = String((e as Error)?.message ?? '').startsWith('TIEMPO_AGOTADO');
-    return { ...base, interpretable: false, reason: agotado ? 'TIEMPO_AGOTADO' : 'NO_SE_PUDO_ABRIR' };
-  }
+  const { r, agotado, excedido } = await decodificar(bytes);
+  if (agotado) return { ...base, truncated: true, interpretable: false, reason: 'TIEMPO_AGOTADO' };
+  if (!r) return { ...base, truncated: true, interpretable: false, reason: excedido ? 'LIMITE_EXCEDIDO' : 'NO_SE_PUDO_ABRIR' };
+  if (r.reason !== 'OK') return { ...base, interpretable: false, reason: 'NO_SE_PUDO_ABRIR' };
 
-  const fin = Date.now() + MAX_MS_TOTAL;
-  let texto = '';
-  let paginas = 0;
-  let truncado = false;
-  let capaDeTexto = false;
-  let sinMapear = 0;
-  let agotado = false;
-
-  try {
-    const total = Math.min(doc.numPages, MAX_PAGES);
-    if (doc.numPages > MAX_PAGES) truncado = true;
-    for (let i = 1; i <= total; i += 1) {
-      const restante = fin - Date.now();
-      if (restante <= 0) { truncado = true; agotado = true; break; }
-      const plazo = Math.min(MAX_MS_OPERACION, restante);
-      const pagina = await conPlazo(doc.getPage(i), plazo, `pagina ${i}`);
-      const contenido = await conPlazo(pagina.getTextContent(), plazo, `texto ${i}`);
-      for (const it of contenido.items) {
-        const s = it.str ?? '';
-        if (s.trim().length > 0) capaDeTexto = true;
-        if (SIN_MAPEAR.test(s)) sinMapear += 1;
-        texto += s;
-        if (it.hasEOL) texto += '\n';
-      }
-      texto += '\n';
-      paginas = i;
-      if (texto.length > MAX_CHARS) { texto = texto.slice(0, MAX_CHARS); truncado = true; break; }
-    }
-  } catch (e) {
-    // Un fallo o un plazo vencido deja el texto incompleto, y se declara.
-    truncado = true;
-    if (String((e as Error)?.message ?? '').startsWith('TIEMPO_AGOTADO')) agotado = true;
-  } finally {
-    // Pase lo que pase, el documento se libera: no se queda nada retenido.
-    await doc.destroy().catch(() => undefined);
-  }
-
-  const limpio = texto.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-  const comun = { pages: paginas, truncated: truncado, unmapped_items: sinMapear, fonts };
+  const texto = r.text ?? '';
+  const capaDeTexto = r.hasTextLayer === true;
+  const sinMapear = r.unmapped_items ?? 0;
+  const comun = { pages: r.pages ?? 0, truncated: r.truncated === true, unmapped_items: sinMapear, fonts };
 
   if (fonts.without_map > 0 || sinMapear > 0) {
     // Alguna fuente no declara su mapa: lo obtenido NO se puede dar por texto del documento.
@@ -233,11 +215,8 @@ export async function textoDePdf(bytes: Buffer): Promise<TextoPdf> {
     // No se pudo comprobar todo el documento: no se afirma que las fuentes estén soportadas.
     return { ...comun, text: '', hasTextLayer: true, interpretable: false, reason: 'SOPORTE_INDETERMINADO' };
   }
-  if (agotado && limpio.length === 0) {
-    return { ...comun, text: '', hasTextLayer: capaDeTexto, interpretable: false, reason: 'TIEMPO_AGOTADO' };
-  }
-  if (!capaDeTexto || limpio.length === 0) {
+  if (!capaDeTexto || texto.length === 0) {
     return { ...comun, text: '', hasTextLayer: capaDeTexto, interpretable: !capaDeTexto, reason: 'SIN_CAPA_DE_TEXTO' };
   }
-  return { ...comun, text: limpio, hasTextLayer: true, interpretable: true, reason: 'OK' };
+  return { ...comun, text: texto, hasTextLayer: true, interpretable: true, reason: 'OK' };
 }

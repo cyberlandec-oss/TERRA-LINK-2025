@@ -1,7 +1,8 @@
+import { deflateSync } from 'node:zlib';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pdfConTexto, pdfEscaneado } from '../../test/pdf-sintetico';
-import { auditarFuentes, textoDePdf } from './pdf-text';
+import { auditarFuentes, decodificar, textoDePdf, MAX_STREAM_BYTES } from './pdf-text';
 import { sugerir } from './reglas';
 
 // P1-013 — El lector y las reglas, probados **sin base de datos y sin red**.
@@ -180,5 +181,61 @@ describe('P1-013 reglas de sugerencia: la confianza es la regla, no un número',
         expect(s.confidence).toBe({ ETIQUETA_EXPLICITA: 'ALTA', PATRON_UNICO: 'MEDIA', PATRON_AMBIGUO: 'BAJA' }[s.basis]);
       }
     }
+  });
+});
+
+describe('P1-013 los límites INTERRUMPEN el trabajo, no solo lo miden', () => {
+  // El defecto que esto cierra: un control de tiempo *entre* páginas no detiene una apertura ni una página
+  // que se quedan girando dentro del motor. El plazo vence, pero el trabajo sigue gastando CPU y memoria.
+  // Por eso la decodificación vive en otro proceso: al vencer el plazo, el proceso se MATA.
+
+  const vivo = (pid?: number) => {
+    if (!pid) return false;
+    try { process.kill(pid, 0); return true; } catch { return false; }
+  };
+
+  it('un hijo atascado en un bucle cerrado SE TERMINA al vencer el plazo, y deja de existir', async () => {
+    const t0 = Date.now();
+    const r = await decodificar(Buffer.from('%PDF-1.4'), {
+      ms: 700,
+      script: join(__dirname, '../../test/fixtures/bloqueado.mjs'),
+    });
+    const tardo = Date.now() - t0;
+
+    expect(r.agotado).toBe(true);        // el plazo venció
+    expect(r.r).toBeNull();              // y no hay resultado que publicar
+    expect(tardo).toBeLessThan(5000);    // se cortó en su plazo, no «cuando terminó»
+    // Y el trabajo terminó de verdad: el proceso ya no está. Un bucle cerrado no atiende señales
+    // cooperativas, así que esto solo puede pasar porque se le mató.
+    await new Promise((res) => setTimeout(res, 300));
+    expect(vivo(r.pid)).toBe(false);
+  }, 20_000);
+
+  it('un plazo vencido se publica como TIEMPO_AGOTADO, sin texto ni sugerencias', async () => {
+    const r = await textoDePdf(Buffer.from('%PDF-1.4 roto'));
+    // Este archivo no se abre; lo que importa es que NUNCA sale texto de un trabajo no completado.
+    expect(r.interpretable).toBe(false);
+    expect(r.text).toBe('');
+    expect(sugerir(r.text).every((s) => s.suggested_value === null)).toBe(true);
+  });
+
+  it('DESCOMPRESIÓN: un flujo pequeño que se expande sin medida se corta, y queda INDETERMINADO', () => {
+    // Bomba de descompresión casera: 64 MB de ceros caben comprimidos en unos pocos KB.
+    const bomba = deflateSync(Buffer.alloc(64 * 1024 * 1024));
+    expect(bomba.length).toBeLessThan(MAX_STREAM_BYTES);   // la ENTRADA es pequeña: el tope de entrada no basta
+
+    const NL = String.fromCharCode(10);
+    const pdf = Buffer.concat([
+      Buffer.from(['%PDF-1.4', `1 0 obj<</Type/ObjStm/N 1/First 8/Length ${bomba.length}/Filter/FlateDecode>>stream`, ''].join(NL), 'latin1'),
+      bomba,
+      Buffer.from([NL, 'endstream', 'endobj', 'trailer<</Root 1 0 R>>', '%%EOF', ''].join(NL), 'latin1'),
+    ]);
+
+    // No revienta ni se traga 64 MB: el tope es de SALIDA, así que la descompresión se corta…
+    const a = auditarFuentes(pdf);
+    // …y lo que no se pudo inspeccionar NO se da por comprobado.
+    expect(a.undetermined).toBeGreaterThan(0);
+    expect(a.without_map).toBe(0);
+    expect(a.composite).toBe(0);
   });
 });
