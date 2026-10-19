@@ -58,7 +58,7 @@ describeDb('P1-015 límites y consumo (PostgreSQL real)', () => {
       expect(l.what.length).toBeGreaterThan(10);
       expect(l.value).not.toBeNull();
       expect(l.unit).toBeTruthy();
-      expect(l.source).toMatch(/variables? de entorno|constante del código/);
+      expect(l.source).toMatch(/variables? de entorno|constante del código|dependencia fijada/);
       expect(l.enforced_at.length).toBeGreaterThan(5);
       expect(l.on_exceed.length).toBeGreaterThan(10);
     }

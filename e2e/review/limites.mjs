@@ -9,8 +9,9 @@
 //   4. **español primero**: idioma declarado, y sin claves de traducción a la vista;
 //   5. **no se insinúa un SSO** que no existe;
 //   6. la superficie es de **solo lectura**: no fija ningún límite;
-//   7. **regresión de P1-013**: un PDF de una herramienta independiente se declara no interpretable y no
-//      sugiere nada; y la redacción sobre OCR ya no dice que haga falta un tercero;
+//   7. **regresión de P1-013 con el motor nuevo**: un PDF de una herramienta independiente **se lee de
+//      verdad**, con acentos; una fuente **sin mapa de caracteres** se **rechaza entera** aunque el texto
+//      pareciera legible; y la redacción sobre OCR no dice que haga falta un tercero;
 //   8. permisos, aislamiento, enlaces, teclado y 390 px.
 //
 // **Cambia datos DEMO**: sube un documento de ENSAYO para mover el consumo, y uno más para la regresión de
@@ -79,7 +80,7 @@ await caso('CONTROL: cada límite dice qué limita, de dónde sale y qué pasa a
   if (r.status !== 200) throw new Error(`límites respondieron ${r.status}`);
   exigeEntrada('lista de límites', r.body.limits);
   const completos = r.body.limits.every((l) => l.code && l.what && l.unit && l.source && l.enforced_at && l.on_exceed);
-  const conProcedencia = r.body.limits.every((l) => /de entorno|constante del código/.test(l.source));
+  const conProcedencia = r.body.limits.every((l) => /de entorno|constante del código|dependencia fijada/.test(l.source));
   return [r.body.limits.length >= 8 && completos && conProcedencia,
     `${r.body.limits.length} límites, todos autodescritos=${completos} · con procedencia=${conProcedencia}`];
 });
@@ -138,14 +139,23 @@ await caso('AISLAMIENTO: otra organización no se alcanza', async () => {
 // --- regresión de P1-013 corregida en este mismo candidato ---
 const esc = (s) => s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
 const pdfPropio = (lineas) => {
-  const ops = lineas.map((l, i) => `BT /F1 12 Tf 72 ${760 - i * 18} Td (${esc(l)}) Tj ET`).join('\n');
+  // PDF VÁLIDO: catálogo, páginas y una página real. El lector anterior toleraba estructuras degeneradas;
+  // pdf.js exige un documento de verdad, que es lo correcto.
+  const NL = String.fromCharCode(10);
+  const ops = lineas.map((l, i) => `BT /F1 12 Tf 72 ${760 - i * 18} Td (${esc(l)}) Tj ET`).join(NL);
   const z = deflateSync(Buffer.from(ops, 'latin1'));
-  return Buffer.concat([
-    Buffer.from(`%PDF-1.4\n1 0 obj<</Type/Pages/Count 1>>endobj\n4 0 obj<</Length ${z.length}/Filter/FlateDecode>>stream\n`, 'latin1'),
-    z, Buffer.from('\nendstream\nendobj\n%%EOF\n', 'latin1')]);
+  const cab = [
+    '%PDF-1.4',
+    '1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj',
+    '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj',
+    '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R>>endobj',
+    `4 0 obj<</Length ${z.length}/Filter/FlateDecode>>stream`,
+  ].join(NL) + NL;
+  const cola = ['', 'endstream', 'endobj', 'trailer<</Root 1 0 R/Size 5>>', '%%EOF', ''].join(NL);
+  return Buffer.concat([Buffer.from(cab, 'latin1'), z, Buffer.from(cola, 'latin1')]);
 };
 
-await caso('REGRESIÓN P1-013: un PDF ajeno se declara NO INTERPRETABLE y no sugiere nada', async () => {
+await caso('REGRESIÓN P1-013: un PDF ajeno AHORA se lee de verdad, con acentos', async () => {
   // PDF generado por una herramienta independiente: el propio navegador de esta revisión.
   const nav = await chromium.launch();
   const pag = await (await nav.newContext()).newPage();
@@ -160,8 +170,42 @@ await caso('REGRESIÓN P1-013: un PDF ajeno se declara NO INTERPRETABLE y no sug
   const ex = await pedir(admin.token, 'POST', `/api/v1/organizations/${COOP}/documents/${sub.body.document.id}/versions/${v.id}/extraction`, { operation_id: randomUUID() });
   if (ex.status !== 201) throw new Error(`extraer respondió ${ex.status}`);
   const e = ex.body.extraction;
+  const emisor = ex.body.fields.find((f) => f.field_code === 'ISSUER');
+  return [e.status === 'EXTRAIDA' && e.engine === 'pdfjs-dist'
+    && /Entidad de Ensayo/.test(e.extracted_text ?? '') && /emisión/.test(e.extracted_text ?? '')
+    && emisor?.suggestion?.value === 'Entidad de Ensayo',
+  `estado=${e.status} · motor=${e.engine} · acentos conservados · emisor sugerido=«${emisor?.suggestion?.value}»`];
+});
+
+await caso('REGRESIÓN P1-013: una fuente SIN MAPA se rechaza entera, aunque parezca legible', async () => {
+  // Fuente compuesta Identity-H sin /ToUnicode: lo que se obtendría parece texto, pero no es del documento.
+  const NL = String.fromCharCode(10);
+  const z = deflateSync(Buffer.from('BT /F1 12 Tf 72 700 Td <00480049004A004B> Tj ET', 'latin1'));
+  const cab = [
+    '%PDF-1.4',
+    '1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj',
+    '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj',
+    '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 5 0 R>>>>/Contents 4 0 R>>endobj',
+    `4 0 obj<</Length ${z.length}/Filter/FlateDecode>>stream`,
+  ].join(NL) + NL;
+  const cola = [
+    '',
+    'endstream',
+    'endobj',
+    '5 0 obj<</Type/Font/Subtype/Type0/BaseFont/AAAAAA+Sin/Encoding/Identity-H/DescendantFonts[6 0 R]>>endobj',
+    '6 0 obj<</Type/Font/Subtype/CIDFontType2/BaseFont/AAAAAA+Sin/CIDSystemInfo<</Registry(Adobe)/Ordering(Identity)/Supplement 0>>/DW 500>>endobj',
+    'trailer<</Root 1 0 R/Size 7>>',
+    '%%EOF',
+    '',
+  ].join(NL);
+  const sinMapa = Buffer.concat([Buffer.from(cab, 'latin1'), z, Buffer.from(cola, 'latin1')]);
+  const sub = await subir(sinMapa, 'fuente-sin-mapa.pdf');
+  if (sub.status !== 201) throw new Error(`subir respondió ${sub.status}`);
+  const v = sub.body.document.versions[0];
+  const ex = await pedir(admin.token, 'POST', `/api/v1/organizations/${COOP}/documents/${sub.body.document.id}/versions/${v.id}/extraction`, { operation_id: randomUUID() });
+  const e = ex.body.extraction;
   return [e.status === 'TEXTO_NO_INTERPRETABLE' && e.extracted_text === null && ex.body.fields.length === 0
-    && /ToUnicode/.test(e.note) && /NO acredita compatibilidad general/i.test(ex.body.engine_limits),
+    && /ToUnicode/.test(e.note) && /NO acredita compatibilidad/i.test(ex.body.engine_limits),
   `estado=${e.status} · sin texto publicado · ${ex.body.fields.length} sugerencias · declara su límite`];
 });
 
@@ -183,8 +227,8 @@ await caso('REGRESIÓN P1-013: multipágina y codificaciones', async () => {
   const ex = await pedir(admin.token, 'POST', `/api/v1/organizations/${COOP}/documents/${sub.body.document.id}/versions/${v.id}/extraction`, { operation_id: randomUUID() });
   const e = ex.body.extraction;
   const emisor = ex.body.fields.find((f) => f.field_code === 'ISSUER');
-  return [e.status === 'EXTRAIDA' && /Legibilidad medida/.test(e.note) && emisor.suggestion.value === 'Entidad Multipagina',
-    `estado=${e.status} · legibilidad publicada · emisor sugerido=«${emisor.suggestion.value}»`];
+  return [e.status === 'EXTRAIDA' && /ningún fragmento quedó sin mapear/.test(e.note) && emisor.suggestion.value === 'Entidad Multipagina',
+    `estado=${e.status} · decodificación completa declarada · emisor sugerido=«${emisor.suggestion.value}»`];
 });
 
 // ------------------------------------------------------------------ navegador

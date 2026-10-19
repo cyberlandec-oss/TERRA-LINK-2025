@@ -119,3 +119,34 @@ ambos lados, y el fichero `conteos-exactos.txt` queda guardado junto al respaldo
 
 Es el segundo ajuste del procedimiento que se deja escrito, después del contenedor que aún estaba en su fase
 de inicio (P1-010): **verificar mal es tan peligroso como no verificar**, porque da confianza sin sustento.
+
+
+## 11. Rectificación de los tres respaldos verificados con estimaciones (2026-10-19)
+
+**Afectados, exactamente tres**: `2026-10-18-p1010-migracion-0051`, `2026-10-18-p1012-migracion-0052` y
+`2026-10-18-p1013-migracion-0053`. Sus informes originales **se conservan intactos**; dentro de cada carpeta
+se añadió `RECTIFICACION-VERIFICACION-2026-10-19.md` y `conteos-exactos-restaurado.txt`.
+
+**No se restauró sobre desarrollo y no se borró ningún respaldo.**
+
+| Respaldo | Errores | Migraciones | Tablas (con datos) | Filas exactas | Objetos | Append-only en la copia |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0051 (P1-010) | **0** | 51 | 125 (95) | **10 661** | 476 | **rechazado** |
+| 0052 (P1-012) | **0** | 52 | 127 (97) | **11 077** | 487 | **rechazado** |
+| 0053 (P1-013) | **0** | 53 | 130 (100) | **12 057** | 500 | **rechazado** |
+
+**Qué acredita**: los tres **se restauran sin errores** —y como `pg_restore` aplica las restricciones después
+de los datos, eso implica que **claves ajenas y CHECK se cumplen** sobre el contenido restaurado—, el esquema
+y los disparadores llegan completos, el **append-only sigue aplicándose** y se conoce el **número exacto de
+filas** de cada tabla.
+
+**Qué NO acredita**: que el contenido coincida **fila a fila con el origen en el instante de la captura**. En
+aquel momento **no se guardó un recuento exacto del origen**, y compararlo ahora contra la base de desarrollo
+**sería falso**: esa base ha seguido cambiando. Una restauración correcta demuestra **recuperabilidad y
+contenido restaurado**; **no permite reconstruir una comparación que nunca se capturó**.
+
+**Dos falsos negativos de la propia herramienta de reverificación**, corregidos y dejados por escrito: un
+**retorno de carro** que rompía el nombre de tabla, y **`pipefail`** invalidando la comprobación porque `psql`
+devuelve error **precisamente cuando el rechazo funciona**. Ambos daban «append-only NO aplicado» sobre
+copias donde **sí** se aplicaba. Es la tercera lección del mismo tipo: **una verificación que falla en
+silencio es peor que no tenerla**.

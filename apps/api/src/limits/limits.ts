@@ -7,7 +7,7 @@ import { AuthorizationService } from '../authz/authorization.service';
 import type { TenantContext } from '../authz/authorization.service';
 import { CurrentUser, type AuthUser } from '../auth/auth';
 import { APP_CONFIG, type AppConfig } from '../config';
-import { MAX_CHARS, MAX_STREAMS, MAX_STREAM_BYTES, MIN_LEGIBLE } from '../extraction/pdf-text';
+import { MAX_CHARS, MAX_MS, MAX_PAGES, MAX_STREAM_BYTES, MOTOR, MOTOR_VERSION } from '../extraction/pdf-text';
 
 // P1-015 — Límites y consumo (RF-46; parte «**límites … comprobados**» de `docs/18:216`).
 //
@@ -105,9 +105,15 @@ export class LimitsService {
         on_exceed: 'Se corta y se marca el texto como INCOMPLETO; nunca se presenta como completo.',
       },
       {
-        code: 'EXTRACTION_MAX_STREAMS', label: 'Flujos máximos leídos de un PDF',
-        what: 'Flujos de contenido que se descomprimen.',
-        value: MAX_STREAMS, unit: 'flujos', source: 'constante del código (extraction/pdf-text.ts)',
+        code: 'EXTRACTION_MAX_PAGES', label: 'Páginas máximas leídas de un PDF',
+        what: 'Páginas que la extracción asistida recorre.',
+        value: MAX_PAGES, unit: 'páginas', source: 'constante del código (extraction/pdf-text.ts)',
+        enforced_at: 'Extracción asistida', on_exceed: 'Se corta y se declara incompleto.',
+      },
+      {
+        code: 'EXTRACTION_MAX_MS', label: 'Tiempo máximo de lectura de un PDF',
+        what: 'Milisegundos que puede durar la lectura antes de cortar.',
+        value: MAX_MS, unit: 'milisegundos', source: 'constante del código (extraction/pdf-text.ts)',
         enforced_at: 'Extracción asistida', on_exceed: 'Se corta y se declara incompleto.',
       },
       {
@@ -117,11 +123,12 @@ export class LimitsService {
         enforced_at: 'Extracción asistida', on_exceed: 'Ese flujo se omite y el texto se declara incompleto.',
       },
       {
-        code: 'EXTRACTION_MIN_LEGIBLE', label: 'Legibilidad mínima del texto extraído',
-        what: 'Proporción de caracteres del repertorio esperado para dar el resultado por legible.',
-        value: MIN_LEGIBLE, unit: 'proporción', source: 'constante del código (extraction/pdf-text.ts)',
+        code: 'EXTRACTION_ENGINE', label: 'Motor de lectura de PDF',
+        what: 'Componente local que decodifica la capa de texto, con su versión.',
+        value: `${MOTOR} ${MOTOR_VERSION}`, unit: 'componente local',
+        source: 'dependencia fijada en package.json',
         enforced_at: 'Extracción asistida',
-        on_exceed: 'Por debajo: TEXTO_NO_INTERPRETABLE, sin publicar texto ni sugerencias.',
+        on_exceed: 'Si una fuente compuesta no declara su mapa de caracteres: TEXTO_NO_INTERPRETABLE, sin texto ni sugerencias.',
       },
     ];
   }

@@ -193,3 +193,44 @@ independiente. El producto lo dice en cada respuesta (`engine_limits`): *superar
 propios no acredita compatibilidad general*.
 
 **Migración 0054** añade el estado nuevo al CHECK; la tabla es append-only y las filas anteriores no se tocan.
+
+
+## 14. El motor se sustituyó: las heurísticas no demostraban la decodificación (2026-10-19)
+
+**El problema de fondo.** Las señales añadidas en §13 —proporción de caracteres legibles, caracteres de
+control, ausencia de espacios— **detectaban los ejemplos probados**, pero son **heurísticas sobre el
+resultado**: no demuestran que los caracteres correspondan al documento. Se confirmó con un caso
+construido a propósito: un PDF con fuente compuesta `Identity-H` **sin `/ToUnicode`** produce **«HIJK»**
+—texto **perfectamente imprimible**, sin un solo carácter de reemplazo— que **no es el texto del documento**.
+Ninguna de las tres señales lo habría detectado.
+
+**La decisión.** Reconstruir un lector de PDF general a mano sería rehacer, peor, algo que ya existe. Se
+sustituyó **solo esa pieza** por un componente **mantenido y local**: **pdf.js** (`pdfjs-dist 4.10.38`), el
+motor de PDF de Mozilla, que **interpreta de verdad** codificaciones y mapas de fuente.
+
+| | Antes (lector propio) | Ahora (pdf.js) |
+| --- | --- | --- |
+| PDF de otra herramienta (Chromium) | basura binaria presentada como texto | **se lee**: «Registro de la Propiedad de **Manabí**», «Fecha de **emisión**» |
+| Acentos españoles | se perdían | **correctos** |
+| Fuente sin mapa de caracteres | pasaba como texto creíble | **rechazo explícito**, sin texto ni sugerencias |
+| Multipágina | perdía páginas | completo |
+
+**El rechazo ya no depende de mirar el resultado.** Antes de publicar nada se comprueba **la estructura del
+documento**: si alguna fuente **compuesta** no declara su `/ToUnicode`, el resultado se **rechaza entero**
+—`TEXTO_NO_INTERPRETABLE`, sin texto y **sin sugerir ningún campo**— por legible que parezca. Los caracteres
+de reemplazo y del área de uso privado quedan como **red adicional**, no como la comprobación.
+
+**Lo que no cambia**: nada sale de la instalación —pdf.js es una biblioteca, no un servicio—, no hay OCR, se
+conservan permisos, versiones, revisión humana, límites y procedencia, y el motor y su versión **viajan con
+cada extracción**.
+
+**Lo que sigue sin poder afirmarse**: compatibilidad general con cualquier PDF. Lo comprobado es: un generador
+independiente, acentos españoles, un caso de **texto mal decodificado que sigue siendo imprimible**, un
+escaneo sin capa de texto, un archivo que no es PDF y los límites de procesamiento.
+
+**Protección del texto extraído**: comprobado de nuevo que el texto de un documento de **datos personales**
+hereda su clasificación —403 sin `producer:read_identity`— y que **no se filtra** por la ficha del documento,
+también con las tablas y respuestas nuevas.
+
+**Cambio de entorno de pruebas**: `pdfjs-dist` solo publica compilación ESM, así que el ejecutor de pruebas de
+la API arranca con `--experimental-vm-modules`. No afecta al producto.

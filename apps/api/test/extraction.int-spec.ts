@@ -103,12 +103,12 @@ describeDb('P1-013 extracción asistida (PostgreSQL real)', () => {
 
     // 1) TEXTO EXTRAÍDO: sale del archivo, con su motor y la huella del contenido analizado.
     expect(r.extraction!.status).toBe('EXTRAIDA');
-    expect(r.extraction!.engine).toBe('pdf-text-layer');
+    expect(r.extraction!.engine).toBe('pdfjs-dist');
     expect(r.extraction!.source_sha256).toBe(r.version.sha256);
     expect(r.extraction!.extracted_text).toContain('Registro de la Propiedad de Manabi');
     expect(r.extraction!.text_chars).toBeGreaterThan(50);
     expect(r.extraction!.note).toMatch(/en local/i);
-    expect(r.extraction!.note).toMatch(/Legibilidad medida/i);
+    expect(r.extraction!.note).toMatch(/ningún fragmento quedó sin mapear/i);
 
     // 2) VALOR SUGERIDO: con su fragmento de origen, su posición y la regla que lo propuso.
     const emisor = r.fields.find((f) => f.field_code === 'ISSUER')!;
@@ -257,18 +257,31 @@ describeDb('P1-013 extracción asistida (PostgreSQL real)', () => {
     expect(r.fields).toEqual([]);
   });
 
-  it('TEXTO NO INTERPRETABLE: un PDF de otra herramienta se declara, y no se sugiere nada', async () => {
+  it('PDF DE OTRA HERRAMIENTA: ahora se lee de verdad, con acentos y sugerencias', async () => {
     // Fixture de una HERRAMIENTA INDEPENDIENTE (motor de impresión de Chromium), no del generador propio.
     const ajeno = readFileSync(join(__dirname, 'fixtures/chromium-capa-texto.pdf'));
     const d = await subir(ADMIN, ajeno, 'DELIVERY_SUPPORT', 'ajeno.pdf');
     const r = (await extraer(ADMIN, d.id, d.versions[0].id).expect(201)).body as Vista;
+    expect(r.extraction!.status).toBe('EXTRAIDA');
+    expect(r.extraction!.engine).toBe('pdfjs-dist');
+    expect(r.extraction!.extracted_text).toContain('Registro de la Propiedad de Manabí');
+    const emisor = r.fields.find((f) => f.field_code === 'ISSUER')!;
+    expect(emisor.suggestion.value).toBe('Registro de la Propiedad de Manabí');
+    expect(r.fields.find((f) => f.field_code === 'ISSUED_AT')!.suggestion.value).toBe('2026-03-04');
+  });
+
+  it('FUENTE SIN MAPA: se rechaza ENTERO aunque el texto pareciera legible', async () => {
+    // Fuente compuesta sin `/ToUnicode`: lo que se obtendría parece texto («HIJK») pero NO es del documento.
+    const sinMapa = readFileSync(join(__dirname, 'fixtures/fuente-sin-mapa.pdf'));
+    const d = await subir(ADMIN, sinMapa, 'DELIVERY_SUPPORT', 'sin-mapa.pdf');
+    const r = (await extraer(ADMIN, d.id, d.versions[0].id).expect(201)).body as Vista;
     expect(r.extraction!.status).toBe('TEXTO_NO_INTERPRETABLE');
     expect(r.extraction!.extracted_text).toBeNull();
     expect(r.extraction!.text_chars).toBe(0);
-    expect(r.fields).toEqual([]);
-    expect(r.extraction!.note).toMatch(/SÍ tiene capa de texto, pero este motor no supo interpretarla/i);
+    expect(r.fields).toEqual([]);                       // NO se sugiere nada
+    expect(r.extraction!.note).toMatch(/no se puede traducir a caracteres/i);
     expect(r.extraction!.note).toMatch(/ToUnicode/);
-    expect(r.engine_limits).toMatch(/NO acredita compatibilidad general/i);
+    expect(r.engine_limits).toMatch(/NO acredita compatibilidad/i);
   });
 
   it('EL TEXTO EXTRAÍDO HEREDA la protección del documento de origen', async () => {

@@ -11,7 +11,7 @@ import type { TenantContext } from '../authz/authorization.service';
 import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { AuditService } from '../audit/audit.service';
 import { OBJECT_STORE, type ObjectStore } from '../storage/object-store';
-import { MOTOR, MOTOR_VERSION, paginasDePdf, textoDePdf } from './pdf-text';
+import { MOTOR, MOTOR_VERSION, textoDePdf } from './pdf-text';
 import { EXPLICACION_BASE, sugerir, type Base } from './reglas';
 
 // P1-013 — Extracción asistida de documentos (RF-44; S1 §55).
@@ -136,16 +136,18 @@ export class ExtractionService {
         throw conflict('CONTENT_MISMATCH', 'El contenido almacenado no coincide con la huella registrada de la versión: no se extrae.');
       }
       try {
-        const r = textoDePdf(bytes);
-        paginas = paginasDePdf(bytes);
-        if (r.hasTextLayer && !r.interpretable) {
-          // Hay capa de texto, pero este motor no la entiende: se DICE, y lo ilegible no se publica.
+        const r = await textoDePdf(bytes);
+        paginas = r.pages > 0 ? r.pages : null;
+        if (r.reason === 'NO_SE_PUDO_ABRIR') {
+          estado = 'FALLIDA';
+          nota = 'El archivo no se pudo abrir como PDF. No se infiere ningún dato de un archivo que no se pudo leer.';
+        } else if (r.reason === 'FUENTE_SIN_MAPA') {
+          // El motor SÍ decodifica, pero esta fuente no se puede mapear a caracteres: se rechaza ENTERO.
           estado = 'TEXTO_NO_INTERPRETABLE';
-          nota = 'El PDF SÍ tiene capa de texto, pero este motor no supo interpretarla: solo el '
-            + `${Math.round(r.legibility * 100)} % de lo obtenido es texto legible. Suele ocurrir cuando las fuentes `
-            + 'van subconjuntadas y el documento escribe índices de glifo en vez de caracteres, lo que exigiría leer '
-            + 'el mapa «ToUnicode» de cada fuente —algo que este motor no implementa—. NO se publica lo ilegible ni '
-            + 'se sugiere nada a partir de ello: una interpretación incorrecta sería peor que no leer nada.';
+          nota = `El PDF SÍ tiene capa de texto, pero ${r.unmapped_items} fragmento(s) usan una fuente que no se `
+            + 'puede traducir a caracteres: no trae el mapa «ToUnicode» ni una codificación resoluble. Lo que se '
+            + 'obtendría NO sería el texto del documento, así que se rechaza entero y NO se sugiere ningún campo, '
+            + 'aunque el resultado pudiera parecer legible.';
         } else if (r.text.length === 0) {
           estado = 'SIN_TEXTO';
           nota = 'El PDF no tiene capa de texto: probablemente es un escaneo. Leerlo exigiría OCR, y este motor NO '
@@ -155,9 +157,9 @@ export class ExtractionService {
           estado = 'EXTRAIDA';
           texto = r.text;
           nota = r.truncated
-            ? `Texto extraído de ${r.streams} flujo(s) y CORTADO por los límites de procesamiento: está incompleto, y por eso se dice.`
-            : `Texto extraído de ${r.streams} flujo(s) de contenido del propio archivo, en local. Legibilidad `
-              + `medida del resultado: ${Math.round(r.legibility * 100)} %.`;
+            ? `Texto de ${r.pages} página(s), CORTADO por los límites de procesamiento: está incompleto, y por eso se dice.`
+            : `Texto decodificado de ${r.pages} página(s) con ${MOTOR} ${MOTOR_VERSION}, en local. Las fuentes del `
+              + 'documento se interpretaron por completo: ningún fragmento quedó sin mapear.';
         }
       } catch {
         estado = 'FALLIDA';
@@ -261,13 +263,14 @@ export class ExtractionService {
       disclaimer: 'La extracción NO acredita autenticidad, legalidad, calidad ni suficiencia documental, y no '
         + 'levanta ninguna compuerta. Un valor sugerido NO es un dato: lo es solo cuando una persona lo confirma, '
         + 'y aun así queda como registro propio: NO sobrescribe la versión del documento ni ningún dato operativo.',
-      no_external: 'Ningún archivo ni dato personal sale de esta instalación: el texto se lee en local. Lo que '
-        + 'este motor no sabe leer se declara, en vez de enviarse a un tercero.',
-      engine_limits: 'Este motor lee la CAPA DE TEXTO de un PDF. No implementa OCR ni el mapa «ToUnicode» de '
-        + 'fuentes subconjuntadas, así que hay PDF legítimos cuya capa de texto no puede interpretar: cuando ocurre, '
-        + 'lo dice y no sugiere nada. El OCR NO obliga a usar servicios externos —hay motores locales, como '
-        + 'Tesseract—; simplemente no está incorporado aquí. Superar las pruebas de formatos propios NO acredita '
-        + 'compatibilidad general con cualquier PDF.',
+      no_external: 'Ningún archivo ni dato personal sale de esta instalación: el PDF se decodifica en local con '
+        + `${MOTOR}, una biblioteca, no un servicio. Lo que no se puede leer se declara, en vez de enviarse a nadie.`,
+      engine_limits: 'Este motor lee la CAPA DE TEXTO de un PDF e interpreta las codificaciones y los mapas de '
+        + 'fuente. Si una fuente NO se puede mapear a caracteres, el resultado se rechaza entero y no se sugiere '
+        + 'nada: un texto mal decodificado puede parecer texto, y eso sería peor que no leer nada. NO hay OCR, así '
+        + 'que una imagen o un PDF escaneado no se leen —el OCR tampoco obligaría a usar un servicio externo: hay '
+        + 'motores locales, como Tesseract; simplemente no está incorporado—. Superar estas pruebas NO acredita '
+        + 'compatibilidad con cualquier PDF: acredita lo que se ha comprobado.',
     };
   }
 

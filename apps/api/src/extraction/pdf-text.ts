@@ -1,260 +1,188 @@
 import { inflateSync } from 'node:zlib';
 
-// P1-013 — Lectura del texto de un PDF, **en local y sin ningún servicio externo**.
+// P1-013 — Lectura del texto de un PDF, **en local y con decodificación real**.
 //
-// POR QUÉ ESTÁ ESCRITO A MANO
-// Un PDF con **capa de texto** se puede leer de forma **determinista** —el texto está escrito dentro del
-// archivo—: se descomprimen los flujos de contenido y se recogen los operadores de texto. Sin modelo, sin red.
+// POR QUÉ CAMBIÓ EL MOTOR (2026-10-19)
+// La primera versión descomprimía los flujos a mano y recogía los operadores de texto. Eso funciona con PDF
+// sencillos, pero **no decodifica**: la mayoría de los PDF reales subconjuntan las fuentes y escriben
+// **identificadores de glifo**, que solo se traducen leyendo el mapa de la fuente. Se intentó detectar ese
+// caso con heurísticas —proporción de caracteres legibles, caracteres de control, ausencia de espacios— y
+// **detectaban los ejemplos probados**, pero una heurística **no demuestra que los caracteres correspondan al
+// documento**: un texto mal decodificado puede seguir pareciendo texto.
 //
-// LO QUE ESTE MOTOR **NO** SABE HACER, Y POR QUÉ IMPORTA DECIRLO
-// Muchos PDF reales —los que produce un navegador o una suite ofimática— **subconjuntan** las fuentes y
-// escriben **índices de glifo**, no caracteres. Traducirlos exige leer el mapa `ToUnicode` de cada fuente, que
-// este motor **no implementa**. El resultado de descomprimir esos flujos **parece texto pero no lo es**.
+// Reconstruir un lector de PDF general a mano sería construir, mal, algo que ya existe. Así que **solo esa
+// pieza** se sustituye por un componente **mantenido** que se ejecuta **enteramente en local**: **pdf.js**
+// (`pdfjs-dist`), el motor de PDF de Mozilla, que interpreta las codificaciones y los mapas de fuente.
 //
-// Por eso el motor **mide si lo que obtuvo es legible** y distingue tres situaciones que antes se confundían:
-//   · **hay capa de texto y se entiende** → texto;
-//   · **hay capa de texto pero este motor no la entiende** → `interpretable: false`, y **no se publica**;
-//   · **no hay capa de texto** (un escaneo) → vacío.
-// Confundir las dos últimas sería presentar «no sé leerlo» como «no hay nada que leer».
+// LO QUE **NO** CAMBIA
+//   · **nada sale de la instalación**: pdf.js es una biblioteca local, no un servicio;
+//   · **no hay OCR**: una imagen o un PDF escaneado siguen sin leerse, y se declara. El OCR tampoco exigiría
+//     un tercero —hay motores locales, como Tesseract—; simplemente no está incorporado;
+//   · **los límites se conservan**: tope de páginas, de caracteres y de tiempo, y el corte **se declara**;
+//   · **la procedencia se conserva**: el motor y su versión viajan con cada extracción.
 //
-// SOBRE EL OCR
-// Un PNG o un PDF escaneado necesitarían **OCR**. El OCR **no obliga a usar servicios externos**: hay motores
-// que se ejecutan **en local** (por ejemplo Tesseract, con motor y programa de línea de comandos). Que aquí no
-// haya OCR es una **limitación de este motor**, no una consecuencia de no querer usar terceros.
+// RECHAZO EXPLÍCITO ANTES DE SUGERIR, Y POR QUÉ NO BASTA MIRAR EL RESULTADO
+// Una fuente **compuesta** (`/Type0`, típicamente `Identity-H`) **sin `/ToUnicode`** escribe identificadores
+// de glifo. Si nadie los traduce, se interpretan como códigos de carácter y se obtiene algo **perfectamente
+// imprimible que NO es el texto del documento** —comprobado: un archivo así devuelve «HIJK», sin ningún
+// carácter de reemplazo que delate el problema—.
 //
-// LÍMITES
-// Se corta por tamaño y por número de flujos. Si se corta, se dice —`truncated`—: un texto parcial **no se
-// presenta como completo**.
+// Por eso el rechazo **no** se decide mirando el resultado, sino **la estructura del documento**: antes de
+// publicar nada se comprueba que **toda fuente compuesta declare su `/ToUnicode`**. Si alguna no lo hace, el
+// resultado se **rechaza entero** y **no se sugiere ningún campo**, por legible que parezca. Como red
+// adicional se rechazan también los caracteres de reemplazo y los del área de uso privado.
 
-export const MOTOR = 'pdf-text-layer';
-export const MOTOR_VERSION = '2.0.0';
+export const MOTOR = 'pdfjs-dist';
+/** Versión del componente, fijada en `package.json`. Viaja con cada extracción como procedencia. */
+export const MOTOR_VERSION = '4.10.38';
 
 /** Tope de texto acumulado. Un documento operativo normal cabe de sobra. */
 export const MAX_CHARS = 200_000;
-/** Tope de flujos a descomprimir. Evita que un PDF patológico consuma el proceso. */
-export const MAX_STREAMS = 500;
-/** Tope de bytes por flujo descomprimido. */
+/** Tope de páginas leídas. */
+export const MAX_PAGES = 200;
+/** Tope de tiempo de lectura, para que un archivo patológico no bloquee el proceso. */
+export const MAX_MS = 20_000;
+/** Tope por flujo al inspeccionar la estructura en busca de fuentes sin mapa. */
 export const MAX_STREAM_BYTES = 4_000_000;
-/**
-  * Proporción mínima de caracteres del repertorio esperado. **No es un umbral de negocio**: es una propiedad
-  * medible del propio resultado, y se publica junto a él para que pueda comprobarse.
-  */
-export const MIN_LEGIBLE = 0.8;
-/**
- * Proporción máxima de caracteres de control (C0 salvo salto, retorno y tabulador). El texto de un documento
- * **no los contiene**: cuando aparecen en cantidad, lo que se descomprimió **no son caracteres** sino índices
- * de glifo de una fuente subconjuntada —el espacio suele salir como ``—.
- */
-export const MAX_CONTROLES = 0.005;
-/**
- * Longitud a partir de la cual un texto **sin un solo espacio** delata una decodificación incorrecta: el texto
- * real de un documento tiene espacios. Es la señal que destapa los índices de glifo que *parecen* ASCII.
- */
-export const LARGO_SIN_ESPACIOS = 40;
+/** Ventana alrededor de `/Type0` donde se busca su `/ToUnicode`: un diccionario de fuente cabe de sobra. */
+const VENTANA_DICT = 600;
+
+/** Caracteres que delatan un mapeo fallido: reemplazo y área de uso privado. Es la red, no la comprobación. */
+const SIN_MAPEAR = /[�-]/;
 
 export interface TextoPdf {
   text: string;
-  /** Flujos de contenido que se pudieron leer. */
-  streams: number;
-  /** `true` si se alcanzó alguno de los límites y el texto quedó incompleto. */
+  /** Páginas leídas. */
+  pages: number;
+  /** `true` si se alcanzó algún límite y el texto quedó incompleto. */
   truncated: boolean;
-  /** `true` si el flujo traía operadores de texto: **hay** capa de texto, se entienda o no. */
+  /** `true` si el documento trae capa de texto, se pueda mapear o no. */
   hasTextLayer: boolean;
-  /** `false` si lo obtenido no es texto legible: el motor no supo interpretar la codificación. */
+  /** `false` si no se puede garantizar que el texto sea el del documento: no se publica nada. */
   interpretable: boolean;
-  /** Proporción de caracteres del repertorio esperado, entre 0 y 1. Se publica para que se pueda comprobar. */
-  legibility: number;
-  /** Qué señal descartó el resultado, cuando `interpretable` es `false`. */
-  reason: 'OK' | 'REPERTORIO' | 'CARACTERES_DE_CONTROL' | 'SIN_ESPACIOS' | 'SIN_CAPA_DE_TEXTO';
+  /** Por qué se rechazó, cuando `interpretable` es `false`. */
+  reason: 'OK' | 'SIN_CAPA_DE_TEXTO' | 'FUENTE_SIN_MAPA' | 'NO_SE_PUDO_ABRIR';
+  /** Fragmentos con caracteres sin mapear. Se publica para poder comprobarlo. */
+  unmapped_items: number;
+  /** Fuentes compuestas sin `/ToUnicode`. Si hay alguna, no se publica nada. */
+  fonts_without_map: number;
 }
 
-/** Repertorio esperado: ASCII imprimible, salto de línea y la acentuación del español. */
-const ESPERADO = /[\x20-\x7E\n\náéíóúüñÁÉÍÓÚÜÑ¿¡«»ºª€]/;
-
-function legibilidad(s: string): number {
-  if (s.length === 0) return 0;
-  let buenos = 0;
-  for (const c of s) if (ESPERADO.test(c)) buenos += 1;
-  return buenos / s.length;
-}
-
-/**
- * Decide si lo obtenido es **texto de verdad**. Tres señales, y basta una para descartarlo:
- *   · **repertorio**: demasiados caracteres fuera del juego esperado;
- *   · **caracteres de control**: el texto de un documento no los lleva; los índices de glifo sí;
- *   · **sin espacios**: un texto largo sin un solo espacio no es texto —es otra cosa mal decodificada—.
- * La tercera es la que destapa el caso peligroso: índices de glifo que **parecen** ASCII imprimible.
- */
-function interpretabilidad(s: string, legible: number): TextoPdf['reason'] {
-  if (s.length === 0) return 'OK';
-  let controles = 0;
-  let espacios = 0;
-  for (const c of s) {
-    const n = c.charCodeAt(0);
-    if (n < 0x20 && c !== '\n' && c !== '\r' && c !== '\t') controles += 1;
-    if (c === ' ') espacios += 1;
-  }
-  if (controles / s.length > MAX_CONTROLES) return 'CARACTERES_DE_CONTROL';
-  if (s.length >= LARGO_SIN_ESPACIOS && espacios === 0) return 'SIN_ESPACIOS';
-  if (legible < MIN_LEGIBLE) return 'REPERTORIO';
-  return 'OK';
-}
-
-/** Octales y escapes de una cadena literal PDF `( … )`. */
-function desescapar(s: string): string {
-  let out = '';
-  for (let i = 0; i < s.length; i += 1) {
-    const c = s[i];
-    if (c !== '\\') { out += c; continue; }
-    const n = s[i + 1];
-    if (n === undefined) break;
-    if (n >= '0' && n <= '7') {
-      let oct = '';
-      let k = i + 1;
-      while (k < s.length && oct.length < 3 && s[k] >= '0' && s[k] <= '7') { oct += s[k]; k += 1; }
-      out += String.fromCharCode(parseInt(oct, 8));
-      i = k - 1;
-      continue;
-    }
-    const mapa: Record<string, string> = { n: '\n', r: '\r', t: '\t', b: '\b', f: '\f', '(': '(', ')': ')', '\\': '\\' };
-    out += mapa[n] ?? n;
-    i += 1;
-  }
-  return out;
-}
-
-/** Una cadena PDF puede venir en UTF-16BE, marcada con BOM `FE FF`. Se decodifica en vez de publicar el BOM. */
-function decodificar(s: string): string {
-  if (s.length >= 2 && s.charCodeAt(0) === 0xFE && s.charCodeAt(1) === 0xFF) {
-    let out = '';
-    for (let i = 2; i + 1 < s.length; i += 2) out += String.fromCharCode((s.charCodeAt(i) << 8) | s.charCodeAt(i + 1));
-    return out;
-  }
-  return s;
-}
-
-/** Cadena hexadecimal `<48656C6C6F>`: también es texto del documento, y antes se perdía entera. */
-function desdeHex(h: string): string {
-  const limpio = h.replace(/[^0-9A-Fa-f]/g, '');
-  const par = limpio.length % 2 === 0 ? limpio : `${limpio}0`;
-  let out = '';
-  for (let i = 0; i + 1 < par.length; i += 2) out += String.fromCharCode(parseInt(par.slice(i, i + 2), 16));
-  return decodificar(out);
+interface DocumentoPdf {
+  numPages: number;
+  getPage: (n: number) => Promise<{ getTextContent: () => Promise<{ items: Array<{ str?: string; hasEOL?: boolean }> }> }>;
+  destroy: () => Promise<void>;
 }
 
 /**
- * Recoge el texto de un flujo de contenido ya descomprimido.
- * Mira los operadores que escriben texto: `Tj`, `'`, `"` y los arreglos de `TJ`, con cadenas literales
- * `( … )` **y** hexadecimales `< … >`.
+ * ¿Hay alguna fuente **compuesta** sin `/ToUnicode`? Es la comprobación que de verdad importa: sin ese mapa,
+ * los códigos son identificadores de glifo y lo obtenido **no será el texto del documento**, aunque lo parezca.
+ *
+ * Mira el cuerpo visible **y** los flujos descomprimidos, porque los PDF modernos guardan los diccionarios
+ * dentro de flujos de objetos. Un flujo que no se puede descomprimir se omite.
  */
-function textoDeFlujo(contenido: string): { texto: string; conOperadores: boolean } {
-  let out = '';
-  let conOperadores = false;
-  const re = /\((?:\\.|[^\\()])*\)|<[0-9A-Fa-f\s]*>|\[(?:[^[\]\\]|\\.)*\]|TJ|Tj|'|"|T\*|Td|TD|ET/g;
-  let m: RegExpExecArray | null;
-  let buffer: string[] = [];
-  while ((m = re.exec(contenido)) !== null) {
-    const tok = m[0];
-    if (tok.startsWith('(')) {
-      buffer.push(decodificar(desescapar(tok.slice(1, -1))));
-    } else if (tok.startsWith('<')) {
-      buffer.push(desdeHex(tok.slice(1, -1)));
-    } else if (tok.startsWith('[')) {
-      const partes = tok.slice(1, -1);
-      const sub = /\((?:\\.|[^\\()])*\)|<[0-9A-Fa-f\s]*>|-?\d+(?:\.\d+)?/g;
-      let s: RegExpExecArray | null;
-      while ((s = sub.exec(partes)) !== null) {
-        const t = s[0];
-        if (t.startsWith('(')) buffer.push(decodificar(desescapar(t.slice(1, -1))));
-        else if (t.startsWith('<')) buffer.push(desdeHex(t.slice(1, -1)));
-        else if (Number(t) <= -120) buffer.push(' ');
-      }
-    } else if (tok === 'Tj' || tok === 'TJ' || tok === "'" || tok === '"') {
-      conOperadores = true;
-      out += buffer.join('');
-      buffer = [];
-      if (tok === "'" || tok === '"') out += '\n';
-    } else if (tok === 'T*' || tok === 'Td' || tok === 'TD' || tok === 'ET') {
-      out += buffer.join('');
-      buffer = [];
-      out += '\n';
-    }
-  }
-  out += buffer.join('');
-  return { texto: out, conOperadores };
-}
-
-/**
- * Extrae el texto de la capa de texto de un PDF. **Nunca lanza**: un PDF ilegible devuelve texto vacío con
- * `interpretable: false`, que el módulo publica como límite declarado, no como un fallo del sistema.
- */
-export function textoDePdf(bytes: Buffer): TextoPdf {
-  const crudo = bytes.toString('latin1');
-  let texto = '';
-  let flujos = 0;
-  let truncado = false;
-  let capaDeTexto = false;
-
+export function fuentesCompuestasSinMapa(bytes: Buffer): number {
+  let txt = bytes.toString('latin1');
   const re = /stream\r?\n?/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(crudo)) !== null) {
-    if (flujos >= MAX_STREAMS) { truncado = true; break; }
-    const inicio = m.index + m[0].length;
-    const fin = crudo.indexOf('endstream', inicio);
+  let anadidos = 0;
+  while ((m = re.exec(txt)) !== null && anadidos < 200) {
+    const ini = m.index + m[0].length;
+    const fin = txt.indexOf('endstream', ini);
     if (fin < 0) break;
-    const cuerpo = Buffer.from(crudo.slice(inicio, fin), 'latin1');
-    // Se reanuda DESPUÉS de «endstream»: la palabra contiene «stream», y reanudar antes hacía que el flujo
-    // siguiente se tragara entero. Era la causa de perder páginas en documentos de varias páginas.
     re.lastIndex = fin + 'endstream'.length;
-    if (cuerpo.length === 0 || cuerpo.length > MAX_STREAM_BYTES) { if (cuerpo.length > MAX_STREAM_BYTES) truncado = true; continue; }
-
-    let contenido: string | null = null;
-    // Flate es lo habitual; un flujo sin comprimir también se lee.
-    try { contenido = inflateSync(cuerpo).toString('latin1'); } catch { contenido = null; }
-    if (contenido === null) {
-      const comoTexto = cuerpo.toString('latin1');
-      if (/\bTj\b|\bTJ\b/.test(comoTexto)) contenido = comoTexto;
-    }
-    if (contenido === null) continue;
-    if (!/\bTj\b|\bTJ\b/.test(contenido)) continue;
-
-    const r = textoDeFlujo(contenido);
-    if (r.conOperadores) capaDeTexto = true;
-    flujos += 1;
-    texto += r.texto;
-    texto += '\n';
-    if (texto.length > MAX_CHARS) { texto = texto.slice(0, MAX_CHARS); truncado = true; break; }
+    const cuerpo = Buffer.from(txt.slice(ini, fin), 'latin1');
+    if (cuerpo.length === 0 || cuerpo.length > MAX_STREAM_BYTES) continue;
+    try {
+      txt += `\n${inflateSync(cuerpo).toString('latin1')}`;
+      anadidos += 1;
+    } catch { /* un flujo que no se descomprime no aporta diccionarios legibles */ }
   }
-
-  const limpio = texto
-    .replace(/ /g, '')
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-
-  const legible = legibilidad(limpio);
-  const razon = limpio.length === 0
-    ? (capaDeTexto ? 'CARACTERES_DE_CONTROL' : 'SIN_CAPA_DE_TEXTO')
-    : interpretabilidad(limpio, legible);
-  // Si no hay nada y tampoco había capa de texto, no es un fallo de interpretación: simplemente no hay texto.
-  const interpretable = limpio.length === 0 ? !capaDeTexto : razon === 'OK';
-  return {
-    // Lo ilegible NO se publica: devolver basura binaria como «texto del documento» sería peor que no leerlo.
-    text: interpretable ? limpio : '',
-    streams: flujos,
-    truncated: truncado,
-    hasTextLayer: capaDeTexto,
-    interpretable,
-    legibility: Number(legible.toFixed(4)),
-    reason: interpretable ? 'OK' : razon,
-  };
+  let sinMapa = 0;
+  for (const c of txt.matchAll(/\/Subtype\s*\/Type0/g)) {
+    const i = c.index ?? 0;
+    const trozo = txt.slice(Math.max(0, i - VENTANA_DICT), Math.min(txt.length, i + VENTANA_DICT));
+    if (!/\/ToUnicode/.test(trozo)) sinMapa += 1;
+  }
+  return sinMapa;
 }
 
-/** Cuenta las páginas declaradas. Informativo: si no se puede, `null` —no se inventa—. */
-export function paginasDePdf(bytes: Buffer): number | null {
-  const crudo = bytes.toString('latin1');
-  const porCount = /\/Type\s*\/Pages[^>]*?\/Count\s+(\d+)/.exec(crudo);
-  if (porCount) return Number(porCount[1]);
-  const porTipo = crudo.match(/\/Type\s*\/Page[^s]/g);
-  return porTipo ? porTipo.length : null;
+/**
+ * Lee la capa de texto de un PDF con pdf.js. **Nunca lanza**: un archivo ilegible devuelve texto vacío con su
+ * razón, que el módulo publica como límite declarado y no como fallo del sistema.
+ */
+export async function textoDePdf(bytes: Buffer): Promise<TextoPdf> {
+  const base = { text: '', pages: 0, truncated: false, hasTextLayer: false, unmapped_items: 0, fonts_without_map: 0 };
+
+  let doc: DocumentoPdf;
+  try {
+    // Importación dinámica: `pdfjs-dist` es ESM y esta aplicación se compila a CommonJS.
+    const cargar = Function('return import("pdfjs-dist/legacy/build/pdf.mjs")') as () => Promise<{
+      getDocument: (opts: Record<string, unknown>) => { promise: Promise<DocumentoPdf> };
+    }>;
+    const pdfjs = await cargar();
+    doc = await pdfjs.getDocument({
+      data: new Uint8Array(bytes),
+      // Sin red, sin tipografías del sistema y sin evaluación dinámica: lectura local y acotada.
+      useSystemFonts: false,
+      isEvalSupported: false,
+      disableFontFace: true,
+      stopAtErrors: false,
+    }).promise;
+  } catch {
+    return { ...base, interpretable: false, reason: 'NO_SE_PUDO_ABRIR' };
+  }
+
+  const limite = Date.now() + MAX_MS;
+  let texto = '';
+  let paginas = 0;
+  let truncado = false;
+  let capaDeTexto = false;
+  let sinMapear = 0;
+
+  try {
+    const total = Math.min(doc.numPages, MAX_PAGES);
+    if (doc.numPages > MAX_PAGES) truncado = true;
+    for (let i = 1; i <= total; i += 1) {
+      if (Date.now() > limite) { truncado = true; break; }
+      const pagina = await doc.getPage(i);
+      const contenido = await pagina.getTextContent();
+      for (const it of contenido.items) {
+        const s = it.str ?? '';
+        if (s.trim().length > 0) capaDeTexto = true;
+        if (SIN_MAPEAR.test(s)) sinMapear += 1;
+        texto += s;
+        if (it.hasEOL) texto += '\n';
+      }
+      texto += '\n';
+      paginas = i;
+      if (texto.length > MAX_CHARS) { texto = texto.slice(0, MAX_CHARS); truncado = true; break; }
+    }
+  } catch {
+    // Un fallo a mitad no invalida lo ya leído, pero sí lo deja incompleto, y se declara.
+    truncado = true;
+  } finally {
+    await doc.destroy().catch(() => undefined);
+  }
+
+  const limpio = texto.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  const sinMapa = fuentesCompuestasSinMapa(bytes);
+
+  if (sinMapa > 0 || sinMapear > 0) {
+    // No se puede garantizar que el texto sea el del documento: se rechaza ENTERO antes de sugerir nada.
+    return {
+      text: '', pages: paginas, truncated: truncado, hasTextLayer: true,
+      interpretable: false, reason: 'FUENTE_SIN_MAPA', unmapped_items: sinMapear, fonts_without_map: sinMapa,
+    };
+  }
+  if (!capaDeTexto || limpio.length === 0) {
+    return {
+      text: '', pages: paginas, truncated: truncado, hasTextLayer: capaDeTexto,
+      interpretable: !capaDeTexto, reason: 'SIN_CAPA_DE_TEXTO', unmapped_items: 0, fonts_without_map: 0,
+    };
+  }
+  return {
+    text: limpio, pages: paginas, truncated: truncado, hasTextLayer: true,
+    interpretable: true, reason: 'OK', unmapped_items: 0, fonts_without_map: 0,
+  };
 }
