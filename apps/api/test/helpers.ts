@@ -67,7 +67,8 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
  */
 async function vaciarBucketDePruebas(config: AppConfig): Promise<void> {
   const bucket = config.objectStore.bucket;
-  if (!bucket.endsWith('-test')) throw new Error(`Bucket de pruebas inesperado: «${bucket}». No se borra nada.`);
+  if (bucket !== 'terra-link-test') throw new Error(`Bucket de pruebas inesperado: «${bucket}». No se borra nada.`);
+  if (!TEST_URL || !new URL(TEST_URL).pathname.endsWith('_test')) throw new Error('Sin base *_test no se vacía el bucket.');
   const store = new S3ObjectStore(config.objectStore);
   try {
     const objetos = await store.list('');
