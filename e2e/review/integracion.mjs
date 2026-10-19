@@ -78,11 +78,27 @@ function verifica(secreto, cuerpo, firma, toleranciaSegundos = 300) {
 // ------------------------------------------------------------------ receptor LOCAL
 const recibidas = [];
 let respuesta = { status: 200, body: 'ok' };
+/** Modo «la respuesta se pierde»: el receptor PROCESA y después se corta la conexión. */
+let perderRespuesta = false;
+/** Efectos del receptor, por identificador de entrega. Es SU deduplicación, no la nuestra. */
+const efectos = new Map();
 const receptor = createServer((req, res) => {
   let cuerpo = '';
   req.on('data', (c) => { cuerpo += c; });
   req.on('end', () => {
     recibidas.push({ path: req.url ?? '', body: cuerpo, headers: req.headers });
+    const id = String(req.headers['x-terra-delivery-id'] ?? '');
+    if (perderRespuesta) {
+      // Lo que hace un receptor correcto: deduplicar por el identificador estable.
+      if (!efectos.has(id)) {
+        efectos.set(id, 1);        // procesa UNA vez…
+        req.socket.destroy();      // …y la respuesta no llega nunca
+        return;
+      }
+      res.writeHead(200, { 'content-type': 'text/plain' });
+      res.end('duplicado reconocido');
+      return;
+    }
     res.writeHead(respuesta.status, { 'content-type': 'text/plain' });
     res.end(respuesta.body);
   });
@@ -275,6 +291,59 @@ try {
     `rechazo HTTP ${hayFallo.http_status} («${hayFallo.response_excerpt}») intento ${hayFallo.attempt} → entregado en el ${entregado.attempt}, mismo identificador`];
   });
 
+  await caso('LA GARANTÍA ES AL MENOS UNA VEZ: si la respuesta se pierde, el mensaje vuelve', async () => {
+    // Lo que un índice único NO cubre: el receptor procesa y la respuesta no llega. Terra Link no puede
+    // saber que se procesó, registra un fallo y el bus reintenta. Quien evita el efecto doble es el RECEPTOR,
+    // deduplicando por X-Terra-Delivery-Id, el mismo en todos los reintentos de esa entrega.
+    const code = `ensayo-perdida-${SELLO}`;
+    efectos.clear();
+    perderRespuesta = true;
+    const cfg = await configurar(admin.token, code);
+    if (cfg.status !== 201) throw new Error(`configurar respondió ${cfg.status}`);
+    const prod = await pedir(admin.token, 'POST', `/api/v1/organizations/${COOP}/producers`, {
+      producer_code: `WHL-${SELLO}`, legal_name: `Finca de ensayo perdida ${SELLO}`,
+    });
+    if (prod.status !== 201) throw new Error(`crear productor respondió ${prod.status}`);
+    const dosVeces = await esperar(() => porRuta(code).length >= 2, 40000);
+    perderRespuesta = false;
+    if (!dosVeces) throw new Error(`el mensaje no volvió: llegadas=${porRuta(code).length}`);
+
+    const ids = new Set(porRuta(code).map((r) => String(r.headers['x-terra-delivery-id'])));
+    const r = await pedir(admin.token, 'GET', `${wh()}/attempts?code=${code}`);
+    const porIntento = Object.fromEntries((r.body?.attempts ?? []).map((a) => [a.attempt, a.status]));
+    const lista = await pedir(admin.token, 'GET', wh());
+    return [ids.size === 1 && efectos.get([...ids][0]) === 1
+      && porIntento[1] === 'ERROR_DE_RED' && porIntento[2] === 'ENTREGADO'
+      && lista.body.delivery_guarantee === 'AL_MENOS_UNA_VEZ'
+      && /responsabilidad del receptor/i.test(lista.body.idempotency_note),
+    `llegó ${porRuta(code).length} veces con 1 identificador · el receptor lo procesó ${efectos.get([...ids][0])} vez · intento 1=${porIntento[1]}, 2=${porIntento[2]} · garantía publicada=${lista.body.delivery_guarantee}`];
+  });
+
+  await caso('APAGAR alcanza a los REINTENTOS PENDIENTES: no se entregan tras apagar', async () => {
+    const code = `ensayo-pendiente-${SELLO}`;
+    respuesta = { status: 503, body: 'caído' };
+    const cfg = await configurar(admin.token, code);
+    if (cfg.status !== 201) throw new Error(`configurar respondió ${cfg.status}`);
+    const prod = await pedir(admin.token, 'POST', `/api/v1/organizations/${COOP}/producers`, {
+      producer_code: `WHP-${SELLO}`, legal_name: `Finca de ensayo pendiente ${SELLO}`,
+    });
+    if (prod.status !== 201) throw new Error(`crear productor respondió ${prod.status}`);
+    const hubo = await esperar(() => porRuta(code).length > 0, 30000);
+    if (!hubo) throw new Error('el destino no llegó a recibir ni un intento fallido');
+    const fallidas = porRuta(code).length;
+
+    // Se apaga con la entrega AÚN SIN LOGRAR y el receptor se repone: aun así no debe recibir.
+    const off = await configurar(admin.token, code, { active: false, reason: 'Se retira con entregas pendientes.' });
+    if (off.status !== 201) throw new Error(`apagar respondió ${off.status}`);
+    respuesta = { status: 200, body: 'ok' };
+    await new Promise((r) => setTimeout(r, 12000));   // tiempo de sobra para varios reintentos del bus
+
+    const r = await pedir(admin.token, 'GET', `${wh()}/attempts?code=${code}`);
+    const logradas = (r.body?.attempts ?? []).filter((a) => a.status === 'ENTREGADO').length;
+    return [porRuta(code).length === fallidas && logradas === 0,
+      `intentos recibidos ${fallidas} → ${porRuta(code).length} tras apagar y reponer el receptor · entregas logradas=${logradas}`];
+  });
+
   await caso('PERMISOS: consultar es otro permiso, y el técnico no tiene ninguno de los dos', async () => {
     const lista = await pedir(tecnico.token, 'GET', wh());
     const intentos = await pedir(tecnico.token, 'GET', `${wh()}/attempts`);
@@ -355,8 +424,9 @@ try {
       await abrir(page);
       const filas = await page.locator('table[aria-label="Destinos configurados"] tbody tr').count();
       const t = await page.locator('main').innerText();
-      return [filas >= 1 && !t.includes(secretoDelDestino) && /el secreto no se publica/i.test(t),
-        `${filas} destino(s) · secreto ausente de la pantalla · se dice por qué`];
+      return [filas >= 1 && !t.includes(secretoDelDestino) && /el secreto no se publica/i.test(t)
+        && /al menos una vez/i.test(t) && /X-Terra-Delivery-Id/.test(t),
+      `${filas} destino(s) · secreto ausente · la garantía «al menos una vez» y el identificador, a la vista`];
     });
 
     await caso('PANTALLA: cada intento se ve con su resultado, incluido el fallido', async () => {

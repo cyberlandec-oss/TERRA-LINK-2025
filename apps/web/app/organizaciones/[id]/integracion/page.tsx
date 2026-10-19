@@ -22,7 +22,7 @@ interface Vista {
   destinations: Destino[];
   event_catalog: string[];
   local_destinations_allowed: boolean;
-  mode_note: string; signature_note: string; idempotency_note: string;
+  mode_note: string; signature_note: string; idempotency_note: string; delivery_guarantee: string;
 }
 interface Intento {
   id: string; code: string; delivery_id: string; attempt: number; status: string;
@@ -216,6 +216,16 @@ export default function IntegracionPage() {
             )}
             <p className="muted">{v.signature_note}</p>
             <p className="muted">{v.idempotency_note}</p>
+            <Alert tone="review" title="Procesar una sola vez es cosa de tu sistema.">
+              <p>
+                La entrega es <strong>al menos una vez</strong>. Terra Link no reenvía un evento cuya entrega
+                registró como lograda, pero eso <strong>no basta</strong>: si tu sistema procesa el mensaje y la
+                respuesta no llega —se corta la conexión, vence el plazo—, aquí queda un fallo, el bus reintenta
+                y <strong>volverás a recibir el mismo mensaje</strong>. Guarda el{' '}
+                <code>X-Terra-Delivery-Id</code> de lo que ya procesaste y descarta lo repetido: es el mismo en
+                todos los reintentos de una entrega.
+              </p>
+            </Alert>
           </section>
 
           <section className="card" aria-labelledby="int-intentos">

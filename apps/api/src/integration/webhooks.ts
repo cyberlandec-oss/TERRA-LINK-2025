@@ -254,8 +254,12 @@ export class WebhookService {
       signature_note: 'Cada entrega va firmada con HMAC-SHA256 sobre «<instante>.<cuerpo>» en la cabecera '
         + 'X-Terra-Signature. El instante va dentro de lo firmado, así que una entrega capturada no se puede '
         + 'reutilizar con otra marca de tiempo.',
-      idempotency_note: 'Cada entrega lleva X-Terra-Delivery-Id estable entre reintentos: el receptor descarta '
-        + 'duplicados con él. Un evento ya entregado a un destino NO se le reenvía.',
+      delivery_guarantee: 'AL_MENOS_UNA_VEZ',
+      idempotency_note: 'Garantía: AL MENOS UNA VEZ. Cada entrega lleva X-Terra-Delivery-Id, estable entre '
+        + 'reintentos. Terra Link no reenvía un evento cuya entrega REGISTRÓ como lograda; pero si tu sistema lo '
+        + 'procesa y la respuesta se pierde —plazo agotado, conexión cortada—, aquí consta un fallo y el bus '
+        + 'reintenta: recibirás el mismo mensaje otra vez, con el mismo identificador. Procesar UNA sola vez es '
+        + 'responsabilidad del receptor, y ese identificador es la clave con la que conseguirlo.',
     };
   }
 

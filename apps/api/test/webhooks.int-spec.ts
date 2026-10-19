@@ -32,6 +32,10 @@ describeDb('P1-008 integración por webhooks (PostgreSQL real, receptor local)',
   const recibidas: Array<{ path: string; body: string; headers: Record<string, string | string[] | undefined> }> = [];
   /** Lo que el receptor contesta. Cambiándolo se provoca el fallo. */
   let respuesta = { status: 200, body: 'ok' };
+  /** Modo «la respuesta se pierde»: el receptor PROCESA y luego se corta la conexión. */
+  let perderRespuesta = false;
+  /** Efectos del receptor, por identificador de entrega. Es su deduplicación, no la nuestra. */
+  const efectos = new Map<string, number>();
 
   const http = () => h.http();
   const as = (e: string) => h.as(e);
@@ -54,6 +58,18 @@ describeDb('P1-008 integración por webhooks (PostgreSQL real, receptor local)',
       req.on('data', (c) => { cuerpo += c; });
       req.on('end', () => {
         recibidas.push({ path: req.url ?? '', body: cuerpo, headers: req.headers });
+        const id = String(req.headers['x-terra-delivery-id'] ?? '');
+        if (perderRespuesta) {
+          // Así se comporta un receptor correcto: deduplica por el identificador estable.
+          if (!efectos.has(id)) {
+            efectos.set(id, 1);          // procesa UNA vez…
+            req.socket.destroy();        // …y la respuesta no llega nunca
+            return;
+          }
+          res.writeHead(200, { 'content-type': 'text/plain' });
+          res.end('duplicado reconocido');
+          return;
+        }
         res.writeHead(respuesta.status, { 'content-type': 'text/plain' });
         res.end(respuesta.body);
       });
@@ -258,6 +274,60 @@ describeDb('P1-008 integración por webhooks (PostgreSQL real, receptor local)',
     const versiones = await h.db.selectFrom('webhook_destinations').select(['version', 'active'])
       .where('organization_id', '=', orgA).where('code', '=', 'erp-apagable').orderBy('version').execute();
     expect(versiones.map((v) => v.active)).toEqual([true, false]);
+  });
+
+  it('LA GARANTÍA ES AL MENOS UNA VEZ: si la respuesta se pierde, el mismo mensaje vuelve', async () => {
+    // El caso que un índice único NO cubre: el receptor procesa, pero la respuesta no llega. Terra Link no
+    // puede saber que se procesó —registra un fallo— y el bus reintenta. Quien evita el efecto doble es el
+    // RECEPTOR, deduplicando por X-Terra-Delivery-Id, que es el mismo en todos los reintentos.
+    recibidas.length = 0;
+    efectos.clear();
+    perderRespuesta = true;
+    await configurar('erp-perdida').expect(201);
+    await crearProductor('WH-LOST').expect(201);
+    await entregar();
+    perderRespuesta = false;
+
+    const llegadas = porRuta('erp-perdida');
+    expect(llegadas.length).toBe(2);                       // el mensaje llegó DOS veces
+    const ids = new Set(llegadas.map((r) => String(r.headers['x-terra-delivery-id'])));
+    expect(ids.size).toBe(1);                              // con el MISMO identificador
+    // El receptor procesó ESA entrega una sola vez. (Hay más identificadores porque el mismo evento va a
+    // todos los destinos suscritos; de cada uno también hubo un solo efecto.)
+    expect(efectos.get([...ids][0])).toBe(1);
+    expect([...efectos.values()].every((n) => n === 1)).toBe(true);
+
+    const r = (await http().get(`${wh(orgA)}/attempts?code=erp-perdida`).set(as(ADMIN)).expect(200)).body;
+    const porIntento = Object.fromEntries(r.attempts.map((a: { attempt: number; status: string }) => [a.attempt, a.status]));
+    expect(porIntento[1]).toBe('ERROR_DE_RED');            // aquí consta un FALLO, aunque se procesara
+    expect(porIntento[2]).toBe('ENTREGADO');
+    expect(new Set(r.attempts.map((a: { delivery_id: string }) => a.delivery_id)).size).toBe(1);
+
+    // Y la garantía se PUBLICA, para que quien integra no suponga otra cosa.
+    const lista = (await http().get(wh(orgA)).set(as(ADMIN)).expect(200)).body;
+    expect(lista.delivery_guarantee).toBe('AL_MENOS_UNA_VEZ');
+    expect(lista.idempotency_note).toMatch(/responsabilidad del receptor/i);
+  });
+
+  it('APAGAR alcanza también a los REINTENTOS PENDIENTES: no se entregan tras apagar', async () => {
+    recibidas.length = 0;
+    respuesta = { status: 503, body: 'caído' };
+    await configurar('erp-pendiente').expect(201);
+    await crearProductor('WH-PEND').expect(201);
+    await entregar();
+    const fallidas = porRuta('erp-pendiente').length;
+    expect(fallidas).toBeGreaterThan(0);                   // hubo intento, y quedó pendiente de reintento
+
+    // Se apaga con la entrega aún sin lograr, y el receptor se repone: aun así NO debe recibir.
+    await configurar('erp-pendiente', { active: false, reason: 'Se retira con entregas pendientes.' }).expect(201);
+    respuesta = { status: 200, body: 'ok' };
+    await sql`UPDATE event_deliveries SET status = 'PENDING', next_attempt_at = now(), locked_until = NULL, locked_by = NULL, lease_token = NULL
+              WHERE consumer = 'webhook' AND status <> 'DONE'`.execute(h.db);
+    await entregar();
+
+    expect(porRuta('erp-pendiente')).toHaveLength(fallidas);
+    const r = (await http().get(`${wh(orgA)}/attempts?code=erp-pendiente`).set(as(ADMIN)).expect(200)).body;
+    expect(r.attempts.some((a: { status: string }) => a.status === 'ENTREGADO')).toBe(false);
   });
 
   it('PERMISOS: configurar exige su permiso y consultar es otro; el técnico no tiene ninguno', async () => {
