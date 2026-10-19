@@ -279,7 +279,7 @@ describeDb('P1-013 extracción asistida (PostgreSQL real)', () => {
     expect(r.extraction!.extracted_text).toBeNull();
     expect(r.extraction!.text_chars).toBe(0);
     expect(r.fields).toEqual([]);                       // NO se sugiere nada
-    expect(r.extraction!.note).toMatch(/no se puede traducir a caracteres/i);
+    expect(r.extraction!.note).toMatch(/NO declaran su mapa «ToUnicode» en su propio diccionario/i);
     expect(r.extraction!.note).toMatch(/ToUnicode/);
     expect(r.engine_limits).toMatch(/NO acredita compatibilidad/i);
   });
@@ -298,6 +298,17 @@ describeDb('P1-013 extracción asistida (PostgreSQL real)', () => {
     if (ficha.status === 200) {
       expect(JSON.stringify(ficha.body)).not.toContain('Registro de la Propiedad');
     }
+  });
+
+  it('DOS FUENTES VECINAS: el mapa de una no valida a la otra, y se rechaza entero', async () => {
+    const bytes = readFileSync(join(__dirname, 'fixtures/dos-fuentes-vecinas.pdf'));
+    const d = await subir(ADMIN, bytes, 'DELIVERY_SUPPORT', 'dos-fuentes.pdf');
+    const r = (await extraer(ADMIN, d.id, d.versions[0].id).expect(201)).body as Vista;
+    expect(r.extraction!.status).toBe('TEXTO_NO_INTERPRETABLE');
+    expect(r.extraction!.extracted_text).toBeNull();
+    expect(r.fields).toEqual([]);
+    // La nota dice CUÁNTAS de cuántas: una de dos, no «todas».
+    expect(r.extraction!.note).toMatch(/1 de sus 2 fuente\(s\) compuesta\(s\)/);
   });
 
   it('ACCESO DENEGADO: subir no autoriza a extraer, y sin identidad no se ve contenido personal', async () => {

@@ -7,7 +7,7 @@ import { AuthorizationService } from '../authz/authorization.service';
 import type { TenantContext } from '../authz/authorization.service';
 import { CurrentUser, type AuthUser } from '../auth/auth';
 import { APP_CONFIG, type AppConfig } from '../config';
-import { MAX_CHARS, MAX_MS, MAX_PAGES, MAX_STREAM_BYTES, MOTOR, MOTOR_VERSION } from '../extraction/pdf-text';
+import { MAX_CHARS, MAX_MS_OPERACION, MAX_MS_TOTAL, MAX_PAGES, MAX_STREAM_BYTES, MOTOR, MOTOR_VERSION } from '../extraction/pdf-text';
 
 // P1-015 — Límites y consumo (RF-46; parte «**límites … comprobados**» de `docs/18:216`).
 //
@@ -112,9 +112,11 @@ export class LimitsService {
       },
       {
         code: 'EXTRACTION_MAX_MS', label: 'Tiempo máximo de lectura de un PDF',
-        what: 'Milisegundos que puede durar la lectura antes de cortar.',
-        value: MAX_MS, unit: 'milisegundos', source: 'constante del código (extraction/pdf-text.ts)',
-        enforced_at: 'Extracción asistida', on_exceed: 'Se corta y se declara incompleto.',
+        what: 'Plazo por operación y plazo total de la lectura.',
+        value: `${MAX_MS_OPERACION} por operación · ${MAX_MS_TOTAL} en total`, unit: 'milisegundos',
+        source: 'constante del código (extraction/pdf-text.ts)',
+        enforced_at: 'Extracción asistida',
+        on_exceed: 'La operación se interrumpe, el documento se libera y el resultado se declara incompleto.',
       },
       {
         code: 'EXTRACTION_MAX_STREAM_BYTES', label: 'Bytes máximos por flujo descomprimido',

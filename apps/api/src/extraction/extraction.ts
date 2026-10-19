@@ -141,13 +141,22 @@ export class ExtractionService {
         if (r.reason === 'NO_SE_PUDO_ABRIR') {
           estado = 'FALLIDA';
           nota = 'El archivo no se pudo abrir como PDF. No se infiere ningún dato de un archivo que no se pudo leer.';
+        } else if (r.reason === 'TIEMPO_AGOTADO') {
+          estado = 'FALLIDA';
+          nota = 'La lectura superó el plazo y se interrumpió, liberando el documento. No se publica un texto '
+            + 'parcial como si fuera completo, y no se sugiere nada a partir de él.';
+        } else if (r.reason === 'SOPORTE_INDETERMINADO') {
+          estado = 'TEXTO_NO_INTERPRETABLE';
+          nota = `No se pudo inspeccionar todo el documento (${r.fonts.undetermined} parte(s) ilegibles), así que `
+            + 'NO se puede afirmar que todas sus fuentes se puedan traducir a caracteres. Ante la duda no se '
+            + 'publica texto ni se sugiere ningún campo.';
         } else if (r.reason === 'FUENTE_SIN_MAPA') {
           // El motor SÍ decodifica, pero esta fuente no se puede mapear a caracteres: se rechaza ENTERO.
           estado = 'TEXTO_NO_INTERPRETABLE';
-          nota = `El PDF SÍ tiene capa de texto, pero ${r.unmapped_items} fragmento(s) usan una fuente que no se `
-            + 'puede traducir a caracteres: no trae el mapa «ToUnicode» ni una codificación resoluble. Lo que se '
-            + 'obtendría NO sería el texto del documento, así que se rechaza entero y NO se sugiere ningún campo, '
-            + 'aunque el resultado pudiera parecer legible.';
+          nota = `El PDF SÍ tiene capa de texto, pero ${r.fonts.without_map} de sus ${r.fonts.composite} fuente(s) `
+            + 'compuesta(s) NO declaran su mapa «ToUnicode» en su propio diccionario. Sin ese mapa los códigos son '
+            + 'identificadores de glifo, y lo que se obtendría NO sería el texto del documento —puede parecer texto '
+            + 'y no serlo—. Se rechaza entero y NO se sugiere ningún campo.';
         } else if (r.text.length === 0) {
           estado = 'SIN_TEXTO';
           nota = 'El PDF no tiene capa de texto: probablemente es un escaneo. Leerlo exigiría OCR, y este motor NO '
@@ -158,8 +167,9 @@ export class ExtractionService {
           texto = r.text;
           nota = r.truncated
             ? `Texto de ${r.pages} página(s), CORTADO por los límites de procesamiento: está incompleto, y por eso se dice.`
-            : `Texto decodificado de ${r.pages} página(s) con ${MOTOR} ${MOTOR_VERSION}, en local. Las fuentes del `
-              + 'documento se interpretaron por completo: ningún fragmento quedó sin mapear.';
+            : `Texto decodificado de ${r.pages} página(s) con ${MOTOR} ${MOTOR_VERSION}, en local. Las `
+              + `${r.fonts.composite} fuente(s) compuesta(s) del documento declaran su mapa de caracteres, y ningún `
+              + 'fragmento quedó sin mapear.';
         }
       } catch {
         estado = 'FALLIDA';

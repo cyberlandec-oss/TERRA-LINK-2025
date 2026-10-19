@@ -234,3 +234,57 @@ también con las tablas y respuestas nuevas.
 
 **Cambio de entorno de pruebas**: `pdfjs-dist` solo publica compilación ESM, así que el ejecutor de pruebas de
 la API arranca con `--experimental-vm-modules`. No afecta al producto.
+
+
+## 15. La comprobación de soporte pasa a ser POR OBJETO (2026-10-19)
+
+**El defecto.** La primera versión de la comprobación buscaba `/ToUnicode` en una **ventana de ±600
+caracteres** alrededor de cada `/Type0`. **La proximidad no demuestra asociación**: con dos fuentes vecinas
+—una con mapa y otra sin él— encontraba el mapa de la primera y **daba por buena la segunda**, que es
+justamente el caso que pretendía rechazar.
+
+**Comprobado con un archivo construido a propósito** (`dos-fuentes-vecinas.pdf`): la ventana detectaba
+**0** fuentes sin mapa cuando había **1**, y esa segunda fuente producía **«HIJK»** —imprimible y falso—.
+
+**La corrección.** Ahora se **interpretan los objetos del documento y sus referencias**: se enumeran los
+objetos de nivel superior **y los contenidos en flujos de objetos (`/ObjStm`)**, y de cada fuente compuesta
+se mira **su propio diccionario**. Si esa fuente no declara `/ToUnicode`, se rechaza el documento entero.
+
+| Archivo | Fuentes compuestas | Sin mapa | Veredicto |
+| --- | --- | --- | --- |
+| `chromium-capa-texto.pdf` | 1 | 0 | se lee |
+| `fuente-sin-mapa.pdf` | 1 | **1** | **rechazado** |
+| `dos-fuentes-vecinas.pdf` | 2 | **1** | **rechazado** (la ventana lo aceptaba) |
+
+**Lo que no se pudo inspeccionar tampoco se da por bueno.** Un flujo de objetos que no se descomprime, o una
+cabecera que no se entiende, cuentan como **indeterminado**: el resultado es `SOPORTE_INDETERMINADO`, sin
+texto y **sin sugerencias**. Antes se omitían en silencio, lo que equivalía a afirmar que todo estaba
+comprobado.
+
+**Y no se presenta `/ToUnicode` como garantía de corrección**: lo que acredita es que el documento **declara**
+el soporte. Sin esa declaración el rechazo es seguro; con ella, el texto lo produce pdf.js, no esta
+comprobación.
+
+## 16. Los límites ahora interrumpen de verdad (2026-10-19)
+
+El control anterior miraba el reloj **entre páginas**, así que **no interrumpía** una apertura o una página
+atascada: el proceso podía quedarse esperando indefinidamente dentro de una sola operación.
+
+Ahora **cada operación** —abrir el documento, obtener una página, extraer su texto— corre **contra un plazo**
+(`10 s` por operación, `30 s` en total). Al vencer:
+
+- la operación se **abandona** en vez de esperar;
+- el documento se **libera** (`destroy()`), también si la apertura fue la que se atascó —se cancela la tarea—;
+- el resultado se publica como **incompleto** o como `TIEMPO_AGOTADO`, **nunca** como texto completo, y **no
+  se sugiere nada** a partir de un texto truncado por plazo.
+
+Los topes de descompresión de la auditoría estructural también están acotados: tamaño por flujo y número de
+objetos inspeccionados; superarlos cuenta como **indeterminado**, no como «comprobado».
+
+## 17. Un fallo de la corrida anterior, y su causa
+
+La validación de `f9efb88` quedó **FALLIDA** con **5 pruebas** en rojo, todas de `extraction.spec.ts`. La
+causa **no era el lector**: la importación dinámica de pdf.js se hacía **dentro de la petición**, y su
+trabajador llegaba a cargarse **después** de que el entorno de pruebas se hubiera desmontado
+(«*import after teardown*»), dejando la suite unitaria sin motor. Corregido cargando el componente **una vez,
+al cargar el módulo**. No se declaró aprobado nada mientras el resultado estuvo pendiente.

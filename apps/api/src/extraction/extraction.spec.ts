@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pdfConTexto, pdfEscaneado } from '../../test/pdf-sintetico';
-import { fuentesCompuestasSinMapa, textoDePdf } from './pdf-text';
+import { auditarFuentes, textoDePdf } from './pdf-text';
 import { sugerir } from './reglas';
 
 // P1-013 — El lector y las reglas, probados **sin base de datos y sin red**.
@@ -40,19 +40,55 @@ describe('P1-013 lectura del texto de un PDF, con decodificación real', () => {
     // Fuente compuesta Identity-H sin `/ToUnicode`: los códigos son identificadores de glifo, y lo que se
     // obtendría —«HIJK»— parece texto corriente. Ninguna heurística sobre el resultado lo delata.
     const bytes = fixture('fuente-sin-mapa.pdf');
-    expect(fuentesCompuestasSinMapa(bytes)).toBeGreaterThan(0);
+    expect(auditarFuentes(bytes).without_map).toBeGreaterThan(0);
 
     const r = await textoDePdf(bytes);
     expect(r.interpretable).toBe(false);
     expect(r.reason).toBe('FUENTE_SIN_MAPA');
-    expect(r.fonts_without_map).toBeGreaterThan(0);
+    expect(r.fonts.without_map).toBeGreaterThan(0);
     expect(r.text).toBe('');            // no se publica NADA, por legible que pareciera
     // Y de un texto rechazado no sale ninguna sugerencia.
     expect(sugerir(r.text).every((s) => s.suggested_value === null)).toBe(true);
   });
 
   it('un PDF con fuente compuesta Y su mapa NO se rechaza', () => {
-    expect(fuentesCompuestasSinMapa(fixture('chromium-capa-texto.pdf'))).toBe(0);
+    const a = auditarFuentes(fixture('chromium-capa-texto.pdf'));
+    expect(a.composite).toBeGreaterThan(0);
+    expect(a.without_map).toBe(0);
+    expect(a.undetermined).toBe(0);
+  });
+
+  it('DOS FUENTES VECINAS: el mapa de una NO valida a la otra', async () => {
+    // Defecto real corregido el 2026-10-19: la comprobación anterior buscaba `/ToUnicode` en una VENTANA de
+    // texto alrededor de `/Type0`. Con dos fuentes seguidas —una con mapa y otra sin él— encontraba el mapa
+    // de la vecina y daba por bueno el archivo: detectaba 0 fuentes sin mapa cuando había 1.
+    const bytes = fixture('dos-fuentes-vecinas.pdf');
+    const a = auditarFuentes(bytes);
+    expect(a.composite).toBe(2);
+    expect(a.without_map).toBe(1);     // la comprobación por objeto SÍ la distingue
+
+    // Y el documento entero se rechaza: la parte mal decodificada («HIJK») es imprimible y parecería válida.
+    const r = await textoDePdf(bytes);
+    expect(r.interpretable).toBe(false);
+    expect(r.reason).toBe('FUENTE_SIN_MAPA');
+    expect(r.text).toBe('');
+    expect(sugerir(r.text).every((s) => s.suggested_value === null)).toBe(true);
+  });
+
+  it('SOPORTE INDETERMINADO: lo que no se pudo inspeccionar no se da por comprobado', async () => {
+    // Un flujo de objetos que no se puede descomprimir: no se sabe qué fuentes hay dentro.
+    const NL = String.fromCharCode(10);
+    const roto = Buffer.from([
+      '%PDF-1.4',
+      '1 0 obj<</Type/ObjStm/N 1/First 8/Length 12/Filter/FlateDecode>>stream',
+      'XXXXXXXXXXXX',
+      'endstream',
+      'endobj',
+      'trailer<</Root 1 0 R>>',
+      '%%EOF',
+      '',
+    ].join(NL), 'latin1');
+    expect(auditarFuentes(roto).undetermined).toBeGreaterThan(0);
   });
 
   it('PDF sin capa de texto: se distingue de «no supe leerlo»', async () => {
