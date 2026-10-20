@@ -52,8 +52,8 @@ test('alta contextual desde el productor, con código repetido recuperable', asy
   plotUrl = page.url();
   await expect(page.getByText('Geometría pendiente').first()).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Ruta de navegación' })).toContainText('PP-001');
-  // No hay botones de captura GPS ni importación.
-  await expect(page.getByRole('button', { name: /GPS|Importar/ })).toHaveCount(0);
+  // Ningún botón presenta la captura como GPS (A-01 añade métodos de captura rotulados con su procedencia, p. ej. «Importar GeoJSON»).
+  await expect(page.getByRole('button', { name: /GPS/ })).toHaveCount(0);
 
   await page.getByRole('link', { name: 'PP-001 · Finca La Esperanza' }).click();
   await expect(page.getByRole('heading', { name: 'PP-001 · Finca La Esperanza' })).toBeVisible();

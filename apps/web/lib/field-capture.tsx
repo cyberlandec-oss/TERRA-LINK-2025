@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { api } from './api';
 import { GeometryImport } from './geometry-import';
 import { useI18n } from './i18n';
 import { LocationCapture } from './location-capture';
@@ -19,6 +20,25 @@ export function FieldCapture({ orgId, plot, onChanged }: { orgId: string; plot: 
   const { t } = useI18n();
   const [method, setMethod] = useState<Method>('BROWSER');
   const hasGeometry = !!plot.current_version?.geometry_type;
+  const chosen = useRef(false);
+
+  // Trabajo a medias: si la parcela tiene un borrador de polígono abierto o una importación analizada sin confirmar, se
+  // retoma ese método al recargar (el servidor guarda ese trabajo; elegir el método de nuevo no debe ser un obstáculo).
+  useEffect(() => {
+    let vivo = true;
+    const base = `/api/v1/organizations/${orgId}/plots/${plot.id}`;
+    (async () => {
+      try {
+        const d = await api<{ draft: unknown | null }>(`${base}/polygon-drafts/current`);
+        if (vivo && d.draft && !chosen.current) { setMethod('POLYGON'); return; }
+      } catch { /* sin acceso a borradores: no se sugiere nada */ }
+      try {
+        const rows = await api<Array<{ status: string }>>(`${base}/geometry-imports`);
+        if (vivo && !chosen.current && rows.some((r) => r.status === 'ANALYZED')) setMethod('FILE');
+      } catch { /* idem */ }
+    })();
+    return () => { vivo = false; };
+  }, [orgId, plot.id]);
 
   // Centro del croquis: la geometría vigente si la hay (para corregirla), si no el croquis arranca en Ecuador.
   const center = useMemo(() => {
@@ -42,7 +62,7 @@ export function FieldCapture({ orgId, plot, onChanged }: { orgId: string; plot: 
       </Alert>
       <div role="group" aria-label={t('Método de captura')} className="actions">
         {options.map((o) => (
-          <button key={o.id} type="button" className={method === o.id ? '' : 'secondary'} aria-pressed={method === o.id} title={o.help} onClick={() => setMethod(o.id)}>{o.label}</button>
+          <button key={o.id} type="button" className={method === o.id ? '' : 'secondary'} aria-pressed={method === o.id} title={o.help} onClick={() => { chosen.current = true; setMethod(o.id); }}>{o.label}</button>
         ))}
       </div>
       <p className="muted">{options.find((o) => o.id === method)!.help}.</p>

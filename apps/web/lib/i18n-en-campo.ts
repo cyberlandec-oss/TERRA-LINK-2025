@@ -293,7 +293,8 @@ export const EN_CAMPO: Record<string, string> = {
   // --- polígono por vértices
   'Sin vértices': 'No vertices',
   'Precisión no informada': 'Accuracy not reported',
-  '{n} con precisión informada; {m} sin informar; peor precisión conocida {w} m': '{n} with reported accuracy; {m} unreported; worst known accuracy {w} m',
+  '{n} vértice con precisión informada; {m} sin informar; peor precisión conocida {w} m': '{n} vertex with reported accuracy; {m} unreported; worst known accuracy {w} m',
+  '{n} vértices con precisión informada; {m} sin informar; peor precisión conocida {w} m': '{n} vertices with reported accuracy; {m} unreported; worst known accuracy {w} m',
   '(resumen incompleto)': '(incomplete summary)',
   'Se necesitan al menos 3 vértices distintos.': 'At least 3 distinct vertices are needed.',
   'Este navegador o esta conexión no permiten obtener la ubicación (usa https o localhost).': 'This browser or connection does not allow getting the location (use https or localhost).',

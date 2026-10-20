@@ -44,7 +44,10 @@ type Tr = (es: string, vars?: Record<string, string | number>) => string;
 export function accuracySummaryLabel(a: Pick<Draft['accuracy_summary'], 'with_accuracy' | 'without_accuracy' | 'worst_known_m'>, total: number, t: Tr, num: (v: number, max?: number) => string): string {
   if (total === 0) return t('Sin vértices');
   if (a.with_accuracy === 0) return t('Precisión no informada');
-  const base = t('{n} con precisión informada; {m} sin informar; peor precisión conocida {w} m', { n: a.with_accuracy, m: a.without_accuracy, w: num(a.worst_known_m ?? 0, 1) });
+  const vars = { n: a.with_accuracy, m: a.without_accuracy, w: num(a.worst_known_m ?? 0, 1) };
+  const base = a.with_accuracy === 1
+    ? t('{n} vértice con precisión informada; {m} sin informar; peor precisión conocida {w} m', vars)
+    : t('{n} vértices con precisión informada; {m} sin informar; peor precisión conocida {w} m', vars);
   return a.without_accuracy > 0 ? `${base} ${t('(resumen incompleto)')}` : base;
 }
 
