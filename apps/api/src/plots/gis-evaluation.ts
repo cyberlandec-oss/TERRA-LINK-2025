@@ -143,14 +143,14 @@ export class GisEvaluationService {
   private async readCtx(user: AuthUser, orgId: string) {
     const ctx = await this.authz.tenantContext(user, orgId);
     if (!ctx) throw notFound();
-    if (!this.plots.has(ctx, 'plot:read') && !this.plots.has(ctx, 'plot:read_assigned')) throw forbidden();
+    if (!this.plots.has(ctx, 'plot:read') && !this.plots.has(ctx, 'plot:read_assigned') && !this.plots.has(ctx, 'plot:read_own')) throw forbidden();
     return ctx;
   }
 
   /** Filtro del alcance efectivo de comparación (doc 09: no revelar recursos fuera del alcance). */
   private scopeFilter(scopeMembership: string | null) {
     return scopeMembership
-      ? sql`AND EXISTS (SELECT 1 FROM producers pr WHERE pr.id = p.producer_id AND pr.organization_id = p.organization_id AND pr.assigned_membership_id = ${scopeMembership})`
+      ? sql`AND EXISTS (SELECT 1 FROM producers pr WHERE pr.id = p.producer_id AND pr.organization_id = p.organization_id AND (pr.assigned_membership_id = ${scopeMembership} OR pr.self_membership_id = ${scopeMembership}))`
       : sql``;
   }
 

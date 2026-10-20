@@ -35,6 +35,13 @@ export type Permission =
   // P0-010: ejecutar la evaluación GIS técnica (consultar resultados usa plot:read/plot:read_assigned).
   | 'plot:evaluate_gis'
   | 'plot:evaluate_gis_assigned'
+  // A-01 (2026-10-20) — alcance PROPIO del productor: solo su productor vinculado (`producers.self_membership_id`) y sus
+  // parcelas. `producer:link_self` administra ese vínculo (explícito y auditable); el rol por sí solo no concede nada.
+  | 'producer:read_own'
+  | 'plot:read_own'
+  | 'plot:create_own'
+  | 'plot:update_own'
+  | 'producer:link_self'
   // P0-011: catálogo de productos de la organización. Administrar = alta, edición y baja lógica.
   | 'product:read'
   | 'product:manage'
@@ -178,19 +185,19 @@ const ALL_MEMBER_READ: Permission[] = ['organization:read'];
 
 const PRODUCER_ALL: Permission[] = [
   'producer:read', 'producer:read_assigned', 'producer:read_identity', 'producer:create',
-  'producer:update', 'producer:update_assigned', 'producer:assign', 'producer:archive', 'producer:review_duplicates',
+  'producer:update', 'producer:update_assigned', 'producer:assign', 'producer:archive', 'producer:review_duplicates', 'producer:link_self', 'producer:read_own',
 ];
 
 const PLOT_ALL: Permission[] = [
   'plot:read', 'plot:read_assigned', 'plot:create', 'plot:create_assigned', 'plot:update', 'plot:update_assigned', 'plot:archive', 'plot:read_geometry',
-  'plot:evaluate_gis', 'plot:evaluate_gis_assigned',
+  'plot:evaluate_gis', 'plot:evaluate_gis_assigned', 'plot:read_own', 'plot:create_own', 'plot:update_own',
 ];
 
 // Permisos de productor: propuesta provisional derivada de S1 §9 (FIELD_TECHNICIAN producer:create/read)
 // y doc 07/14 («solo asignaciones» para el técnico). Pendiente de ratificación con el resto de la matriz.
 export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   ORG_ADMIN: ['audit:read', 'audit:export', 'organization:read', 'organization:update', 'membership:read', 'membership:assign', 'grant:manage', ...PRODUCER_ALL, ...PLOT_ALL, 'product:read', 'traceability:read_catalog', 'product:manage', 'events:reprocess', 'document:read', 'document:upload', 'document:review', 'document:extract', 'evidence:read', 'evidence:link', 'evidence:verify', 'delivery:read', 'delivery:read_assigned', 'delivery:create', 'delivery:create_assigned', 'delivery:correct', 'reception:confirm', 'reception:correct', 'location:read', 'location:manage', 'quality:record', 'quality:decide', 'lot:read', 'lot:create', 'lot:release_input', 'process:manage', 'process:close', 'stock:read', 'stock:move', 'stock:adjust', 'stock:incorporate', 'risk:read', 'risk:evaluate', 'risk:review', 'risk:approve_rules', 'mitigation:read', 'mitigation:manage', 'mitigation:contribute', 'mitigation:verify', 'dd:read', 'dd:manage', 'dd:approve_package', 'dd:export_package', 'sync:use', 'device:manage', 'import:manage', 'exchange:manage', 'exchange:use', 'integration:manage', 'integration:read', 'cost:manage', 'cost:read', 'platform_cost:manage', 'platform_cost:read', 'economics:read', 'economics:record', 'economics:correct', 'analytics:read', 'shipment:read', 'shipment:manage', 'stock:reserve', 'shipment:dispatch', 'report:read', 'report:export', 'satellite:read', 'satellite:request'],
-  MANAGER: [...ALL_MEMBER_READ, 'membership:read', 'producer:read', 'producer:read_identity', 'producer:create', 'producer:update', 'producer:assign', 'producer:archive', 'producer:review_duplicates', 'plot:read', 'plot:create', 'plot:update', 'plot:archive', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'document:extract', 'evidence:read', 'evidence:link', 'delivery:read', 'delivery:create', 'delivery:correct', 'reception:confirm', 'location:read', 'lot:read', 'lot:create', 'stock:read', 'sync:use', 'import:manage', 'exchange:use', 'integration:read', 'cost:manage', 'cost:read', 'economics:read', 'economics:record', 'economics:correct', 'analytics:read', 'report:read'],
+  MANAGER: [...ALL_MEMBER_READ, 'membership:read', 'producer:read', 'producer:read_identity', 'producer:create', 'producer:update', 'producer:assign', 'producer:link_self', 'producer:archive', 'producer:review_duplicates', 'plot:read', 'plot:create', 'plot:update', 'plot:archive', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'document:extract', 'evidence:read', 'evidence:link', 'delivery:read', 'delivery:create', 'delivery:correct', 'reception:confirm', 'location:read', 'lot:read', 'lot:create', 'stock:read', 'sync:use', 'import:manage', 'exchange:use', 'integration:read', 'cost:manage', 'cost:read', 'economics:read', 'economics:record', 'economics:correct', 'analytics:read', 'report:read'],
   FIELD_TECHNICIAN: [...ALL_MEMBER_READ, 'producer:read_assigned', 'producer:read_identity', 'producer:create', 'producer:update_assigned',
     'plot:read_assigned', 'plot:create_assigned', 'plot:update_assigned', 'plot:read_geometry', 'plot:evaluate_gis_assigned', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'evidence:read', 'evidence:link', 'delivery:read_assigned', 'delivery:create_assigned', 'location:read', 'sync:use'],
   RECEPTION_OPERATOR: [...ALL_MEMBER_READ, 'product:read', 'traceability:read_catalog', 'delivery:read', 'delivery:create', 'reception:confirm', 'reception:correct', 'location:read', 'quality:record', 'lot:read', 'lot:create', 'stock:read'],
@@ -200,7 +207,10 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   EXPORT_MANAGER: [...ALL_MEMBER_READ, 'product:read', 'traceability:read_catalog', 'location:read', 'lot:read', 'stock:read', 'shipment:read', 'shipment:manage', 'stock:reserve', 'shipment:dispatch', 'report:read'],
   BUYER: [],
   AUDITOR: [...ALL_MEMBER_READ, 'audit:read', 'audit:export', 'economics:read', 'analytics:read', 'producer:read', 'plot:read', 'product:read', 'traceability:read_catalog', 'document:read', 'evidence:read', 'delivery:read', 'location:read', 'lot:read', 'stock:read', 'risk:read', 'mitigation:read', 'dd:read', 'shipment:read', 'report:read', 'report:export', 'satellite:read'],
-  PRODUCER: [],
+  // A-01: el productor captura y consulta SOLO lo suyo. Sin `plot:evaluate_gis*`, `document:review`, `evidence:*`, `risk:*`:
+  // registrar coordenadas no concede aprobar evidencias ni concluir riesgo. `document:read/upload` son la puerta de entrada;
+  // el alcance real lo pone el titular del documento (parcela o productor propios).
+  PRODUCER: ['producer:read_own', 'plot:read_own', 'plot:create_own', 'plot:update_own', 'plot:read_geometry', 'document:read', 'document:upload'],
 };
 
 export const PLATFORM_PERMISSIONS: Record<'SUPER_ADMIN', PlatformPermission[]> = {

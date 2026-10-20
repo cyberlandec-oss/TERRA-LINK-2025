@@ -245,3 +245,18 @@ form.stack fieldset { border: 1px solid var(--tl-border, #c9d8cf); padding: 8px 
 form.stack fieldset label { display: flex; gap: 8px; align-items: center; }
 form.stack fieldset input[type='radio'] { width: auto; }
 @media (max-width: 480px) { .lang-switch select { min-width: 0; width: 100%; } }
+
+/* A-01 — captura de campo: método, croquis y rejilla de campos. Tokens únicos; sin otra fuente de estilos. */
+.field-capture { display: grid; gap: var(--tl-space-3); margin-top: var(--tl-space-3); }
+.field-capture [aria-pressed='true'] { outline: 2px solid var(--tl-forest); outline-offset: 2px; }
+.croquis svg { display: block; max-width: 100%; height: auto; border-radius: 6px; }
+.croquis svg:focus-visible { outline: 3px solid var(--tl-forest); outline-offset: 2px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--tl-space-2); align-items: end; margin-top: var(--tl-space-2); }
+@media (max-width: 480px) {
+  .grid-3 { grid-template-columns: minmax(0, 1fr); }
+  .field-capture .actions button, .croquis .actions button { min-height: 44px; }
+  .field-capture .actions { flex-wrap: wrap; }
+}
+.steps { list-style: none; display: flex; flex-wrap: wrap; gap: var(--tl-space-2); padding: 0; margin: var(--tl-space-3) 0; }
+.steps li { padding: 4px 12px; border: 1px solid var(--tl-border, #c9d8cf); border-radius: 999px; font-size: 14px; }
+.steps li[aria-current='step'] { border-color: var(--tl-forest); font-weight: 600; background: var(--tl-surface-subtle); }

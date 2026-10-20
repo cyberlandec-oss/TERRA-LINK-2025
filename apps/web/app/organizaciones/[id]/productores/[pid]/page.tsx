@@ -7,9 +7,10 @@ import { useWorkspace } from '../../../../../lib/workspace';
 import { Alert, Breadcrumb, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../../lib/ui';
 import { ProducerFields, STATUS_LABEL, toPayload, type Producer } from '../page';
 import { ProducerPlots } from './parcelas-productor';
+import { ProducerSelfLink } from '../../../../../lib/producer-self-link';
 import { EventHistory } from '../../../../../lib/event-history';
 
-type ProducerDetail = Producer & { can_update: boolean; can_assign: boolean; can_archive: boolean };
+type ProducerDetail = Producer & { can_update: boolean; can_assign: boolean; can_archive: boolean; can_link_self?: boolean; self_membership_id?: string | null; is_own?: boolean };
 
 interface Version {
   version: number;
@@ -21,12 +22,12 @@ interface Version {
 }
 
 const CHANGE_LABEL: Record<string, string> = {
-  CREATE: 'Registro', UPDATE: 'Edición', ASSIGN: 'Cambio de responsable', ARCHIVE: 'Baja', ACTIVATE: 'Activación', CORRECTION: 'Corrección',
+  CREATE: 'Registro', UPDATE: 'Edición', ASSIGN: 'Cambio de responsable', LINK_SELF: 'Vínculo de acceso propio', ARCHIVE: 'Baja', ACTIVATE: 'Activación', CORRECTION: 'Corrección',
 };
 const FIELD_LABEL: Record<string, string> = {
   first_name: 'nombre', last_name: 'apellido', legal_name: 'razón social', document_type: 'tipo de documento',
   document_number: 'número de documento', phone: 'teléfono', address: 'dirección', community: 'comunidad',
-  province: 'provincia', canton: 'cantón', parish: 'parroquia', status: 'estado', assigned_membership_id: 'responsable',
+  province: 'provincia', canton: 'cantón', parish: 'parroquia', status: 'estado', assigned_membership_id: 'responsable', self_membership_id: 'acceso propio',
 };
 const EDITABLE = ['first_name', 'last_name', 'legal_name', 'document_type', 'document_number', 'phone', 'address', 'community', 'province', 'canton', 'parish'] as const;
 
@@ -87,6 +88,7 @@ export default function ProducerDetailPage() {
           {!p.identity_visible && <p className="muted">Los datos de identidad y contacto no están disponibles para tu rol.</p>}
           {p.can_update ? <EditProducer orgId={orgId} producer={p} onSaved={load} /> : <ReadOnly producer={p} />}
           {p.can_assign && p.status !== 'INACTIVE' && <AssignProducer orgId={orgId} producer={p} onSaved={load} />}
+          {p.can_link_self && p.status !== 'INACTIVE' && <ProducerSelfLink orgId={orgId} producerId={p.id} rowVersion={p.row_version} selfMembershipId={p.self_membership_id ?? null} onSaved={load} />}
           {p.can_archive && <StatusProducer orgId={orgId} producer={p} onSaved={load} />}
           <ProducerPlots orgId={orgId} producerId={p.id} producerActive={p.status !== 'INACTIVE'} />
           <EventHistory orgId={orgId} kind="producers" id={p.id}

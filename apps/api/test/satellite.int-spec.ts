@@ -343,4 +343,77 @@ describeDb('P0-028 satélite: contrato, desenlaces y candados', () => {
     expect(r.body.limits.join(' ')).toMatch(/«Sin alertas» no equivale a «sin deforestación»/);
     expect(JSON.stringify(r.body)).not.toContain('-79.5');
   });
+
+  // ---------------------------------------------------------------- A-01: recorrido web de ENSAYO
+
+  it('A-01 ENSAYO: con hallazgos y sin hallazgos, siempre rotulado, con limitaciones y sin conclusión', async () => {
+    const evidenciasAntes = (await h.db.selectFrom('evidence').select('id').execute()).length;
+    const riesgoAntes = (await h.db.selectFrom('risk_evaluations').select('id').execute()).length;
+    const con = (await ask(plotA, { fixture_scenario: 'RESULT_FINDINGS' }).expect(201)).body.job.id;
+    const sin = (await ask(plotA, { fixture_scenario: 'RESULT_NO_FINDINGS' }).expect(201)).body.job.id;
+    expect(await runner().runOnce()).toMatchObject({ claimed: 2, completed: 2 });
+    const a = (await http().get(`${org()}/satellite/analyses/${con}`).set(as(ADMIN)).expect(200)).body;
+    const b = (await http().get(`${org()}/satellite/analyses/${sin}`).set(as(ADMIN)).expect(200)).body;
+    for (const r of [a, b]) {
+      expect(r.is_ensayo).toBe(true);
+      expect(r.result.is_synthetic).toBe(true);
+      expect(r.result.conclusion).toBe('NOT_EVALUATED');
+      expect(r.result.limitations).toMatch(/no acredita ausencia ni presencia de deforestación/);
+      expect(r.result.indicators.ensayo).toBe(true);
+      expect(r.subject.plot_version_id).toBeTruthy();                      // versión geométrica exacta
+      expect(r.result.provenance.analysis_date).toBeTruthy();
+    }
+    expect(a.result.indicators.findings).toMatchObject({ count: 3, kind: 'ALERTAS_SINTETICAS' });
+    expect(b.result.indicators.findings).toMatchObject({ count: 0 });
+    expect(b.result.indicators.findings.note).toMatch(/Sin hallazgos NO es lo mismo que sin deforestación/);
+    // Ni con hallazgos ni sin ellos cambia el estado de la parcela: ensayo ≠ resultado operativo.
+    const ficha = (await http().get(`${org()}/plots/${plotA}/satellite`).set(as(ADMIN)).expect(200)).body;
+    expect(ficha.analysis_status).toBe('NOT_EVALUATED');
+    // Un resultado sintético no se incorpora como evidencia operativa ni genera evaluaciones de riesgo.
+    expect((await h.db.selectFrom('evidence').select('id').execute()).length).toBe(evidenciasAntes);
+    expect((await h.db.selectFrom('risk_evaluations').select('id').execute()).length).toBe(riesgoAntes);
+    expect(ficha.jobs.filter((j: { is_ensayo: boolean }) => j.is_ensayo).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('A-01 ENSAYO: la ficha declara el modo ensayo y los escenarios solo cuando hay fixture', async () => {
+    let r = (await http().get(`${org()}/plots/${plotA}/satellite`).set(as(ADMIN)).expect(200)).body;
+    expect(r.ensayo_mode).toBe(true);
+    expect(r.provider_kind).toBe('SYNTHETIC_FIXTURE');
+    expect(r.fixture_scenarios).toEqual(expect.arrayContaining(['RESULT_FINDINGS', 'RESULT_NO_FINDINGS', 'RESULT_PARTIAL', 'NO_COVERAGE', 'PROVIDER_ERROR']));
+    fixtureOn(false);
+    r = (await http().get(`${org()}/plots/${plotA}/satellite`).set(as(ADMIN)).expect(200)).body;
+    expect(r.ensayo_mode).toBe(false);
+    expect(r.fixture_scenarios).toEqual([]);
+    expect(r.can_request).toBe(false);
+  });
+
+  it('A-01 ENSAYO: cobertura insuficiente, error y reintento (un encargo nuevo tras el fallo, sin tocar el anterior)', async () => {
+    const parcial = (await ask(plotA, { fixture_scenario: 'RESULT_PARTIAL' }).expect(201)).body.job.id;
+    const error = (await ask(plotA, { fixture_scenario: 'PROVIDER_ERROR' }).expect(201)).body.job.id;
+    await runner().runOnce();
+    const p = (await http().get(`${org()}/satellite/analyses/${parcial}`).set(as(ADMIN)).expect(200)).body;
+    expect(p.result.coverage.status).toBe('PARTIAL');                       // cobertura insuficiente: se dice
+    expect(p.result.coverage.note).toMatch(/no abarca toda la geometría/);
+    const e = (await http().get(`${org()}/satellite/analyses/${error}`).set(as(ADMIN)).expect(200)).body;
+    expect(e.status).toBe('FAILED');
+    expect(e.result).toBeNull();                                            // un error no deja resultado favorable
+    // Reintento: un encargo nuevo (otro operation_id) que sí resuelve; el fallido se conserva tal cual.
+    const reintento = (await ask(plotA, { fixture_scenario: 'RESULT_NO_FINDINGS' }).expect(201)).body.job.id;
+    await runner().runOnce();
+    expect(reintento).not.toBe(error);
+    expect((await jobRow(error)).status).toBe('FAILED');
+    expect((await http().get(`${org()}/satellite/analyses/${reintento}`).set(as(ADMIN)).expect(200)).body.status).toBe('COMPLETED');
+  });
+
+  it('A-01 ENSAYO: cambiar la geometría no reutiliza el resultado anterior (no aplica a la versión vigente)', async () => {
+    const job = (await ask(plotA, { fixture_scenario: 'RESULT_FINDINGS' }).expect(201)).body.job.id;
+    await runner().runOnce();
+    const antes = (await http().get(`${org()}/satellite/analyses/${job}`).set(as(ADMIN)).expect(200)).body;
+    expect(antes.applies_to_current_version).toBe(true);
+    const plot = (await http().get(`${org()}/plots/${plotA}`).set(as(ADMIN)).expect(200)).body;
+    const nueva = { type: 'Polygon', coordinates: [[[-79.4, -1], [-79.39, -1], [-79.39, -0.99], [-79.4, -0.99], [-79.4, -1]]] };
+    await http().post(`${org()}/plots/${plotA}/geometry-versions`).set(as(ADMIN)).send({ expected_version: plot.row_version, survey_method: 'MANUAL_COORDINATES', geometry: nueva }).expect(201);
+    const despues = (await http().get(`${org()}/satellite/analyses/${job}`).set(as(ADMIN)).expect(200)).body;
+    expect(despues.applies_to_current_version).toBe(false);
+  });
 });

@@ -2,7 +2,7 @@ import {
   Body, Controller, Get, HttpCode, Inject, Injectable, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsDefined, IsIn, IsISO8601, IsInt, IsNumber, IsObject, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import { createHash, randomUUID } from 'crypto';
@@ -14,7 +14,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuthorizationService, type TenantContext } from '../authz/authorization.service';
 import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { EVENT_STORE, type EventStore } from '../events/events';
-import { geometryTypeCode, structuralIssues, type SupportedGeometry } from './geometry';
+import { geometryTypeCode, reasonWithoutCoordinates, structuralIssues, type SupportedGeometry } from './geometry';
 
 // P0-006 — Parcela (RF-06).
 // Alcance: plot:read ve todas; plot:read_assigned solo parcelas de productores asignados a la membresía
@@ -65,6 +65,12 @@ class CreateVersionDto {
   @ApiPropertyOptional({ description: 'Hectáreas declaradas' }) @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 4 }) @Min(0.0001) @Max(99999999) area_declared_ha?: number;
   @ApiPropertyOptional() @IsOptional() @IsISO8601() surveyed_at?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(500) notes?: string;
+  @ApiPropertyOptional({ description: 'A-01: motivo de la captura o corrección; queda en el historial y en la auditoría. La web lo exige al corregir una geometría existente' })
+  @IsOptional() @IsString() @Length(3, 500) reason?: string;
+}
+
+class PreviewGeometryDto {
+  @ApiProperty({ description: 'GeoJSON Point/Polygon/MultiPolygon en WGS84 con coordenadas [longitud, latitud]' }) @IsObject() geometry!: Record<string, unknown>;
 }
 
 class DeclaredAreaDto {
@@ -174,13 +180,18 @@ export class PlotsService {
   private async readContext(user: AuthUser, orgId: string) {
     const ctx = await this.authz.tenantContext(user, orgId);
     if (!ctx) throw notFound();
-    if (!this.has(ctx, 'plot:read') && !this.has(ctx, 'plot:read_assigned')) throw forbidden();
+    if (!this.has(ctx, 'plot:read') && !this.has(ctx, 'plot:read_assigned') && !this.has(ctx, 'plot:read_own')) throw forbidden();
     return ctx;
   }
 
-  private inScope(ctx: TenantContext, producerAssignee: string | null, kind: 'read' | 'update' | 'create') {
+  /**
+   * Alcance sobre una parcela (o su productor): amplio, por ASIGNACIÓN del técnico, o PROPIO del productor (A-01). El
+   * alcance propio exige que la membresía sea la vinculada al productor (`self_membership_id`): el rol por sí solo no basta.
+   */
+  private inScope(ctx: TenantContext, producerAssignee: string | null, kind: 'read' | 'update' | 'create', producerSelf: string | null = null) {
     if (this.has(ctx, `plot:${kind}`)) return true;
-    return this.has(ctx, `plot:${kind}_assigned`) && producerAssignee === ctx.membershipId;
+    if (this.has(ctx, `plot:${kind}_assigned`) && producerAssignee === ctx.membershipId) return true;
+    return this.has(ctx, `plot:${kind}_own`) && producerSelf !== null && producerSelf === ctx.membershipId;
   }
 
   /** Carga la parcela con el responsable de su productor; fuera de alcance = 404 (conocer el id no basta). */
@@ -188,13 +199,13 @@ export class PlotsService {
     let q = db.selectFrom('plots as pl')
       .innerJoin('producers as pr', (j) => j.onRef('pr.id', '=', 'pl.producer_id').onRef('pr.organization_id', '=', 'pl.organization_id'))
       .selectAll('pl')
-      .select(['pr.assigned_membership_id as producer_assignee', 'pr.producer_code', 'pr.first_name', 'pr.last_name', 'pr.legal_name', 'pr.status as producer_status'])
+      .select(['pr.assigned_membership_id as producer_assignee', 'pr.self_membership_id as producer_self', 'pr.producer_code', 'pr.first_name', 'pr.last_name', 'pr.legal_name', 'pr.status as producer_status'])
       .where('pl.organization_id', '=', ctx.organizationId)
       .where('pl.id', '=', id);
     if (lock) q = q.forUpdate('pl');
     const row = await q.executeTakeFirst();
-    if (!row || !this.inScope(ctx, row.producer_assignee, 'read')) throw notFound();
-    if (kind === 'update' && !this.inScope(ctx, row.producer_assignee, 'update')) throw forbidden();
+    if (!row || !this.inScope(ctx, row.producer_assignee, 'read', row.producer_self)) throw notFound();
+    if (kind === 'update' && !this.inScope(ctx, row.producer_assignee, 'update', row.producer_self)) throw forbidden();
     return row;
   }
 
@@ -263,7 +274,7 @@ export class PlotsService {
   async create(user: AuthUser, orgId: string, dto: CreatePlotDto, requestId?: string) {
     const ctx = await this.authz.tenantContext(user, orgId);
     if (!ctx) throw notFound();
-    if (!this.has(ctx, 'plot:create') && !this.has(ctx, 'plot:create_assigned')) throw forbidden();
+    if (!this.has(ctx, 'plot:create') && !this.has(ctx, 'plot:create_assigned') && !this.has(ctx, 'plot:create_own')) throw forbidden();
     if (ctx.organizationStatus !== 'ACTIVE') throw forbidden('ORGANIZATION_SUSPENDED', 'La organización está suspendida; no admite nuevas operaciones.');
     const fields = this.normalize(dto);
     return this.db.transaction().execute(async (trx) => {
@@ -280,10 +291,10 @@ export class PlotsService {
   async createInTx(trx: Transaction<Database>, ctx: TenantContext, user: AuthUser, producerId: string, plotCode: string, fields: Partial<Record<Editable, string | null>> & { crop: string }, requestId?: string, from?: PlotChangeSource) {
     const orgId = ctx.organizationId;
     const producer = await trx.selectFrom('producers')
-      .select(['id', 'status', 'assigned_membership_id', 'producer_code', 'first_name', 'last_name', 'legal_name'])
+      .select(['id', 'status', 'assigned_membership_id', 'self_membership_id', 'producer_code', 'first_name', 'last_name', 'legal_name'])
       .where('organization_id', '=', orgId).where('id', '=', producerId).forShare().executeTakeFirst();
     // Productor de otra organización o fuera del alcance del usuario: misma respuesta (no revela existencia).
-    if (!producer || !this.inScope(ctx, producer.assigned_membership_id, 'create')) {
+    if (!producer || !this.inScope(ctx, producer.assigned_membership_id, 'create', producer.self_membership_id)) {
       throw new AppError(422, 'PRODUCER_NOT_AVAILABLE', 'El productor indicado no está disponible para ti en esta organización.', [{ field: 'producer_id', reason: 'NOT_AVAILABLE' }]);
     }
     if (producer.status === 'INACTIVE') throw conflict('PRODUCER_INACTIVE', 'El productor está dado de baja; reactívalo antes de registrar parcelas.');
@@ -320,7 +331,15 @@ export class PlotsService {
       .selectAll('pl')
       .select(['pr.producer_code', 'pr.first_name', 'pr.last_name', 'pr.legal_name', 'v.geometry_type', 'v.area_declared_ha', 'v.area_calculated_ha', 'v.validation_status'])
       .where('pl.organization_id', '=', orgId);
-    if (!this.has(ctx, 'plot:read')) query = query.where('pr.assigned_membership_id', '=', ctx.membershipId);
+    if (!this.has(ctx, 'plot:read')) {
+      // Alcance estrecho: lo asignado al técnico y/o lo propio del productor, nunca el resto de la organización.
+      const asignadas = this.has(ctx, 'plot:read_assigned');
+      const propias = this.has(ctx, 'plot:read_own');
+      query = query.where((eb) => eb.or([
+        ...(asignadas ? [eb('pr.assigned_membership_id', '=', ctx.membershipId)] : []),
+        ...(propias ? [eb('pr.self_membership_id', '=', ctx.membershipId)] : []),
+      ]));
+    }
     const status = q.status ?? 'ACTIVE';
     if (status !== 'ALL') query = query.where('pl.status', '=', status);
     if (q.producer_id) query = query.where('pl.producer_id', '=', q.producer_id);
@@ -354,9 +373,9 @@ export class PlotsService {
     return {
       ...this.view(p, await this.versionView(this.db, orgId, p.current_version_id, this.geometryAllowed(ctx))),
       geometry_access: this.geometryAllowed(ctx),
-      can_update: active && p.status === 'ACTIVE' && this.inScope(ctx, p.producer_assignee, 'update'),
-      can_capture_location: active && p.status === 'ACTIVE' && this.inScope(ctx, p.producer_assignee, 'update') && this.geometryAllowed(ctx),
-      can_evaluate_gis: active && (this.has(ctx, 'plot:evaluate_gis') || (this.has(ctx, 'plot:evaluate_gis_assigned') && this.inScope(ctx, p.producer_assignee, 'read'))),
+      can_update: active && p.status === 'ACTIVE' && this.inScope(ctx, p.producer_assignee, 'update', p.producer_self),
+      can_capture_location: active && p.status === 'ACTIVE' && this.inScope(ctx, p.producer_assignee, 'update', p.producer_self) && this.geometryAllowed(ctx),
+      can_evaluate_gis: active && (this.has(ctx, 'plot:evaluate_gis') || (this.has(ctx, 'plot:evaluate_gis_assigned') && this.inScope(ctx, p.producer_assignee, 'read', p.producer_self))),
       can_archive: active && this.has(ctx, 'plot:archive'),
     };
   }
@@ -364,7 +383,7 @@ export class PlotsService {
   async update(user: AuthUser, orgId: string, id: string, dto: UpdatePlotDto, requestId?: string) {
     const ctx = await this.authz.tenantContext(user, orgId);
     if (!ctx) throw notFound();
-    if (!this.has(ctx, 'plot:update') && !this.has(ctx, 'plot:update_assigned')) throw forbidden();
+    if (!this.has(ctx, 'plot:update') && !this.has(ctx, 'plot:update_assigned') && !this.has(ctx, 'plot:update_own')) throw forbidden();
     if (ctx.organizationStatus !== 'ACTIVE') throw forbidden('ORGANIZATION_SUSPENDED', 'La organización está suspendida; no admite nuevas operaciones.');
     const { expected_version, ...rest } = dto;
     const patch = this.normalize(rest);
@@ -473,7 +492,7 @@ export class PlotsService {
   async updateDeclaredArea(user: AuthUser, orgId: string, id: string, dto: DeclaredAreaDto, requestId?: string) {
     const ctx = await this.authz.tenantContext(user, orgId);
     if (!ctx) throw notFound();
-    if (!this.has(ctx, 'plot:update') && !this.has(ctx, 'plot:update_assigned')) throw forbidden();
+    if (!this.has(ctx, 'plot:update') && !this.has(ctx, 'plot:update_assigned') && !this.has(ctx, 'plot:update_own')) throw forbidden();
     if (ctx.organizationStatus !== 'ACTIVE') throw forbidden('ORGANIZATION_SUSPENDED', 'La organización está suspendida; no admite nuevas operaciones.');
     return this.db.transaction().execute(async (trx) => {
       const r = await this.updateDeclaredAreaInTx(trx, ctx, user, id, dto.expected_version, String(dto.area_declared_ha), requestId, dto.notes ? { notes: dto.notes } : undefined);
@@ -489,22 +508,71 @@ export class PlotsService {
       .innerJoin('producers as pr', (j) => j.onRef('pr.id', '=', 'pl.producer_id').onRef('pr.organization_id', '=', 'pl.organization_id'))
       .leftJoin('plot_versions as v', (j) => j.onRef('v.id', '=', 'pl.current_version_id').onRef('v.organization_id', '=', 'pl.organization_id'))
       .selectAll('pl')
-      .select(['pr.assigned_membership_id as producer_assignee', 'pr.producer_code', 'v.geometry_type as current_geometry_type', sql<string | null>`v.area_declared_ha::text`.as('current_area_declared_ha')])
+      .select(['pr.assigned_membership_id as producer_assignee', 'pr.self_membership_id as producer_self', 'pr.producer_code', 'v.geometry_type as current_geometry_type', sql<string | null>`v.area_declared_ha::text`.as('current_area_declared_ha')])
       .where('pl.organization_id', '=', orgId).where('pl.plot_code', 'in', codes);
     if (lock) q = q.orderBy('pl.id').forUpdate('pl');
     return new Map((await q.execute()).map((r) => [r.plot_code, r]));
   }
 
   /** P0-026: alcance de un contexto sobre una parcela/productor (misma regla que load() y create()). */
-  scope(ctx: TenantContext, producerAssignee: string | null) {
-    return { read: this.inScope(ctx, producerAssignee, 'read'), update: this.inScope(ctx, producerAssignee, 'update'), create: this.inScope(ctx, producerAssignee, 'create') };
+  scope(ctx: TenantContext, producerAssignee: string | null, producerSelf: string | null = null) {
+    return { read: this.inScope(ctx, producerAssignee, 'read', producerSelf), update: this.inScope(ctx, producerAssignee, 'update', producerSelf), create: this.inScope(ctx, producerAssignee, 'create', producerSelf) };
+  }
+
+  /**
+   * A-01 — Revisión PREVIA de una geometría escrita o dibujada en la web: la misma validación del servidor (estructura y
+   * validez topológica con PostGIS, superficie geodésica) SIN guardar nada. El navegador nunca decide por sí solo si una
+   * geometría es válida. Declara el orden de las coordenadas y que una coordenada escrita NO es una medición GPS.
+   */
+  async previewGeometry(user: AuthUser, orgId: string, id: string, dto: PreviewGeometryDto) {
+    const ctx = await this.authz.tenantContext(user, orgId);
+    if (!ctx) throw notFound();
+    if (!this.has(ctx, 'plot:update') && !this.has(ctx, 'plot:update_assigned') && !this.has(ctx, 'plot:update_own')) throw forbidden();
+    if (!this.geometryAllowed(ctx)) throw forbidden('PERMISSION_DENIED', 'Tu rol no permite registrar coordenadas exactas.');
+    const plot = await this.load(this.db, ctx, id, 'update');
+    const issues = structuralIssues(dto.geometry);
+    const base = {
+      order: 'Cada posición es [longitud, latitud] en WGS84 (EPSG:4326): primero la longitud (este-oeste), luego la latitud (norte-sur).',
+      provenance: {
+        survey_method: 'MANUAL_COORDINATES',
+        is_gps_measurement: false,
+        note: 'Coordenadas escritas o dibujadas por una persona: NO acreditan una medición GPS ni su precisión.',
+      },
+      will_create_version: true,
+      current_version_id: plot.current_version_id,
+    };
+    if (issues.length) {
+      return { ...base, structurally_valid: false, issues: issues.map((i) => ({ path: i.path, reason: i.reason })), geometry_type: null, technically_valid: null, validity_reason: null, area_calculated_ha: null, vertex_count: 0, bbox: null };
+    }
+    const geojson = JSON.stringify(dto.geometry);
+    const typeCode = geometryTypeCode(dto.geometry as unknown as SupportedGeometry);
+    const r = await sql<{ valid: boolean; reason: string | null; area: string | null; n: number; bbox: string }>`
+      WITH g AS (SELECT ST_SetSRID(ST_GeomFromGeoJSON(${geojson}::text), 4326) AS geom)
+      SELECT (ST_IsValidDetail(geom)).valid AS valid, (ST_IsValidDetail(geom)).reason AS reason,
+             CASE WHEN ${typeCode}::text IN ('POLYGON','MULTIPOLYGON') AND (ST_IsValidDetail(geom)).valid
+                  THEN round((ST_Area(geom::geography) / 10000)::numeric, 6)::text ELSE NULL END AS area,
+             ST_NPoints(geom) AS n,
+             concat_ws(',', ST_XMin(geom), ST_YMin(geom), ST_XMax(geom), ST_YMax(geom)) AS bbox
+      FROM g`.execute(this.db);
+    const row = r.rows[0];
+    const [minx, miny, maxx, maxy] = row.bbox.split(',').map(Number);
+    return {
+      ...base,
+      structurally_valid: true, issues: [],
+      geometry_type: typeCode,
+      technically_valid: typeCode === 'POINT' ? null : row.valid,
+      validity_reason: row.valid ? null : reasonWithoutCoordinates(row.reason ?? ''),
+      area_calculated_ha: row.area,
+      vertex_count: row.n,
+      bbox: { min_longitude: minx, min_latitude: miny, max_longitude: maxx, max_latitude: maxy },
+    };
   }
 
   /** Crea una versión geométrica nueva (inmutable) y la marca como actual. La anterior no cambia. */
   async createVersion(user: AuthUser, orgId: string, id: string, dto: CreateVersionDto, requestId?: string) {
     const ctx = await this.authz.tenantContext(user, orgId);
     if (!ctx) throw notFound();
-    if (!this.has(ctx, 'plot:update') && !this.has(ctx, 'plot:update_assigned')) throw forbidden();
+    if (!this.has(ctx, 'plot:update') && !this.has(ctx, 'plot:update_assigned') && !this.has(ctx, 'plot:update_own')) throw forbidden();
     if (ctx.organizationStatus !== 'ACTIVE') throw forbidden('ORGANIZATION_SUSPENDED', 'La organización está suspendida; no admite nuevas operaciones.');
     if (dto.geometry && !this.geometryAllowed(ctx)) throw forbidden('PERMISSION_DENIED', 'Tu rol no permite registrar coordenadas exactas.');
     if (PENDING_METHODS[dto.survey_method]) {
@@ -554,7 +622,7 @@ export class PlotsService {
         .set({ current_version_id: versionId, updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1` })
         .where('id', '=', id).where('organization_id', '=', orgId).returningAll().executeTakeFirstOrThrow();
       const version = (await this.versionView(trx, orgId, versionId, this.geometryAllowed(ctx)))!;
-      await this.recordHistory(trx, after, 'GEOMETRY_VERSION', ['current_version_id'], user.id);
+      await this.recordHistory(trx, after, 'GEOMETRY_VERSION', ['current_version_id'], user.id, dto.reason);
       await this.events.append(trx, {
         organizationId: orgId, eventType: 'PlotGeometryVersionCreated', schemaVersion: 1, aggregateType: 'PLOT', aggregateId: id,
         aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId,
@@ -565,7 +633,7 @@ export class PlotsService {
       });
       await this.audit.record(trx, {
         organizationId: orgId, actorUserId: user.id, action: 'plot.geometry_version', entityType: 'plot', entityId: id, requestId,
-        result: 'SUCCESS', after: { plot_version_id: versionId, version_number: version.version_number, geometry_type: version.geometry_type, survey_method: version.survey_method },
+        result: 'SUCCESS', reason: dto.reason, after: { plot_version_id: versionId, version_number: version.version_number, geometry_type: version.geometry_type, survey_method: version.survey_method },
       });
       return { plot: this.view({ ...after, producer_code: plot.producer_code, first_name: plot.first_name, last_name: plot.last_name, legal_name: plot.legal_name }, version), version };
     });
@@ -587,7 +655,7 @@ export class PlotsService {
     const source = native ? 'DEVICE_LOCATION_SERVICE' as const : 'BROWSER_GEOLOCATION' as const;
     const ctx = await this.authz.tenantContext(user, orgId);
     if (!ctx) throw notFound();
-    if (!this.has(ctx, 'plot:update') && !this.has(ctx, 'plot:update_assigned')) throw forbidden();
+    if (!this.has(ctx, 'plot:update') && !this.has(ctx, 'plot:update_assigned') && !this.has(ctx, 'plot:update_own')) throw forbidden();
     if (!this.geometryAllowed(ctx)) throw forbidden('PERMISSION_DENIED', 'Tu rol no permite registrar ubicaciones exactas.');
     if (ctx.organizationStatus !== 'ACTIVE') throw forbidden('ORGANIZATION_SUSPENDED', 'La organización está suspendida; no admite nuevas operaciones.');
     const capturedAt = new Date(dto.captured_at);
@@ -751,6 +819,13 @@ export class PlotsController {
   @Get(':id/geometry-versions')
   versions(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.service.versions(user, orgId, id);
+  }
+
+  @Post(':id/geometry-preview')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'A-01: revisión previa (no guarda) de una geometría escrita o dibujada, validada en el servidor' })
+  previewGeometry(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: PreviewGeometryDto) {
+    return this.service.previewGeometry(user, orgId, id, dto);
   }
 
   @Post(':id/geometry-versions')

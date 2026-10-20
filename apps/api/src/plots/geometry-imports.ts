@@ -79,7 +79,7 @@ export class GeometryImportsService {
   private async geometryReadCtx(user: AuthUser, orgId: string): Promise<TenantContext> {
     const ctx = await this.authz.tenantContext(user, orgId);
     if (!ctx) throw notFound();
-    if (!this.plots.has(ctx, 'plot:read') && !this.plots.has(ctx, 'plot:read_assigned')) throw forbidden();
+    if (!this.plots.has(ctx, 'plot:read') && !this.plots.has(ctx, 'plot:read_assigned') && !this.plots.has(ctx, 'plot:read_own')) throw forbidden();
     if (!this.plots.geometryAllowed(ctx)) throw forbidden('PERMISSION_DENIED', 'Tu rol no tiene acceso a las coordenadas exactas ni a los archivos originales.');
     return ctx;
   }

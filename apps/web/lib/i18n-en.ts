@@ -1,3 +1,6 @@
+import { EN_CAMPO } from './i18n-en-campo';
+import { EN_GIS } from './i18n-en-gis';
+
 // Traducción de INTERFAZ al inglés (P1-015 / D-54; ADR-0007). La clave es el texto en español —la fuente—.
 // No es una traducción jurídica certificada. Un texto sin entrada aquí se muestra en español, nunca como clave.
 // `lib/i18n.test.ts` comprueba que cada texto marcado con t('…') en las pantallas del recorrido tenga su entrada.
@@ -268,6 +271,9 @@ export const EN: Record<string, string> = {
   'Por seguridad se pausaron los intentos. Espera unos minutos antes de reintentar.': 'For security, attempts were paused. Wait a few minutes before retrying.',
   'Espera un momento y vuelve a intentarlo.': 'Wait a moment and try again.',
 };
+
+Object.assign(EN, EN_CAMPO); // A-01: recorrido de captura de campo
+Object.assign(EN, EN_GIS); // A-01: paneles de evaluación GIS y perfil de destino
 
 /** Mensajes con cifras: no pueden ser claves exactas, así que se traducen por patrón. */
 export const EN_PATTERNS: Array<[RegExp, string]> = [

@@ -91,6 +91,12 @@ class AssignDto {
   @ApiProperty({ nullable: true }) @ValidateIf((_, v) => v !== null) @IsUUID() membership_id!: string | null;
 }
 
+class LinkSelfDto {
+  @ApiProperty() @IsInt() @Min(1) expected_version!: number;
+  @ApiProperty({ nullable: true, description: 'Membresía de la persona que ES este productor; null desvincula' }) @ValidateIf((_, v) => v !== null) @IsUUID() membership_id!: string | null;
+  @ApiProperty({ description: 'Motivo obligatorio: el vínculo da acceso propio a la persona vinculada' }) @IsString() @Length(3, 500) reason!: string;
+}
+
 class StatusDto {
   @ApiProperty() @IsInt() @Min(1) expected_version!: number;
   @ApiProperty() @IsString() @Length(3, 500) reason!: string;
@@ -166,13 +172,15 @@ export class ProducersService {
   private async readContext(user: AuthUser, orgId: string): Promise<TenantContext> {
     const ctx = await this.authz.tenantContext(user, orgId);
     if (!ctx) throw notFound();
-    if (!ctx.permissions.includes('producer:read') && !ctx.permissions.includes('producer:read_assigned')) throw forbidden();
+    if (!ctx.permissions.includes('producer:read') && !ctx.permissions.includes('producer:read_assigned') && !ctx.permissions.includes('producer:read_own')) throw forbidden();
     return ctx;
   }
 
-  private inScope(ctx: TenantContext, p: Pick<ProducerRow, 'assigned_membership_id'>, kind: 'read' | 'update'): boolean {
+  /** Alcance sobre un productor: amplio, por asignación del técnico, o PROPIO (A-01: la membresía vinculada al productor). */
+  private inScope(ctx: TenantContext, p: Pick<ProducerRow, 'assigned_membership_id'> & { self_membership_id?: string | null }, kind: 'read' | 'update'): boolean {
     if (ctx.permissions.includes(`producer:${kind}` as never)) return true;
-    return ctx.permissions.includes(`producer:${kind}_assigned` as never) && p.assigned_membership_id === ctx.membershipId;
+    if (ctx.permissions.includes(`producer:${kind}_assigned` as never) && p.assigned_membership_id === ctx.membershipId) return true;
+    return ctx.permissions.includes(`producer:${kind}_own` as never) && !!p.self_membership_id && p.self_membership_id === ctx.membershipId;
   }
 
   /** Carga un productor de la organización respetando el alcance; fuera de alcance = 404. */
@@ -200,6 +208,9 @@ export class ProducersService {
       parish: p.parish,
       status: p.status,
       assigned_membership_id: p.assigned_membership_id,
+      // A-01: quién ES el productor solo lo ve quien administra el vínculo; cualquiera ve si el registro es suyo.
+      ...(ctx.permissions.includes('producer:link_self') ? { self_membership_id: p.self_membership_id ?? null } : {}),
+      is_own: !!p.self_membership_id && p.self_membership_id === ctx.membershipId,
       row_version: Number(p.row_version),
       created_at: p.created_at,
       updated_at: p.updated_at,
@@ -353,7 +364,13 @@ export class ProducersService {
     if (status === 'ACTIVE_OR_DRAFT') query = query.where('status', 'in', ['ACTIVE', 'DRAFT']);
     else if (status !== 'ALL') query = query.where('status', '=', status);
     if (!ctx.permissions.includes('producer:read') || q.assigned === 'me') {
-      query = query.where('assigned_membership_id', '=', ctx.membershipId);
+      // Alcance estrecho: lo asignado al técnico y/o lo propio del productor; nunca el resto de la organización.
+      const asignados = ctx.permissions.includes('producer:read_assigned');
+      const propios = ctx.permissions.includes('producer:read_own');
+      query = query.where((eb) => eb.or([
+        ...(asignados || q.assigned === 'me' ? [eb('assigned_membership_id', '=', ctx.membershipId)] : []),
+        ...(propios && q.assigned !== 'me' ? [eb('self_membership_id', '=', ctx.membershipId)] : []),
+      ]));
     }
     if (q.q?.trim()) {
       const term = q.q.trim();
@@ -394,6 +411,7 @@ export class ProducersService {
       public_reference: await referenciaDe(this.db, ctx.organizationId, 'PRODUCER', p.id),
       can_update: p.status !== 'INACTIVE' && this.inScope(ctx, p, 'update') && ctx.organizationStatus === 'ACTIVE',
       can_assign: ctx.permissions.includes('producer:assign') && ctx.organizationStatus === 'ACTIVE',
+      can_link_self: ctx.permissions.includes('producer:link_self') && ctx.organizationStatus === 'ACTIVE',
       can_archive: ctx.permissions.includes('producer:archive') && ctx.organizationStatus === 'ACTIVE',
     };
   }
@@ -572,7 +590,7 @@ export class ProducersService {
   }
 
   /** Alcance (lectura/edición) de un productor para un contexto: lo mismo que aplica load(). */
-  scopeOf(ctx: TenantContext, p: Pick<ProducerRow, 'assigned_membership_id'>) {
+  scopeOf(ctx: TenantContext, p: Pick<ProducerRow, 'assigned_membership_id'> & { self_membership_id?: string | null }) {
     return { read: this.inScope(ctx, p, 'read'), update: this.inScope(ctx, p, 'update') };
   }
 
@@ -617,6 +635,47 @@ export class ProducersService {
       await this.audit.record(trx, {
         organizationId: orgId, actorUserId: user.id, action: 'producer.assign', entityType: 'producer', entityId: id, requestId,
         result: 'SUCCESS', before: { assigned_membership_id: before.assigned_membership_id }, after: { assigned_membership_id: dto.membership_id },
+      });
+      return this.view(after, ctx);
+    });
+  }
+
+  /**
+   * A-01 — Vincula (o desvincula) a la persona que ES este productor. Es un acto explícito, con motivo, versionado y
+   * auditado: ni el correo ni el nombre vinculan nada. La membresía debe ser de la organización, estar activa y tener el rol
+   * PRODUCER; una membresía no puede ser dos productores. Dar acceso propio NO es asignar un técnico (son relaciones
+   * distintas) ni concede facultades de revisión.
+   */
+  async linkSelf(user: AuthUser, orgId: string, id: string, dto: LinkSelfDto, requestId?: string) {
+    const ctx = await this.authz.require(user, orgId, 'producer:link_self', { mutation: true });
+    return this.db.transaction().execute(async (trx) => {
+      const before = await this.load(trx, ctx, id, 'read', true);
+      if (before.status === 'INACTIVE') throw conflict('PRODUCER_INACTIVE', 'El productor está dado de baja.');
+      if (Number(before.row_version) !== dto.expected_version) throw conflict('VERSION_CONFLICT', 'Otra persona modificó este productor. Recarga.');
+      if ((before.self_membership_id ?? null) === dto.membership_id) throw conflict('NO_CHANGE', 'Ese vínculo ya está registrado.');
+      if (dto.membership_id) {
+        const m = await trx.selectFrom('memberships').select(['id', 'status']).where('organization_id', '=', orgId).where('id', '=', dto.membership_id).executeTakeFirst();
+        if (!m) throw new AppError(422, 'MEMBERSHIP_NOT_FOUND', 'La persona indicada no es miembro de esta organización.', [{ field: 'membership_id', reason: 'NOT_IN_ORGANIZATION' }]);
+        if (m.status !== 'ACTIVE') throw new AppError(422, 'MEMBERSHIP_INACTIVE', 'La persona indicada tiene la membresía desactivada.', [{ field: 'membership_id', reason: 'INACTIVE' }]);
+        const rol = await trx.selectFrom('role_assignments').select('id').where('organization_id', '=', orgId).where('membership_id', '=', dto.membership_id).where('role_code', '=', 'PRODUCER').executeTakeFirst();
+        if (!rol) throw new AppError(422, 'MEMBERSHIP_WITHOUT_PRODUCER_ROLE', 'La persona indicada no tiene el rol Productor: asígnalo primero.', [{ field: 'membership_id', reason: 'NO_PRODUCER_ROLE' }]);
+        const otro = await trx.selectFrom('producers').select('id').where('organization_id', '=', orgId).where('self_membership_id', '=', dto.membership_id).where('id', '<>', id).executeTakeFirst();
+        if (otro) throw conflict('MEMBERSHIP_ALREADY_LINKED', 'Esa persona ya está vinculada a otro productor.');
+      }
+      const after = this.plain(await trx
+        .updateTable('producers')
+        .set({ self_membership_id: dto.membership_id, updated_by: user.id, updated_at: new Date(), row_version: sql`row_version + 1` })
+        .where('id', '=', id).where('organization_id', '=', orgId)
+        .returningAll().executeTakeFirstOrThrow(), true);
+      await this.recordVersion(trx, after, 'LINK_SELF', ['self_membership_id'], user.id, dto.reason);
+      await this.events.append(trx, {
+        organizationId: orgId, eventType: 'ProducerSelfLinked', schemaVersion: 1, aggregateType: 'PRODUCER',
+        aggregateId: id, aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId,
+        payload: { from_membership_id: before.self_membership_id ?? null, to_membership_id: dto.membership_id },
+      });
+      await this.audit.record(trx, {
+        organizationId: orgId, actorUserId: user.id, action: 'producer.link_self', entityType: 'producer', entityId: id, requestId,
+        result: 'SUCCESS', reason: dto.reason, before: { self_membership_id: before.self_membership_id ?? null }, after: { self_membership_id: dto.membership_id },
       });
       return this.view(after, ctx);
     });
@@ -756,6 +815,12 @@ export class ProducersController {
   @Patch(':id')
   update(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateProducerDto, @Req() req: AuthedRequest) {
     return this.service.update(user, orgId, id, dto, req.requestId);
+  }
+
+  @Put(':id/self-membership')
+  @ApiOperation({ summary: 'A-01: vincular o desvincular a la persona que ES el productor (alcance propio), con motivo' })
+  linkSelf(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: LinkSelfDto, @Req() req: AuthedRequest) {
+    return this.service.linkSelf(user, orgId, id, dto, req.requestId);
   }
 
   @Put(':id/assignment')

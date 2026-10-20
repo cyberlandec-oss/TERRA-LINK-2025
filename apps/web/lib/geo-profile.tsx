@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api } from './api';
+import { useI18n } from './i18n';
 import { ErrorPanel, StatusBadge, type Tone } from './ui';
 
 // D-05.A — Perfil técnico de destino `EUDR_GEO_V1`, en pantalla y SEPARADO de la evaluación técnica.
 //
 // Los dos dictámenes se muestran a la vez porque **pueden discrepar**: un polígono con hueco es técnicamente
 // válido y no cumple el perfil. Enseñar uno solo haría creer que hay un único veredicto.
+// A-01: español (fuente) e inglés. Lo que redacta el servidor se traduce por texto; sin traducción se muestra en español.
 
 interface Check { code: string; layer: string; outcome: 'PASS' | 'FAIL' | 'REVIEW' | 'NOT_APPLICABLE' | 'NOT_EXECUTED'; reason_code: string | null; message: string; details?: Record<string, unknown> }
 type Status = 'MEETS_PROFILE' | 'DOES_NOT_MEET' | 'REVIEW_REQUIRED' | 'NOT_EVALUABLE';
@@ -42,8 +44,11 @@ const CHECK_LABEL: Record<string, string> = {
 const LAYER: Record<string, string> = {
   NORM: 'Norma', DEST: 'Sistema de destino', TL: 'Regla de Terra Link',
 };
+// Exportados solo para que la prueba de traducciones los compruebe.
+export const PROFILE_TABLES = { STATUS, OUTCOME, CHECK_LABEL, LAYER };
 
 export function GeoProfileEvaluation({ orgId, plotId, canEvaluate, hasVersion }: { orgId: string; plotId: string; canEvaluate: boolean; hasVersion: boolean }) {
+  const { t, dt } = useI18n();
   const [data, setData] = useState<Response | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
@@ -72,49 +77,47 @@ export function GeoProfileEvaluation({ orgId, plotId, canEvaluate, hasVersion }:
   const latest = data?.evaluations[0];
   return (
     <section className="card" aria-labelledby="perfil-title">
-      <h2 id="perfil-title">Perfil técnico de destino</h2>
+      <h2 id="perfil-title">{t('Perfil técnico de destino')}</h2>
       <p className="muted">
-        Dictamen <strong>distinto</strong> del técnico de arriba, y pueden discrepar: una geometría puede ser
-        técnicamente válida y no estar bien formada para el sistema de destino. Cumplir el perfil <strong>no es
-        conformidad EUDR</strong> ni una declaración presentada.
+        {t('Dictamen distinto del técnico de arriba, y pueden discrepar: una geometría puede ser técnicamente válida y no estar bien formada para el sistema de destino. Cumplir el perfil no es conformidad EUDR ni una declaración presentada.')}
       </p>
       {error && <ErrorPanel error={error} />}
       {canEvaluate && hasVersion && (
-        <button type="button" onClick={evaluate} disabled={busy} aria-busy={busy}>{busy ? 'Evaluando…' : latest ? 'Volver a evaluar el perfil' : 'Evaluar el perfil'}</button>
+        <button type="button" onClick={evaluate} disabled={busy} aria-busy={busy}>{busy ? t('Evaluando…') : latest ? t('Volver a evaluar el perfil') : t('Evaluar el perfil')}</button>
       )}
-      {data === null && !error && <p className="muted">Cargando perfil…</p>}
-      {data && !latest && <p className="muted">Sin evaluaciones de perfil. {canEvaluate ? 'Evalúa la versión vigente.' : 'Un usuario con permiso de evaluación puede ejecutarla.'}</p>}
+      {data === null && !error && <p className="muted">{t('Cargando perfil…')}</p>}
+      {data && !latest && <p className="muted">{t('Sin evaluaciones de perfil.')} {canEvaluate ? t('Evalúa la versión vigente.') : t('Un usuario con permiso de evaluación puede ejecutarla.')}</p>}
       {latest && (
         <div className="gis-eval">
           <dl className="props">
-            <dt>Resultado</dt>
-            <dd><StatusBadge tone={STATUS[latest.status].tone}>{STATUS[latest.status].label}</StatusBadge></dd>
-            <dt>¿Exportable con perfil?</dt>
-            <dd>{latest.exportable ? 'Sí' : 'No. Aparecerá en la lista de no exportables, con su motivo.'}</dd>
-            <dt>Perfil</dt>
-            <dd>{latest.profile.id} · versión {latest.profile.version} · <span className="muted">{latest.profile.note}</span></dd>
-            <dt>Fuente evaluada</dt>
+            <dt>{t('Resultado')}</dt>
+            <dd><StatusBadge tone={STATUS[latest.status].tone}>{t(STATUS[latest.status].label)}</StatusBadge></dd>
+            <dt>{t('¿Exportable con perfil?')}</dt>
+            <dd>{latest.exportable ? t('Sí') : t('No. Aparecerá en la lista de no exportables, con su motivo.')}</dd>
+            <dt>{t('Perfil')}</dt>
+            <dd>{latest.profile.id} · {t('versión')} {latest.profile.version} · <span className="muted">{t(latest.profile.note)}</span></dd>
+            <dt>{t('Fuente evaluada')}</dt>
             <dd>
-              Servicio <strong>{latest.source.service_version}</strong> · documento <strong>v{latest.source.document_version}</strong> ·
-              página del {latest.source.page_date}
+              {t('Servicio')} <strong>{latest.source.service_version}</strong> · {t('documento')} <strong>v{latest.source.document_version}</strong> ·
+              {' '}{t('página del')} {latest.source.page_date}
             </dd>
-            <dt>Grado de comprobación</dt>
-            <dd>{latest.source.verification_note}</dd>
-            <dt>Superficie de referencia</dt>
-            <dd>{latest.area.value_ha ? `${latest.area.value_ha} ha` : 'Desconocida'} · <span className="muted">{latest.area.note}</span></dd>
-            <dt>Fecha</dt><dd>{new Date(latest.evaluated_at).toLocaleString('es-EC')}</dd>
+            <dt>{t('Grado de comprobación')}</dt>
+            <dd>{t(latest.source.verification_note)}</dd>
+            <dt>{t('Superficie de referencia')}</dt>
+            <dd>{latest.area.value_ha ? `${latest.area.value_ha} ha` : t('Desconocida')} · <span className="muted">{t(latest.area.note)}</span></dd>
+            <dt>{t('Fecha')}</dt><dd>{dt(latest.evaluated_at)}</dd>
           </dl>
 
           <div className="table-wrap">
-            <table aria-label="Comprobaciones del perfil de destino">
-              <thead><tr><th scope="col">Comprobación</th><th scope="col">Lo exige</th><th scope="col">Resultado</th><th scope="col">Motivo</th></tr></thead>
+            <table aria-label={t('Comprobaciones del perfil de destino')}>
+              <thead><tr><th scope="col">{t('Comprobación')}</th><th scope="col">{t('Lo exige')}</th><th scope="col">{t('Resultado')}</th><th scope="col">{t('Motivo')}</th></tr></thead>
               <tbody>
                 {latest.checks.map((c) => (
                   <tr key={c.code}>
-                    <td>{CHECK_LABEL[c.code] ?? c.code}</td>
-                    <td>{LAYER[c.layer] ?? c.layer}</td>
-                    <td>{OUTCOME[c.outcome]}</td>
-                    <td>{c.message}</td>
+                    <td>{t(CHECK_LABEL[c.code] ?? c.code)}</td>
+                    <td>{t(LAYER[c.layer] ?? c.layer)}</td>
+                    <td>{t(OUTCOME[c.outcome])}</td>
+                    <td>{t(c.message)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -122,31 +125,31 @@ export function GeoProfileEvaluation({ orgId, plotId, canEvaluate, hasVersion }:
           </div>
 
           <details>
-            <summary>Qué significan los decimales</summary>
+            <summary>{t('Qué significan los decimales')}</summary>
             <dl className="props">
-              <dt>Valor numérico</dt><dd>{latest.decimals_contract.numeric_value}</dd>
-              <dt>Formato de intercambio</dt><dd>{latest.decimals_contract.interchange_format}</dd>
-              <dt>Resolución del dato</dt><dd>{latest.decimals_contract.data_resolution}</dd>
-              <dt>Exactitud de captura</dt><dd>{latest.decimals_contract.capture_accuracy}</dd>
+              <dt>{t('Valor numérico')}</dt><dd>{t(latest.decimals_contract.numeric_value)}</dd>
+              <dt>{t('Formato de intercambio')}</dt><dd>{t(latest.decimals_contract.interchange_format)}</dd>
+              <dt>{t('Resolución del dato')}</dt><dd>{t(latest.decimals_contract.data_resolution)}</dd>
+              <dt>{t('Exactitud de captura')}</dt><dd>{t(latest.decimals_contract.capture_accuracy)}</dd>
             </dl>
-            <p className="muted">{latest.decimals_contract.never}</p>
+            <p className="muted">{t(latest.decimals_contract.never)}</p>
           </details>
 
           <details>
-            <summary>Qué NO decide este perfil</summary>
-            <ul>{latest.not_in_scope.map((l) => <li key={l}>{l}</li>)}</ul>
-            <p className="muted">{latest.disclaimer}</p>
+            <summary>{t('Qué NO decide este perfil')}</summary>
+            <ul>{latest.not_in_scope.map((l) => <li key={l}>{t(l)}</li>)}</ul>
+            <p className="muted">{t(latest.disclaimer)}</p>
           </details>
 
           {data.evaluations.length > 1 && (
             <details>
-              <summary>Historial del perfil ({data.evaluations.length})</summary>
-              <ul className="plain" aria-label="Historial del perfil">
+              <summary>{t('Historial del perfil')} ({data.evaluations.length})</summary>
+              <ul className="plain" aria-label={t('Historial del perfil')}>
                 {data.evaluations.map((e) => (
-                  <li key={e.id}>{new Date(e.evaluated_at).toLocaleString('es-EC')} · {STATUS[e.status].label} · {e.profile.id} {e.profile.version}</li>
+                  <li key={e.id}>{dt(e.evaluated_at)} · {t(STATUS[e.status].label)} · {e.profile.id} {e.profile.version}</li>
                 ))}
               </ul>
-              <p className="muted">{data.note}</p>
+              <p className="muted">{t(data.note)}</p>
             </details>
           )}
         </div>

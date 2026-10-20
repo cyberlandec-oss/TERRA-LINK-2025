@@ -323,7 +323,7 @@ export class PolygonDraftsService {
   async versionVertices(user: AuthUser, orgId: string, plotId: string, versionId: string) {
     const ctx = await this.authz.tenantContext(user, orgId);
     if (!ctx) throw notFound();
-    if (!this.plots.has(ctx, 'plot:read') && !this.plots.has(ctx, 'plot:read_assigned')) throw forbidden();
+    if (!this.plots.has(ctx, 'plot:read') && !this.plots.has(ctx, 'plot:read_assigned') && !this.plots.has(ctx, 'plot:read_own')) throw forbidden();
     await this.plots.load(this.db, ctx, plotId, 'read');
     const draft = await this.db.selectFrom('polygon_drafts').selectAll().where('organization_id', '=', orgId).where('plot_id', '=', plotId).where('confirmed_version_id', '=', versionId).executeTakeFirst();
     if (!draft) return { vertices: [], accuracy_summary: summarizeAccuracy([]) };

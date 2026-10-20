@@ -1410,6 +1410,53 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/producers/{id}/self-membership": {
+      "put": {
+        "operationId": "ProducersController_linkSelf",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkSelfDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A-01: vincular o desvincular a la persona que ES el productor (alcance propio), con motivo",
+        "tags": [
+          "producers"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/producers/{id}/assignment": {
       "put": {
         "operationId": "ProducersController_assign",
@@ -1841,6 +1888,53 @@
             "bearer": []
           }
         ],
+        "tags": [
+          "plots"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/plots/{id}/geometry-preview": {
+      "post": {
+        "operationId": "PlotsController_previewGeometry",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewGeometryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A-01: revisión previa (no guarda) de una geometría escrita o dibujada, validada en el servidor",
         "tags": [
           "plots"
         ]
@@ -11670,6 +11764,28 @@
           "expected_version"
         ]
       },
+      "LinkSelfDto": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "number"
+          },
+          "membership_id": {
+            "type": "object",
+            "nullable": true,
+            "description": "Membresía de la persona que ES este productor; null desvincula"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Motivo obligatorio: el vínculo da acceso propio a la persona vinculada"
+          }
+        },
+        "required": [
+          "expected_version",
+          "membership_id",
+          "reason"
+        ]
+      },
       "AssignDto": {
         "type": "object",
         "properties": {
@@ -11799,6 +11915,18 @@
           "expected_version"
         ]
       },
+      "PreviewGeometryDto": {
+        "type": "object",
+        "properties": {
+          "geometry": {
+            "type": "object",
+            "description": "GeoJSON Point/Polygon/MultiPolygon en WGS84 con coordenadas [longitud, latitud]"
+          }
+        },
+        "required": [
+          "geometry"
+        ]
+      },
       "CreateVersionDto": {
         "type": "object",
         "properties": {
@@ -11829,6 +11957,10 @@
           },
           "notes": {
             "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "description": "A-01: motivo de la captura o corrección; queda en el historial y en la auditoría. La web lo exige al corregir una geometría existente"
           }
         },
         "required": [
@@ -14039,6 +14171,8 @@
             "type": "string",
             "enum": [
               "RESULT_COVERED",
+              "RESULT_FINDINGS",
+              "RESULT_NO_FINDINGS",
               "RESULT_PARTIAL",
               "NO_COVERAGE",
               "TIMEOUT",

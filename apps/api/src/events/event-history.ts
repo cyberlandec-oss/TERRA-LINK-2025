@@ -67,10 +67,10 @@ export class EventHistoryService {
   private async authorizeAggregate(ctx: TenantContext, kind: keyof typeof AGGREGATES, id: string) {
     const has = (p: string) => (ctx.permissions as string[]).includes(p);
     if (kind === 'producers') {
-      if (!has('producer:read') && !has('producer:read_assigned')) throw forbidden();
+      if (!has('producer:read') && !has('producer:read_assigned') && !has('producer:read_own')) throw forbidden();
       await this.producers.load(this.db, ctx, id, 'read');
     } else if (kind === 'plots') {
-      if (!has('plot:read') && !has('plot:read_assigned')) throw forbidden();
+      if (!has('plot:read') && !has('plot:read_assigned') && !has('plot:read_own')) throw forbidden();
       await this.plots.load(this.db, ctx, id, 'read');
     } else {
       if (!has('product:read')) throw forbidden();

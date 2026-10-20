@@ -3,11 +3,21 @@ import { describe, expect, it } from 'vitest';
 import { EN, EN_PATTERNS } from './i18n-en';
 import { translate } from './i18n';
 import { ROLE_LABELS, recoveryHint, ApiError } from './api';
+import { AVAILABILITY } from './documents';
+import { GEOMETRY_STATUS, GEOMETRY_TYPE_LABEL, METHOD_LABEL } from './plots';
+import { SAT_ANALYSIS, SAT_COVERAGE, SAT_OPERATION, SAT_SCENARIO, SAT_STATUS } from './satellite';
+import { GIS_STATUS, GIS_TABLES } from './gis-evaluation';
+import { PROFILE_TABLES } from './geo-profile';
 
 // P1-015 / D-54 — Español fuente, inglés segunda lengua (ADR-0007, opción B).
 const PANTALLAS = [
   'app/page.tsx', 'app/acceso/sso/page.tsx', 'app/cuenta/page.tsx', 'app/organizaciones/[id]/coste/page.tsx',
   'app/organizaciones/[id]/limites/page.tsx', 'lib/workspace.tsx', 'lib/ui.tsx', 'lib/i18n.tsx',
+  // A-01: recorrido de captura de campo
+  'app/organizaciones/[id]/captura/page.tsx', 'app/organizaciones/[id]/parcelas/page.tsx', 'app/organizaciones/[id]/parcelas/[plotId]/page.tsx',
+  'lib/field-capture.tsx', 'lib/field-evidence.tsx', 'lib/manual-capture.tsx', 'lib/location-capture.tsx', 'lib/polygon-capture.tsx',
+  'lib/geometry-import.tsx', 'lib/satellite.tsx', 'lib/producer-self-link.tsx', 'lib/plots.tsx',
+  'lib/gis-evaluation.tsx', 'lib/geo-profile.tsx',
 ];
 
 describe('internacionalización', () => {
@@ -20,6 +30,18 @@ describe('internacionalización', () => {
     expect(faltan).toEqual([]);
   });
 
+  it('las etiquetas que se traducen por tabla (métodos, estados, satélite, disponibilidad) tienen su traducción', () => {
+    const valores: string[] = [
+      ...Object.values(METHOD_LABEL), ...Object.values(GEOMETRY_TYPE_LABEL), ...Object.values(GEOMETRY_STATUS).map((x) => x.label),
+      ...Object.values(AVAILABILITY).map((x) => x.label), ...Object.values(SAT_STATUS).map((x) => x.label), ...Object.values(SAT_ANALYSIS).map((x) => x.label),
+      ...Object.values(SAT_OPERATION), ...Object.values(SAT_COVERAGE), ...Object.values(SAT_SCENARIO),
+      ...Object.values(GIS_STATUS).map((x) => x.label), ...Object.values(GIS_TABLES).flatMap((t) => Object.values(t)),
+      ...Object.values(PROFILE_TABLES.STATUS).map((x) => x.label), ...Object.values(PROFILE_TABLES.OUTCOME),
+      ...Object.values(PROFILE_TABLES.CHECK_LABEL), ...Object.values(PROFILE_TABLES.LAYER),
+    ];
+    expect(valores.filter((v) => !(v in EN))).toEqual([]);
+  });
+
   it('el español es fuente y reserva: sin traducción devuelve el español, nunca una clave', () => {
     expect(translate('es', 'Iniciar sesión')).toBe('Iniciar sesión');
     expect(translate('en', 'Iniciar sesión')).toBe('Sign in');
@@ -29,7 +51,7 @@ describe('internacionalización', () => {
   });
 
   it('ninguna traducción está vacía, ni es igual al español por descuido salvo nombres propios', () => {
-    const iguales = new Set(['Authorization Code + PKCE', 'Auditor', 'General']);
+    const iguales = new Set(['Authorization Code + PKCE', 'Auditor', 'General', 'No']);
     for (const [es, en] of Object.entries(EN)) {
       expect(en.trim().length, es).toBeGreaterThan(0);
       if (!iguales.has(es)) expect(en, `sin traducir: ${es}`).not.toBe(es);

@@ -58,6 +58,7 @@ import * as m0053 from './migrations/0053_p1013_extraccion_asistida';
 import * as m0054 from './migrations/0054_p1013_texto_no_interpretable';
 import * as m0055 from './migrations/0055_p1008_integracion_webhooks';
 import * as m0056 from './migrations/0056_p1015_coste_plataforma_sso';
+import * as m0057 from './migrations/0057_a01_alcance_propio_productor';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -117,6 +118,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0054_p1013_texto_no_interpretable': m0054,
   '0055_p1008_integracion_webhooks': m0055,
   '0056_p1015_coste_plataforma_sso': m0056,
+  '0057_a01_alcance_propio_productor': m0057,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

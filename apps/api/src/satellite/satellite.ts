@@ -269,6 +269,10 @@ export class SatelliteService {
       plot: { id: plot.id, plot_code: plot.plot_code, current_version_id: plot.current_version_id },
       can_request: blocked === null,
       request_blocked_reason: blocked,
+      // El selector de escenarios solo existe con la fixture (ENSAYO); con un proveedor real no hay nada que elegir.
+      provider_kind: provider?.kind ?? null,
+      ensayo_mode: provider?.kind === 'SYNTHETIC_FIXTURE',
+      fixture_scenarios: provider?.kind === 'SYNTHETIC_FIXTURE' ? [...FIXTURE_SCENARIOS] : [],
       provider_selection: selected
         ? { status: 'SELECTED', provider_code: provider!.code }
         : development
@@ -304,6 +308,8 @@ export class SatelliteService {
       subject: { plot_version_id: j.plot_version_id, geometry_hash: j.geometry_hash, geometry_type: j.geometry_type },
       applies_to_current_version: current.rows[0]?.current_version_id === j.plot_version_id,
       provider: { code: j.provider_code, kind: j.provider_kind, adapter_contract_version: j.adapter_contract_version },
+      // ENSAYO: lo produjo la fixture sintética. Se identifica y se separa de lo operativo (no acredita nada).
+      is_ensayo: j.provider_kind === 'SYNTHETIC_FIXTURE',
       operation: j.operation,
       period: { start: j.period_start, end: j.period_end },
       request_fingerprint: j.request_fingerprint,

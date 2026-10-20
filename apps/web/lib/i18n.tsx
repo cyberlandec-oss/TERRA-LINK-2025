@@ -25,8 +25,20 @@ export function translate(locale: Locale, es: string, vars?: Record<string, stri
   return vars ? base.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : base;
 }
 
-interface I18n { locale: Locale; setLocale: (l: Locale) => void; t: (es: string, vars?: Record<string, string | number>) => string }
-const Ctx = createContext<I18n>({ locale: 'es', setLocale: () => undefined, t: (es, vars) => translate('es', es, vars) });
+/** Etiqueta regional para fechas y números: la interfaz en inglés no mezcla formatos ecuatorianos. */
+export const regionOf = (l: Locale) => (l === 'en' ? 'en-US' : 'es-EC');
+
+interface I18n {
+  locale: Locale; setLocale: (l: Locale) => void; t: (es: string, vars?: Record<string, string | number>) => string;
+  /** Fecha y hora en el idioma de la interfaz. */
+  dt: (v: string | number | Date) => string;
+  /** Número con los separadores del idioma de la interfaz. */
+  num: (v: number, max?: number) => string;
+}
+const Ctx = createContext<I18n>({
+  locale: 'es', setLocale: () => undefined, t: (es, vars) => translate('es', es, vars),
+  dt: (v) => new Date(v).toLocaleString(regionOf('es')), num: (v, max = 4) => v.toLocaleString(regionOf('es'), { maximumFractionDigits: max }),
+});
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>('es');
@@ -45,7 +57,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem(KEY, l); } catch { /* sin almacenamiento */ }
   }, []);
   const t = useCallback((es: string, vars?: Record<string, string | number>) => translate(locale, es, vars), [locale]);
-  const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
+  const dt = useCallback((v: string | number | Date) => new Date(v).toLocaleString(regionOf(locale)), [locale]);
+  const num = useCallback((v: number, max = 4) => v.toLocaleString(regionOf(locale), { maximumFractionDigits: max }), [locale]);
+  const value = useMemo(() => ({ locale, setLocale, t, dt, num }), [locale, setLocale, t, dt, num]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

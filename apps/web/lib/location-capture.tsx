@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, api } from './api';
+import { translate, useI18n } from './i18n';
 import { ErrorPanel } from './ui';
 
 // P0-007 Captura de ubicación desde el navegador (UX_UI §13.3, UI-07).
@@ -10,6 +11,7 @@ import { ErrorPanel } from './ui';
 // - Nunca guarda automáticamente; si falla, no inventa coordenadas ni precisión.
 // - La muestra (con su operation_id) se conserva ante conflicto o resultado incierto: reintentar es
 //   idempotente en el servidor.
+// A-01: textos en español (fuente) e inglés; el orden de las coordenadas (latitud / longitud) se rotula siempre.
 
 interface Sample {
   operation_id: string;
@@ -28,22 +30,26 @@ type State =
   | { kind: 'save-error'; sample: Sample; error: ApiError }
   | { kind: 'saved'; versionNumber: number; receivedAt: string };
 
-const FAILURE: Record<'DENIED' | 'UNAVAILABLE' | 'TIMEOUT' | 'UNSUPPORTED', { title: string; help: string }> = {
-  DENIED: { title: 'El navegador no tiene permiso para usar tu ubicación.', help: 'Habilita la ubicación para este sitio en la configuración del navegador (icono junto a la dirección) y vuelve a intentarlo.' },
-  UNAVAILABLE: { title: 'No se pudo determinar la ubicación.', help: 'Activa los servicios de ubicación del dispositivo, sal a cielo abierto si es posible y vuelve a intentarlo.' },
-  TIMEOUT: { title: 'La ubicación tardó demasiado en llegar.', help: 'Vuelve a intentarlo; en interiores o con señal débil puede tardar más.' },
-  UNSUPPORTED: { title: 'Este navegador o esta conexión no permiten obtener la ubicación.', help: 'Usa un navegador actualizado y una dirección segura (https o localhost).' },
-};
+type Tr = (es: string, vars?: Record<string, string | number>) => string;
 
-export function accuracyLabel(acc: number | null): string {
-  if (acc === null) return 'No informada por el navegador';
-  if (acc === 0) return '0 m (valor informado por el navegador; no implica precisión perfecta)';
-  return `± ${acc.toLocaleString('es-EC', { maximumFractionDigits: 1 })} m (informada)`;
+const failure = (t: Tr): Record<'DENIED' | 'UNAVAILABLE' | 'TIMEOUT' | 'UNSUPPORTED', { title: string; help: string }> => ({
+  DENIED: { title: t('El navegador no tiene permiso para usar tu ubicación.'), help: t('Habilita la ubicación para este sitio en la configuración del navegador (icono junto a la dirección) y vuelve a intentarlo.') },
+  UNAVAILABLE: { title: t('No se pudo determinar la ubicación.'), help: t('Activa los servicios de ubicación del dispositivo, sal a cielo abierto si es posible y vuelve a intentarlo.') },
+  TIMEOUT: { title: t('La ubicación tardó demasiado en llegar.'), help: t('Vuelve a intentarlo; en interiores o con señal débil puede tardar más.') },
+  UNSUPPORTED: { title: t('Este navegador o esta conexión no permiten obtener la ubicación.'), help: t('Usa un navegador actualizado y una dirección segura (https o localhost).') },
+});
+
+export function accuracyLabel(acc: number | null, t: Tr = (es, vars) => translate('es', es, vars), num: (v: number, max?: number) => string = (v, max = 1) => v.toLocaleString('es-EC', { maximumFractionDigits: max })): string {
+  if (acc === null) return t('No informada por el navegador');
+  if (acc === 0) return t('0 m (valor informado por el navegador; no implica precisión perfecta)');
+  return t('± {m} m (informada)', { m: num(acc, 1) });
 }
 
 export function LocationCapture({ orgId, plotId, rowVersion, onSaved }: {
   orgId: string; plotId: string; rowVersion: number; onSaved: () => Promise<void>;
 }) {
+  const { t, dt, num } = useI18n();
+  const FAILURE = failure(t);
   const [state, setState] = useState<State>({ kind: 'idle' });
   const cancelled = useRef(false);
   const supported = typeof window !== 'undefined' && 'geolocation' in navigator && window.isSecureContext;
@@ -100,27 +106,27 @@ export function LocationCapture({ orgId, plotId, rowVersion, onSaved }: {
   }
 
   const sampleView = (s: Sample) => (
-    <dl className="props" aria-label="Muestra de ubicación">
-      <dt>Latitud</dt><dd>{s.latitude}</dd>
-      <dt>Longitud</dt><dd>{s.longitude}</dd>
-      <dt>Precisión horizontal</dt><dd>{accuracyLabel(s.accuracy_m)}</dd>
-      <dt>Hora de adquisición</dt><dd>{new Date(s.captured_at).toLocaleString('es-EC')}</dd>
-      <dt>Fuente</dt><dd>Ubicación del navegador (puede provenir de GPS, Wi-Fi o red; no acredita un GPS)</dd>
+    <dl className="props" aria-label={t('Muestra de ubicación')}>
+      <dt>{t('Latitud')} ({t('norte-sur')})</dt><dd>{s.latitude}</dd>
+      <dt>{t('Longitud')} ({t('este-oeste')})</dt><dd>{s.longitude}</dd>
+      <dt>{t('Precisión horizontal')}</dt><dd>{accuracyLabel(s.accuracy_m, t, num)}</dd>
+      <dt>{t('Hora de adquisición')}</dt><dd>{dt(s.captured_at)}</dd>
+      <dt>{t('Fuente')}</dt><dd>{t('Ubicación del navegador (puede provenir de GPS, Wi-Fi o red; no acredita un GPS)')}</dd>
     </dl>
   );
 
   return (
     <div className="capture" aria-live="polite">
-      <h3>Capturar ubicación</h3>
-      <p className="field-help">Registra un punto con la ubicación que informa este navegador. Se guarda como versión nueva; no calcula superficie ni valida la parcela.</p>
+      <h3>{t('Capturar ubicación')}</h3>
+      <p className="field-help">{t('Registra un punto con la ubicación que informa este navegador. Se guarda como versión nueva; no calcula superficie ni valida la parcela.')}</p>
       {state.kind === 'idle' && (
-        <button type="button" onClick={request} disabled={!supported}>Capturar ubicación</button>
+        <button type="button" onClick={request} disabled={!supported}>{t('Capturar ubicación')}</button>
       )}
       {state.kind === 'idle' && !supported && <p className="muted">{FAILURE.UNSUPPORTED.title} {FAILURE.UNSUPPORTED.help}</p>}
       {state.kind === 'requesting' && (
         <div className="actions">
-          <p className="muted" role="status">Obteniendo ubicación… Si el navegador lo pregunta, permite el acceso.</p>
-          <button type="button" className="secondary" onClick={cancel}>Cancelar</button>
+          <p className="muted" role="status">{t('Obteniendo ubicación… Si el navegador lo pregunta, permite el acceso.')}</p>
+          <button type="button" className="secondary" onClick={cancel}>{t('Cancelar')}</button>
         </div>
       )}
       {state.kind === 'failed' && (
@@ -128,43 +134,43 @@ export function LocationCapture({ orgId, plotId, rowVersion, onSaved }: {
           <p className="alert-title">{FAILURE[state.code].title}</p>
           <p>{FAILURE[state.code].help}</p>
           <div className="actions">
-            {state.code !== 'UNSUPPORTED' && <button type="button" onClick={request}>Intentar de nuevo</button>}
-            <button type="button" className="secondary" onClick={cancel}>Cerrar</button>
+            {state.code !== 'UNSUPPORTED' && <button type="button" onClick={request}>{t('Intentar de nuevo')}</button>}
+            <button type="button" className="secondary" onClick={cancel}>{t('Cerrar')}</button>
           </div>
         </div>
       )}
       {(state.kind === 'review' || state.kind === 'saving' || state.kind === 'save-error') && (
         <div className="card capture-review">
-          <p className="alert-title">Revisa la muestra antes de guardarla</p>
+          <p className="alert-title">{t('Revisa la muestra antes de guardarla')}</p>
           {sampleView(state.sample)}
           {state.kind === 'save-error' && (
             <>
               <ErrorPanel error={state.error} />
               {state.error.status === 409 && state.error.body.code === 'VERSION_CONFLICT' && (
-                <p className="muted">La muestra se conserva. Recarga la parcela y vuelve a guardarla.</p>
+                <p className="muted">{t('La muestra se conserva. Recarga la parcela y vuelve a guardarla.')}</p>
               )}
               {(state.error.status === 0 || state.error.status >= 500) && (
-                <p className="muted">No pudimos confirmar si se guardó. «Guardar» de nuevo no duplica la ubicación: el servidor reconoce este envío.</p>
+                <p className="muted">{t('No pudimos confirmar si se guardó. «Guardar» de nuevo no duplica la ubicación: el servidor reconoce este envío.')}</p>
               )}
             </>
           )}
           <div className="actions">
             {state.kind === 'save-error' && state.error.status === 409 && state.error.body.code === 'VERSION_CONFLICT' ? (
-              <button type="button" onClick={async () => { await onSaved(); setState({ kind: 'review', sample: state.sample }); }}>Recargar parcela</button>
+              <button type="button" onClick={async () => { await onSaved(); setState({ kind: 'review', sample: state.sample }); }}>{t('Recargar parcela')}</button>
             ) : (
               <button type="button" onClick={() => save(state.sample)} disabled={state.kind === 'saving'} aria-busy={state.kind === 'saving'}>
-                {state.kind === 'saving' ? 'Guardando…' : 'Guardar como nueva versión'}
+                {state.kind === 'saving' ? t('Guardando…') : t('Guardar como nueva versión')}
               </button>
             )}
-            <button type="button" className="secondary" onClick={cancel} disabled={state.kind === 'saving'}>Descartar</button>
+            <button type="button" className="secondary" onClick={cancel} disabled={state.kind === 'saving'}>{t('Descartar')}</button>
           </div>
         </div>
       )}
       {state.kind === 'saved' && (
         <div className="alert valid" role="status">
-          <p className="alert-title">Ubicación guardada como versión {state.versionNumber}.</p>
-          <p>Recibida por el servidor el {new Date(state.receivedAt).toLocaleString('es-EC')}.</p>
-          <button type="button" className="secondary" onClick={() => setState({ kind: 'idle' })}>Capturar otra ubicación</button>
+          <p className="alert-title">{t('Ubicación guardada como versión {n}.', { n: state.versionNumber })}</p>
+          <p>{t('Recibida por el servidor el {fecha}.', { fecha: dt(state.receivedAt) })}</p>
+          <button type="button" className="secondary" onClick={() => setState({ kind: 'idle' })}>{t('Capturar otra ubicación')}</button>
         </div>
       )}
     </div>

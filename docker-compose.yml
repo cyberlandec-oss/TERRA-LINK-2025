@@ -99,6 +99,8 @@ services:
       # demostrar el recorrido contra un receptor local, y la API lo DECLARA en su respuesta cuando está así.
       WEBHOOK_ALLOW_LOCAL: ${WEBHOOK_ALLOW_LOCAL:-false}
       SATELLITE_LIVE_CALLS: ${SATELLITE_LIVE_CALLS:-disabled}
+      # A-01: proveedor local de ENSAYO (datos sintéticos rotulados). Apagado por omisión; solo se enciende para la demostración.
+      SATELLITE_FIXTURE_ENABLED: ${SATELLITE_FIXTURE_ENABLED:-false}
       # Acceso federado OIDC (P1-015 / D-54). Deshabilitado por omisión; con `SSO_ENABLED=true` en .env y el perfil
       # `sso` (Keycloak local de ensayo) el acceso con contraseña sigue disponible. El emisor es el que ve el
       # navegador (localhost); la API descubre al proveedor por el nombre de servicio dentro de Docker.
@@ -155,6 +157,8 @@ services:
       STORAGE_SWEEP_MS: ${STORAGE_SWEEP_MS:-600000}
       # El worker ejecuta los trabajos satelitales: aquí importa igual o más que en la API.
       SATELLITE_LIVE_CALLS: ${SATELLITE_LIVE_CALLS:-disabled}
+      # A-01: proveedor local de ENSAYO (datos sintéticos rotulados). Apagado por omisión; solo se enciende para la demostración.
+      SATELLITE_FIXTURE_ENABLED: ${SATELLITE_FIXTURE_ENABLED:-false}
     depends_on:
       migrate: { condition: service_completed_successfully }
     # Se puede escalar (`--scale worker=2`): el reclamo usa FOR UPDATE SKIP LOCKED.

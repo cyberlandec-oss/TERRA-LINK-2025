@@ -11,6 +11,8 @@ import type { TenantContext } from '../authz/authorization.service';
 import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { AuditService } from '../audit/audit.service';
 import { OBJECT_STORE, type ObjectStore } from '../storage/object-store';
+import { PlotsService } from '../plots/plots';
+import { ProducersService } from '../producers/producers';
 import { MOTOR, MOTOR_VERSION, textoDePdf } from './pdf-text';
 import { EXPLICACION_BASE, sugerir, type Base } from './reglas';
 
@@ -67,6 +69,8 @@ export class ExtractionService {
     @Inject(OBJECT_STORE) private readonly store: ObjectStore,
     private readonly authz: AuthorizationService,
     private readonly audit: AuditService,
+    private readonly plots: PlotsService,
+    private readonly producers: ProducersService,
   ) {}
 
   private tiene(ctx: TenantContext, p: string) { return ctx.permissions.includes(p as never); }
@@ -79,10 +83,10 @@ export class ExtractionService {
     const v = await sql<{
       id: string; version_number: number; file_name: string; mime_type: string; size_bytes: number; sha256: string;
       object_key: string; document_id: string; title: string; document_type: string; classification: string;
-      current_version_id: string | null; scan: string | null;
+      current_version_id: string | null; scan: string | null; owner_type: string; owner_id: string;
     }>`
       SELECT v.id, v.version_number, v.file_name, v.mime_type, v.size_bytes, v.sha256, v.object_key,
-             d.id AS document_id, d.title, d.document_type, t.classification, d.current_version_id,
+             d.id AS document_id, d.title, d.document_type, t.classification, d.current_version_id, d.owner_type, d.owner_id,
              (SELECT s.result FROM document_version_scans s WHERE s.version_id = v.id ORDER BY s.scanned_at DESC LIMIT 1) AS scan
       FROM document_versions v
       JOIN documents d ON d.id = v.document_id AND d.organization_id = v.organization_id
@@ -91,6 +95,11 @@ export class ExtractionService {
       .execute(this.db);
     const row = v.rows[0];
     if (!row) throw notFound('La versión del documento no existe o no está disponible para ti.');
+    // El alcance lo pone el TITULAR del documento (parcela o productor), igual que en DocumentsService: `document:read` no
+    // significa «todos los documentos de la organización». Fuera de alcance = 404; conocer el identificador no basta.
+    if (row.owner_type === 'producer') await this.producers.load(this.db, ctx, row.owner_id, 'read');
+    else if (row.owner_type === 'plot') await this.plots.load(this.db, ctx, row.owner_id, 'read');
+    else throw notFound('La versión del documento no existe o no está disponible para ti.');
     if (row.classification === 'PERSONAL_DATA' && !this.tiene(ctx, 'producer:read_identity')) {
       throw forbidden('CONTENT_RESTRICTED', 'Este documento contiene datos personales; tu rol no permite ver su contenido ni extraerlo.');
     }
@@ -101,13 +110,14 @@ export class ExtractionService {
 
   async extraer(user: AuthUser, orgId: string, documentId: string, versionId: string, dto: ExtraerDto, requestId?: string) {
     const ctx = await this.authz.require(user, orgId, 'document:extract', { mutation: true });
+    // El alcance se comprueba ANTES de la repetición idempotente: ni siquiera un reintento revela un documento ajeno.
+    const v = await this.version(ctx, orgId, documentId, versionId);
     const previa = await this.db.selectFrom('document_extractions').select(['id', 'version_id'])
       .where('organization_id', '=', orgId).where('operation_id', '=', dto.operation_id).executeTakeFirst();
     if (previa) {
       if (previa.version_id !== versionId) throw conflict('OPERATION_ID_REUSED', 'Ese identificador de operación ya se usó con otro contenido.');
       return this.ver(user, orgId, documentId, versionId);
     }
-    const v = await this.version(ctx, orgId, documentId, versionId);
 
     // Se respetan los controles que ya existen: sin análisis antivirus limpio, no se abre el archivo.
     if (v.scan !== 'CLEAN') {

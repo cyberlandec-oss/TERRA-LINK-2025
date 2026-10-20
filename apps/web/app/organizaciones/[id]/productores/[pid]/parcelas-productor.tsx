@@ -13,8 +13,8 @@ import { GEOMETRY_STATUS, type Plot } from '../../../../../lib/plots';
 export function ProducerPlots({ orgId, producerId, producerActive }: { orgId: string; producerId: string; producerActive: boolean }) {
   const ws = useWorkspace();
   const router = useRouter();
-  const canRead = ws.can('plot:read') || ws.can('plot:read_assigned');
-  const canCreate = (ws.can('plot:create') || ws.can('plot:create_assigned')) && producerActive && ws.activeOrg?.status === 'ACTIVE';
+  const canRead = ws.can('plot:read') || ws.can('plot:read_assigned') || ws.can('plot:read_own');
+  const canCreate = (ws.can('plot:create') || ws.can('plot:create_assigned') || ws.can('plot:create_own')) && producerActive && ws.activeOrg?.status === 'ACTIVE';
   const [plots, setPlots] = useState<Plot[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [form, setForm] = useState({ plot_code: '', crop: 'Cacao', name: '', variety: '' });

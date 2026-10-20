@@ -84,9 +84,9 @@ export function outcomeFromStatus(status: number): ProviderOutcome | null {
   return null;
 }
 
-export type FixtureScenario = 'RESULT_COVERED' | 'RESULT_PARTIAL' | 'NO_COVERAGE' | 'TIMEOUT' | 'RATE_LIMITED' | 'PROVIDER_ERROR' | 'EGRESS_BLOCKED';
+export type FixtureScenario = 'RESULT_COVERED' | 'RESULT_FINDINGS' | 'RESULT_NO_FINDINGS' | 'RESULT_PARTIAL' | 'NO_COVERAGE' | 'TIMEOUT' | 'RATE_LIMITED' | 'PROVIDER_ERROR' | 'EGRESS_BLOCKED';
 
-export const FIXTURE_SCENARIOS: readonly FixtureScenario[] = ['RESULT_COVERED', 'RESULT_PARTIAL', 'NO_COVERAGE', 'TIMEOUT', 'RATE_LIMITED', 'PROVIDER_ERROR', 'EGRESS_BLOCKED'];
+export const FIXTURE_SCENARIOS: readonly FixtureScenario[] = ['RESULT_COVERED', 'RESULT_FINDINGS', 'RESULT_NO_FINDINGS', 'RESULT_PARTIAL', 'NO_COVERAGE', 'TIMEOUT', 'RATE_LIMITED', 'PROVIDER_ERROR', 'EGRESS_BLOCKED'];
 
 const FIXTURE_LIMITATION =
   'FIXTURE SINTÉTICA: no es análisis satelital real. No procede de ningún proveedor, no observa la parcela y no acredita ausencia ni presencia de deforestación.';
@@ -124,7 +124,12 @@ export class FixtureSatelliteProvider implements SatelliteProviderPort {
             coverageNote: partial ? 'Cobertura parcial declarada por la fixture: el resultado no abarca toda la geometría.' : 'Cobertura completa declarada por la fixture (sintética).',
             confidence: null,
             limitations: FIXTURE_LIMITATION,
-            indicators: { fixture: true, scenario, geometry_type: req.geometryType, operation: req.operation },
+            indicators: {
+              fixture: true, ensayo: true, scenario, geometry_type: req.geometryType, operation: req.operation,
+              // ENSAYO: hallazgos SINTÉTICOS controlados para probar cómo se muestran y se explican. No observan la parcela.
+              ...(scenario === 'RESULT_FINDINGS' ? { findings: { count: 3, kind: 'ALERTAS_SINTETICAS', note: 'Tres alertas inventadas por la fixture para ensayar su presentación. No corresponden a ninguna observación.' } } : {}),
+              ...(scenario === 'RESULT_NO_FINDINGS' ? { findings: { count: 0, kind: 'ALERTAS_SINTETICAS', note: 'La fixture no devuelve alertas. Sin hallazgos NO es lo mismo que sin deforestación ni acredita conformidad.' } } : {}),
+            },
             raw: Buffer.from(JSON.stringify({ fixture: true, scenario, geometry_hash: req.geometryHash }), 'utf8'),
           },
         };

@@ -197,7 +197,7 @@ export class GeoProfileService {
   private async readCtx(user: AuthUser, orgId: string) {
     const ctx = await this.authz.tenantContext(user, orgId);
     if (!ctx) throw notFound();
-    if (!this.plots.has(ctx, 'plot:read') && !this.plots.has(ctx, 'plot:read_assigned')) throw forbidden();
+    if (!this.plots.has(ctx, 'plot:read') && !this.plots.has(ctx, 'plot:read_assigned') && !this.plots.has(ctx, 'plot:read_own')) throw forbidden();
     return ctx;
   }
 

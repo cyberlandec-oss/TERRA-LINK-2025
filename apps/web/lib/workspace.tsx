@@ -60,11 +60,15 @@ function navFor(ws: Workspace, orgId: string | null, t: (es: string) => string):
     if (ws.can('organization:read')) inicio.push({ href: `${base}/onboarding`, label: t('Puesta en marcha'), match: (p) => p.startsWith(`${base}/onboarding`) });
     groups.push({ title: t('Inicio'), items: inicio });
     const origen: NavItem[] = [];
-    if (ws.can('producer:read') || ws.can('producer:read_assigned')) {
+    if (ws.can('producer:read') || ws.can('producer:read_assigned') || ws.can('producer:read_own')) {
       origen.push({ href: `${base}/productores`, label: t('Productores'), match: (p) => p.startsWith(`${base}/productores`) && !p.endsWith('/coincidencias') });
     }
-    if (ws.can('plot:read') || ws.can('plot:read_assigned')) {
+    if (ws.can('plot:read') || ws.can('plot:read_assigned') || ws.can('plot:read_own')) {
       origen.push({ href: `${base}/parcelas`, label: t('Parcelas'), match: (p) => p.startsWith(`${base}/parcelas`) });
+    }
+    // A-01: captura guiada de la ubicación de la parcela desde la web, para quien puede modificar parcelas en su alcance.
+    if ((ws.can('plot:update') || ws.can('plot:update_assigned') || ws.can('plot:update_own')) && ws.can('plot:read_geometry')) {
+      origen.push({ href: `${base}/captura`, label: t('Captura de campo'), match: (p) => p.startsWith(`${base}/captura`) });
     }
     if (ws.can('producer:review_duplicates')) {
       origen.push({ href: `${base}/productores/coincidencias`, label: t('Posibles duplicados'), match: (p) => p.endsWith('/coincidencias') });

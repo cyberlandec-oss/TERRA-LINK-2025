@@ -176,6 +176,8 @@ export interface ProducersTable {
   parish: string | null;
   status: ProducerStatus;
   assigned_membership_id: string | null;
+  /** A-01: membresía de la persona que ES este productor (alcance propio). Distinto de la asignación del técnico. */
+  self_membership_id: string | null;
   row_version: Generated<string>;
   created_at: Timestamp;
   created_by: string;

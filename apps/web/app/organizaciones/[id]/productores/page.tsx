@@ -45,7 +45,7 @@ export default function ProducersPage() {
   // Filtros aplicados en la URL: se conservan al volver desde la ficha (P0-027).
   const [urlFilters, setUrlFilters, ready] = useUrlFilters({ q: '', status: '' });
   const [error, setError] = useState<ApiError | null>(null);
-  const canList = ws.can('producer:read') || ws.can('producer:read_assigned');
+  const canList = ws.can('producer:read') || ws.can('producer:read_assigned') || ws.can('producer:read_own');
 
   const load = useCallback(async (append = false, from: string | null = null, override?: { q: string; status: string }) => {
     if (!orgId || !canList) return;
