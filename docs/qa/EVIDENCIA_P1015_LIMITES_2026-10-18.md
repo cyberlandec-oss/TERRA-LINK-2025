@@ -1,5 +1,7 @@
 # Evidencia — P1-015 «Límites y consumo» (2026-10-18)
 
+> **Parcialmente superada el 2026-10-20**: «coste» y «SSO» pasaron a estar demostrados en local con D-54 adoptada (ver `EVIDENCIA_P1015_COSTE_SSO_IDIOMAS_2026-10-20.md`). Lo escrito abajo es el estado de entonces, conservado.
+
 **Validación**: `npm run validate` **APROBADA** sobre `2197b9e` — **891** pruebas, **72** E2E, 0 fallos
 (`validation-results/2026-10-18T23-42-51-172Z`). **Despliegue**: `/version` → `2197b9e`, esquema **`0054`**.
 **Respaldo** hecho y **verificado por restauración aislada** (§10).

@@ -4,7 +4,7 @@ Entrega funcional agrupada. **P1-015 permanece PARCIAL** y la cobertura de requi
 
 | | |
 | --- | --- |
-| Candidato funcional **validado y desplegado** | **`4f7e635`** |
+| Candidato funcional **validado y desplegado** | **`4f7e635`** (el commit documental `9ff1cc5` y los posteriores no cambian código funcional ni repiten la validación) |
 | Validación | `validation-results/2026-10-20T02-56-21-428Z` — **APROBADA**: typecheck, lint, build, OpenAPI, pruebas unitarias+integración (**88 suites, 953 pruebas**), E2E (**78**, incluidos 6 nuevos) |
 | Despliegue | `/version` → `commit=4f7e635`, esquema `0056_p1015_coste_plataforma_sso` (56 migraciones) |
 | Respaldo | `_respaldos/2026-10-20-p1015-migracion-0056/` (ver §6) |
@@ -33,12 +33,24 @@ sustituyen la demostración con el proveedor real**, y por eso se distinguen aba
 | «**ADR por componente**» | **CUMPLIDO**: 0007, 0008, 0009, ahora con estado y comportamiento implementado |
 | «**español conservado**» | **CUMPLIDO**, comprobado en E2E y vitest |
 | «**límites** … comprobados» | **CUMPLIDO** (10 límites; superar uno se rechaza con explicación, en español y en inglés) |
-| «**coste** … comprobado» | **Demostrado en local** con **tarifas sintéticas identificadas**: configuración, período, vigencia, ausencia de tarifa, consulta y reproducción. **Pendiente**: una tarifa **acordada** (negocio) y consumo/coste en operación real |
-| «**SSO** comprobado» | **Demostrado en local con Keycloak real** como proveedor de ensayo (§4). **Pendiente**: la conexión con el proveedor de identidad de un cliente real |
+| «**coste** … comprobado» | **Demostrado en local** con **tarifas sintéticas identificadas** (D-54 adoptada): configuración, período, vigencia, ausencia de tarifa, consulta y reproducción. El texto original **no exige una tarifa acordada** |
+| «**SSO** comprobado» | **Demostrado en local con Keycloak real** como proveedor de ensayo (§4). El texto original **no exige un proveedor de un cliente**; conectar uno quedó fuera de esta entrega |
 | Dependencia «**TECH-001 y piloto**» | **PILOTO: NO EXISTE.** Esta entrega no lo sustituye |
 
-**Condición exacta que impide cerrar P1-015**: no existe el **piloto** (dependencia declarada), ni una **tarifa acordada**, ni
-el **proveedor de identidad de un cliente**. Completar estas capacidades no cierra la historia por sí solo.
+**Qué queda de P1-015, con su referencia exacta.** Texto original (`03bb2f6:docs/18_BACKLOG.md:157`): dependencia «**TECH-001 y
+piloto**»; aceptación «**ADR por componente, español conservado y límites/coste/SSO comprobados**». RF-46 (`docs/03:62`):
+«**Español primero** y **decisiones de coste**». Ninguno nombra una tarifa acordada ni un proveedor de identidad de cliente
+(S2 cita SSO solo entre las capacidades del «Nivel 4 — Enterprise»).
+
+| Elemento | Qué es | Estado |
+| --- | --- | --- |
+| Capacidad técnica | coste estimado, SSO OIDC+PKCE, inglés, rechazo por límites | **Demostrada** (§3–§5) |
+| **Condición original** | dependencia «**piloto**» = P0-031 («recorrido con dataset/usuarios de piloto, Android real, discrepancias, restore, capacitación; hallazgos y gates pendientes explícitos») | **NO EXISTE** (P0-031 no iniciada). Es el **único** elemento original pendiente |
+| Configuración comercial de un cliente | tarifa acordada, IdP del cliente | **No es criterio original.** Se registrará como *gate pendiente explícito* del piloto si el cliente la requiere (P0-031 pide «gates pendientes explícitos»); no es compuerta de P1-015 |
+
+**P1-015 permanece PARCIAL** mientras falte su dependencia original «piloto». Si esa dependencia puede darse por satisfecha
+con evidencia local (regla de `docs/18`: «dependencia satisfecha por evidencia o contrato/mock explícito») es una **decisión del
+propietario del producto que no se ha tomado**; este documento no la toma ni la presupone.
 
 ## 3. Coste estimado de la plataforma (decisión 2)
 
@@ -114,11 +126,27 @@ la copia, **21/21 estimaciones reproducidas desde la copia restaurada**, descifr
 (12+14 campos, 0 fallos, sin imprimir valores) y objetos con la misma huella (1090 archivos). **0056 no añade claves**
 (cliente OIDC público). Restauración eliminada al terminar; **no se tocó ningún volumen anterior**.
 
-## 7. Datos de ensayo que quedan en la base de desarrollo
+## 7. Datos de ensayo que quedan en la base de desarrollo (identificados, sintéticos, append-only)
 
-7 organizaciones «ENSAYO P1-015 (sintético) …» (una por ejecución del guion, incluidas las que fallaron por el guion), con
-14 tarifas **sintéticas** rotuladas y 21 estimaciones. Son append-only: no se borran. No son DEMO ni tarifas reales. Las
-cuentas DEMO no se modificaron.
+Siete organizaciones «ENSAYO P1-015 (sintético) …», **una por ejecución del guion** (la primera, de la corrida que falló
+por el defecto de `iss`; las demás, de las repeticiones del guion). Cada una tiene **2 tarifas sintéticas** y **3
+estimaciones**. Son **datos de ensayo, no actividad de clientes reales**; no son cuentas DEMO. Las tablas son append-only y
+**no se intenta eliminarlas**; quien las consulte debe leerlas como ensayo (el nombre y la etiqueta «Tarifa SINTÉTICA …» lo
+dicen).
+
+| Identificador de la organización | Nombre | Creada (UTC) | Tarifas (sintéticas) | Estimaciones |
+| --- | --- | --- | --- | --- |
+| `10495c0c-e9ae-4077-8d3d-b27ad3883247` | ENSAYO P1-015 (sintético) 6ad00c | 2026-10-20 02:09 | 2 (2) | 3 |
+| `3951f34b-2418-4bb9-8b44-0554c2d09ebc` | ENSAYO P1-015 (sintético) acf32b | 2026-10-20 03:28 | 2 (2) | 3 |
+| `659ef3e6-93fa-4036-966d-27c9f967c549` | ENSAYO P1-015 (sintético) 1dfaec | 2026-10-20 03:30 | 2 (2) | 3 |
+| `70012b64-eade-4d2d-8deb-e1fbad97c73a` | ENSAYO P1-015 (sintético) 2ab928 | 2026-10-20 03:31 | 2 (2) | 3 |
+| `6fcf93e5-b041-4a76-9fee-e00be3e02290` | ENSAYO P1-015 (sintético) 8165c9 | 2026-10-20 03:32 | 2 (2) | 3 |
+| `9d7d20a2-f24b-485b-b435-b2fd4b0eb8cb` | ENSAYO P1-015 (sintético) 1140a4 | 2026-10-20 03:33 | 2 (2) | 3 |
+| `d8f2a5ad-87ff-429e-8e54-038be7673934` | ENSAYO P1-015 (sintético) 3b07cb | 2026-10-20 03:34 | 2 (2) | 3 |
+
+Total: 14 tarifas sintéticas y 21 estimaciones, las mismas que contiene el respaldo 0056. Los usuarios sintéticos de
+Keycloak eran efímeros (su base se descartó con el contenedor) y las cuentas locales de ensayo usaron contraseñas
+generadas en memoria que no se conservaron.
 
 ## 8. Repetición parcial del guion
 

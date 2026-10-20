@@ -210,8 +210,7 @@ cambian. Sigue pendiente D-07.5/D-07.6 y la revisión regulatoria. Contenido y o
 > lengua, **español como fuente** (ADR-0007 opción B). **(4) Límites** — se mantiene el **rechazo** al superarlos, con
 > explicación y **sin sobrecoste automático**.
 > **Implementado y demostrado** sobre `4f7e635` (ver `docs/qa/EVIDENCIA_P1015_COSTE_SSO_IDIOMAS_2026-10-20.md`).
-> **P1-015 sigue PARCIAL**: falta el **piloto** (dependencia declarada), una **tarifa acordada** y el **proveedor de
-> identidad de un cliente real**. Lo que sigue es el texto de la propuesta del 2026-10-18/20, conservado como histórico.
+> **P1-015 sigue PARCIAL**: falta únicamente el elemento original que no existe: la dependencia «**piloto**» (P0-031, no iniciada). Una tarifa acordada y el proveedor de identidad de un cliente **no son criterios originales de P1-015** (ni RF-46 ni la fila de P1-015 los nombran): son configuración comercial de un cliente y, si el piloto la requiere, **gates explícitos de P0-031**; no se añaden como compuertas de P1-015. Los tres puntos de su aceptación («ADR por componente, español conservado y límites/coste/SSO comprobados») están demostrados en local. Si la dependencia «piloto» puede satisfacerse con evidencia local (`docs/18`, regla de dependencias) lo decide el propietario del producto; **no está decidido**. Lo que sigue es el texto de la propuesta del 2026-10-18/20, conservado como histórico.
 
 **Qué piden los criterios**. **RF-46** (`docs/03:62`, tabla de **evolución**, columna **Restricción**):
 «**Español primero** y **decisiones de coste**». **P1-015** (`docs/18:216`, **aceptación mínima**): «**ADR por

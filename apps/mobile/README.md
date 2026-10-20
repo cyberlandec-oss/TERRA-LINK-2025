@@ -95,6 +95,60 @@ expo-sqlite.
 
 Este ensayo es el gate «Android real»; no implica producción ni conformidad EUDR.
 
+### Reparto de pasos del ensayo físico (quién hace qué)
+
+**Estado de partida comprobado el 2026-10-20** (sobre la API desplegada `4f7e635`): `npm run check --prefix apps/mobile -- --api`
+→ typecheck **OK**, núcleo **OK**, recorrido contra la API **OK**, bundle Android **OK**, `expo-doctor` **FALLA** (20/21: seis
+paquetes de Expo SDK 57 con parches más nuevos disponibles; no es del contrato). **No se recompila el APK ni se actualizan
+dependencias** para este ensayo: el APK `APTO-ensayo-fisico-9996a9b4` (SHA-256 `9996a9b4…6ab2`, commit `0ba960a`) corresponde a un
+código móvil que no ha cambiado. Registro: `validation-results/2026-10-20T03-50-55-065Z-movil/`. Teléfono conectado a `adb` hoy: **ninguno**.
+
+**Qué hace la persona con el teléfono**
+
+| # | Paso | Resultado esperado | Evidencia que aporta |
+| --- | --- | --- | --- |
+| P1 | Activar «Opciones de desarrollador» y «Depuración USB»; conectar por cable y aceptar la huella del equipo | `adb devices` lista el teléfono como `device` (no `unauthorized`) | Modelo y versión de Android |
+| P2 | Instalar el APK con el comando de abajo e iniciar la app | La app abre en español, sin avisos de almacenamiento | Captura de la pantalla de inicio |
+| P3 | «Diagnóstico» → «Ejecutar autoprueba de seguridad» | **9/9 «Correcto»** y «Base local cifrada (SQLCipher)» | Captura |
+| P4 | Iniciar sesión (servidor `http://localhost:4000`; cuenta `tecnico1.cooperativa`, contraseña de tu `CREDENCIALES.csv` local, no la copies en informes) y «Descargar datos asignados» | 5 parcelas asignadas | Captura de la lista |
+| P5 | Captura con **ubicación real** (conceder el permiso) y otra **denegándolo**; una **foto real** | Con permiso se guarda; sin permiso se puede continuar sin ubicación | Capturas sin datos personales |
+| P6 | Modo avión → guardar un borrador → forzar el cierre → **reiniciar el teléfono** → abrir | Borrador, cola y foto siguen, con los mismos identificadores | Captura de «Pendientes» |
+| P7 | Con red: «Sincronizar ahora» | «Sincronizado»; foto «análisis pendiente» y luego «disponible» | Captura |
+| P8 | Interrumpir la red a mitad de una sincronización y reintentar | Sin duplicados | Captura de «Pendientes» |
+| P9 | Conflicto: tras avisarme, esperar a que yo edite la geometría de la parcela en la web; sincronizar y «Reenviar sobre la versión actual» | Conflicto visible; se conserva el original y se acepta la versión nueva | Captura del conflicto y de la resolución |
+| P10 | Cambiar de cuenta (`tecnico2.cooperativa`) y volver | La otra cuenta no ve lo de la primera; aviso por pendientes | Captura |
+| P11 | Almacenamiento casi lleno: llenar con un archivo grande y reintentar una foto | Mensaje en español «No hay espacio libre…», sin error técnico, cola intacta | Captura |
+| P12 | Esperar el vencimiento de la sesión (1 h) | Captura bloqueada; lo guardado sigue visible | Captura |
+| P13 | Informe con modelo, versión de Android, SHA del APK, fecha y resultado por paso | — | `docs/qa/ENSAYO_ANDROID_P0-023.md` (sin datos personales) |
+
+Comandos de la persona (desde la raíz del repositorio, en el equipo con el teléfono conectado):
+
+```
+adb devices
+certutil -hashfile apps\mobile\dist-apk\APTO-ensayo-fisico-9996a9b4.apk SHA256     # debe ser 9996a9b419508fdbd3b225a08aae39333b705ef125a68b527507c0efd6f46ab2
+adb install -r apps\mobile\dist-apk\APTO-ensayo-fisico-9996a9b4.apk
+adb reverse tcp:4000 tcp:4000
+adb reverse --list                                                                    # debe mostrar tcp:4000
+adb shell am start -a android.intent.action.VIEW -d "terralinkcampo://autoprueba" ec.agtech.terralink.campo
+```
+
+**Conectividad**: el APK solo admite HTTP sin TLS hacia `localhost`; por eso se usa `adb reverse` y el servidor `http://localhost:4000`
+(no la IP de la red). Comprobación rápida desde el teléfono: abrir en su navegador `http://localhost:4000/health/live` (con el
+`reverse` activo debe responder). `adb` está en `%LOCALAPPDATA%\Android\Sdk\platform-tools`.
+
+**Qué verifica el equipo (yo), antes, durante y después**
+
+| Cuándo | Verificación desde el equipo |
+| --- | --- |
+| Antes | API desplegada (`/version`), DEMO sembrado con `tecnico1/2.cooperativa`, hash del APK, `adb devices` con el teléfono autorizado, espacio libre en disco |
+| P9 | Yo edito la geometría de la parcela en la web para provocar el conflicto, cuando la persona lo indique |
+| P7–P8 | En el servidor: **una sola** muestra de ubicación y **una sola** foto por operación (sin duplicados tras el corte), con los identificadores del teléfono |
+| P5/P7 | El documento de la foto en la web **no conserva EXIF/XMP/IPTC** (D-41) |
+| P10 | Que ninguna operación de `tecnico1` aparezca bajo `tecnico2` ni en otra organización |
+| Después | Auditoría de las operaciones, dispositivo registrado y revocación probada (la sincronización se detiene), y contraste del informe con lo observado en el servidor |
+
+Si el teléfono todavía no está disponible, el ensayo **queda pendiente**: P0-023 y P0-024 no se cierran con el emulador.
+
 ## Diseño
 
 - `src/core`: puertos, esquema SQLite (fotos como BLOB dentro de la base), almacén por cuenta+organización, sesión,
