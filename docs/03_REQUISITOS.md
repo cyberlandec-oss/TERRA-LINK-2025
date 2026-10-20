@@ -61,6 +61,26 @@ P0-027–031 son historias añadidas para cubrir capacidades ya mencionadas en l
 | RF-45 | Analytics/supplier score comercial | P1-014 | Métrica independiente de riesgo legal |
 | RF-46 | Extensión multilenguaje/SSO/consumo | P1-015 | Español primero y decisiones de coste |
 
+### Ampliación autorizada A-01 (2026-10-20): captura de campo desde la web con alcance propio
+
+Instrucción del propietario del producto, **posterior a la documentación original**. **No altera ningún criterio original**
+(P0-006 a P0-010, P0-023/P0-024 y P0-028 conservan su aceptación; P0-023/P0-024 mantienen **pendientes sus criterios con
+teléfono físico**). Se registra como requisito propio y **no entra en el conteo 42/60 ni 30/44** hasta que el propietario
+decida incorporarlo a los porcentajes.
+
+| ID | Requisito | Historia | Restricción |
+| --- | --- | --- | --- |
+| RF-48 | Captura web de la ubicación de la **parcela agrícola** (no del lote comercial) por quien corresponde: el **productor** sobre sus parcelas vinculadas, el **técnico** sobre los productores asignados, el administrador y el gerente según sus permisos; auditor y comprador solo consultan si están autorizados | A-01 | Alcance por **recurso**, no solo por rol; coordenada escrita ≠ medición GPS; geometría validada en backend; corrección con motivo y versión; una evaluación anterior no se reutiliza en silencio |
+
+Aceptación de A-01 (propuesta de ingeniería, no de las fuentes originales): (1) seleccionar un productor y una parcela
+autorizados; (2) coordenadas manuales, ubicación del navegador, punto o polígono en un croquis, o GeoJSON con el mecanismo
+existente; (3) revisión de geometría y datos antes de confirmar, con el **orden de las coordenadas** a la vista; (4) evidencias
+del recorrido adjuntables a la parcela; (5) guardar, consultar y corregir con motivo conservando versiones y auditoría;
+(6) un productor **no** modifica una parcela ajena y un técnico respeta sus asignaciones, también en documentos, búsquedas,
+recuentos y descargas; (7) registrar coordenadas **no** concede aprobar evidencias ni concluir riesgo; (8) evaluación satelital
+**de ensayo** desde la web con hallazgos, sin hallazgos, cobertura insuficiente, error y reintento, siempre identificada como
+ENSAYO y sin efecto sobre conclusiones, `READY` ni despacho; (9) español e inglés, teclado y 390 px.
+
 ### RF-47: por qué es evolución y no MVP (2026-10-16)
 
 RF-47 se numeró después de RF-46 pero se coloca junto a RF-33 porque es **la mitad de modelo de datos de la misma

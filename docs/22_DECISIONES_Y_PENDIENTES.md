@@ -418,3 +418,13 @@ Ninguna de las dos es criterio de P1-003 ni de P1-004, y **ninguna se usa como c
 - Los detalles adicionales de arquitectura son propuestas para revisión del equipo.
 
 No marcar «aceptado por el usuario» si la decisión fue inferida en esta entrega. Tras resolver, enlazar ADR, responsable, fecha, commit/artefacto y pruebas afectadas.
+
+### A-01 — Prioridad: web antes que teléfono (2026-10-20) — **AUTORIZADA**
+
+El propietario del producto autoriza **posponer el ensayo físico Android** (P0-023/P0-024 conservan sus criterios con teléfono
+pendientes y la evidencia técnica ya obtenida) y **continuar el desarrollo desde la plataforma web**. Las coordenadas se registran
+en la **parcela agrícola**; los lotes comerciales conservan su vínculo con esas parcelas. Alcance por rol: productor — sus
+parcelas vinculadas y sus evidencias; técnico de campo — parcelas de productores asignados; administrador de organización —
+las de su organización; gerente — según sus permisos de gestión; auditor y comprador — consulta autorizada, sin captura. **La
+captura web y el análisis satelital son funciones distintas**: la demostración usa un proveedor local de ensayo cuyos resultados
+**no acreditan deforestación ni conformidad real**. Detalle y aceptación: `docs/03` (RF-48) y `docs/18` (A-01).
