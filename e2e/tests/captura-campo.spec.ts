@@ -138,6 +138,32 @@ test('inglés, teclado y 390 px: mismas pantallas, sin desborde y con la revisi�
   await ctx.close();
 });
 
+test('fotografía (D-41): la web sube una copia SIN metadatos como «Fotografía de campo»; el original no se toca', async ({ browser }) => {
+  // JPEG sintético con EXIF (orientación y puntero a GPS), XMP y comentario, como lo entrega una cámara.
+  const ascii = (x: string) => Array.from(x, (c) => c.charCodeAt(0));
+  const seg = (m: number, d: number[]) => [0xff, m, (d.length + 2) >> 8, (d.length + 2) & 0xff, ...d];
+  const tiff = [0x49, 0x49, 42, 0, 8, 0, 0, 0, 2, 0, 0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0x25, 0x88, 4, 0, 1, 0, 0, 0, 0x30, 0, 0, 0, 0, 0, 0, 0];
+  const jpeg = Buffer.from([0xff, 0xd8, ...seg(0xe1, [...ascii('Exif  '), ...tiff]), ...seg(0xe1, ascii('http://ns.adobe.com/xap/1.0/ <xmpmeta>TelefonoSintetico</xmpmeta>')),
+    ...seg(0xfe, ascii('comentario')), ...seg(0xdb, [0, 1, 2, 3]), 0xff, 0xda, 0, 4, 1, 0, ...ascii(`datos-${randomBytes(6).toString('hex')}`), 0xff, 0xd9]);
+  const { ctx, page } = await abrir(browser, `/organizaciones/${orgId}/captura`);
+  await page.getByLabel('Parcela', { exact: true }).selectOption({ index: 1 });
+  await expect(page.getByText(/«Fotografía de campo»: se prepara una copia sin metadatos/)).toBeVisible();
+  await page.getByLabel('Archivo (PDF, JPEG o PNG)').setInputFiles({ name: 'IMG_0001.JPG', mimeType: 'image/jpeg', buffer: jpeg });
+  await page.getByLabel('Título', { exact: true }).fill('Foto del lindero (sintética)');
+  await page.getByRole('button', { name: 'Subir evidencia' }).click();
+  await expect(page.getByText(/Evidencia recibida/)).toBeVisible();
+  await expect(page.getByText('Se quitaron los metadatos de la copia subida; tu archivo original no se modificó.')).toBeVisible();
+  // El servidor guardó la COPIA: otro SHA-256 que el original, con nombre neutro y tipo «Fotografía de campo».
+  const { createHash } = await import('crypto');
+  const docs = await ok(`/api/v1/organizations/${orgId}/documents?owner_type=plot&owner_id=${plotPropia}`, { token: prodTok });
+  const lista = (Array.isArray(docs) ? docs : docs.items ?? docs.data) as Array<{ document_type: string; versions: Array<{ sha256: string; file_name: string | null }> }>;
+  const foto = lista.find((d) => d.document_type === 'FIELD_PHOTO');
+  expect(foto).toBeTruthy();
+  expect(foto!.versions[0].sha256).not.toBe(createHash('sha256').update(jpeg).digest('hex'));
+  expect(JSON.stringify(foto)).not.toContain('IMG_0001');
+  await ctx.close();
+});
+
 test('captura no es decidir: el productor no puede evaluar, encargar satélite ni ver riesgo', async () => {
   const base = `/api/v1/organizations/${orgId}`;
   expect((await api(`${base}/plots/${plotPropia}/gis-evaluations`, { method: 'POST', token: prodTok, body: { operation_id: crypto.randomUUID() } })).status).toBe(403);

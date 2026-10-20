@@ -20,6 +20,7 @@ import { MALWARE_SCANNER, type MalwareScanner } from '../storage/scanner';
 import { StorageSweeper } from '../storage/sweeper';
 import { ProducersService } from '../producers/producers';
 import { PlotsService } from '../plots/plots';
+import { hasImageMetadata } from '../sync/image-metadata';
 
 // P0-018 Documentos. Cuatro cosas distintas (docs/12, UX_UI §17):
 //   archivo RECIBIDO (versión registrada) · DISPONIBLE tras comprobaciones técnicas (último escaneo CLEAN) ·
@@ -239,6 +240,18 @@ export class DocumentsService {
       throw new AppError(422, 'FILE_REJECTED_MALWARE', `El análisis antimalware rechazó el archivo (${scan.signature}). No se almacenó.`, [{ field: 'file', reason: 'INFECTED' }]);
     }
     const { real, name } = this.checkFile(file);
+    // D-41 / A-01: las fotos de campo y las evidencias del recorrido web comparten el contrato de la fotografía de campo. Una imagen
+    // con metadatos embebidos (EXIF con coordenadas o dispositivo, XMP, IPTC, comentarios) eludiría la clasificación de acceso, así
+    // que se rechaza aquí igual que en la sincronización móvil; el cliente entrega una copia procesada y el original no se toca.
+    // Las imágenes del recorrido se suben como FIELD_PHOTO (dato personal); FIELD_EVIDENCE es para PDF (actas, croquis).
+    const typeCode = type?.code ?? (documentId ? (await this.db.selectFrom('documents').select('document_type').where('id', '=', documentId).executeTakeFirst())?.document_type : undefined);
+    if (real !== 'application/pdf' && (typeCode === 'FIELD_PHOTO' || typeCode === 'FIELD_EVIDENCE')) {
+      if (typeCode === 'FIELD_EVIDENCE') throw new AppError(422, 'EVIDENCE_IMAGE_USE_FIELD_PHOTO', 'Las evidencias del recorrido son PDF. Las fotografías se suben como «Fotografía de campo».', [{ field: 'document_type', reason: 'USE_FIELD_PHOTO' }]);
+      if (hasImageMetadata(new Uint8Array(bytes), real)) {
+        await this.audit.record(this.db, { organizationId: orgId, actorUserId: user.id, action: 'document.upload_rejected', entityType: 'document', entityId: documentId ?? null, requestId, result: 'DENIED', after: { reason: 'PHOTO_METADATA_PRESENT', sha256: hash } });
+        throw new AppError(422, 'PHOTO_METADATA_PRESENT', 'La foto conserva metadatos embebidos (EXIF/XMP) o no tiene una estructura válida: sube la copia sin metadatos (la web la prepara sola; tu archivo original no se modifica).', [{ field: 'file', reason: 'METADATA_PRESENT' }]);
+      }
+    }
 
     // Reintento idempotente (con autorización ya revalidada arriba).
     const prior = await this.db.selectFrom('document_versions').select(['document_id', 'sha256']).where('organization_id', '=', orgId).where('operation_id', '=', operationId).executeTakeFirst();

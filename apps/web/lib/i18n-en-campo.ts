@@ -500,4 +500,9 @@ export const EN_CAMPO: Record<string, string> = {
   'Tu rol no permite registrar coordenadas exactas.': 'Your role does not allow recording exact coordinates.',
   'Otra persona modificó esta parcela. Recarga para ver la versión actual.': 'Someone else modified this plot. Reload to see the current version.',
   'La geometría no tiene una estructura válida para almacenarse.': 'The geometry does not have a valid structure to be stored.',
+  "La imagen no se pudo preparar (estructura no válida). No se subió nada.": "The image could not be prepared (invalid structure). Nothing was uploaded.",
+  "Se quitaron los metadatos de la copia subida; tu archivo original no se modificó.": "The metadata was removed from the uploaded copy; your original file was not modified.",
+  "La foto no traía metadatos que quitar.": "The photo had no metadata to remove.",
+  "Las fotos se suben como «Fotografía de campo»: se prepara una copia sin metadatos (EXIF/XMP: ubicación, dispositivo, hora). Tu archivo original no se modifica y sigue en tu equipo; la copia tiene otro SHA-256. La ubicación de la parcela se registra aparte, con su procedencia.": "Photos are uploaded as “Field photograph”: a copy without metadata is prepared (EXIF/XMP: location, device, time). Your original file is not modified and stays on your device; the copy has a different SHA-256. The plot location is recorded separately, with its provenance.",
+  "El contenido de las fotografías de campo es dato personal: solo lo ven los roles con acceso a la identidad del productor.": "The content of field photographs is personal data: only roles with access to the producer’s identity can see it.",
 };

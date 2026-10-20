@@ -1,6 +1,7 @@
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { PASSWORD, describeDb, setupHarness } from './helpers';
 import { pdfConTexto } from './pdf-sintetico';
+import { hasImageMetadata, stripImageMetadata } from '../src/sync/image-metadata';
 
 // A-01 (ampliación autorizada 2026-10-20, RF-48) — Captura de campo desde la web con alcance PROPIO.
 //
@@ -276,6 +277,41 @@ describeDb('A-01 captura de campo con alcance propio (PostgreSQL real)', () => {
       .send({ expected_version: evMala, survey_method: 'MANUAL_COORDINATES', geometry: lazo }).expect(201);
     expect(guardada.body.version.technically_valid).toBe(false);
     expect(await cuenta()).toBe(n0 + 1);
+  });
+
+  it('FOTOGRAFÍAS (D-41): el recorrido web reutiliza el contrato de la foto de campo; el EXIF no elude la clasificación', async () => {
+    // JPEG sintético con EXIF (orientación + puntero GPS), XMP y comentario, como lo entrega una cámara.
+    const ascii = (t: string) => Array.from(t, (c) => c.charCodeAt(0));
+    const seg = (m: number, d: number[]) => [0xff, m, (d.length + 2) >> 8, (d.length + 2) & 0xff, ...d];
+    const tiff = [0x49, 0x49, 42, 0, 8, 0, 0, 0, 2, 0, 0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0x25, 0x88, 4, 0, 1, 0, 0, 0, 0x30, 0, 0, 0, 0, 0, 0, 0];
+    const original = Buffer.from([0xff, 0xd8, ...seg(0xe1, [...ascii('Exif  '), ...tiff]), ...seg(0xe1, ascii('http://ns.adobe.com/xap/1.0/ <xmpmeta>TelefonoSintetico</xmpmeta>')),
+      ...seg(0xfe, ascii('comentario')), ...seg(0xdb, [0, 1, 2, 3]), 0xff, 0xda, 0, 4, 1, 0, ...ascii(`datos-${randomUUID()}`), 0xff, 0xd9]);
+    expect(hasImageMetadata(new Uint8Array(original), 'image/jpeg')).toBe(true);
+    const copia = Buffer.from(stripImageMetadata(new Uint8Array(original), 'image/jpeg'));
+    expect(hasImageMetadata(new Uint8Array(copia), 'image/jpeg')).toBe(false);
+    const foto = (actor: string, tipo: string, bytes: Buffer, plot = plot1) => http().post(`${api()}/documents`).set(as(actor)).field('operation_id', randomUUID()).field('document_type', tipo)
+      .field('owner_type', 'plot').field('owner_id', plot).field('title', 'Foto de campo (sintética)').attach('file', bytes, { filename: 'fotografia.jpg', contentType: 'image/jpeg' });
+    // El original con metadatos NO se acepta, ni como foto de campo ni como evidencia; la API directa no lo elude.
+    const r1 = await foto(PROD1, 'FIELD_PHOTO', original);
+    expect(r1.status).toBe(422); expect(r1.body.error.code).toBe('PHOTO_METADATA_PRESENT');
+    const r2 = await foto(PROD1, 'FIELD_EVIDENCE', copia);
+    expect(r2.status).toBe(422); expect(r2.body.error.code).toBe('EVIDENCE_IMAGE_USE_FIELD_PHOTO');
+    // La copia procesada se acepta como Fotografía de campo (dato personal) sobre la parcela PROPIA, y no sobre la ajena.
+    const ok = await foto(PROD1, 'FIELD_PHOTO', copia).expect(201);
+    expect((await foto(PROD1, 'FIELD_PHOTO', copia, plot2)).status).toBe(404);
+    const verId = ok.body.document.versions[0].id; const docId = ok.body.document.id;
+    expect(ok.body.document.versions[0].sha256).toBe(createHash('sha256').update(copia).digest('hex'));    // el SHA-256 es el de la copia, no el del original
+    expect(createHash('sha256').update(copia).digest('hex')).not.toBe(createHash('sha256').update(original).digest('hex'));
+    // Archivo servido: el contenido es dato personal. El productor no lo descarga (sin acceso a identidad); la administración sí, y sin metadatos.
+    const prod = await http().get(`${api()}/documents/${docId}/versions/${verId}/content`).set(as(PROD1));
+    expect(prod.status).toBe(403);
+    const adm = await http().get(`${api()}/documents/${docId}/versions/${verId}/content`).set(as(ADMIN)).buffer(true).parse((res, cb) => { const c: Buffer[] = []; res.on('data', (d: Buffer) => c.push(d)); res.on('end', () => cb(null, Buffer.concat(c))); });
+    expect(adm.status).toBe(200);
+    expect(hasImageMetadata(new Uint8Array(adm.body as Buffer), 'image/jpeg')).toBe(false);   // archivo servido: sin metadatos
+    expect(Buffer.compare(adm.body as Buffer, copia)).toBe(0);                                  // exactamente los bytes almacenados
+    // El rechazo queda auditado (sin el contenido).
+    const aud = await h.db.selectFrom('audit_logs').select(['action', 'result']).where('action', '=', 'document.upload_rejected').execute();
+    expect(aud.length).toBeGreaterThanOrEqual(1);
   });
 
   it('AUDITOR Y COMPRADOR: consulta autorizada, sin captura; el comprador no ve nada por su rol', async () => {
