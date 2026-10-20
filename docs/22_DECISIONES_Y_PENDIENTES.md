@@ -427,4 +427,4 @@ en la **parcela agrícola**; los lotes comerciales conservan su vínculo con esa
 parcelas vinculadas y sus evidencias; técnico de campo — parcelas de productores asignados; administrador de organización —
 las de su organización; gerente — según sus permisos de gestión; auditor y comprador — consulta autorizada, sin captura. **La
 captura web y el análisis satelital son funciones distintas**: la demostración usa un proveedor local de ensayo cuyos resultados
-**no acreditan deforestación ni conformidad real**. Detalle y aceptación: `docs/03` (RF-48) y `docs/18` (A-01).
+**no acreditan deforestación ni conformidad real**. Detalle y aceptación: `docs/03` (RF-48) y `docs/18` (A-01). **Estado 2026-10-20: implementada y demostrada localmente (DONE_LOCAL, `0caed16`).** Ensayo físico Android: sigue pospuesto.

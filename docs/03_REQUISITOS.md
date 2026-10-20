@@ -81,6 +81,8 @@ recuentos y descargas; (7) registrar coordenadas **no** concede aprobar evidenci
 **de ensayo** desde la web con hallazgos, sin hallazgos, cobertura insuficiente, error y reintento, siempre identificada como
 ENSAYO y sin efecto sobre conclusiones, `READY` ni despacho; (9) español e inglés, teclado y 390 px.
 
+**Estado de A-01 (2026-10-20): DONE_LOCAL** sobre `0caed16`. Los nueve puntos de aceptación se demostraron localmente (API, navegador en español e inglés, 390 px y teclado, escenarios satelitales de ENSAYO); ver `docs/qa/EVIDENCIA_A01_CAPTURA_CAMPO_2026-10-20.md`. Siguen separados: demostración local, aceptación con teléfono físico (pospuesta) y con proveedor satelital real (deshabilitado).
+
 ### RF-47: por qué es evolución y no MVP (2026-10-16)
 
 RF-47 se numeró después de RF-46 pero se coloca junto a RF-33 porque es **la mitad de modelo de datos de la misma

@@ -218,3 +218,5 @@ Clasificación de la identidad del productor: documento, teléfono y dirección 
 | identity_links | 0056 | Identidad federada vinculada a una cuenta por emisor+sujeto (índice único mientras esté activa); el correo declarado es informativo |
 | sso_flows | 0056 | Inicio de sesión federado en curso (hash del state, nonce, verificador PKCE, destino); de un solo uso y con vencimiento |
 | revoked_sessions | 0056 | Sesiones cerradas por `jti`; el resto de sesiones de la cuenta no se tocan |
+| producers.self_membership_id | 0057 | A-01. Membresía (rol Productor) vinculada de forma explícita a este productor; única por membresía (`producers_self_membership_uq`) y de la misma organización (disparador `producers_self_membership_same_org`). Nulo = sin vínculo = sin acceso propio. Cada cambio queda en `producer_versions` (`LINK_SELF`) y en la auditoría |
+| document_types.FIELD_EVIDENCE | 0057 | A-01. Tipo de documento «Evidencia de recorrido de campo» (fotos, croquis, actas) adjuntable a la parcela; subir no aprueba |

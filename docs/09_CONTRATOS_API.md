@@ -103,3 +103,22 @@ Operaciones largas responden 202 y job autorizado: `PENDING/RUNNING/SUCCEEDED/FA
 ## Coste de la plataforma, acceso federado y cierre de sesión (P1-015 / D-54, implementado 2026-10-20)
 
 `GET|POST /organizations/{orgId}/platform-cost/tariffs` (tarifas declaradas, versionadas; USD por organización y mes; motivo obligatorio desde la versión 2; idempotente por `operation_id`), `GET|POST /organizations/{orgId}/platform-cost/estimates` (período explícito en meses calendario, fin excluido, máx. 24; `SIN_TARIFA` / `PARCIAL` / `ESTIMADO`; un mes sin tarifa no vale cero), `GET …/estimates/{id}` y `GET …/estimates/{id}/verify` (reproducción). `GET /organizations/{orgId}/limits?lang=es|en` (textos de los límites en el idioma pedido; el español es la reserva). `GET /auth/sso/config` (público: solo si hay acceso federado), `POST /auth/sso/start` (destino de retorno en lista cerrada; `mode` LOGIN|LINK), `POST /auth/sso/callback` (`code`, `state` e `iss` —RFC 9207—; emite el mismo testigo que el acceso local), `GET /auth/sso/links`, `DELETE /auth/sso/links/{id}`, `POST /auth/logout` (revoca la sesión; devuelve la URL de cierre del proveedor si se entró por él). Errores estables: `SSO_NOT_ENABLED`, `SSO_REDIRECT_NOT_ALLOWED`, `SSO_FLOW_INVALID`, `SSO_PROTOCOL_ERROR`, `SSO_IDENTITY_NOT_LINKED`, `SSO_ACCOUNT_DISABLED`, `SSO_IDENTITY_ALREADY_LINKED`, `SSO_USER_ALREADY_LINKED`, `SSO_TOO_MANY_FLOWS`, `PERIODO_NO_ALINEADO`, `PERIODO_INVALIDO`, `PERIODO_DEMASIADO_LARGO`, `VIGENCIA_INVALIDA`.
+
+## Captura de campo con alcance propio (A-01, implementado 2026-10-20)
+
+- `POST /organizations/{orgId}/plots/{plotId}/geometry-preview` — revisión del servidor **sin guardar** (estructura, topología, superficie
+  geodésica, orden `[longitud, latitud]`, procedencia `MANUAL_COORDINATES` con `is_gps_measurement=false`). Requiere captura sobre esa parcela
+  (403 para auditor/comprador, 404 fuera de alcance).
+- `POST …/plots/{plotId}/geometry-versions` — admite `survey_method = MANUAL_COORDINATES` y un `reason` opcional (obligatorio en la web al
+  corregir) que se propaga al historial y a la auditoría. Estructura inválida → 4xx sin versión. Una geometría **técnicamente inválida**
+  (p. ej. autointersección) se registra como versión marcada `technically_valid=false` (diseño original de P0-006); su dictamen es de la
+  evaluación GIS. Campos de estado enviados por el cliente (`technically_valid`, `status`) se rechazan con 400.
+- `PUT …/producers/{producerId}/self-membership` — vincula (`membership_id`) o desvincula (`null`) con `expected_version` y `reason`.
+  Errores: `MEMBERSHIP_NOT_FOUND`, `MEMBERSHIP_WITHOUT_PRODUCER_ROLE`, `MEMBERSHIP_ALREADY_LINKED`, `VERSION_CONFLICT`.
+- Las lecturas de productor incluyen `is_own`, `can_link_self` y (solo con `producer:link_self`) `self_membership_id`.
+- Satélite de ENSAYO: con `SATELLITE_FIXTURE_ENABLED=true` la ficha de `GET …/plots/{plotId}/satellite` declara `ensayo_mode=true` y
+  `fixture_scenarios`; `POST …/satellite/analyses` acepta `fixture_scenario` (`RESULT_FINDINGS`, `RESULT_NO_FINDINGS`, `RESULT_PARTIAL`,
+  `NO_COVERAGE`, `TIMEOUT`, `RATE_LIMITED`, `PROVIDER_ERROR`, `EGRESS_BLOCKED`, `RESULT_COVERED`). Los trabajos llevan `is_ensayo`/`provider_kind`;
+  el resultado es siempre sintético, `conclusion = NOT_EVALUATED`, ligado a `plot_version_id` y `geometry_hash`; no crea evidencia ni evaluación de riesgo.
+  Apagado: `ensayo_mode=false`, sin escenarios y `can_request=false`.
+- OpenAPI regenerado: 262 rutas (`apps/api/openapi.json`).

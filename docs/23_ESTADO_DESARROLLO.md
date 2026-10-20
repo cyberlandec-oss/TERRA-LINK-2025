@@ -632,6 +632,8 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 
 ## Próxima acción (2026-10-20)
 
+**A-01 cerrada DONE_LOCAL (2026-10-20, tarde)**: captura de campo web con alcance propio, validada y desplegada en `0caed16` (esquema 0057), demostrada por roles, con respaldo 0057 verificado. Es una ampliación distinta del catálogo original: no cambia 42/60, 30/44 ni 25/32. Ver `sesiones/REANUDAR_2026-10-20.md` §0 y `qa/EVIDENCIA_A01_CAPTURA_CAMPO_2026-10-20.md`. El resto de esta sección sigue vigente: las prioridades 1–8 (decisiones regulatorias, adopción del catálogo, proveedor satelital real, **teléfono Android**) no cambian.
+
 **Actualización posterior (2026-10-20, tarde)**: D-54 y el catálogo `1.0.0` (opción B) **adoptados** para desarrollo y demostración local; funcional validado y desplegado en **`4f7e635`**, esquema **0056**, respaldo `_respaldos/2026-10-20-p1015-migracion-0056` verificado. **P1-015 sigue PARCIAL** por un único elemento original: la dependencia «piloto» (tarifa acordada e IdP de cliente no son criterios originales). Cobertura **sin cambio (42/60 = 70 %)**. La fila 8 de la tabla siguiente queda reducida a esas tres condiciones.
 
 **Estado verificado.** P1-008 cerrada sobre `fb46321` (913 pruebas, demostración 26/26, cobertura **42/60 = 70 %**, MVP 30/44 = 68,2 %), sin cambios. Cambio de herramientas `5845414` (limpieza del bucket de pruebas con guarda exacta): `validate` **APROBADA** (`validation-results/2026-10-19T23-31-51-458Z`); sin despliegue de producción. Commits posteriores son documentales y no repiten la validación funcional. Contrato móvil contra la API actual: OK (`docs/20`).

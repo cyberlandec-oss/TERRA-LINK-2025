@@ -96,6 +96,22 @@ El guion usa una organización propia «ENSAYO P1-015 (sintético)» y usuarios 
 ejecución deja una organización de ensayo más (las tarifas y estimaciones son append-only). El servidor E2E fija
 `SSO_ENABLED=false` para ser hermético. Respaldo de 0056: `_respaldos/2026-10-20-p1015-migracion-0056/`.
 
+## Demostración de A-01 (captura de campo web, 2026-10-20)
+
+```
+node e2e/review/a01-demostracion.mjs --fase base        # alcance, documentos, geometría inválida, recorridos web, recarga
+# satélite de ENSAYO: añadir SATELLITE_FIXTURE_ENABLED=true a .env y recrear api y worker (sin reconstruir):
+#   APP_COMMIT=<sha> docker compose --profile app up -d --no-build --wait api worker
+node e2e/review/a01-demostracion.mjs --fase satelite
+# al terminar: quitar la variable de .env, recrear api y worker, comprobar printenv en AMBOS y:
+node e2e/review/a01-demostracion.mjs --fase cierre      # la API debe declarar ensayo_mode=false
+```
+
+El estado entre fases (correos y contraseñas de ensayo) vive en la carpeta temporal, fuera del repositorio; las capturas, en
+`validation-results/a01-demostracion-2026-10-20/`. `SATELLITE_FIXTURE_ENABLED` está en el compose para api y worker con valor por omisión `false`;
+cambiar solo el archivo no basta: hay que recrear los contenedores y comprobarlo dentro de ellos. Respaldo de 0057:
+`_respaldos/2026-10-20-a01-migracion-0057/` (restauración aislada verificada).
+
 ## GitHub Actions (inactivo; registro histórico)
 
 El workflow se movió a `infra/ci/github-actions-ci.yml` y **no se ejecuta**: en esta etapa no es requisito y no hay que resolver facturación. Corridas anteriores, solo como historia (ninguna llegó a ejecutar pasos por la facturación de la cuenta):

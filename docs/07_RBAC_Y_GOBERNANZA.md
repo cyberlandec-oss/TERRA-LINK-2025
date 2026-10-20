@@ -198,3 +198,25 @@ Doc 06: «geometrías exactas exigen clasificación de acceso». Clasificación 
 **Borradores de polígono (P0-008)**: crear, leer, añadir vértice, deshacer, cancelar y confirmar exigen `plot:update` o `plot:update_assigned` sobre la parcela **y** `plot:read_geometry`; sin este último → 403 y no se devuelve ningún vértice. Cada escritura revalida membresía activa, asignación del productor (reasignado → 404) y organización activa (suspendida → 403 `ORGANIZATION_SUSPENDED`). El detalle de vértices de una versión confirmada solo incluye longitud/latitud con `plot:read_geometry` (AUDITOR recibe precisión y fechas, no coordenadas).
 
 **Coste de la plataforma y acceso federado (P1-015 / D-54, 2026-10-20)**: `platform_cost:manage` (declarar tarifas y registrar estimaciones) y `platform_cost:read` (consultarlas y verificarlas) solo para ORG_ADMIN; son distintos de `cost:*` (presupuesto de preparación, P1-010). El **acceso federado no concede permisos**: una identidad OIDC se vincula a una cuenta por emisor+sujeto, y organización, rol y permisos siguen saliendo de las membresías. Vincular y desvincular una identidad es un acto **de la propia persona** sobre su cuenta (sin permiso de organización); no hay vinculación administrativa por correo. Cerrar sesión revoca solo esa sesión (`jti`).
+
+## Ampliación autorizada A-01 (2026-10-20): alcance PROPIO y captura web
+
+Catálogo ampliado con permisos de alcance propio: `producer:read_own`, `plot:read_own`, `plot:create_own`, `plot:update_own` y
+`producer:link_self` (vincular o desvincular al productor con su cuenta). **El rol Productor no concede nada por sí solo**: hace
+falta el vínculo explícito `producers.self_membership_id`, que se registra con motivo, queda versionado
+(`producer_versions.change_type = 'LINK_SELF'`) y auditado (`producer.link_self`, evento `ProducerSelfLinked`). Una membresía
+se vincula a un solo productor de su misma organización (índice único y disparador en 0057).
+
+| Rol | Recorrido nuevo que puede completar | Límite |
+| --- | --- | --- |
+| Productor (vinculado) | Elegir su parcela, escribir coordenadas o dibujar un croquis, revisar, guardar, corregir con motivo, adjuntar evidencias, consultar sus versiones | Solo sus parcelas, documentos y evidencias; 404 ante lo ajeno; no evalúa GIS, no encarga satélite, no ve riesgo ni miembros, no aprueba evidencias |
+| Técnico de campo | Lo mismo sobre parcelas de productores **asignados** (la extracción documental ahora también respeta la asignación) | Sin parcelas de productores no asignados; sin evaluación GIS fuera de sus permisos previos |
+| Administrador de organización | Todo el recorrido sobre la organización; vincula productor–usuario; encarga satélite (ensayo) | Su organización |
+| Gerente | Según sus permisos de gestión (lee la organización completa; vincula productor–usuario) | Sin captura propia adicional |
+| Auditor | Consulta autorizada | Sin captura: la revisión previa y la confirmación devuelven 403 |
+| Comprador | Nada de parcelas por su rol | 403 |
+
+`PlotsService.load/inScope` es la puerta central del alcance (documentos, evidencias, historial, GIS, satélite, legal e importaciones
+la usan); `plot:read_geometry` del Productor es la lectura de la geometría de **sus** parcelas, no acceso general. Pruebas: permisos
+exactos en `catalog.spec.ts`, alcance por recurso en `a01-alcance-propio.int-spec.ts`. Hueco cerrado: `document:read` bastaba para leer
+la extracción de cualquier documento por su identificador; ahora se verifica el alcance del titular **antes** del reintento idempotente.
