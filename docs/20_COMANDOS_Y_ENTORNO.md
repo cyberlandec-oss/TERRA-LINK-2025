@@ -73,6 +73,11 @@ npm run validate -- --docker     # añade build de imágenes
 - **Resultados:** `validation-results/<fecha>/resumen.md`, `resumen.json` (commit, archivos sin commit, pasos, códigos, tiempos) y un `.log` por paso. Si falla E2E, se copian trazas y reporte de Playwright a esa carpeta. Código de salida: 0 aprobada, 1 fallida, 2 configuración insegura o incompleta.
 - **Comprobado el 2026-10-10:** corrida aprobada (6 pasos); configuración insegura → código 2 sin ejecutar nada; Redis inaccesible → integración FALLA y código 1.
 
+- **Limitación conocida (2026-10-19):** `jest --runInBand` serializa las suites de UNA corrida, pero no impide dos corridas simultáneas: ambas recrearían el esquema de `terra_link_test` y vaciarían el bucket `terra-link-test`. Antes de lanzar `validate`, comprobar que no hay otra (`Get-CimInstance Win32_Process | ? CommandLine -match validate-local`). No se añadió un cerrojo.
+- **Limpieza del bucket de pruebas:** `setupHarness` lo vacía al empezar cada suite, y solo si el bucket es exactamente `terra-link-test` y `TEST_DATABASE_URL` termina en `_test`; si no, aborta antes de borrar. No toca `terra-link-private` ni `terra-link-e2e`.
+- **Registro 2026-10-19:** `2026-10-19T12-34-15` quedó **INTERRUMPIDA** (el sistema detuvo los procesos por memoria; sin `resumen`; no es fallo ni aprobación). Candidato `5845414` (solo `apps/api/test/helpers.ts`): `validate` **APROBADA** en `2026-10-19T23-31-51-458Z` (typecheck, lint, build, OpenAPI, pruebas 1383,8 s, E2E 184,9 s). Cambio de herramientas: sin despliegue de producción. El cierre funcional de P1-008 sigue sobre `fb46321`.
+- **Contrato móvil (2026-10-20):** `npm run check --prefix apps/mobile -- --api` → typecheck, núcleo y **recorrido contra la API actual OK**, bundle Android OK; `expo-doctor` 20/21 por **desfase de versiones de parche** de seis paquetes Expo SDK 57 (no es del contrato). No se actualizaron para no alterar el código del APK registrado. Registro: `validation-results/2026-10-20T00-01-34-059Z-movil/`.
+
 ## GitHub Actions (inactivo; registro histórico)
 
 El workflow se movió a `infra/ci/github-actions-ci.yml` y **no se ejecuta**: en esta etapa no es requisito y no hay que resolver facturación. Corridas anteriores, solo como historia (ninguna llegó a ejecutar pasos por la facturación de la cuenta):
@@ -308,7 +313,7 @@ debe estar activo fuera de desarrollo o pruebas.** El corredor de trabajos vive 
 Comandos ejecutados el 2026-10-10 en este equipo (Windows, Node 24): `npm ci`, `npm run typecheck`, `npm test`
 (núcleo en Node con `node:sqlite`), `TL_API_SMOKE=1 npm test` (cliente en Node contra la API local), `npx expo export
 --platform android --output-dir <tmp>` (bundle Hermes) y `npx expo-doctor` (21/21). No hay Android SDK, JDK ni adb: no se
-ejecutó emulador, build nativo ni dispositivo. Ensayo en Android real con Expo Go: `apps/mobile/README.md`.
+ejecutó emulador, build nativo ni dispositivo. Ensayos en Android: `apps/mobile/README.md`. **Expo Go** solo sirve para una prueba limitada, sin cifrado y con fixtures sintéticos; **SQLCipher y el ensayo con ubicación/fotos reales requieren el build nativo** (APK `APTO-ensayo-fisico-9996a9b4`, README §B). Expo Go no comprueba SQLCipher.
 
 ### Comprobaciones del móvil (2026-10-11)
 

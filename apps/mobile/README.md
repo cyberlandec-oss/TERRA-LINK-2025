@@ -65,7 +65,35 @@ expo-sqlite.
   almacenamiento casi lleno (llenar con un archivo grande y reintentar una foto), sincronizar, provocar un conflicto
   (editar la geometría de la parcela en la web antes de sincronizar) y resolverlo con «Reenviar sobre la versión actual».
 - Registrar modelo, versión de Android, build, fecha, resultados y capturas sin datos
-  personales en `docs/qa/ENSAYO_ANDROID_P0-023.md`.
+  personales en `docs/qa/ENSAYO_ANDROID_P0-023.md` (créalo al ejecutar el ensayo; no existe hasta entonces).
+
+### Qué requiere cada entorno (no mezclar)
+
+| Comprobación | Expo Go | Build nativo (APK APTO) | Teléfono físico |
+| --- | --- | --- | --- |
+| Cola, reintento, conflicto, cambio de cuenta (fixtures sintéticos) | Sí | Sí | — |
+| **SQLCipher activo** («Base local cifrada (SQLCipher)») y autoprueba 9/9 | **No** (Expo Go no lo incluye) | Sí (emulador hecho 2026-10-11) | **Pendiente** |
+| Ubicación y fotos **reales**, EXIF eliminado | No | Sí | **Pendiente** |
+| Almacenamiento casi lleno, cierre forzado, reinicio del teléfono | Parcial | Emulador hecho | **Pendiente** |
+
+**Compatibilidad del APK (comprobada el 2026-10-20):** el código de `apps/mobile` es idéntico al del commit `0ba960a`
+(desde entonces solo cambió este README) y el recorrido contra la API actual pasa
+(`validation-results/2026-10-20T00-01-34-059Z-movil/`). No hace falta otra compilación.
+
+### Ensayo en teléfono físico: pasos y evidencia esperada
+
+1. `certutil -hashfile apps\mobile\dist-apk\APTO-ensayo-fisico-9996a9b4.apk SHA256` → `9996a9b419508fdbd3b225a08aae39333b705ef125a68b527507c0efd6f46ab2`. *Evidencia:* hash en el informe.
+2. `adb devices`, `adb install -r <apk>`, `adb reverse tcp:4000 tcp:4000`; servidor `http://localhost:4000`, API local con DEMO sembrado.
+3. «Diagnóstico» → «Ejecutar autoprueba de seguridad». *Esperado:* 9/9 «Correcto» y «Base local cifrada (SQLCipher)». *Evidencia:* captura.
+4. Ubicación real concedida y denegada; foto real. *Esperado:* denegar permite continuar sin ubicación; la web muestra el documento sin EXIF.
+5. Guardar sin red → cierre forzado → reiniciar teléfono. *Esperado:* borrador y cola intactos, mismos identificadores.
+6. Sincronizar con red. *Esperado:* una sola muestra y una foto en el servidor, sin duplicados; reintento tras corte no duplica.
+7. Editar la geometría en la web antes de sincronizar → conflicto visible → «Reenviar sobre la versión actual». *Esperado:* original conservada, nueva aceptada.
+8. Cambio de cuenta (`tecnico2…`): no ve lo de `tecnico1`. Dispositivo revocado: la sincronización se detiene.
+9. Almacenamiento casi lleno: mensaje en español, sin error técnico, cola intacta. Sesión vencida (1 h): captura bloqueada, lo guardado visible.
+10. Informe `docs/qa/ENSAYO_ANDROID_P0-023.md` con modelo, versión de Android, SHA del APK, fecha y resultado por paso. Sin datos personales.
+
+Este ensayo es el gate «Android real»; no implica producción ni conformidad EUDR.
 
 ## Diseño
 

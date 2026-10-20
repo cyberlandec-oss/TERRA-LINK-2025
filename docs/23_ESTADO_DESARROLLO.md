@@ -1,6 +1,6 @@
 # Estado compartido de desarrollo
 
-Última actualización: **2026-10-15**. Repositorio `cyberlandec-oss/TERRA-LINK-2025`, rama de trabajo `feat/tech-001-ci-p0-002` (PR #1 abierto como respaldo y revisión; `main` en `03bb2f6`).
+Última actualización: **2026-10-20** (continuidad; ver «Próxima acción (2026-10-20)»). Repositorio `cyberlandec-oss/TERRA-LINK-2025`, rama de trabajo `feat/tech-001-ci-p0-002` (PR #1 abierto como respaldo y revisión; `main` en `03bb2f6`).
 
 **Seguimiento por historias al 2026-10-16** (cuenta **historias del MVP**, no esfuerzo):
 
@@ -629,7 +629,28 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 - Android/offline, integraciones, despliegue: no iniciados.
 - Logotipo oficial y verificación de licencia de Inter (UX-D01/UX-D02). Evaluación de accesibilidad completa (lector de pantalla, zoom 200 %) no realizada: solo foco por teclado y móvil comprobados.
 
-## Próxima acción (2026-10-15)
+## Próxima acción (2026-10-20)
+
+**Estado verificado.** P1-008 cerrada sobre `fb46321` (913 pruebas, demostración 26/26, cobertura **42/60 = 70 %**, MVP 30/44 = 68,2 %), sin cambios. Cambio de herramientas `5845414` (limpieza del bucket de pruebas con guarda exacta): `validate` **APROBADA** (`validation-results/2026-10-19T23-31-51-458Z`); sin despliegue de producción. Commits posteriores son documentales y no repiten la validación funcional. Contrato móvil contra la API actual: OK (`docs/20`).
+
+**No hay historia con implementación independiente pendiente.** Cada criterio que falta depende de una persona o un tercero:
+
+| Prioridad | Qué aportas | Quién más | Desbloquea (criterio exacto) |
+| --- | --- | --- | --- |
+| 1 | **D-05.B**: qué actor es cada usuario (Art. 2(15)), Art. 2(15a), Anexo III | Responsable regulatorio | `GEOLOCATION_PROFILE` de P0-022 → P0-029/P0-017 (despacho) |
+| 2 | **D-07.5** (perfil jurídico; recomendado: mínimo versionado) y **D-07.6** (conclusión por persona autorizada) | Responsable regulatorio; producto fija los permisos | `LEGAL_PROFILE` y `REGULATORY_CONCLUSION` de P0-022; la categoría LEGALITY de P0-020 |
+| 3 | **Adopción del catálogo 1.0.0** por la organización | Producto | `RISK_CATALOG_APPROVED` (P0-022); severidades visibles |
+| 4 | **P1-005**: contenido, versión y aprobación del perfil legal de Ecuador | Responsable jurídico competente | RF-36; dependencia de P0-022 y P1-006 |
+| 5 | **D-09.B**: autorizar salida de geometrías (D-14), términos, titular de la clave, significado de indicadores (D-07), proveedor `SELECTED` con responsable | Producto/comercial + jurídico | P0-028 («contrato real y coste»); `DEFORESTATION_ANALYSIS` |
+| 6 | **Teléfono Android físico** y ejecutar el ensayo de `apps/mobile/README.md` | Tú | P0-023, P0-024 (gate «Android real») |
+| 7 | **Canal/acuerdo con GUIA** y rol/canal EUDR-IS verificados; acceso ACCEPTANCE | Organización operadora, autoridad | P1-006 (RF-37 «Solo canal/acuerdo comprobados»), P1-007 («recibos auténticos») |
+| 8 | **D-54** (4 decisiones) o decisión explícita de cambiar el criterio, y un piloto | Producto, cliente piloto | P1-015; P0-031 |
+
+Separación: 3 y 8 son decisiones de **producto**; 1, 2, 4 y 5 (parte jurídica) requieren **revisión competente** y su fuente, versión y estado de revisión deben conservarse (`docs/decisiones/D-05-PROPUESTA.md`, `D-07-PROPUESTA.md` §7.2). Un perfil mínimo no acredita suficiencia regulatoria. Se mantienen `UNDETERMINED`, satélite deshabilitado, destinos de ensayo inactivos y las compuertas de READY y despacho.
+
+Inventario de volúmenes Docker (2026-10-20, solo lectura): 19 volúmenes anónimos de PostgreSQL de procedencia no confirmada (probables restauraciones aisladas del 18-oct), sin borrar; pendiente de autorización.
+
+## Próxima acción (2026-10-15) — histórico
 
 **D-05**, ahora partida en dos (`docs/decisiones/D-05-PROPUESTA.md`, **revisión 3**, NO aprobada):
 
