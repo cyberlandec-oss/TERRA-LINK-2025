@@ -48,14 +48,18 @@ describe('catálogo RBAC', () => {
     const auditor = permissionsForRoles(['AUDITOR']);
     expect(auditor).toContain('producer:read');
     expect(auditor).not.toContain('producer:read_identity');
-    expect(permissionsForRoles(['BUYER', 'PRODUCER']).filter((p) => p.startsWith('producer:'))).toEqual([]);
+    expect(permissionsForRoles(['BUYER']).filter((p) => p.startsWith('producer:'))).toEqual([]);
+    // A-01: el productor solo tiene permisos de alcance PROPIO (y solo rige con el vínculo explícito); nada amplio ni asignado.
+    expect(permissionsForRoles(['PRODUCER']).filter((p) => p.startsWith('producer:'))).toEqual(['producer:read_own']);
   });
 
   it('parcela: el técnico solo opera parcelas de productores asignados; comprador y productor sin acceso', () => {
     const tech = permissionsForRoles(['FIELD_TECHNICIAN']);
     expect(tech).toEqual(expect.arrayContaining(['plot:read_assigned', 'plot:create_assigned', 'plot:update_assigned']));
     expect(tech.filter((p) => ['plot:read', 'plot:create', 'plot:update', 'plot:archive'].includes(p))).toEqual([]);
-    expect(permissionsForRoles(['BUYER', 'PRODUCER', 'RECEPTION_OPERATOR']).filter((p) => p.startsWith('plot:'))).toEqual([]);
+    expect(permissionsForRoles(['BUYER', 'RECEPTION_OPERATOR']).filter((p) => p.startsWith('plot:'))).toEqual([]);
+    // A-01: el productor opera solo lo propio; no lee ni evalúa geometrías ajenas ni de la organización.
+    expect(permissionsForRoles(['PRODUCER']).filter((p) => p.startsWith('plot:')).sort()).toEqual(['plot:create_own', 'plot:read_geometry', 'plot:read_own', 'plot:update_own']);
   });
 
   it('geometría exacta: clasificación separada de la lectura de parcela; AUDITOR lee parcelas sin coordenadas', () => {
