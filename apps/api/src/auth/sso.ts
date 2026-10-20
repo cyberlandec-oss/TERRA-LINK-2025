@@ -38,6 +38,8 @@ class StartDto {
 class CallbackDto {
   @ApiProperty() @IsString() @Length(1, 2000) code!: string;
   @ApiProperty() @IsString() @Length(16, 300) state!: string;
+  @ApiProperty({ required: false, description: 'Emisor devuelto en la respuesta de autorización (RFC 9207); obligatorio si el proveedor lo declara' })
+  @IsOptional() @IsString() @MaxLength(2000) iss?: string;
 }
 
 @Injectable()
@@ -140,7 +142,9 @@ export class SsoService {
     const { client } = await this.cliente();
     let claims: { iss: string; sub: string; email?: unknown };
     try {
-      const tokens = await client.callback(flow.redirect_uri, { code: dto.code, state: dto.state },
+      // `iss` (RFC 9207) protege contra la confusión de emisor: si el proveedor lo declara, la librería exige que llegue
+      // y que sea el suyo.
+      const tokens = await client.callback(flow.redirect_uri, { code: dto.code, state: dto.state, ...(dto.iss ? { iss: dto.iss } : {}) },
         { code_verifier: flow.code_verifier, state: dto.state, nonce: flow.nonce });
       claims = tokens.claims() as typeof claims;
     } catch (err) {

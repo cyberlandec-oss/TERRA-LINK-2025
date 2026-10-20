@@ -23,6 +23,7 @@ export default function SsoRetorno() {
     const p = new URLSearchParams(window.location.search);
     const code = p.get('code');
     const state = p.get('state');
+    const iss = p.get('iss'); // RFC 9207: el emisor que devuelve el proveedor; la API lo verifica
     const proveedorError = p.get('error');
     // Se limpia la barra de direcciones: el código no debe quedar en el historial.
     window.history.replaceState(null, '', window.location.pathname);
@@ -30,7 +31,7 @@ export default function SsoRetorno() {
       setEstado({ kind: 'error', code: 'SSO_PROVIDER_ERROR', title: t('El proveedor de acceso no completó el inicio de sesión.'), detail: t('Puedes intentarlo de nuevo o entrar con tu correo y contraseña.') });
       return;
     }
-    api<{ mode: 'LOGIN' | 'LINK'; access_token?: string }>('/api/v1/auth/sso/callback', { method: 'POST', body: { code, state } })
+    api<{ mode: 'LOGIN' | 'LINK'; access_token?: string }>('/api/v1/auth/sso/callback', { method: 'POST', body: { code, state, ...(iss ? { iss } : {}) } })
       .then((r) => {
         if (r.mode === 'LINK') { setEstado({ kind: 'linked' }); return; }
         if (r.access_token) session.set(r.access_token);

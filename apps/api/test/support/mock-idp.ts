@@ -28,7 +28,7 @@ export async function startMockIdp(opts: IdpOpts) {
       return json(200, {
         issuer, authorization_endpoint: `${issuer}/authorize`, token_endpoint: `${issuer}/token`, jwks_uri: `${issuer}/jwks`,
         end_session_endpoint: `${issuer}/logout`, response_types_supported: ['code'], subject_types_supported: ['public'],
-        id_token_signing_alg_values_supported: ['RS256'], code_challenge_methods_supported: ['S256'],
+        id_token_signing_alg_values_supported: ['RS256'], authorization_response_iss_parameter_supported: true, code_challenge_methods_supported: ['S256'],
         token_endpoint_auth_methods_supported: ['none', 'client_secret_basic'], grant_types_supported: ['authorization_code'],
       });
     }
@@ -78,7 +78,7 @@ export async function startMockIdp(opts: IdpOpts) {
       if (p.get('client_id') !== opts.clientId) throw new Error('client_id inesperado');
       const code = randomUUID();
       codes.set(code, { challenge: p.get('code_challenge')!, nonce: p.get('nonce')!, sub: who.sub, email: who.email, redirect: p.get('redirect_uri')!, fault: who });
-      return { code, state: p.get('state')!, redirect_uri: p.get('redirect_uri')!, params: Object.fromEntries(p) };
+      return { code, state: p.get('state')!, iss: issuer, redirect_uri: p.get('redirect_uri')!, params: Object.fromEntries(p) };
     },
     /** Un atacante con el código robado pero sin el verificador: el proveedor lo rechaza en el canje. */
     authorizeWithOtherChallenge(authorizationUrl: string, who: Emision) {

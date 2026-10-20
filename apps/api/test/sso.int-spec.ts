@@ -38,7 +38,7 @@ describeDb('P1-015 SSO OIDC con PKCE (PostgreSQL real, proveedor controlado)', (
   async function flujo(who: Parameters<typeof idp.authorize>[1], opts: { mode?: 'LOGIN' | 'LINK'; actor?: string } = {}) {
     const s = await start({ redirect_uri: REDIRECT, mode: opts.mode ?? 'LOGIN' }, opts.actor).expect(200);
     const a = idp.authorize(s.body.authorization_url, who);
-    return callback({ code: a.code, state: a.state }, opts.actor);
+    return callback({ code: a.code, state: a.state, iss: a.iss }, opts.actor);
   }
 
   beforeAll(async () => {
@@ -140,11 +140,11 @@ describeDb('P1-015 SSO OIDC con PKCE (PostgreSQL real, proveedor controlado)', (
     const s = await start({ redirect_uri: REDIRECT, mode: 'LINK' }, ALICE).expect(200);
     const a = idp.authorize(s.body.authorization_url, { sub: 'sub-robado' });
     // Otra sesión intenta completar el vínculo de Alice.
-    expect((await callback({ code: a.code, state: a.state }, BOB)).status).toBe(403);
+    expect((await callback({ code: a.code, state: a.state, iss: a.iss }, BOB)).status).toBe(403);
     // Sin sesión tampoco.
     const s2 = await start({ redirect_uri: REDIRECT, mode: 'LINK' }, ALICE).expect(200);
     const a2 = idp.authorize(s2.body.authorization_url, { sub: 'sub-robado-2' });
-    expect((await callback({ code: a2.code, state: a2.state })).status).toBe(403);
+    expect((await callback({ code: a2.code, state: a2.state, iss: a2.iss })).status).toBe(403);
   });
 
   it('conflictos: una identidad ya vinculada no se vincula a otra cuenta, ni una cuenta a dos identidades del mismo emisor', async () => {
@@ -183,18 +183,18 @@ describeDb('P1-015 SSO OIDC con PKCE (PostgreSQL real, proveedor controlado)', (
   it('STATE: de un solo uso, y un state desconocido o alterado se rechaza', async () => {
     const s = await start({ redirect_uri: REDIRECT }).expect(200);
     const a = idp.authorize(s.body.authorization_url, { sub: 'sub-alice' });
-    expect((await callback({ code: a.code, state: a.state })).status).toBe(200);
-    const reuso = await callback({ code: a.code, state: a.state });
+    expect((await callback({ code: a.code, state: a.state, iss: a.iss })).status).toBe(200);
+    const reuso = await callback({ code: a.code, state: a.state, iss: a.iss });
     expect(reuso.status).toBe(400);
     expect(reuso.body.error.code).toBe('SSO_FLOW_INVALID');
     const s2 = await start({ redirect_uri: REDIRECT }).expect(200);
     const a2 = idp.authorize(s2.body.authorization_url, { sub: 'sub-alice' });
-    expect((await callback({ code: a2.code, state: `${a2.state}x` })).body.error.code).toBe('SSO_FLOW_INVALID');
+    expect((await callback({ code: a2.code, state: `${a2.state}x`, iss: a2.iss })).body.error.code).toBe('SSO_FLOW_INVALID');
     // Y un flujo vencido tampoco vale.
     const s3 = await start({ redirect_uri: REDIRECT }).expect(200);
     const a3 = idp.authorize(s3.body.authorization_url, { sub: 'sub-alice' });
     await h.db.updateTable('sso_flows').set({ expires_at: new Date(Date.now() - 1000) }).execute();
-    expect((await callback({ code: a3.code, state: a3.state })).body.error.code).toBe('SSO_FLOW_INVALID');
+    expect((await callback({ code: a3.code, state: a3.state, iss: a3.iss })).body.error.code).toBe('SSO_FLOW_INVALID');
   });
 
   it('PROTOCOLO: nonce, emisor, audiencia o caducidad incorrectos se rechazan sin dar acceso', async () => {
@@ -208,10 +208,21 @@ describeDb('P1-015 SSO OIDC con PKCE (PostgreSQL real, proveedor controlado)', (
     }
   });
 
+  it('RFC 9207: el retorno debe traer el emisor correcto; sin él o con otro se rechaza', async () => {
+    const s = await start({ redirect_uri: REDIRECT }).expect(200);
+    const a = idp.authorize(s.body.authorization_url, { sub: 'sub-alice' });
+    const sinIss = await callback({ code: a.code, state: a.state });
+    expect(sinIss.status).toBe(401);
+    expect(sinIss.body.error.code).toBe('SSO_PROTOCOL_ERROR');
+    const s2 = await start({ redirect_uri: REDIRECT }).expect(200);
+    const a2 = idp.authorize(s2.body.authorization_url, { sub: 'sub-alice' });
+    expect((await callback({ code: a2.code, state: a2.state, iss: 'http://otro-emisor.example' })).status).toBe(401);
+  });
+
   it('PKCE: un código robado sin el verificador no se puede canjear', async () => {
     const s = await start({ redirect_uri: REDIRECT }).expect(200);
     const a = idp.authorizeWithOtherChallenge(s.body.authorization_url, { sub: 'sub-alice' });
-    const r = await callback({ code: a.code, state: a.state });
+    const r = await callback({ code: a.code, state: a.state, iss: a.iss });
     expect(r.status).toBe(401);
     expect(r.body.error.code).toBe('SSO_PROTOCOL_ERROR');
     // El canje llegó al proveedor con un verificador y sin secreto de cliente (cliente público).

@@ -13795,6 +13795,10 @@
           },
           "state": {
             "type": "string"
+          },
+          "iss": {
+            "type": "string",
+            "description": "Emisor devuelto en la respuesta de autorización (RFC 9207); obligatorio si el proveedor lo declara"
           }
         },
         "required": [
