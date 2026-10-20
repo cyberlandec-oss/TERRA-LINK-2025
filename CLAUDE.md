@@ -77,6 +77,7 @@ Monorepo npm (`apps/api` NestJS + Kysely, `apps/web` Next.js). Comandos verifica
 - `npm run dev:api` (4000, Swagger `/api/docs`) · `npm run dev:web` (3000)
 - `docker compose --profile app up -d --build --wait` (API y web en contenedores; `rm -sf api web migrate` para detenerlos)
 - Datos DEMO para revisión: `npm run seed:demo -w apps/api` (credenciales en `CREDENCIALES.csv`, ignorado por git) · revisión por rol: `node e2e/review/revision-por-rol.mjs`
+- Acceso federado de ensayo (deshabilitado por defecto): `docker compose --profile sso up -d keycloak` + variables `SSO_*` en `.env` · demostración: `node e2e/review/p1015-demostracion.mjs` (docs/20)
 - Worker del outbox: `npm run worker -w apps/api` (o servicio `worker` del perfil `app`)
 - `npm run test:e2e` (Playwright; requiere `npm run build -w apps/api` e `infra:up`; usa base `terra_link_e2e` y puertos 4100/3100)
 No ejecutes migraciones sobre producción, reinicios destructivos, borrado de volúmenes ni envíos regulatorios como parte de una tarea local.

@@ -1,6 +1,6 @@
 # ADR-0009 — Consumo, límites y coste
 
-- **Estado**: parcialmente adoptado (2026-10-18). **Los límites existen y se publican**; **el coste está abierto**
+- **Estado**: **coste adoptado para desarrollo y demostración local (2026-10-20)**: estimación por organización y período explícito en USD con tarifas declaradas, versionadas y con vigencia (migración 0056, `/platform-cost`), reproducible, sin facturación; al superar un límite se **rechaza** con explicación y sin sobrecoste. **Pendiente**: una tarifa acordada y consumo en operación real. Anterior: parcialmente adoptado (2026-10-18). **Los límites existen y se publican**; **el coste está abierto**
 - **Historia**: P1-015 · **Requisito**: RF-46 (`docs/03:62`) «…/consumo», con la restricción «**decisiones de
   coste**»
 

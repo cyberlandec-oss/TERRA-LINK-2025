@@ -1,6 +1,6 @@
 # ADR-0007 — Extensión multilenguaje, con el español primero
 
-- **Estado**: propuesta (2026-10-18)
+- **Estado**: **adoptado para desarrollo y demostración local (2026-10-20)**: opción **B** (español como fuente) con **inglés** como segunda lengua. Implementado en la interfaz (acceso, navegación, estados, errores, límites, coste, «Mi cuenta») con reserva al español; los textos de los límites los traduce la API (`?lang=`). No son traducciones jurídicas certificadas. Evidencia: `docs/qa/EVIDENCIA_P1015_COSTE_SSO_IDIOMAS_2026-10-20.md`. Texto original: propuesta (2026-10-18)
 - **Historia**: P1-015 · **Requisito**: RF-46 (`docs/03:62`), columna **Restricción**: «**Español primero** y
   decisiones de coste»
 - **Aceptación mínima** (`docs/18:216`): «**ADR por componente**, **español conservado** y límites/coste/SSO

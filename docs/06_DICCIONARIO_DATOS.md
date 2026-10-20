@@ -213,3 +213,8 @@ Clasificación de la identidad del productor: documento, teléfono y dirección 
 | Triggers de cantidad de P0-016 | 0024 | Reemplazados por el ledger (una sola fuente de disponibilidad) |
 | plot_versions.geometry_origin_version_id | 0033 | Versión que COPIA la geometría (superficie declarada actualizada; adopción para desarrollo local 2026-10-12): apunta a la versión capturada de origen (misma parcela, mismo hash, comprobado por trigger). No es una captura nueva. NULL en capturas y en versiones solo declaradas |
 | import_references | 0035, 0036 | Referencia de importación de una fila sin código asignado (no es dato de negocio): única por organización y plantilla (`ENTREGAS_V1`, `LOTES_V1`), exactamente una entidad (entrega o lote), lote y fila de origen, `origin` FILE_REFERENCE o LEGACY_CONTENT_FINGERPRINT (borradores importados antes de 0035). Append-only |
+| platform_tariffs | 0056 | Tarifa declarada de uso de la plataforma: USD por organización y mes, versión, vigencia, sintética/acordada, origen. Append-only; sin tarifas precargadas |
+| platform_cost_estimates | 0056 | Estimación por período explícito: líneas por mes, consumo observado, conceptos sin valorar, `inputs_hash` para reproducirla; total nulo si no hay tarifa. Append-only |
+| identity_links | 0056 | Identidad federada vinculada a una cuenta por emisor+sujeto (índice único mientras esté activa); el correo declarado es informativo |
+| sso_flows | 0056 | Inicio de sesión federado en curso (hash del state, nonce, verificador PKCE, destino); de un solo uso y con vencimiento |
+| revoked_sessions | 0056 | Sesiones cerradas por `jti`; el resto de sesiones de la cuenta no se tocan |

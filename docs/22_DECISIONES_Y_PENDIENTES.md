@@ -189,7 +189,29 @@ organización **declare** su nivel 0–2, lo que añadiría un dato autodeclarad
 observarlos, y **ausencia de datos no se equipara a ausencia de digitalización**. Se mantiene la separación
 entre **madurez operativa**, **capacidades pendientes** del producto y **conclusión jurídica**.
 
-### D-54 — Multilenguaje, acceso federado y unidad de coste (P1-015) — **PROPUESTA (2026-10-18)**
+### D-07 (catálogo 1.0.0) — adopción técnica como ayuda de revisión interna — **ADOPTADA el 2026-10-20 (opción B)**
+
+Decisión del propietario del producto, **solo como configuración técnica**: cada organización puede adoptar el catálogo
+`1.0.0` (ocho reglas, sin cambios) como **ayuda a la revisión interna**, con sus límites y su **cobertura incompleta**
+(cuatro categorías sin reglas: la clasificación sale siempre PARCIAL, con versión, reglas aplicadas, categorías sin
+cobertura y limitaciones a la vista). **No es validación jurídica ni adopción por organizaciones reales**; la adopción de
+**ensayo** ya existente (Cooperativa DEMO) se **conserva sin duplicarla**. **No** se ejecutan reevaluaciones masivas ni se
+cambia ninguna conclusión: `UNDETERMINED`, `RISK_CATALOG_APPROVED` (sigue `NOT_EVALUABLE`), `READY` y el despacho no
+cambian. Sigue pendiente D-07.5/D-07.6 y la revisión regulatoria. Contenido y opciones: `docs/decisiones/D-07-MATRIZ-CATALOGO.md` §5.
+
+### D-54 — Multilenguaje, acceso federado y unidad de coste (P1-015) — **ADOPTADA para desarrollo y demostración local (2026-10-20)**
+
+> **Adoptado el 2026-10-20 por el propietario del producto, para desarrollo y demostración local** (no validado con un
+> cliente ni con una tarifa acordada): **(1) coste** — estimación **por organización y período explícito, en USD**, con
+> tarifas **declaradas, versionadas y con vigencia** (sin tarifas precargadas); es el coste de **usar la plataforma**,
+> distinto del presupuesto de P1-010 y del precio del cacao; sin facturación ni cobro. **(2) SSO** — **Keycloak
+> autoalojado** como proveedor local de ensayo, OIDC Authorization Code + **PKCE**, vínculo por **emisor+sujeto** (nunca
+> por correo), acceso con contraseña conservado, ningún proveedor de cliente real. **(3) Idiomas** — **inglés** como segunda
+> lengua, **español como fuente** (ADR-0007 opción B). **(4) Límites** — se mantiene el **rechazo** al superarlos, con
+> explicación y **sin sobrecoste automático**.
+> **Implementado y demostrado** sobre `4f7e635` (ver `docs/qa/EVIDENCIA_P1015_COSTE_SSO_IDIOMAS_2026-10-20.md`).
+> **P1-015 sigue PARCIAL**: falta el **piloto** (dependencia declarada), una **tarifa acordada** y el **proveedor de
+> identidad de un cliente real**. Lo que sigue es el texto de la propuesta del 2026-10-18/20, conservado como histórico.
 
 **Qué piden los criterios**. **RF-46** (`docs/03:62`, tabla de **evolución**, columna **Restricción**):
 «**Español primero** y **decisiones de coste**». **P1-015** (`docs/18:216`, **aceptación mínima**): «**ADR por
@@ -223,10 +245,10 @@ hay coste que comprobar; sin proveedor de identidad ni usuarios reales, tampoco 
 «Esperar a que un comprador lo pida» es una recomendación comercial; **no satisface** por sí mismo un criterio obligatorio: mientras no
 se cumpla o se decida cambiar el criterio (decisión del propietario del producto, con trazabilidad), P1-015 sigue PARCIAL.
 
-**Nada de esto está adoptado**, y **nada se implementó por adelantado**: no hay i18n instalado «por si acaso»,
+**(Texto de la propuesta, previo a la adopción del 2026-10-20.)** Nada de esto estaba adoptado entonces, y **nada se implementó por adelantado**: no hay i18n instalado «por si acaso»,
 no hay integración OIDC sin proveedor y **no se fijó ninguna tarifa ni ningún límite nuevo**.
 
-#### D-54 — propuesta concreta para decidir (2026-10-20, NO ADOPTADA)
+#### D-54 — propuesta concreta (2026-10-20; ADOPTADA con la selección de arriba: coste por organización, Keycloak, inglés, rechazo)
 
 **Criterios originales (literales, `docs/03:62` y `docs/18:216`)**: «Español primero y decisiones de coste»; aceptación
 mínima «ADR por componente, español conservado y límites/coste/SSO comprobados»; dependencia «TECH-001 y piloto».

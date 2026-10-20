@@ -33,10 +33,10 @@
 
 ## Continuidad
 
-- **[sesiones/REANUDAR_2026-10-19.md](sesiones/REANUDAR_2026-10-19.md): documento VIGENTE para retomar el trabajo**
+- **[sesiones/REANUDAR_2026-10-20.md](sesiones/REANUDAR_2026-10-20.md): documento VIGENTE para retomar el trabajo**
   —arranque del entorno, las dos medidas de avance, estado por historia, trampas conocidas, respaldos, siguiente
   paso y restricciones—.
-  Los `REANUDAR_` anteriores (2026-10-11, 2026-10-14, 2026-10-15 y 2026-10-16) son **históricos** y no deben usarse para
+  Los `REANUDAR_` anteriores (2026-10-11, 2026-10-14, 2026-10-15, 2026-10-16 y 2026-10-19) son **históricos** y no deben usarse para
   reanudar: el del 2026-10-15 da `CREDENCIALES.csv` como archivo vigente y las claves PII sin rotar.
 
 ## Operación

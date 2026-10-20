@@ -237,7 +237,14 @@ organización, no de esta matriz.
 
 ---
 
-## 5. Propuesta de adopción de `1.0.0` por organización (2026-10-20) — **NO ADOPTADA**
+## 5. Adopción de `1.0.0` por organización (2026-10-20) — **ADOPTADA la opción B como configuración técnica de ayuda a la revisión interna**
+
+> **Adoptado el 2026-10-20 por el propietario del producto.** Alcance exacto: se **autoriza** que cada organización adopte
+> `1.0.0` por su propio acto (D-07.1) como ayuda de revisión interna. **No** es validación jurídica, **no** adopta nada en
+> organizaciones reales por sí misma, **no** reevalúa en masa y **no** cambia conclusiones. La adopción de ensayo de la
+> Cooperativa DEMO se conserva (una fila; no se duplica). La clasificación parcial muestra versión, reglas, categorías sin
+> cobertura y limitaciones. `UNDETERMINED`, `RISK_CATALOG_APPROVED` (`NOT_EVALUABLE`), `READY` y despacho siguen igual.
+> El texto siguiente es la propuesta previa, conservada.
 
 **Qué requisito original sostiene esto.** `docs/18` P0-020: severidad explicable y conclusión `UNDETERMINED`; `docs/13`
 («Sin alertas no prueba ausencia…», «Un saldo positivo no autoriza mezcla»); S1 §35 («no convertir `LOW` en

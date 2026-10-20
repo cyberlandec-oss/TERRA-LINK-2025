@@ -1,6 +1,6 @@
 # ADR-0008 — Inicio de sesión federado (SSO)
 
-- **Estado**: propuesta (2026-10-18) — **bloqueada por una decisión de negocio**, no por arquitectura
+- **Estado**: **adoptado para desarrollo y demostración local (2026-10-20)**: OIDC Authorization Code + PKCE (`openid-client`), **Keycloak autoalojado como proveedor local de ensayo** (perfil `sso`), vínculo por emisor+sujeto, acceso con contraseña conservado, deshabilitado por defecto (`SSO_ENABLED`). **No** hay proveedor de un cliente real conectado: eso sigue pendiente. Hallazgo de la demostración real: RFC 9207 (`iss` en el retorno). Evidencia: `docs/qa/EVIDENCIA_P1015_COSTE_SSO_IDIOMAS_2026-10-20.md`. Estado anterior: propuesta (2026-10-18), bloqueada por una decisión de negocio
 - **Historia**: P1-015 · **Requisito**: RF-46 (`docs/03:62`) «Extensión multilenguaje/**SSO**/consumo»
 - **Antecedente**: **ADR-0005** ya dejó escrito que «no hay proveedor elegido (Keycloak, Cognito, Entra,
   Auth0…) ni acuerdo de coste o SSO», y remitió explícitamente a **P1-015**

@@ -163,10 +163,16 @@ await caso('2.2 SIN PKCE el proveedor rechaza la autorización', async () => {
   u.searchParams.delete('code_challenge'); u.searchParams.delete('code_challenge_method');
   const { ctx, page } = await nuevaSesion(browser, null);
   await page.goto(u.toString());
-  const texto = await page.locator('body').innerText();
+  // El proveedor rechaza la autorizacion sin PKCE: o muestra su pagina de error, o devuelve el error a la aplicacion
+  // (RFC 6749 4.1.2.1), que lo muestra sin testigo. En ningun caso aparece el formulario de acceso.
+  await page.waitForFunction(() => document.body && document.body.innerText.length > 20);
+  await page.waitForTimeout(1500);
   const sinFormulario = (await page.locator('#username').count()) === 0;
+  const devueltoALaApp = page.url().includes('/acceso/sso') && (await page.locator('[data-code="SSO_PROVIDER_ERROR"]').count()) > 0;
+  const texto = (await page.locator('body').innerText()).replace(/\s+/g, ' ');
+  const token = await page.evaluate(() => sessionStorage.getItem('tl_token'));
   await ctx.close();
-  return [sinFormulario && /code_challenge|PKCE|Missing|Invalid|parámetro|parameter|error|lo sentimos|sorry/i.test(texto), `formulario=${!sinFormulario} página=«${texto.replace(/\s+/g, ' ').slice(0, 70)}»`];
+  return [sinFormulario && !token && (devueltoALaApp || /code_challenge|PKCE|Missing|Invalid|sorry/i.test(texto)), `formulario=${!sinFormulario} devuelto-a-la-app=${devueltoALaApp} sin-testigo=${!token}`];
 });
 await caso('2.3 un destino de retorno no permitido lo rechaza la API (422) y el proveedor', async () => {
   const api = await pedir(null, 'POST', '/api/v1/auth/sso/start', { redirect_uri: 'http://evil.example/acceso/sso' });
@@ -204,15 +210,17 @@ await caso('2.5 vincular desde la sesión propia (Mi cuenta) con KEYCLOAK real',
 });
 
 let ssoToken;
+let sesionSso;
 await caso('2.6 acceso con la identidad vinculada: mismo testigo, SU organización y no la ajena', async () => {
   const { ctx, page } = await nuevaSesion(browser, null);
   await page.goto(`${WEB}/`);
   await page.getByRole('button', { name: /Entrar con/ }).click();
   // El proveedor ya tiene sesión de la vinculación: puede entrar sin pedir de nuevo la contraseña.
-  if (await page.locator('#username').count()) await entrarEnKeycloak(page, kcA.username, kcA.password);
+  await page.waitForURL((u) => u.origin === KC || u.pathname.startsWith('/organizaciones'));
+  if (page.url().startsWith(KC)) { await page.locator('#username').waitFor(); await entrarEnKeycloak(page, kcA.username, kcA.password); }
   await page.waitForURL(/\/organizaciones/);
   ssoToken = await page.evaluate(() => sessionStorage.getItem('tl_token'));
-  await ctx.close();
+  sesionSso = { ctx, page }; // se conserva abierta: 2.8 cierra ESTA sesion y comprueba que el proveedor tambien se cerro
   const propias = (await pedir(ssoToken, 'GET', '/api/v1/organizations')).body;
   const demo = cuentaDemo('admin.cooperativa');
   const demoTok = await login(demo.email, demo.contrasena);
@@ -229,20 +237,26 @@ await caso('2.7 el acceso con contraseña sigue disponible', async () => {
 });
 
 await caso('2.8 CIERRE DE SESIÓN: cierra la sesión local y la del proveedor (pide contraseña otra vez)', async () => {
-  const { ctx, page } = await nuevaSesion(browser, ssoToken);
+  const { ctx, page } = sesionSso;
   await page.goto(`${WEB}/organizaciones`);
-  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
-  // Keycloak puede pedir confirmación del cierre.
-  await page.waitForURL((u) => u.origin === KC || u.origin === new URL(WEB).origin, { timeout: 15000 });
-  if (page.url().startsWith(KC) && (await page.locator('#kc-logout').count())) await page.locator('#kc-logout').click();
-  await page.waitForTimeout(1000);
+  // Se registra cada navegacion: el proveedor puede redirigir de vuelta a la aplicacion tan deprisa que no se llega a ver.
+  const visitadas = [];
+  page.on('framenavigated', (f) => { if (f === page.mainFrame()) visitadas.push(f.url()); });
+  await page.getByRole('button', { name: 'Cerrar sesion'.replace('sion', 'sión') }).click();
+  // Con una sesion viva en el proveedor, Keycloak pide confirmar el cierre (no se envia id_token_hint) y luego muestra
+  // su pagina de sesion cerrada o vuelve a la aplicacion.
+  await page.waitForURL((u) => u.origin === KC || (u.origin === new URL(WEB).origin && u.pathname === '/'), { timeout: 20000 });
+  await page.waitForLoadState('load');
+  if (await page.locator('#kc-logout').count()) await page.locator('#kc-logout').click();
+  await page.waitForTimeout(2000);
+  const urlCierre = visitadas.find((v) => v.startsWith(KC) && v.includes('/protocol/openid-connect/logout')) ?? '';
   const tras = await pedir(ssoToken, 'GET', '/api/v1/organizations');
   // Un nuevo intento exige credenciales: la sesión del proveedor se cerró.
   await page.goto(`${WEB}/`);
   await page.getByRole('button', { name: /Entrar con/ }).click();
   await page.locator('#username').waitFor({ timeout: 15000 });
   await ctx.close();
-  return [tras.status === 401, `testigo tras cerrar=${tras.status}; el proveedor pide credenciales de nuevo`];
+  return [tras.status === 401 && urlCierre !== '', `testigo tras cerrar=${tras.status}; cierre en el proveedor=${urlCierre !== ''}; el proveedor pide credenciales de nuevo`];
 });
 
 await caso('2.9 USUARIO DESHABILITADO en el proveedor: no entra', async () => {
@@ -256,8 +270,8 @@ await caso('2.9 USUARIO DESHABILITADO en el proveedor: no entra', async () => {
   await p2.getByRole('button', { name: /Entrar con/ }).click();
   await p2.locator('#username').waitFor();
   await entrarEnKeycloak(p2, kcC.username, kcC.password);
-  await p2.waitForTimeout(1500);
-  const sigueEnProveedor = p2.url().startsWith(KC);
+  await p2.waitForTimeout(2500);
+  const sigueEnProveedor = p2.url().startsWith(KC) && (await p2.locator('#username').count()) > 0;
   const token = await p2.evaluate(() => sessionStorage.getItem('tl_token')).catch(() => null);
   await c2.close();
   return [sigueEnProveedor && !token, 'el proveedor rechaza el acceso y no hay testigo'];
@@ -269,6 +283,42 @@ await caso('2.10 limpieza: la identidad de ensayo se desvincula (la historia que
   for (const l of links) await pedir(t, 'DELETE', `/api/v1/auth/sso/links/${l.id}`);
   const tras = (await pedir(t, 'GET', '/api/v1/auth/sso/links')).body.links;
   return [tras.length === 0, `vínculos activos=${tras.length}`];
+});
+
+// ================================================================ 3) Limites e idiomas
+await caso('3.1 limites en espanol y en ingles: mismos codigos y valores, textos traducidos', async () => {
+  const t = await login(adminEmail, adminPass);
+  const es = (await pedir(t, 'GET', `/api/v1/organizations/${org.id}/limits?lang=es`)).body;
+  const en = (await pedir(t, 'GET', `/api/v1/organizations/${org.id}/limits?lang=en`)).body;
+  const igual = JSON.stringify(es.limits.map((l) => [l.code, l.value])) === JSON.stringify(en.limits.map((l) => [l.code, l.value]));
+  const traducido = en.limits.find((l) => l.code === 'DOCUMENT_MAX_BYTES')?.label === 'Maximum size of a document' && es.limits.find((l) => l.code === 'DOCUMENT_MAX_BYTES')?.label.startsWith('Tama');
+  return [igual && traducido && en.language.available.join() === 'es,en', `igual=${igual} traducido=${traducido} idiomas=${en.language.available}`];
+});
+await caso('3.2 superar un limite se RECHAZA con explicacion (422) y no genera ningun cargo', async () => {
+  const t = await login(adminEmail, adminPass);
+  const lim = (await pedir(t, 'GET', `/api/v1/organizations/${org.id}/limits`)).body.limits.find((l) => l.code === 'DOCUMENT_MAX_BYTES');
+  const prod = await pedir(t, 'POST', `/api/v1/organizations/${org.id}/producers`, { producer_code: `ENS-${sufijo}`, legal_name: 'Productor de ensayo sintetico' });
+  const f = new FormData();
+  f.set('operation_id', randomUUID()); f.set('document_type', 'DELIVERY_SUPPORT'); f.set('owner_type', 'producer'); f.set('owner_id', prod.body.id); f.set('title', 'Excede el limite');
+  f.set('file', new Blob([Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(Number(lim.value) + 1, 0x20)])], { type: 'application/pdf' }), 'grande.pdf');
+  const r = await fetch(`${API}/api/v1/organizations/${org.id}/documents`, { method: 'POST', headers: { authorization: `Bearer ${t}` }, body: f });
+  const cuerpo = await r.json().catch(() => null);
+  const est = await pedir(t, 'GET', `${base}/estimates`);
+  return [r.status === 422 && cuerpo?.error?.code === 'FILE_TOO_LARGE' && (cuerpo?.error?.message ?? '').length > 15, `estado=${r.status} codigo=${cuerpo?.error?.code}; estimaciones sin cambio de importes=${est.body.estimates.length >= 1}`];
+});
+await caso('3.3 error de acceso en ingles en el navegador (el correo escrito se conserva)', async () => {
+  const ctx = await browser.newContext();
+  await ctx.addInitScript(() => localStorage.setItem('tl_lang', 'en'));
+  const page = await ctx.newPage();
+  await page.goto(`${WEB}/`);
+  await page.getByLabel('Email').fill('nadie@ensayo.terralink.local');
+  await page.getByLabel('Password', { exact: true }).fill('incorrecta-1234');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.locator('.error[role="alert"]').waitFor();
+  const txt = await page.locator('.error[role="alert"]').innerText();
+  const conservado = (await page.getByLabel('Email').inputValue()) === 'nadie@ensayo.terralink.local';
+  await ctx.close();
+  return [/Incorrect email or password/.test(txt) && conservado, `mensaje="${txt.split('\n')[0]}" correo-conservado=${conservado}`];
 });
 
 await browser.close();

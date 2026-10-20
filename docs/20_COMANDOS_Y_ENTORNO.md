@@ -78,6 +78,24 @@ npm run validate -- --docker     # añade build de imágenes
 - **Registro 2026-10-19:** `2026-10-19T12-34-15` quedó **INTERRUMPIDA** (el sistema detuvo los procesos por memoria; sin `resumen`; no es fallo ni aprobación). Candidato `5845414` (solo `apps/api/test/helpers.ts`): `validate` **APROBADA** en `2026-10-19T23-31-51-458Z` (typecheck, lint, build, OpenAPI, pruebas 1383,8 s, E2E 184,9 s). Cambio de herramientas: sin despliegue de producción. El cierre funcional de P1-008 sigue sobre `fb46321`.
 - **Contrato móvil (2026-10-20):** `npm run check --prefix apps/mobile -- --api` → typecheck, núcleo y **recorrido contra la API actual OK**, bundle Android OK; **el comando completo NO se da por aprobado**: `expo-doctor` **FALLA** (20/21) por desfase de versiones de parche de seis paquetes Expo SDK 57 (`@expo/metro-runtime`, `expo`, `expo-constants`, `expo-crypto`, `expo-location`, `jest-expo`); no es un fallo del contrato. No se actualizaron para no alterar el código del APK registrado. Registro: `validation-results/2026-10-20T00-01-34-059Z-movil/`.
 
+## Acceso federado de ensayo (Keycloak) y demostración de P1-015 (2026-10-20)
+
+SSO está **deshabilitado por defecto**. Para el ensayo local (proveedor autoalojado; **no** conecta con ningún cliente):
+
+```
+# .env: KEYCLOAK_ADMIN_PASSWORD, SSO_ENABLED=true, SSO_OIDC_ISSUER=http://localhost:8180/realms/terra-link-dev,
+#       SSO_OIDC_DISCOVERY_URL=http://keycloak:8080/realms/terra-link-dev, SSO_OIDC_CLIENT_ID=terra-link-web,
+#       SSO_REDIRECT_URIS=http://localhost:3000/acceso/sso      (ver .env.example)
+docker compose --profile sso up -d keycloak        # realm importado de infra/sso/; sin volumen (H2 efímera)
+docker compose --profile app up -d api             # recrea la API con las variables SSO_*
+node e2e/review/p1015-demostracion.mjs             # 21 comprobaciones: coste, SSO con Keycloak real, límites e idiomas
+# al terminar: quitar las variables de .env, `docker compose --profile app up -d api`, `docker compose --profile sso rm -sf keycloak`
+```
+
+El guion usa una organización propia «ENSAYO P1-015 (sintético)» y usuarios sintéticos; no toca cuentas DEMO. Cada
+ejecución deja una organización de ensayo más (las tarifas y estimaciones son append-only). El servidor E2E fija
+`SSO_ENABLED=false` para ser hermético. Respaldo de 0056: `_respaldos/2026-10-20-p1015-migracion-0056/`.
+
 ## GitHub Actions (inactivo; registro histórico)
 
 El workflow se movió a `infra/ci/github-actions-ci.yml` y **no se ejecuta**: en esta etapa no es requisito y no hay que resolver facturación. Corridas anteriores, solo como historia (ninguna llegó a ejecutar pasos por la facturación de la cuenta):
