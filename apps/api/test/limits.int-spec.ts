@@ -29,6 +29,8 @@ describeDb('P1-015 límites y consumo (PostgreSQL real)', () => {
     usage: { documents: number; document_versions: number; stored_bytes: number; quota_bytes: number; quota_note: string; plots: number; deliveries: number; events: number };
     language: { primary: string; available: string[]; note: string };
     cost_note: string; sso_note: string; note: string;
+    cost: { currency: string; unit: string; note: string };
+    sso: { enabled: boolean; method: string; local_login_kept: boolean };
   }
   const ver = async (actor = ADMIN, org = orgA) =>
     (await http().get(`${api(org)}/limits`).set(as(actor)).expect(200)).body as Vista;
@@ -96,27 +98,63 @@ describeDb('P1-015 límites y consumo (PostgreSQL real)', () => {
     expect(despues.usage.quota_note).toMatch(/El denominador es la cuota configurada/);
   });
 
-  it('EL CONSUMO NO ES UN COSTE, y no se insinúa ningún SSO', async () => {
+  it('EL CONSUMO NO ES UN COSTE; el SSO se declara como lo que es (implementado, deshabilitado aquí)', async () => {
     const v = await ver();
-    expect(v.cost_note).toMatch(/NO es un coste/i);
-    expect(v.cost_note).toMatch(/no hay tarifa acordada ni proveedor contratado/i);
+    expect(v.cost_note).toMatch(/NO es un coste por sí mismo/i);
+    expect(v.cost_note).toMatch(/tarifas declaradas/i);
     expect(v.sso_note).toMatch(/autenticación es local/i);
-    expect(v.sso_note).toMatch(/NO hay inicio de sesión federado/i);
-    // Ninguna cifra viene con símbolo de moneda ni se llama «importe».
+    expect(v.sso_note).toMatch(/deshabilitado en este despliegue/i);
+    expect(v.sso_note).toMatch(/No hay conectado ningún proveedor de identidad de un cliente/i);
+    // Ninguna cifra del consumo viene con símbolo de moneda ni se llama «importe».
     expect(JSON.stringify(v.usage)).not.toMatch(/USD|EUR|importe|precio|tarifa/i);
   });
 
-  it('ESPAÑOL PRIMERO: el idioma declarado es el español y es el único disponible', async () => {
+  it('ESPAÑOL PRIMERO, con inglés como segunda lengua: el español es fuente y reserva', async () => {
     const v = await ver();
     expect(v.language.primary).toBe('es');
-    expect(v.language.available).toEqual(['es']);
-    expect(v.language.note).toMatch(/no puede degradar/i);
+    expect(v.language.available).toEqual(['es', 'en']);
+    expect(v.language.note).toMatch(/lengua fuente y de reserva/i);
+    expect(v.language.note).toMatch(/no son traducciones jurídicas certificadas/i);
     // Y los textos que el producto publica aquí están en español, no son claves de traducción.
     const textos = [v.cost_note, v.sso_note, v.note, ...v.limits.map((l) => l.what)];
     for (const t of textos) {
       expect(t).not.toMatch(/^[a-z]+(\.[a-z_]+)+$/);   // nada como «errors.document.too_large»
       expect(t).toMatch(/[áéíóúñ¿¡]|\b(de|la|el|no|que|los|las)\b/i);
     }
+  });
+
+  it('INGLÉS: los límites se publican traducidos, con los mismos valores y códigos; sin traducción cae al español', async () => {
+    const es = await ver();
+    const en = (await http().get(`${api(orgA)}/limits?lang=en`).set(as(ADMIN)).expect(200)).body as Vista & { lang: string };
+    expect(en.lang).toBe('en');
+    expect(en.limits.map((l) => l.code)).toEqual(es.limits.map((l) => l.code));
+    expect(en.limits.map((l) => l.value)).toEqual(es.limits.map((l) => l.value));
+    const tam = en.limits.find((l) => l.code === 'DOCUMENT_MAX_BYTES')!;
+    expect(tam.label).toBe('Maximum size of a document');
+    expect(tam.on_exceed).toMatch(/FILE_TOO_LARGE/);
+    // Ningún campo es una clave de traducción ni queda vacío.
+    for (const l of en.limits) for (const t of [l.label, l.what, l.on_exceed, l.enforced_at]) {
+      expect(t.length).toBeGreaterThan(3);
+      expect(t).not.toMatch(/^[a-z]+(\.[a-z_]+)+$/);
+    }
+    expect(en.cost_note).toMatch(/NOT a cost by itself/);
+    expect(en.language.note).toMatch(/not certified legal translations/);
+    // Un idioma desconocido no rompe nada: responde en español.
+    const raro = (await http().get(`${api(orgA)}/limits?lang=xx`).set(as(ADMIN)).expect(200)).body as Vista & { lang: string };
+    expect(raro.lang).toBe('es');
+  });
+
+  it('SUPERAR UN LÍMITE SE RECHAZA CON EXPLICACIÓN y sin sobrecoste automático', async () => {
+    const v = await ver();
+    const limite = v.limits.find((l) => l.code === 'DOCUMENT_MAX_BYTES')!;
+    const grande = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(Number(limite.value) + 1, 0x20)]);
+    const r = await http().post(`${api(orgA)}/documents`).set(as(ADMIN))
+      .field('operation_id', randomUUID()).field('document_type', 'DELIVERY_SUPPORT')
+      .field('owner_type', 'producer').field('owner_id', productor).field('title', 'Grande 2')
+      .attach('file', grande, { filename: 'grande2.pdf', contentType: 'application/pdf' });
+    expect(r.status).toBe(422);
+    expect(r.body.error.message.length).toBeGreaterThan(15);
+    expect(v.note).toMatch(/no se cobra nada automáticamente/i);
   });
 
   it('NO FIJA NINGÚN LÍMITE: la superficie es de solo lectura', async () => {

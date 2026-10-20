@@ -51,6 +51,7 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     geojson: { maxBytes: 1_048_576, maxPositions: 5000, maxDepth: 10, maxComponents: 50, maxRingsPerPolygon: 50 },
     scanner: { host: process.env.SCANNER_HOST ?? 'localhost', port: Number(process.env.SCANNER_PORT ?? 3310), timeoutMs: 30_000 },
     documents: { maxBytes: 64 * 1024, orgQuotaBytes: 256 * 1024 },
+    sso: { enabled: false, issuer: '', discoveryUrl: '', clientId: '', clientSecret: '', redirectUris: [], scope: 'openid email profile', flowTtlSeconds: 600, label: 'Acceso corporativo', clockToleranceSeconds: 30 },
     ...overrides,
   };
 }

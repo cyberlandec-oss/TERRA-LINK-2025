@@ -99,12 +99,39 @@ services:
       # demostrar el recorrido contra un receptor local, y la API lo DECLARA en su respuesta cuando está así.
       WEBHOOK_ALLOW_LOCAL: ${WEBHOOK_ALLOW_LOCAL:-false}
       SATELLITE_LIVE_CALLS: ${SATELLITE_LIVE_CALLS:-disabled}
+      # Acceso federado OIDC (P1-015 / D-54). Deshabilitado por omisión; con `SSO_ENABLED=true` en .env y el perfil
+      # `sso` (Keycloak local de ensayo) el acceso con contraseña sigue disponible. El emisor es el que ve el
+      # navegador (localhost); la API descubre al proveedor por el nombre de servicio dentro de Docker.
+      SSO_ENABLED: ${SSO_ENABLED:-false}
+      SSO_OIDC_ISSUER: ${SSO_OIDC_ISSUER:-}
+      SSO_OIDC_DISCOVERY_URL: ${SSO_OIDC_DISCOVERY_URL:-}
+      SSO_OIDC_CLIENT_ID: ${SSO_OIDC_CLIENT_ID:-terra-link-web}
+      SSO_REDIRECT_URIS: ${SSO_REDIRECT_URIS:-}
+      SSO_LABEL: ${SSO_LABEL:-Keycloak (ensayo local)}
     ports: ["${API_HOST_PORT:-4000}:4000"]
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
       object-storage: { condition: service_started }
       scanner: { condition: service_healthy }
+  # Proveedor de identidad LOCAL DE ENSAYO (P1-015 / D-54): Keycloak autoalojado. No es un proveedor de un cliente.
+  # Perfil propio (`--profile sso`), sin volumen (la base H2 es efímera) y solo en localhost. El administrador inicial
+  # sale de .env (KEYCLOAK_ADMIN_PASSWORD); los usuarios de ensayo se crean con `e2e/review/sso-keycloak.mjs`, sin
+  # contraseñas en el repositorio.
+  keycloak:
+    profiles: [sso]
+    image: quay.io/keycloak/keycloak:26.0.7
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-}
+      KC_HOSTNAME: http://localhost:${KEYCLOAK_HOST_PORT:-8180}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./infra/sso/realm-terra-link-dev.json:/opt/keycloak/data/import/realm-terra-link-dev.json:ro
+    ports: ["127.0.0.1:${KEYCLOAK_HOST_PORT:-8180}:8080"]
   worker:
     profiles: [app]
     image: terra-link-api:local

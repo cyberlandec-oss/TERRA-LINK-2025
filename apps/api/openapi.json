@@ -9671,6 +9671,18 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "lang",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "es",
+                "en"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -9686,6 +9698,346 @@
         "summary": "Límites vigentes del producto y consumo observado de la organización",
         "tags": [
           "limits"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/platform-cost/tariffs": {
+      "get": {
+        "operationId": "PlatformCostController_tarifas",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tarifas declaradas de la plataforma, con versión y vigencia (no hay tarifas precargadas)",
+        "tags": [
+          "platform-cost"
+        ]
+      },
+      "post": {
+        "operationId": "PlatformCostController_declarar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarifaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Declarar una versión de tarifa (USD por organización y mes). Idempotente por operation_id",
+        "tags": [
+          "platform-cost"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/platform-cost/estimates": {
+      "get": {
+        "operationId": "PlatformCostController_estimaciones",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Estimaciones registradas",
+        "tags": [
+          "platform-cost"
+        ]
+      },
+      "post": {
+        "operationId": "PlatformCostController_estimar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EstimacionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Registrar una estimación para un período explícito (meses calendario)",
+        "tags": [
+          "platform-cost"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/platform-cost/estimates/{id}": {
+      "get": {
+        "operationId": "PlatformCostController_una",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Una estimación con su consumo, líneas y conceptos pendientes",
+        "tags": [
+          "platform-cost"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/platform-cost/estimates/{id}/verify": {
+      "get": {
+        "operationId": "PlatformCostController_verificar",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Recalcular con las entradas guardadas y comprobar que el resultado es reproducible",
+        "tags": [
+          "platform-cost"
+        ]
+      }
+    },
+    "/api/v1/auth/sso/config": {
+      "get": {
+        "operationId": "SsoController_config",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Si hay acceso federado en este despliegue (sin secretos ni datos del proveedor)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sso/start": {
+      "post": {
+        "operationId": "SsoController_iniciar",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Iniciar el flujo OIDC (Authorization Code + PKCE). LINK exige sesión",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sso/callback": {
+      "post": {
+        "operationId": "SsoController_completar",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallbackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Completar el flujo: verifica el protocolo y emite el mismo testigo que el acceso local",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sso/links": {
+      "get": {
+        "operationId": "SsoController_vinculos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Identidades externas vinculadas a mi cuenta",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sso/links/{id}": {
+      "delete": {
+        "operationId": "SsoController_desvincular",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Desvincular una identidad externa de mi cuenta",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "SsoController_cerrar",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cerrar esta sesión (las demás sesiones de la cuenta no se tocan)",
+        "tags": [
+          "auth"
         ]
       }
     },
@@ -12604,24 +12956,20 @@
       "StartDto": {
         "type": "object",
         "properties": {
-          "operation_id": {
-            "type": "string"
-          },
-          "started_at": {
+          "redirect_uri": {
             "type": "string",
-            "description": "ISO 8601 con zona"
+            "description": "Destino de retorno: debe coincidir EXACTAMENTE con uno de los permitidos"
           },
-          "inputs": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RunInputDto"
-            }
+          "mode": {
+            "type": "string",
+            "enum": [
+              "LOGIN",
+              "LINK"
+            ]
           }
         },
         "required": [
-          "operation_id",
-          "started_at",
-          "inputs"
+          "redirect_uri"
         ]
       },
       "OutputDto": {
@@ -13171,19 +13519,19 @@
           "operation_id": {
             "type": "string"
           },
-          "lot_id": {
-            "type": "string"
+          "period_start": {
+            "type": "string",
+            "description": "Primer día del primer mes (YYYY-MM-01)"
           },
-          "quantities": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CantidadDto"
-            }
+          "period_end": {
+            "type": "string",
+            "description": "Primer día del mes siguiente al último (excluido)"
           }
         },
         "required": [
-          "lot_id",
-          "quantities"
+          "operation_id",
+          "period_start",
+          "period_end"
         ]
       },
       "RegistrarDto": {
@@ -13395,6 +13743,63 @@
         },
         "required": [
           "operation_id"
+        ]
+      },
+      "TarifaDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "monthly_fee": {
+            "type": "string",
+            "description": "USD por organización y mes calendario, como cadena decimal (hasta 4 decimales)"
+          },
+          "valid_from": {
+            "type": "string",
+            "description": "Inicio de vigencia (YYYY-MM-DD), incluido"
+          },
+          "valid_to": {
+            "type": "string",
+            "description": "Fin de vigencia (YYYY-MM-DD), excluido; vacío = sin fin"
+          },
+          "synthetic": {
+            "type": "boolean",
+            "description": "true = tarifa sintética de demostración; false = tarifa acordada"
+          },
+          "label": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "description": "De dónde sale la tarifa (acuerdo, documento, demostración…)"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "monthly_fee",
+          "valid_from",
+          "synthetic",
+          "label",
+          "source"
+        ]
+      },
+      "CallbackDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "state"
         ]
       },
       "DestinoDto": {

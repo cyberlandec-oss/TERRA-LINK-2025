@@ -1,5 +1,5 @@
-import { Controller, Get, Inject, Injectable, Param, ParseUUIDPipe } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { sql, type Kysely } from 'kysely';
 import { DB } from '../db/database';
 import type { Database } from '../db/schema';
@@ -27,6 +27,30 @@ import { MAX_CHARS, MAX_MS_OPERACION, MAX_MS_TOTAL, MAX_PAGES, MAX_STREAM_BYTES,
 // Junto a los límites se publica el **consumo observado de la organización** —lo que ocupa y cuánto lleva
 // registrado—, medido con consultas reales y con su denominador explícito. El consumo **no es un coste**: no
 // hay ninguna tarifa acordada, y decirlo es parte del contrato (RF-46: «decisiones de **coste**» está abierto).
+
+export type Idioma = 'es' | 'en';
+export const IDIOMAS: Idioma[] = ['es', 'en'];
+
+/**
+ * Traducción de interfaz al inglés de los textos de cada límite. El español es la FUENTE (ADR-0007, opción B):
+ * un límite sin traducción se muestra en español, nunca como clave. NO es una traducción jurídica certificada.
+ */
+const EN: Record<string, { label: string; what: string; enforced_at: string; on_exceed: string }> = {
+  DOCUMENT_MAX_BYTES: { label: 'Maximum size of a document', what: 'Bytes a file may occupy when uploaded.', enforced_at: 'POST /documents and POST /documents/:id/versions', on_exceed: '422 FILE_TOO_LARGE, and the file is not stored.' },
+  DOCUMENT_ORG_QUOTA_BYTES: { label: 'Storage quota per organization', what: 'Total bytes an organization may keep stored as documents.', enforced_at: 'POST /documents and POST /documents/:id/versions', on_exceed: '422 when the quota is exceeded: the upload is rejected.' },
+  GEOJSON_MAX_BYTES: { label: 'Maximum size of a geometry', what: 'Bytes of an accepted GeoJSON.', enforced_at: 'Plot geometry creation and versions', on_exceed: '422: the geometry is rejected as a whole, never trimmed.' },
+  GEOJSON_MAX_POSITIONS: { label: 'Maximum vertices of a geometry', what: 'Number of positions in a GeoJSON.', enforced_at: 'Geometry validation', on_exceed: '422: it is rejected, not simplified.' },
+  LOGIN_RL_MAX_PER_ACCOUNT_IP: { label: 'Sign-in attempts per account and origin', what: 'Failed attempts allowed within the window before throttling.', enforced_at: 'POST /auth/login', on_exceed: '429 TOO_MANY_ATTEMPTS. Throttling is temporary, never permanent.' },
+  JWT_TTL_SECONDS: { label: 'Session duration', what: 'Seconds of validity of the access token.', enforced_at: 'Every authenticated request', on_exceed: '401: you must sign in again.' },
+  EXTRACTION_MAX_CHARS: { label: 'Maximum text extracted from a document', what: 'Characters the assisted extraction accumulates from a PDF.', enforced_at: 'POST /documents/:id/versions/:v/extraction', on_exceed: 'It is cut and the text is marked INCOMPLETE; it is never presented as complete.' },
+  EXTRACTION_MAX_PAGES: { label: 'Maximum pages read from a PDF', what: 'Pages the assisted extraction goes through.', enforced_at: 'Assisted extraction', on_exceed: 'It is cut and declared incomplete.' },
+  EXTRACTION_MAX_MS: { label: 'Maximum time to read a PDF', what: 'Per-operation and total time allowed for reading.', enforced_at: 'Assisted extraction', on_exceed: 'The operation is interrupted, the document is released and the result is declared incomplete.' },
+  EXTRACTION_MAX_STREAM_BYTES: { label: 'Maximum bytes per decompressed stream', what: 'Size of a single stream after decompression.', enforced_at: 'Assisted extraction', on_exceed: 'That stream is skipped and the text is declared incomplete.' },
+  EXTRACTION_ENGINE: { label: 'PDF reading engine', what: 'Local component that decodes the text layer, with its version.', enforced_at: 'Assisted extraction', on_exceed: 'If a composite font does not declare its character map: UNINTERPRETABLE_TEXT, with no text or suggestions.' },
+};
+const FUENTE_EN = (s: string) => s
+  .replace('variables de entorno', 'environment variables').replace('variable de entorno', 'environment variable')
+  .replace(' y ', ' and ').replace('constante del código', 'code constant').replace('dependencia fijada en package.json', 'dependency pinned in package.json');
 
 interface Limite {
   code: string;
@@ -135,10 +159,8 @@ export class LimitsService {
     ];
   }
 
-  async ver(user: AuthUser, orgId: string) {
-    const ctx = await this.authz.require(user, orgId, 'organization:read', { mutation: false });
-
-    // Consumo observado, con consultas reales. Cada cifra dice qué cuenta.
+  /** Consumo observado de la organización (compartido con la estimación de coste: un solo origen). */
+  async consumoActual(orgId: string) {
     const docs = (await sql<{ n: number; bytes: string }>`
       SELECT count(*)::int AS n, coalesce(sum(v.size_bytes), 0)::text AS bytes
       FROM document_versions v WHERE v.organization_id = ${orgId}`.execute(this.db)).rows[0];
@@ -148,35 +170,63 @@ export class LimitsService {
              (SELECT count(*)::int FROM deliveries WHERE organization_id = ${orgId}) AS entregas,
              (SELECT count(*)::int FROM domain_events WHERE organization_id = ${orgId}) AS eventos`
       .execute(this.db)).rows[0];
-
-    const cuota = this.config.documents.orgQuotaBytes;
-    const usados = Number(docs.bytes);
     return {
-      limits: this.limites(),
+      documents: otros.documentos, document_versions: docs.n, stored_bytes: Number(docs.bytes),
+      quota_bytes: this.config.documents.orgQuotaBytes, plots: otros.parcelas, deliveries: otros.entregas, events: otros.eventos,
+    };
+  }
+
+  async ver(user: AuthUser, orgId: string, lang: Idioma = 'es') {
+    const ctx = await this.authz.require(user, orgId, 'organization:read', { mutation: false });
+
+    const uso = await this.consumoActual(orgId);
+    const en = lang === 'en';
+    const limits = this.limites().map((l) => {
+      const t = en ? EN[l.code] : undefined;
+      return t ? { ...l, ...t, source: FUENTE_EN(l.source) } : l;
+    });
+    return {
+      lang,
+      limits,
       usage: {
-        documents: otros.documentos,
-        document_versions: docs.n,
-        stored_bytes: usados,
-        quota_bytes: cuota,
-        quota_note: `${usados} de ${cuota} bytes. El denominador es la cuota configurada, no una estimación.`,
-        plots: otros.parcelas,
-        deliveries: otros.entregas,
-        events: otros.eventos,
+        ...uso,
+        quota_note: en
+          ? `${uso.stored_bytes} of ${uso.quota_bytes} bytes. The denominator is the configured quota, not an estimate.`
+          : `${uso.stored_bytes} de ${uso.quota_bytes} bytes. El denominador es la cuota configurada, no una estimación.`,
       },
       /** El idioma del producto, comprobable: RF-46 exige «español primero». */
       language: {
         primary: 'es',
-        available: ['es'],
-        note: 'El producto está en español y no hay una segunda lengua instalada. Añadir otra NO puede degradar '
-          + 'el español: ese es el límite que fija RF-46 («español primero»). Ver ADR-0007.',
+        available: [...IDIOMAS],
+        note: en
+          ? 'Spanish is the source language and the fallback: any text without an English translation is shown in Spanish, never as a key. Interface translations are not certified legal translations; original documents and evidence are kept as they were submitted. See ADR-0007.'
+          : 'El español es la lengua fuente y de reserva: un texto sin traducción al inglés se muestra en español, nunca como clave. Las traducciones de la interfaz no son traducciones jurídicas certificadas; los documentos y evidencias originales se conservan como se aportaron. Ver ADR-0007.',
       },
-      cost_note: 'El consumo NO es un coste: no hay tarifa acordada ni proveedor contratado. Qué se cobra, a '
-        + 'quién y con qué unidad es una decisión abierta (D-54, ADR-0009). Este módulo solo mide y publica los '
-        + 'límites vigentes.',
-      sso_note: 'La autenticación es local (contraseña y testigo propio). NO hay inicio de sesión federado: '
-        + 'elegir proveedor y asumir su coste es una decisión abierta (D-54, ADR-0008). Ver también ADR-0005.',
-      note: 'Los límites se leen de la configuración y del código vigentes: si alguien los cambia por entorno, '
-        + 'aquí se ve el valor cambiado. Ninguno se fija en esta pantalla.',
+      /** Coste de la plataforma: tarifas declaradas, no precargadas. El consumo, por sí solo, no es dinero. */
+      cost: {
+        currency: 'USD', unit: 'ORGANIZACION_MES', endpoint: `/api/v1/organizations/${orgId}/platform-cost`,
+        note: en
+          ? 'Consumption is not money. A cost estimate needs a declared, versioned tariff with a validity period; without one the result is "no tariff", never zero. It is the cost of using the platform, distinct from the preparation budget (P1-010) and from the commercial price of cocoa.'
+          : 'El consumo, por sí solo, no es dinero. Una estimación de coste necesita una tarifa declarada, versionada y con vigencia; sin ella el resultado es «sin tarifa», nunca cero. Es el coste de usar la plataforma, distinto del presupuesto de preparación (P1-010) y del precio comercial del cacao.',
+      },
+      cost_note: en
+        ? 'Consumption is NOT a cost by itself. Platform cost estimates are computed from declared tariffs (D-54, ADR-0009) and never invoiced.'
+        : 'El consumo NO es un coste por sí mismo. El coste estimado de la plataforma se calcula con tarifas declaradas (D-54, ADR-0009) y no se factura.',
+      sso: {
+        enabled: this.config.sso.enabled,
+        method: 'OIDC Authorization Code + PKCE',
+        local_login_kept: true,
+      },
+      sso_note: this.config.sso.enabled
+        ? (en
+          ? 'Federated sign-in (OIDC, Authorization Code with PKCE) is enabled for this deployment as a local rehearsal provider. Local password sign-in remains available. An external identity grants no organization, role or permission by itself.'
+          : 'El acceso federado (OIDC, código de autorización con PKCE) está habilitado en este despliegue con un proveedor local de ensayo. El acceso con contraseña sigue disponible. Una identidad externa no concede por sí sola organización, rol ni permisos.')
+        : (en
+          ? 'Authentication is local (password and own token). Federated sign-in is implemented (OIDC with PKCE) but disabled in this deployment (SSO_ENABLED). No customer identity provider is connected.'
+          : 'La autenticación es local (contraseña y testigo propio). El acceso federado está implementado (OIDC con PKCE) pero deshabilitado en este despliegue (SSO_ENABLED). No hay conectado ningún proveedor de identidad de un cliente.'),
+      note: en
+        ? 'Limits are read from the current configuration and code: if someone changes them by environment, the changed value is shown here. None is set on this screen. Exceeding a limit is rejected with an explanation; nothing is charged automatically.'
+        : 'Los límites se leen de la configuración y del código vigentes: si alguien los cambia por entorno, aquí se ve el valor cambiado. Ninguno se fija en esta pantalla. Superar un límite se rechaza con una explicación; no se cobra nada automáticamente.',
       restricted: this.tiene(ctx, 'organization:read') ? [] : ['usage'],
     };
   }
@@ -190,7 +240,8 @@ export class LimitsController {
 
   @Get()
   @ApiOperation({ summary: 'Límites vigentes del producto y consumo observado de la organización' })
-  ver(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string) {
-    return this.service.ver(u, o);
+  @ApiQuery({ name: 'lang', required: false, enum: ['es', 'en'] })
+  ver(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Query('lang') lang?: string) {
+    return this.service.ver(u, o, lang === 'en' ? 'en' : 'es');
   }
 }

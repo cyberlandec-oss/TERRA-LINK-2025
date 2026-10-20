@@ -28,6 +28,7 @@
     "jsonwebtoken": "^9.0.3",
     "kysely": "^0.28.17",
     "multer": "^2.4.0",
+    "openid-client": "^5.7.1",
     "pdfjs-dist": "4.10.38",
     "pg": "^8.23.1",
     "prom-client": "15.1.3",

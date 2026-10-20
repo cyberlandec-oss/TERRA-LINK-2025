@@ -517,6 +517,26 @@ export interface WebhookAttemptsTable {
   http_status: number | null; response_excerpt: string | null; error: string | null;
   duration_ms: number | null; sent_at: Generated<Timestamp>;
 }
+export interface PlatformTariffsTable {
+  id: string; organization_id: string; code: Generated<string>; version: number; currency: 'USD'; unit: 'ORGANIZACION_MES';
+  monthly_fee: string; valid_from: string; valid_to: string | null; synthetic: boolean; label: string; source: string;
+  reason: string | null; created_by: string; created_at: Generated<Timestamp>; operation_id: string;
+}
+export interface PlatformCostEstimatesTable {
+  id: string; organization_id: string; period_start: string; period_end: string;
+  status: 'ESTIMADO' | 'PARCIAL' | 'SIN_TARIFA'; currency: 'USD'; total: string | null;
+  lines: unknown; consumption: unknown; pending_concepts: unknown; inputs_hash: string;
+  computed_by: string; computed_at: Generated<Timestamp>; operation_id: string;
+}
+export interface IdentityLinksTable {
+  id: string; user_id: string; issuer: string; subject: string; email_claim: string | null;
+  created_at: Generated<Timestamp>; last_login_at: Timestamp | null; unlinked_at: Timestamp | null;
+}
+export interface SsoFlowsTable {
+  state_hash: string; mode: 'LOGIN' | 'LINK'; user_id: string | null; nonce: string; code_verifier: string;
+  redirect_uri: string; expires_at: Timestamp; created_at: Generated<Timestamp>;
+}
+export interface RevokedSessionsTable { jti: string; user_id: string; revoked_at: Generated<Timestamp>; }
 export interface DocumentExtractionsTable {
   id: string; organization_id: string; version_id: string; run_number: number;
   status: 'EXTRAIDA' | 'SIN_TEXTO' | 'TEXTO_NO_INTERPRETABLE' | 'FORMATO_NO_SOPORTADO' | 'FALLIDA';
@@ -959,6 +979,11 @@ export interface Database {
   legal_profile_rules: LegalProfileRulesTable;
   webhook_destinations: WebhookDestinationsTable;
   webhook_attempts: WebhookAttemptsTable;
+  platform_tariffs: PlatformTariffsTable;
+  platform_cost_estimates: PlatformCostEstimatesTable;
+  identity_links: IdentityLinksTable;
+  sso_flows: SsoFlowsTable;
+  revoked_sessions: RevokedSessionsTable;
   document_extractions: DocumentExtractionsTable;
   document_extraction_fields: DocumentExtractionFieldsTable;
   document_extraction_decisions: DocumentExtractionDecisionsTable;
