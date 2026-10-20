@@ -219,7 +219,7 @@ Aceptación: recorrido con dataset/usuarios de piloto, Android real, discrepanci
 
 | ID | Resultado | Dependencia | Aceptación mínima |
 | --- | --- | --- | --- |
-| A-01 | Captura de campo desde la web con alcance propio (RF-48, `docs/03`) | P0-006–010, P0-018, P0-028 | Ver «Ampliación autorizada A-01» en `docs/03`. **Estado (2026-10-20): DONE_LOCAL** sobre `0caed16` (validación APROBADA `validation-results/2026-10-20T19-26-50-519Z`; `90bf744` y `f86340d` FALLARON y se conservan), desplegado, demostrado por roles (19 + 6 + 1 comprobaciones) y con respaldo 0057 verificado. Evidencia: `docs/qa/EVIDENCIA_A01_CAPTURA_CAMPO_2026-10-20.md`. **No acredita producción, Android real, conformidad EUDR ni satélite real.** No sustituye los criterios con teléfono de P0-023/P0-024, que siguen pendientes |
+| A-01 | Captura de campo desde la web con alcance propio (RF-48, `docs/03`) | P0-006–010, P0-018, P0-028 | Ver «Ampliación autorizada A-01» en `docs/03`. **Estado (2026-10-20): DONE_LOCAL** sobre `4913dd3` (validación APROBADA `validation-results/2026-10-20T23-04-37-016Z`; `90bf744` y `f86340d` FALLARON, `0caed16` y `6af11a8` aprobaron sin ser el cierre; todo se conserva). Incluye mapa base local y fotografías propias, desplegado, demostrado por roles (27 + 6 + 1 comprobaciones) y con respaldo `…-a01-mapa-fotos-0057` verificado. Evidencia: `docs/qa/EVIDENCIA_A01_CAPTURA_CAMPO_2026-10-20.md`. **No acredita producción, Android real, conformidad EUDR ni satélite real.** No sustituye los criterios con teléfono de P0-023/P0-024, que siguen pendientes |
 
 ## P2 fuera del MVP
 

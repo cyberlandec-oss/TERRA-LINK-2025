@@ -1100,3 +1100,7 @@ Actualizar versión, fecha, fuente afectada, motivo y responsable cuando cambien
 | 1.0 de trabajo | 09/10/2026 | Especificación inicial basada en M1/F1/F2/F3 y alcance local de TERRA-LINK-2025. |
 
 **Regla de entrega:** la pantalla debe permitir completar una tarea real con datos, autorización, feedback y evidencia coherentes. Una maqueta o un componente visual no acredita el flujo de negocio completo.
+
+### 13.x Mapa de captura de campo (A-01, 2026-10-20)
+Mapa enfocable con teclado (flechas desplazan, + y − acercan, Enter fija un vértice en la mira), botón «Fijar vértice en la mira», vértices arrastrables, coordenadas de la mira y del puntero a la vista y tabla de
+coordenadas siempre presente; 390 px sin desborde; atribución de OpenStreetMap visible; estado explícito si falta la cartografía. Español e inglés.

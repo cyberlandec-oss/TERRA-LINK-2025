@@ -427,4 +427,11 @@ en la **parcela agrícola**; los lotes comerciales conservan su vínculo con esa
 parcelas vinculadas y sus evidencias; técnico de campo — parcelas de productores asignados; administrador de organización —
 las de su organización; gerente — según sus permisos de gestión; auditor y comprador — consulta autorizada, sin captura. **La
 captura web y el análisis satelital son funciones distintas**: la demostración usa un proveedor local de ensayo cuyos resultados
-**no acreditan deforestación ni conformidad real**. Detalle y aceptación: `docs/03` (RF-48) y `docs/18` (A-01). **Estado 2026-10-20: implementada y demostrada localmente (DONE_LOCAL, `0caed16`).** Ensayo físico Android: sigue pospuesto.
+**no acreditan deforestación ni conformidad real**. Detalle y aceptación: `docs/03` (RF-48) y `docs/18` (A-01). **Estado 2026-10-20: implementada y demostrada localmente (DONE_LOCAL, `4913dd3`).** Ensayo físico Android: sigue pospuesto.
+
+### A-01.b — Mapa base local y fotografías propias del productor (2026-10-20) — **AUTORIZADAS**
+
+Dos decisiones del propietario del producto, registradas el 2026-10-20 y cumplidas en `4913dd3`:
+1. **Mapa base local**: se autoriza MapLibre y una fuente cartográfica local basada en datos públicos de OpenStreetMap (Geofabrik, Ecuador), descargados y procesados localmente respetando licencia y atribución. **No** autoriza enviar parcelas, coordenadas, fotografías ni identidades a terceros, ni un proveedor de mapas, ni un respaldo silencioso hacia teselas, geocodificación o CDN externos. La cartografía es una referencia visual: no acredita límites de propiedad, precisión GPS, deforestación ni conformidad y no ajusta vértices. No es una integración satelital: las llamadas externas siguen deshabilitadas.
+2. **Fotos propias**: el productor consulta y descarga las `FIELD_PHOTO` de sus parcelas autorizadas con un permiso específico (`document:read_field_photo_own`), sin lectura general de identidad ni de otras fotografías; clasificación de dato personal, auditoría, copia sin metadatos y rechazo del servidor intactos.
+Corrección de redacción: A-01 pedía «dibujar sobre el mapa»; se había registrado como «croquis». No volver a reducirlo. Detalle: `docs/qa/EVIDENCIA_A01_CAPTURA_CAMPO_2026-10-20.md`, `infra/maps/README.md`.

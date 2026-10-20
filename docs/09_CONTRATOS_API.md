@@ -122,3 +122,10 @@ Operaciones largas responden 202 y job autorizado: `PENDING/RUNNING/SUCCEEDED/FA
   el resultado es siempre sintético, `conclusion = NOT_EVALUATED`, ligado a `plot_version_id` y `geometry_hash`; no crea evidencia ni evaluación de riesgo.
   Apagado: `ensayo_mode=false`, sin escenarios y `can_request=false`.
 - OpenAPI regenerado: 262 rutas (`apps/api/openapi.json`).
+
+### Fotografías y mapa (A-01 final, 2026-10-20)
+- `POST /organizations/{orgId}/documents` con `document_type=FIELD_PHOTO`: rechaza con **422 `PHOTO_METADATA_PRESENT`** una imagen con metadatos embebidos (auditado como `document.upload_rejected`);
+  con `FIELD_EVIDENCE` rechaza imágenes con **422 `EVIDENCE_IMAGE_USE_FIELD_PHOTO`** (esa clase es para PDF). Mismo contrato para altas y versiones nuevas.
+- `GET …/documents/{id}` y `…/versions/{vid}/content`: para `FIELD_PHOTO` el contenido lo entrega `producer:read_identity` **o** `document:read_field_photo_own` con el titular en alcance propio; si no, `CONTENT_RESTRICTED` (403) o 404 fuera de alcance.
+- `POST …/plots/{plotId}/polygon-drafts` y `…/geometry-imports` admiten `plot:update_own`.
+- Cartografía: no es parte de la API de negocio. Es el servicio local `maps` (`GET /estilo.json`, `/metadata.json`, `/tiles/ecuador.pmtiles` por rangos, `/fonts/{pila}/{rango}.pbf`), sin autenticación porque solo sirve datos públicos de OpenStreetMap y no recibe datos de Terra Link.

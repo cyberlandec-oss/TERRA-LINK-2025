@@ -153,3 +153,8 @@ Una evaluación satelital o de riesgo utiliza `plot_version_id` y hash de geomet
 Punto válido; polígono válido; self-intersection; CRS distinto/conversión explícita; coordenadas invertidas plausibles; fuera de país con capa conocida; área nula; punto con área declarada; duplicado; borde exacto de umbral; MultiPolygon/hole según perfil; mezcla de GPS conocido/desconocido; modificación con análisis previo; GeoJSON grande/tenant ajeno.
 
 Las capas satelitales deben incluir proveedor, dataset, versión, fecha, resolución, método, cobertura, límites y confianza si el proveedor la define. «Sin alertas» no equivale a «sin deforestación» cuando no existe cobertura suficiente.
+
+## Mapa base local de la captura web (A-01, 2026-10-20)
+La captura «dibujar sobre el mapa» usa cartografía real de OpenStreetMap servida **por Terra Link** (MapLibre + PMTiles + servicio `maps`; `infra/maps/README.md`). Referencia visual: no acredita
+límites de propiedad, precisión GPS, deforestación ni conformidad y **no ajusta vértices** a elementos del mapa. Coordenadas siempre `[longitud, latitud]` (WGS84), rotuladas; lo marcado se guarda como
+`MANUAL_COORDINATES` sin precisión. Sin datos cartográficos: estado explícito y entrada manual. Sin teselas, geocodificación ni CDN externos.

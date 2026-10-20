@@ -406,7 +406,8 @@ if (FASE === 'base') {
     const tiff = [0x49, 0x49, 42, 0, 8, 0, 0, 0, 2, 0, 0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0x25, 0x88, 4, 0, 1, 0, 0, 0, 0x30, 0, 0, 0, 0, 0, 0, 0];
     return Buffer.from([0xff, 0xd8, ...sg(0xe1, [...a('Exif\0\0'), ...tiff]), ...sg(0xe1, a('http://ns.adobe.com/xap/1.0/\0<xmpmeta>TelefonoSintetico</xmpmeta>')), ...sg(0xfe, a('comentario')), ...sg(0xdb, [0, 1, 2, 3]), 0xff, 0xda, 0, 4, 1, 0, ...a('datos-' + randomUUID()), 0xff, 0xd9]);
   };
-  const tieneMeta = (b) => b.includes(Buffer.from('TelefonoSintetico')) || b.includes(Buffer.from('Exif'));
+  // Quedan fuera XMP, comentario, modelo del dispositivo y el puntero al IFD GPS; solo permanece el segmento mínimo de orientación (contrato D-41).
+const tieneMeta = (b) => ['TelefonoSintetico', 'xmpmeta', 'comentario'].some((x) => b.includes(Buffer.from(x))) || b.includes(Buffer.from([0x25, 0x88]));
   const subirFoto = async (t, plot, bytes, tipo = 'FIELD_PHOTO') => {
     const f = new FormData();
     f.append('operation_id', randomUUID()); f.append('document_type', tipo); f.append('owner_type', 'plot'); f.append('owner_id', plot); f.append('title', 'Foto de ensayo A-01 (sintética)');

@@ -73,15 +73,15 @@ decida incorporarlo a los porcentajes.
 | RF-48 | Captura web de la ubicación de la **parcela agrícola** (no del lote comercial) por quien corresponde: el **productor** sobre sus parcelas vinculadas, el **técnico** sobre los productores asignados, el administrador y el gerente según sus permisos; auditor y comprador solo consultan si están autorizados | A-01 | Alcance por **recurso**, no solo por rol; coordenada escrita ≠ medición GPS; geometría validada en backend; corrección con motivo y versión; una evaluación anterior no se reutiliza en silencio |
 
 Aceptación de A-01 (propuesta de ingeniería, no de las fuentes originales): (1) seleccionar un productor y una parcela
-autorizados; (2) coordenadas manuales, ubicación del navegador, punto o polígono en un croquis, o GeoJSON con el mecanismo
+autorizados; (2) coordenadas manuales, ubicación del navegador, punto o polígono **dibujado sobre un mapa** (cartografía real de OpenStreetMap servida localmente por Terra Link; decisión 2026-10-20) o, solo si faltan los datos cartográficos, en un croquis sin mapa base, o GeoJSON con el mecanismo
 existente; (3) revisión de geometría y datos antes de confirmar, con el **orden de las coordenadas** a la vista; (4) evidencias
-del recorrido adjuntables a la parcela; (5) guardar, consultar y corregir con motivo conservando versiones y auditoría;
+del recorrido adjuntables a la parcela —las fotografías con el contrato D-41 de la fotografía de campo (copia sin metadatos, dato personal) y consultables por el productor en sus parcelas—; (5) guardar, consultar y corregir con motivo conservando versiones y auditoría;
 (6) un productor **no** modifica una parcela ajena y un técnico respeta sus asignaciones, también en documentos, búsquedas,
 recuentos y descargas; (7) registrar coordenadas **no** concede aprobar evidencias ni concluir riesgo; (8) evaluación satelital
 **de ensayo** desde la web con hallazgos, sin hallazgos, cobertura insuficiente, error y reintento, siempre identificada como
 ENSAYO y sin efecto sobre conclusiones, `READY` ni despacho; (9) español e inglés, teclado y 390 px.
 
-**Estado de A-01 (2026-10-20): DONE_LOCAL** sobre `0caed16`. Los nueve puntos de aceptación se demostraron localmente (API, navegador en español e inglés, 390 px y teclado, escenarios satelitales de ENSAYO); ver `docs/qa/EVIDENCIA_A01_CAPTURA_CAMPO_2026-10-20.md`. Siguen separados: demostración local, aceptación con teléfono físico (pospuesta) y con proveedor satelital real (deshabilitado).
+**Estado de A-01 (2026-10-20): DONE_LOCAL** sobre `4913dd3` (validación APROBADA `2026-10-20T23-04-37-016Z`; candidatos anteriores y sus resultados en `docs/qa/EVIDENCIA_A01_CAPTURA_CAMPO_2026-10-20.md`). Nota de corrección: el criterio (2) se había redactado como «croquis», una reducción de la instrucción «dibujar sobre el mapa»; se corrigió con el mapa local. Los nueve puntos de aceptación se demostraron localmente (API, navegador en español e inglés, 390 px y teclado, escenarios satelitales de ENSAYO); ver `docs/qa/EVIDENCIA_A01_CAPTURA_CAMPO_2026-10-20.md`. Siguen separados: demostración local, aceptación con teléfono físico (pospuesta) y con proveedor satelital real (deshabilitado).
 
 ### RF-47: por qué es evolución y no MVP (2026-10-16)
 

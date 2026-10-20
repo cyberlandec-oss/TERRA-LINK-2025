@@ -209,7 +209,7 @@ se vincula a un solo productor de su misma organización (índice único y dispa
 
 | Rol | Recorrido nuevo que puede completar | Límite |
 | --- | --- | --- |
-| Productor (vinculado) | Elegir su parcela, escribir coordenadas o dibujar un croquis, revisar, guardar, corregir con motivo, adjuntar evidencias, consultar sus versiones | Solo sus parcelas, documentos y evidencias; 404 ante lo ajeno; no evalúa GIS, no encarga satélite, no ve riesgo ni miembros, no aprueba evidencias |
+| Productor (vinculado) | Elegir su parcela, escribir coordenadas, dibujar sobre el mapa (o croquis), usar el polígono por vértices y la importación GeoJSON, revisar, guardar, corregir con motivo, adjuntar evidencias y fotografías, **consultar y descargar las fotografías de sus parcelas**, consultar sus versiones | Solo sus parcelas, documentos y evidencias; 404 ante lo ajeno; no evalúa GIS, no encarga satélite, no ve riesgo ni miembros, no aprueba evidencias |
 | Técnico de campo | Lo mismo sobre parcelas de productores **asignados** (la extracción documental ahora también respeta la asignación) | Sin parcelas de productores no asignados; sin evaluación GIS fuera de sus permisos previos |
 | Administrador de organización | Todo el recorrido sobre la organización; vincula productor–usuario; encarga satélite (ensayo) | Su organización |
 | Gerente | Según sus permisos de gestión (lee la organización completa; vincula productor–usuario) | Sin captura propia adicional |
@@ -220,3 +220,8 @@ se vincula a un solo productor de su misma organización (índice único y dispa
 la usan); `plot:read_geometry` del Productor es la lectura de la geometría de **sus** parcelas, no acceso general. Pruebas: permisos
 exactos en `catalog.spec.ts`, alcance por recurso en `a01-alcance-propio.int-spec.ts`. Hueco cerrado: `document:read` bastaba para leer
 la extracción de cualquier documento por su identificador; ahora se verifica el alcance del titular **antes** del reintento idempotente.
+
+**Fotografías propias (A-01, decisión 2026-10-20)**: permiso `document:read_field_photo_own` (Productor y administración de la organización). Permite ver y descargar el contenido
+de los documentos `FIELD_PHOTO` (dato personal) **solo** cuando el titular (la parcela) está en el alcance propio del productor vinculado: el alcance por titular se comprueba
+al consultar el documento y al obtener su contenido; no concede `producer:read_identity`, ni lectura de otras fotografías de la organización; retirar el vínculo corta el acceso al instante.
+Auditor, comprador y técnicos sin identidad siguen sin acceso al contenido. El polígono por vértices y la importación GeoJSON admiten `plot:update_own` (antes devolvían 403 al productor).

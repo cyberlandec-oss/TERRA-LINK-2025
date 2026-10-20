@@ -550,3 +550,15 @@ si una variable está puesta se mira su **efecto** (por ejemplo `live_calls_enab
 
 - `npx jest --runInBand test/shipments.int-spec.ts` (desde `apps/api`): autorización, reservas concurrentes e idempotentes, preflight real bloqueado y mecánica de despacho con preflight sintético.
 - `node e2e/review/embarques-web.mjs`: flujo en navegador con datos DEMO (comprador, embarque, reserva, preflight bloqueado, cancelación), roles sin permiso, auditor y 390 px. Cancela al empezar los embarques de revisión que quedaran en preparación. Evidencia en `docs/qa/embarques/`.
+
+## Cartografía local y prueba manual de A-01 (2026-10-20)
+
+```
+node infra/maps/preparar-mapa.mjs [--fecha AAMMDD]     # descarga (MD5 verificado), genera teselas (Planetiler 0.10.2) y escribe metadata.json en el volumen terra-link_map-data
+docker compose --profile app up -d maps                 # servicio local de mapas (puerto MAPS_HOST_PORT, 8090 por omisión)
+node e2e/review/a01-preparar-prueba-manual.mjs          # organización de ensayo para probar a mano; escribe CREDENCIALES_A01.csv (ignorado por git)
+```
+
+`NEXT_PUBLIC_MAPS_URL` se incrusta al compilar la web (compose: `http://localhost:${MAPS_HOST_PORT:-8090}`). El worker de MapLibre se copia a `apps/web/public/maplibre/` en
+`prebuild`/`predev` (ignorado por git; la imagen lo copia al runtime). El volumen del mapa es **derivado y regenerable**: no entra en el respaldo de la base (cada respaldo guarda su
+`metadata-mapa.json`). Respaldo vigente: `_respaldos/2026-10-20-a01-mapa-fotos-0057/`. Guía de prueba personal: `docs/qa/GUIA_PRUEBA_A01_WEB.md`. Volúmenes Docker: 27 (los 26 anteriores intactos + `map-data`).

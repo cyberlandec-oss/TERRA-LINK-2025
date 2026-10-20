@@ -37,4 +37,4 @@ Propuestas adicionales rastreables: outbox y ledger (ADR-0003), membresías/gran
 
 | Fuente | Requisito | Historia | QA | Estado |
 | --- | --- | --- | --- | --- |
-| Instrucción del propietario del producto (2026-10-20), posterior a las cuatro fuentes | RF-48 | A-01 | 02/04/08/15 | **DONE_LOCAL** (`0caed16`, 2026-10-20; `docs/qa/EVIDENCIA_A01_CAPTURA_CAMPO_2026-10-20.md`); fuera del conteo 42/60 y 30/44, sin cambiar denominadores ni porcentajes. No altera P0-006–010 ni P0-023/P0-024 |
+| Instrucción del propietario del producto (2026-10-20), posterior a las cuatro fuentes | RF-48 | A-01 | 02/04/08/15 | **DONE_LOCAL** (`4913dd3`, 2026-10-20; `docs/qa/EVIDENCIA_A01_CAPTURA_CAMPO_2026-10-20.md`); fuera del conteo 42/60 y 30/44, sin cambiar denominadores ni porcentajes. No altera P0-006–010 ni P0-023/P0-024 |
