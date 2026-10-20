@@ -25,6 +25,9 @@ export default defineConfig({
         WEB_ORIGIN: WEB_URL,
         REDIS_KEY_PREFIX: `tl-e2e:${Date.now()}:`,
         S3_BUCKET: 'terra-link-e2e',
+        // Hermético: el acceso federado es de cada despliegue y no debe filtrarse desde el .env al E2E (los casos de
+        // idiomas y acceso suponen que está deshabilitado; el recorrido con Keycloak real vive en e2e/review).
+        SSO_ENABLED: 'false',
       },
     },
     {
