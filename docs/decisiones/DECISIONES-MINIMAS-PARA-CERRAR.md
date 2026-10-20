@@ -22,7 +22,7 @@ producción. En el caso de D-05.A, además: **no acredita conformidad jurídica 
 
 | Decisión | Qué hay que decidir, en concreto | Desbloquea | Recomendación (no aprobada) |
 | --- | --- | --- | --- |
-| **D-34** · condición de `dd_package_id` y `dispatch_at` | Qué exige exactamente despachar: paquete DD aprobado y vigente, y qué fecha es `dispatch_at` | **P0-029** y **P0-017** (despacho) · transición 17 | No despachar sin paquete DD aprobado, vigente y exportado; `dispatch_at` = salida física registrada |
+| **D-34** · condición de `dd_package_id` y `dispatch_at` — **ADOPTADA (opción A, provisional, 2026-10-16; ver `D-34-PROPUESTA.md` rev. 4)**; la columna siguiente es el texto original | Qué exige exactamente despachar: paquete DD aprobado y vigente, y qué fecha es `dispatch_at` | **P0-029** y **P0-017** (despacho) · transición 17 | No despachar sin paquete DD aprobado, vigente y exportado; `dispatch_at` = salida física registrada |
 
 | **D-05.B** · aplicabilidad jurídica | A qué actores y operaciones de Terra Link alcanzan las obligaciones: quién es «operator» (Art. 2(15)), clasificación de riesgo de Ecuador (Art. 29), condiciones del Art. 2(15a), Anexo III | Qué **significa** el resultado del perfil · requisito `GEOLOCATION_PROFILE` de **P0-022** · transiciones 14, 22 | **No decidible por el equipo**: responsable regulatorio. La norma ya está leída y guardada con su hash (`docs/sources/eudr-norma-2026-10-15/`); lo que falta es el criterio, no el texto |
 | **D-07.5 y D-07.6** · perfil jurídico y quién concluye | Qué requisitos legales aplican y quién puede afirmar `NEGLIGIBLE` / `NON_NEGLIGIBLE` | `LEGAL_PROFILE`, `RISK_CATALOG_APPROVED` y `REGULATORY_CONCLUSION` de **P0-022** · transición 12 | **Responsable regulatorio.** El motor **no puede** concluir: lo prohíbe S1 §35. Decidir D-07.6 **no abre el expediente** por sí solo: quedan otras cinco condiciones |
@@ -64,11 +64,30 @@ producción. En el caso de D-05.A, además: **no acredita conformidad jurídica 
    Art. 2(15), y las condiciones del Art. 2(15a). **La clasificación de Ecuador ya está verificada: riesgo
    ESTÁNDAR**, lo que deja la vía de dirección postal **fuera de alcance mientras siga así**.
 2. **D-07, lo que queda.** Los **mecanismos** D-07.1, D-07.2 y D-07.4 ya están adoptados e implementados
-   (2026-10-15). Lo siguiente es, por orden: **revisar la matriz del catálogo** —tres asignaciones de severidad
-   son decisión de producto— y luego **D-07.5 y D-07.6**, que necesitan un responsable regulatorio y son las que
+   (2026-10-15). Lo siguiente es, por orden: **adoptar el catálogo `1.0.0` por organización** (matriz ya aprobada y publicada, con las cinco severidades como decisión de producto; propuesta en `D-07-MATRIZ-CATALOGO.md` §5) y luego **D-07.5 y D-07.6**, que necesitan un responsable regulatorio y son las que
    tocan el expediente. Hasta que no se publique y adopte un catálogo con severidades, la distribución de riesgo
    de P0-030 sigue en `UNKNOWN`.
-3. **D-34** — depende de que exista un paquete DD aprobado, que a su vez depende de las anteriores.
+3. ~~**D-34**~~ — **opción A adoptada el 2026-10-16** (provisional). El despacho sigue dependiendo de un paquete DD aprobado, que depende de las anteriores.
 4. **D-09 parte B** (empezando por el ensayo sintético) y después **D-42**.
 5. **D-04** y el **contrato de concesiones** — los dos criterios que faltan para cerrar **P0-003**.
 6. **D-38** — no cierra ninguna historia (P0-025 ya es DONE_LOCAL); hace falta antes de operar con datos reales.
+
+
+## Paquete para la revisión regulatoria (2026-10-20)
+
+Material **ya existente**, ordenado para quien deba resolver. Ninguna fila es una interpretación jurídica del equipo
+ni una aprobación; todas esperan a una persona competente. Un perfil mínimo versionado **no acredita suficiencia
+regulatoria**: solo dice qué cubre y qué no.
+
+| | **D-05.B** aplicabilidad | **D-07.5** perfil jurídico | **D-07.6** quién concluye | **P1-005** perfil de legalidad de Ecuador |
+| --- | --- | --- | --- | --- |
+| **Pregunta para el responsable** | ¿A qué actores/operaciones de Terra Link alcanzan las obligaciones? ¿Quién es «operator» (Art. 2(15))? ¿Se cumplen las condiciones 1, 2 y 4 del Art. 2(15a)? ¿Anexo III? | ¿Qué requisitos legales aplican a un operador de cacao con origen en Ecuador, con qué autoridad, artículo, versión y vigencia? | ¿Quién puede afirmar `NEGLIGIBLE`/`NON_NEGLIGIBLE`, y con qué condiciones? | ¿Es correcta, suficiente y vigente la matriz de obligaciones candidatas y el contenido del perfil? ¿Qué materias faltan? |
+| **Contenido y versión sometidos** | `D-05-PROPUESTA.md` §5 (rev. 4, 2026-10-15) | Opciones A/B/C de `D-07-PROPUESTA.md` §D-07.5; perfil sembrado `legal_profile_versions` **0.1.0**, alcance **PARCIAL** (tenencia y uso del suelo) | Opciones A/B/C de `D-07-PROPUESTA.md` §D-07.6 (equipo recomienda B) | `P1-005-MATRIZ-OBLIGACIONES.md` (2026-10-17) y perfil 0.1.0 |
+| **Fuentes y límites** | Reglamento (UE) 2023/1115 consolidado `02023R1115 — 26.12.2025`, Reg. 2025/2650, lista de países (Ecuador: riesgo estándar), con sha256 en `docs/sources/eudr-norma-2026-10-15/`. Límite: nada probado contra el servicio real; condiciones 1, 2, 4 sin determinar | LOTRTA (RO-S 711), Ley de Fomento Productivo Art. 56, reformas de 2022, COA; `docs/sources/ecuador-2026-10-17/MANIFIESTO.md`. Límite: no hay consolidado oficial; no se puede afirmar que no existan reformas posteriores a marzo de 2022; faltan laboral, penal ambiental, tributario, aduanero, anticorrupción y CLPI | S1 §35 (no convertir `LOW` en «insignificante legalmente»); condiciones previas: catálogo aprobado, perfil jurídico aprobado, evaluación no `STALE`, revisor autorizado distinto del evaluador, motivo escrito | Igual que D-07.5; el Registro de Tierra Rural **no** se declara «no público» (corrección del 2026-10-17); la cartografía es indicio, no veredicto |
+| **Evidencia de aprobación requerida** | Dictamen escrito de responsable regulatorio: nombre, cargo, fecha, versión de la norma analizada, alcance, conclusión por actor | Aprobación escrita de la versión del perfil (`legal_profile_reviews`): revisor, fecha, versión, materias cubiertas/pendientes | Decisión escrita y designación de personas autorizadas | Revisión jurídica escrita de la matriz y de cada obligación aplicable, con vigencia comprobada |
+| **Efecto en el sistema al adoptarse** | `GEOLOCATION_PROFILE` pasa de `NOT_EVALUABLE` a evaluable; se podrá leer qué significa `MEETS_PROFILE` | `LEGAL_PROFILE` evaluable citando la versión; hoy `PENDING` | El `CHECK` de `UNDETERMINED` se sustituye por uno más preciso (no se retira); `REGULATORY_CONCLUSION` evaluable | Alimenta D-07.5; dependencia de P1-006 |
+| **Qué NO cambia** | `READY` sigue exigiendo D-09.B, `RISK_CATALOG_APPROVED` y `SHIPMENT_LINK` | Idem; D-10 sigue siendo la fuente | Decidir D-07.6 no abre el expediente por sí solo | `UNDETERMINED`, `READY` y despacho no se tocan |
+| **Quién** | Responsable regulatorio | Responsable regulatorio | Responsable regulatorio; producto fija permisos | Responsable jurídico competente |
+
+**Producto vs. revisión competente.** Decide **producto**: adoptar el catálogo `1.0.0` por organización, D-54, D-34. Requieren **persona competente**:
+D-05.B, D-07.5, D-07.6 y el contenido de P1-005. Una revisión automática no sustituye a esa persona.

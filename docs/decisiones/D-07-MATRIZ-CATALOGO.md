@@ -6,7 +6,7 @@ Archivo: `docs/decisiones/D-07-MATRIZ-CATALOGO.md` · Revisión **2** (2026-10-1
 Estado: **APROBADA para el MVP local y PUBLICADA globalmente** (`risk_rule_sets.approval_status = 'APPROVED'`).
 Tres salvedades que no son matices de redacción:
 
-1. **Publicar no es adoptar.** `1.0.0` no está adoptado en ninguna organización, y sin adopción el motor no
+1. **Publicar no es adoptar.** `1.0.0` no está adoptado por ninguna organización real (hay un ensayo local en la Cooperativa DEMO, ver §5), y sin adopción el motor no
    escribe ninguna severidad (`CHECK risk_evaluations_severity_backed`). Adoptarlo es una decisión de cada
    organización (D-07.1), y **no se adopta automáticamente en ninguna**.
 2. **Publicar no es aprobar bajo la norma.** `risk_rule_sets.regulatory_profile` es `NULL` en todas las versiones:
@@ -234,3 +234,53 @@ se dice cuál».
 
 Publicar esta versión **no** habilita `READY`, despacho ni conclusión regulatoria, y el paso 4 es de cada
 organización, no de esta matriz.
+
+---
+
+## 5. Propuesta de adopción de `1.0.0` por organización (2026-10-20) — **NO ADOPTADA**
+
+**Qué requisito original sostiene esto.** `docs/18` P0-020: severidad explicable y conclusión `UNDETERMINED`; `docs/13`
+(«Sin alertas no prueba ausencia…», «Un saldo positivo no autoriza mezcla»); S1 §35 («no convertir `LOW` en
+“insignificante legalmente”»). La graduación no la exige ninguna fuente (§2): es decisión de producto.
+
+**Qué se propone adoptar, completo.** Exactamente las ocho reglas de §1, sin cambiar ninguna. Resumen verificable:
+
+| Regla | Efecto | Severidad | Si faltan datos | Procedencia de la graduación |
+| --- | --- | --- | --- | --- |
+| `MATERIAL_OF_UNKNOWN_ORIGIN` | BLOCKING | CRITICAL | NOT_EVALUABLE | Producto (hecho: Art. 9(1)(d)) |
+| `DATA_MISSING_ORIGIN` | BLOCKING | HIGH | NOT_EVALUABLE | Producto |
+| `GEOMETRY_INVALID` | BLOCKING | HIGH | NOT_EVALUABLE | Producto |
+| `MASS_BALANCE_INCONSISTENT` | BLOCKING | CRITICAL | NOT_EVALUABLE | Producto |
+| `DOCUMENT_EXPIRED` | REVIEW_REQUIRED | MEDIUM | NOT_EVALUABLE (sin soportes) | Producto |
+| `MITIGATION_UNVERIFIED` | BLOCKING | ninguna | NOT_HIT (sin tareas) | Producto: es trabajo pendiente |
+| `SATELLITE_COVERAGE_UNKNOWN` | NOT_ASSESSED | ninguna hasta D-09.B | NOT_EVALUABLE | Fuente (docs/13) |
+| `GEOLOCATION_PROFILE` | NOT_ASSESSED | ninguna hasta D-05.B | NOT_EVALUABLE | Fuente (D-05) |
+
+**Umbrales.** No hay pesos, cortes ni puntuaciones (D-07.3 NO APLICA): la severidad del lote es el **máximo** de las
+reglas que clasifican. El único umbral numérico del sistema de riesgo es el de GIS (4 ha, `EUDR_GEO_V1`) y es otro
+dictamen. **Consecuencia de cada clasificación:** el efecto (BLOCKING / REVIEW_REQUIRED / NOT_ASSESSED) ya vigente
+decide el resultado técnico; la severidad solo informa y **no concluye**.
+
+**Estado real contrastado el 2026-10-20 (solo lectura de `terra_link`).** `1.0.0` está `APPROVED` y publicada;
+`0.1.0` y `0.2.0` `NOT_APPROVED`; `regulatory_profile` NULL en las tres. Existe **una** adopción: Cooperativa DEMO,
+«Ensayo local del MVP… No es aprobación regulatoria» (`risk_rule_set_adoptions`). Es dato de demostración, no la
+decisión de una organización real. `docs/22` y §0 deben leerse como «ninguna organización **real** la ha adoptado».
+
+| Opción | Qué implementaría | Efecto en el alcance |
+| --- | --- | --- |
+| **A. No adoptar** (hoy, salvo el ensayo DEMO) | Ninguna organización clasifica; todo sale `NOT_ASSESSED`; distribución de riesgo de P0-030 en `UNKNOWN` | Ninguno; no avanza la visibilidad del riesgo |
+| **B. Adoptar `1.0.0` en cada organización que la elija, como ayuda de revisión interna (recomendada)** | Cada responsable de organización registra `ADOPT` con motivo; tras **reevaluar**, la evaluación nueva escribe severidad (máximo) con `complete:false` por las 4 categorías sin reglas; `WITHDRAW` devuelve a `NOT_ASSESSED`. No recalcula lo anterior | Activa P0-030 `risk_critical` y la clasificación. **No** cambia `READY`, `RISK_CATALOG_APPROVED` (sigue `NOT_EVALUABLE`) ni `UNDETERMINED` |
+| **C. Revisar graduaciones o añadir reglas antes** | Publicar `1.1.0` (inmutabilidad: nunca editar `1.0.0`), p. ej. una regla de **calidad del dato** para parcelas sin dictamen de perfil (§1.8 Nota) o cubrir una categoría vacía | Más trabajo; no desbloquea nada que B no desbloquee. Las categorías `LEGALITY`/`EVASION`/`HUMAN_RIGHTS`/`INDIGENOUS_RIGHTS` dependen de D-07.5 |
+
+**Recomendación: B**, porque convierte en uso real un mecanismo ya implementado sin afirmar nada regulatorio, es
+reversible (`WITHDRAW`) y conserva la historia. **Quién:** el propietario del producto decide la configuración
+técnica; cada organización decide su adopción (D-07.1). **No es una validación regulatoria:** usar la severidad
+como base de una conclusión o de `READY` exige D-07.5/D-07.6 y revisión competente.
+
+**Pruebas que lo demostrarían** (ya existen las del mecanismo en `d07-mecanismos.int-spec.ts`; faltarían, al
+adoptar de verdad, comprobaciones de despliegue y no código nuevo): adopción con motivo auditada; otra organización
+no afectada; reevaluación escribe severidad = máximo con `hits_without_declared_severity` y `not_evaluable_codes`;
+retiro vuelve a `NOT_ASSESSED`; conclusión sigue `UNDETERMINED`; `READY` sigue bloqueado.
+
+**Dependencias que siguen pendientes tras adoptar:** D-07.5, D-07.6, D-05.B, D-09.B, P1-005; ver
+`DECISIONES-MINIMAS-PARA-CERRAR.md`. **No se ejecutó nada sobre expedientes** al preparar esta propuesta.

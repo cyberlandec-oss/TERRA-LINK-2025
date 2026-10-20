@@ -2,17 +2,17 @@
 
 Última actualización: **2026-10-20** (continuidad; ver «Próxima acción (2026-10-20)»). Repositorio `cyberlandec-oss/TERRA-LINK-2025`, rama de trabajo `feat/tech-001-ci-p0-002` (PR #1 abierto como respaldo y revisión; `main` en `03bb2f6`).
 
-**Seguimiento por historias al 2026-10-16** (cuenta **historias del MVP**, no esfuerzo):
+**Seguimiento por historias (cifras al 2026-10-19, ver `sesiones/REANUDAR_2026-10-19.md`)** (cuenta **historias del MVP**, no esfuerzo):
 
 | Estado | Historias |
 | --- | ---: |
-| **DONE_LOCAL**, con sus límites de evidencia | **24 de 32** (75 %) |
-| Abiertas, con implementación parcial | **6** — P0-017, P0-022, P0-023, P0-024, P0-028, P0-029 (P0-003 cerrada el 2026-10-17) |
+| **DONE_LOCAL**, con sus límites de evidencia | **25 de 32** (78,1 %; P0-003 cerrada el 2026-10-17) |
+| Abiertas, con implementación parcial | **6** — P0-017, P0-022, P0-023, P0-024, P0-028, P0-029 |
 | Piloto **sin ejecutar** | **1** — P0-031 |
 
 **Qué mide y qué no ese 75 %.** Es el **cierre de historias del MVP** con evidencia local, y nada más. **No** es
 un porcentaje de cumplimiento de la documentación raíz, que incluye además requisitos de producción, seguridad,
-operación, conformidad EUDR y fases posteriores al MVP. Tampoco mide esfuerzo restante: las siete abiertas no son
+operación, conformidad EUDR y fases posteriores al MVP. Tampoco mide esfuerzo restante: las siete no cerradas no son
 intercambiables entre sí ni con las cerradas. Y **DONE_LOCAL** sigue significando lo de siempre: criterios de la
 historia cumplidos con pruebas locales, sin acreditar producción, Android real ni conformidad.
 
