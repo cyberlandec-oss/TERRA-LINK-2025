@@ -161,6 +161,10 @@ test('fotografía (D-41): la web sube una copia SIN metadatos como «Fotografía
   expect(foto).toBeTruthy();
   expect(foto!.versions[0].sha256).not.toBe(createHash('sha256').update(jpeg).digest('hex'));
   expect(JSON.stringify(foto)).not.toContain('IMG_0001');
+  // El productor vinculado ve y puede descargar SU fotografía (permiso propio), aunque sea dato personal.
+  await page.getByRole('link', { name: 'Foto del lindero (sintética)' }).click();
+  await expect(page.getByRole('button', { name: /Descargar v1/ })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText('tu rol puede ver los metadatos, no el contenido')).toHaveCount(0);
   await ctx.close();
 });
 

@@ -1,9 +1,13 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { ApiError, api } from './api';
 import { useI18n } from './i18n';
 import { Alert, ErrorPanel, StatusBadge } from './ui';
+
+// El mapa (MapLibre + cartografía local) solo existe en el navegador y se carga bajo demanda.
+const MapCapture = dynamic(() => import('./map-capture').then((m) => m.MapCapture), { ssr: false });
 
 // A-01 — Registrar la ubicación de una PARCELA escribiendo coordenadas o dibujándolas en un croquis.
 //
@@ -13,7 +17,8 @@ import { Alert, ErrorPanel, StatusBadge } from './ui';
 //   · Cada posición se escribe como [longitud, latitud] y el ORDEN se rotula en cada campo y en la tabla de revisión.
 //   · La validez la decide el SERVIDOR (estructura, topología, superficie): primero se revisa sin guardar, después se confirma.
 //   · Corregir una geometría existente exige un motivo; la versión anterior se conserva.
-//   · El croquis no tiene mapa base ni proveedor externo: orienta, no mide. Hay alternativa por teclado y por tabla.
+//   · «Dibujar en el mapa» usa cartografía real (OpenStreetMap) servida LOCALMENTE por Terra Link (lib/map-capture.tsx); sin datos
+//     cartográficos lo declara y quedan la tabla y el croquis. El croquis no tiene mapa base: orienta, no mide. Todo con alternativa por teclado y tabla.
 
 interface Vertex { lon: string; lat: string }
 interface Preview {
@@ -23,7 +28,7 @@ interface Preview {
   provenance: { survey_method: string; is_gps_measurement: boolean; note: string };
   bbox: { min_longitude: number; min_latitude: number; max_longitude: number; max_latitude: number } | null;
 }
-type Origin = 'TABLE' | 'SKETCH';
+type Origin = 'TABLE' | 'MAP' | 'SKETCH';
 
 // Ecuador continental e insular, con holgura: se usa solo para advertir de un posible orden invertido, nunca para rechazar.
 const ECUADOR = { minLon: -92.5, maxLon: -74.5, minLat: -5.5, maxLat: 2 };
@@ -90,7 +95,8 @@ export function ManualCapture({ orgId, plotId, rowVersion, hasGeometry, initialC
     if (!preview || opLock.current) return;
     opLock.current = true; setBusy(true); setError(null);
     try {
-      const origen = origin === 'SKETCH' ? 'Dibujada en el croquis de la web (no es una medición GPS)' : 'Coordenadas escritas en la web (no es una medición GPS)';
+      const origen = origin === 'MAP' ? 'Dibujada en el mapa de referencia de la web (no es una medición GPS)'
+        : origin === 'SKETCH' ? 'Dibujada en el croquis de la web (no es una medición GPS)' : 'Coordenadas escritas en la web (no es una medición GPS)';
       const r = await api<{ version: { version_number: number } }>(`/api/v1/organizations/${orgId}/plots/${plotId}/geometry-versions`, {
         method: 'POST',
         body: { expected_version: rowVersion, survey_method: 'MANUAL_COORDINATES', geometry: preview.geometry, notes: origen, ...(reason.trim() ? { reason: reason.trim() } : {}) },
@@ -108,7 +114,7 @@ export function ManualCapture({ orgId, plotId, rowVersion, hasGeometry, initialC
   return (
     <div className="capture manual-capture" aria-live="polite">
       <h3>{t('Escribir o dibujar coordenadas')}</h3>
-      <p className="field-help">{t('Para cuando no hay GPS a mano: escribe las coordenadas o márcalas en el croquis. Se guardan como «coordenadas ingresadas», sin precisión, y NO acreditan una medición GPS.')}</p>
+      <p className="field-help">{t('Para cuando no hay GPS a mano: escribe las coordenadas o márcalas en el mapa. Se guardan como «coordenadas ingresadas», sin precisión, y NO acreditan una medición GPS.')}</p>
       {saved !== null && <Alert tone="valid" title={t('Ubicación guardada como versión {n}.', { n: saved })}><p>{t('La versión anterior se conserva. La validación GIS sigue siendo un paso aparte.')}</p></Alert>}
 
       <fieldset>
@@ -119,8 +125,17 @@ export function ManualCapture({ orgId, plotId, rowVersion, hasGeometry, initialC
 
       <div role="group" aria-label={t('Forma de entrada')} className="actions">
         <button type="button" className={origin === 'TABLE' ? '' : 'secondary'} aria-pressed={origin === 'TABLE'} onClick={() => setOrigin('TABLE')}>{t('Escribir coordenadas')}</button>
+        <button type="button" className={origin === 'MAP' ? '' : 'secondary'} aria-pressed={origin === 'MAP'} onClick={() => setOrigin('MAP')}>{t('Dibujar en el mapa')}</button>
         <button type="button" className={origin === 'SKETCH' ? '' : 'secondary'} aria-pressed={origin === 'SKETCH'} onClick={() => setOrigin('SKETCH')}>{t('Dibujar en el croquis')}</button>
       </div>
+
+      {origin === 'MAP' && (
+        <MapCapture
+          mode={mode} vertices={parsed.filter((p) => p.lon !== null && p.lat !== null) as Array<{ lon: number; lat: number }>}
+          initialCenter={initialCenter ?? null}
+          onChange={(vs) => edit(vs.length ? vs.map((p) => ({ lon: String(p.lon), lat: String(p.lat) })) : (mode === 'POINT' ? [{ lon: '', lat: '' }] : []))}
+        />
+      )}
 
       {origin === 'SKETCH' && (
         <Croquis

@@ -7,7 +7,7 @@
 // Todo con datos SINTÉTICOS en una organización propia «ENSAYO A-01», sin tocar las cuentas DEMO. Las contraseñas de
 // ensayo se generan en memoria; el estado entre fases (correos, contraseñas, identificadores) vive en la carpeta
 // temporal del sistema, FUERA del repositorio. No se imprimen contraseñas ni testigos. Capturas en validation-results/.
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -317,6 +317,158 @@ if (FASE === 'base') {
     const ajenos = [await pedir(tok.tec1, 'GET', `${base}/plots/${E.plotD}/geometry-imports`), await pedir(tok.prod1, 'GET', `${base}/plots/${E.plotD}/geometry-imports`), await pedir(tok.adminb, 'GET', `${base}/plots/${E.plotD}/geometry-imports`)].map((x) => x.status);
     await ctx.close();
     return [antes === despues && pend(propio) === 1 && ajenos.every((s) => s === 404 || s === 403), `pendientes del usuario=${pend(propio)} · versiones antes/después=${antes}/${despues} · otros=${ajenos.join('/')}`];
+  });
+
+  // ---- 5) Mapa local (MapLibre + OpenStreetMap servido por Terra Link): sin servicios externos
+  const MAPS = arg('--maps', 'http://localhost:8090');
+  const origenesOk = new Set([new URL(WEB).origin, new URL(API).origin, new URL(MAPS).origin]);
+  const conMapa = async (lang, opts, fn) => {
+    const { ctx, page } = await sesion(browser, tok.prod1, lang, opts);
+    const externas = []; const total = { n: 0, maps: 0 };
+    page.on('request', (r) => { const u = r.url(); if (!/^https?:/.test(u)) return; total.n++; const o = new URL(u).origin; if (o === new URL(MAPS).origin) total.maps++; if (!origenesOk.has(o)) externas.push(u); });
+    try { return await fn(page, externas, total); } finally { await ctx.close(); }
+  };
+  await caso('5.1 WEB mapa (es): cartografía real, acercar/desplazar, fijar vértices (mira y teclado), REVISAR sin guardar y confirmar; ninguna solicitud externa', async () => {
+    return conMapa('es', {}, async (page, externas, total) => {
+      await page.goto(ruta('captura'));
+      await page.getByLabel('Parcela', { exact: true }).selectOption({ index: 1 });
+      await page.getByRole('button', { name: 'Escribir o dibujar' }).click();
+      await page.getByRole('radio', { name: /Un polígono/ }).check();
+      await page.getByRole('button', { name: 'Dibujar en el mapa' }).click();
+      const mapa = page.getByRole('application', { name: /Mapa para dibujar la parcela/ });
+      await page.locator('.maplibregl-canvas').waitFor({ timeout: 30000 });
+      await page.getByText('Cargando el mapa local…').waitFor({ state: 'detached', timeout: 30000 });
+      await page.getByLabel('Ir a longitud').fill('-80.16'); await page.getByLabel('Ir a latitud').fill('-0.85');
+      await page.getByRole('button', { name: 'Centrar el mapa aquí' }).click();
+      await page.getByText(/longitud -80\.16, latitud -0\.85/).waitFor({ timeout: 20000 });
+      await mapa.focus(); await page.keyboard.press('=');
+      await page.getByRole('button', { name: 'Fijar vértice en la mira' }).click();
+      for (const [lon, lat] of [['-80.159', '-0.85'], ['-80.159', '-0.849']]) {
+        await page.getByLabel('Ir a longitud').fill(lon); await page.getByLabel('Ir a latitud').fill(lat);
+        await page.getByRole('button', { name: 'Centrar el mapa aquí' }).click();
+        await page.getByText(new RegExp('longitud ' + lon.replace('.', '\\.'))).waitFor({ timeout: 20000 });
+        await mapa.focus(); await page.keyboard.press('Enter');
+      }
+      const filas = await page.getByRole('table', { name: 'Coordenadas a registrar' }).locator('tbody tr').count();
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: join(SALIDA, '5.1-mapa-es.png'), fullPage: true });
+      const antes = (await versiones(tok.prod1, E.plotA)).length;
+      await page.getByRole('button', { name: 'Revisar antes de guardar' }).click();
+      await page.getByText('todavía no se guardó nada').waitFor();
+      const trasRevisar = (await versiones(tok.prod1, E.plotA)).length;
+      await page.getByLabel(/Motivo de la corrección/).fill('Trazado sobre el mapa de referencia (ensayo A-01)');
+      await page.getByRole('button', { name: 'Guardar como nueva versión' }).click();
+      await page.getByText(/Ubicación guardada como versión \d+\./).waitFor();
+      const v = (await versiones(tok.prod1, E.plotA))[0];
+      return [filas === 3 && trasRevisar === antes && v?.survey_method === 'MANUAL_COORDINATES' && (v.accuracy_m ?? null) === null && externas.length === 0 && total.maps > 0,
+        `vértices=${filas} · versiones antes/tras revisar=${antes}/${trasRevisar} · método=${v?.survey_method}, precisión=${v?.accuracy_m ?? 'no informada'} · solicitudes=${total.n} (al servicio local de mapas=${total.maps}) · externas=${externas.length}`];
+    });
+  });
+  await caso('5.2 WEB mapa (en, 390 px): teclado, sin desborde y sin solicitudes externas', async () => {
+    return conMapa('en', { viewport: { width: 390, height: 844 } }, async (page, externas) => {
+      await page.goto(ruta('captura'));
+      await page.getByLabel('Plot', { exact: true }).selectOption({ index: 1 });
+      await page.getByRole('button', { name: 'Type or draw' }).click();
+      await page.getByRole('button', { name: 'Draw on the map' }).click();
+      await page.locator('.maplibregl-canvas').waitFor({ timeout: 30000 });
+      await page.getByRole('button', { name: 'Set vertex at the crosshair' }).click();
+      const lon = await page.getByLabel(/Longitude.*vertex 1/).inputValue();
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: join(SALIDA, '5.2-mapa-en-390px.png'), fullPage: true });
+      const ok = await sinDesborde(page);
+      return [lon !== '' && ok && externas.length === 0, `vértice fijado=${lon !== ''} · sin desborde=${ok} · externas=${externas.length}`];
+    });
+  });
+  await caso('5.3 sin cartografía: lo declara, no usa mapa externo y conserva la entrada manual', async () => {
+    return conMapa('es', {}, async (page, externas) => {
+      await page.route('**/estilo.json', (r) => r.fulfill({ status: 404, body: 'no preparado' }));
+      await page.goto(ruta('captura'));
+      await page.getByLabel('Parcela', { exact: true }).selectOption({ index: 1 });
+      await page.getByRole('button', { name: 'Escribir o dibujar' }).click();
+      await page.getByRole('button', { name: 'Dibujar en el mapa' }).click();
+      await page.getByText('La cartografía local no está disponible.').waitFor();
+      await page.getByLabel(/Longitud.*vértice 1/).fill('-80.2'); await page.getByLabel(/Latitud.*vértice 1/).fill('-0.9');
+      const habilitado = await page.getByRole('button', { name: 'Revisar antes de guardar' }).isEnabled();
+      await page.screenshot({ path: join(SALIDA, '5.3-sin-mapa.png'), fullPage: true });
+      return [habilitado && externas.length === 0, `entrada manual disponible=${habilitado} · externas=${externas.length}`];
+    });
+  });
+  await caso('5.4 el productor usa polígono por vértices e importación GeoJSON SOLO en su parcela (la ajena: 404)', async () => {
+    const mia = [await pedir(tok.prod1, 'POST', `${base}/plots/${E.plotA}/polygon-drafts`, {}), await pedir(tok.prod1, 'GET', `${base}/plots/${E.plotA}/polygon-drafts/current`)].map((x) => x.status);
+    const ajena = [await pedir(tok.prod1, 'POST', `${base}/plots/${E.plotB}/polygon-drafts`, {}), await pedir(tok.prod1, 'GET', `${base}/plots/${E.plotB}/polygon-drafts/current`)].map((x) => x.status);
+    return [mia.every((s) => s < 300) && ajena.every((s) => s === 404), `propia=${mia.join('/')} ajena=${ajena.join('/')}`];
+  });
+
+  // ---- 6) Fotografías (D-41): copia sin metadatos, FIELD_PHOTO y consulta PROPIA
+  const jpegConExif = () => {
+    const a = (x) => Array.from(x, (c) => c.charCodeAt(0));
+    const sg = (m, d) => [0xff, m, (d.length + 2) >> 8, (d.length + 2) & 0xff, ...d];
+    const tiff = [0x49, 0x49, 42, 0, 8, 0, 0, 0, 2, 0, 0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0x25, 0x88, 4, 0, 1, 0, 0, 0, 0x30, 0, 0, 0, 0, 0, 0, 0];
+    return Buffer.from([0xff, 0xd8, ...sg(0xe1, [...a('Exif\0\0'), ...tiff]), ...sg(0xe1, a('http://ns.adobe.com/xap/1.0/\0<xmpmeta>TelefonoSintetico</xmpmeta>')), ...sg(0xfe, a('comentario')), ...sg(0xdb, [0, 1, 2, 3]), 0xff, 0xda, 0, 4, 1, 0, ...a('datos-' + randomUUID()), 0xff, 0xd9]);
+  };
+  const tieneMeta = (b) => b.includes(Buffer.from('TelefonoSintetico')) || b.includes(Buffer.from('Exif'));
+  const subirFoto = async (t, plot, bytes, tipo = 'FIELD_PHOTO') => {
+    const f = new FormData();
+    f.append('operation_id', randomUUID()); f.append('document_type', tipo); f.append('owner_type', 'plot'); f.append('owner_id', plot); f.append('title', 'Foto de ensayo A-01 (sintética)');
+    f.append('file', new Blob([bytes], { type: 'image/jpeg' }), 'fotografia.jpg');
+    const r = await fetch(`${API}${base}/documents`, { method: 'POST', headers: { authorization: `Bearer ${t}` }, body: f });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const bajar = async (t, doc, ver, org = E.org) => { const r = await fetch(`${API}/api/v1/organizations/${org}/documents/${doc}/versions/${ver}/content`, { headers: { authorization: `Bearer ${t}` } }); return { status: r.status, bytes: Buffer.from(await r.arrayBuffer()) }; };
+  const sha = (b) => createHash('sha256').update(b).digest('hex');
+  const original = jpegConExif();
+  const copia = Buffer.from(await (async () => { const { stripImageMetadata } = await import('../../apps/api/dist/sync/image-metadata.js'); return stripImageMetadata(new Uint8Array(original), 'image/jpeg'); })());
+  let fotoPropia = null; let fotoAjena = null;
+  await caso('6.1 la API directa NO acepta una foto con EXIF (ni como FIELD_PHOTO ni como evidencia); la copia sin metadatos sí', async () => {
+    const a = await subirFoto(tok.prod1, E.plotA, original); const b = await subirFoto(tok.prod1, E.plotA, copia, 'FIELD_EVIDENCE'); const c = await subirFoto(tok.prod1, E.plotA, copia);
+    fotoPropia = c.body?.document;
+    return [a.status === 422 && a.body?.error?.code === 'PHOTO_METADATA_PRESENT' && b.status === 422 && c.status === 201 && c.body.document.versions[0].sha256 === sha(copia) && sha(copia) !== sha(original),
+      `con EXIF=${a.status} ${a.body?.error?.code} · imagen como evidencia=${b.status} ${b.body?.error?.code} · copia=${c.status} · SHA de la copia ≠ SHA del original=${sha(copia) !== sha(original)}`];
+  });
+  await caso('6.2 WEB: el productor sube una foto con EXIF; el sistema prepara la copia, el original no cambia y la ve y descarga', async () => {
+    const { ctx, page } = await sesion(browser, tok.prod1);
+    await page.goto(ruta('captura'));
+    await page.getByLabel('Parcela', { exact: true }).selectOption({ index: 1 });
+    await page.getByLabel('Archivo (PDF, JPEG o PNG)').setInputFiles({ name: 'IMG_0001.JPG', mimeType: 'image/jpeg', buffer: original });
+    await page.getByLabel('Título', { exact: true }).fill('Foto del lindero (ensayo A-01)');
+    await page.getByRole('button', { name: 'Subir evidencia' }).click();
+    await page.getByText('Se quitaron los metadatos de la copia subida; tu archivo original no se modificó.').waitFor();
+    await page.getByRole('link', { name: 'Foto del lindero (ensayo A-01)' }).click();
+    await page.getByRole('button', { name: /Descargar v1/ }).waitFor({ timeout: 20000 });
+    await page.screenshot({ path: join(SALIDA, '6.2-foto-propia.png'), fullPage: true });
+    await ctx.close();
+    const docs = lista((await pedir(tok.prod1, 'GET', `${base}/documents?owner_type=plot&owner_id=${E.plotA}`)).body);
+    const foto = docs.find((d) => d.title === 'Foto del lindero (ensayo A-01)');
+    const dl = await bajar(tok.prod1, foto.id, foto.versions[0].id);
+    return [dl.status === 200 && !tieneMeta(dl.bytes) && sha(dl.bytes) === foto.versions[0].sha256 && !JSON.stringify(foto).includes('IMG_0001') && foto.versions[0].downloadable === true,
+      `descarga propia=${dl.status} · archivo servido sin metadatos=${!tieneMeta(dl.bytes)} · coincide con el SHA registrado=${sha(dl.bytes) === foto.versions[0].sha256} · nombre neutro=${!JSON.stringify(foto).includes('IMG_0001')}`];
+  });
+  await caso('6.3 foto de OTRA parcela sin alcance: 404 al consultar, listar y descargar; el productor de ESA parcela sí; otra organización 404; sin identidad general', async () => {
+    const up = await subirFoto(tok.admin, E.plotB, copia); fotoAjena = up.body?.document;
+    exigeEntrada('foto ajena', fotoAjena?.id);
+    const doc = fotoAjena.id, ver = fotoAjena.versions[0].id;
+    const r = {
+      vista: (await pedir(tok.prod1, 'GET', `${base}/documents/${doc}`)).status, descarga: (await bajar(tok.prod1, doc, ver)).status,
+      enLista: lista((await pedir(tok.prod1, 'GET', `${base}/documents`)).body).some((d) => d.id === doc),
+      control: (await bajar(tok.prod2, doc, ver)).status, otraOrg: (await bajar(tok.adminb, doc, ver)).status, otraOrgProd: (await bajar(tok.prod1, doc, ver, E.orgB)).status,
+      auditor: (await bajar(tok.aud, doc, ver)).status,
+    };
+    const ident = (await pedir(tok.prod1, 'GET', `${base}/producers/${E.pA}`)).body?.identity_visible;
+    return [r.vista === 404 && r.descarga === 404 && !r.enLista && r.control === 200 && r.otraOrg === 404 && r.otraOrgProd === 404 && r.auditor === 403 && ident === false,
+      `otra parcela: ver=${r.vista}, descargar=${r.descarga}, en lista=${r.enLista} · control (su productor)=${r.control} · otra organización=${r.otraOrg}/${r.otraOrgProd} · auditor=${r.auditor} · identidad visible para el productor=${ident}`];
+  });
+  await caso('6.4 al retirar el vínculo el productor pierde el acceso a su foto al instante; al restablecerlo, vuelve', async () => {
+    exigeEntrada('foto propia', fotoPropia?.id);
+    const doc = fotoPropia.id, ver = fotoPropia.versions[0].id;
+    const unlink = async (m) => { const v = (await pedir(tok.admin, 'GET', `${base}/producers/${E.pA}`)).body.row_version; return pedir(tok.admin, 'PUT', `${base}/producers/${E.pA}/self-membership`, { expected_version: v, membership_id: m, reason: 'Ensayo de pérdida de acceso a fotografías (A-01)' }); };
+    const miembros = lista((await pedir(tok.admin, 'GET', `${base}/members`)).body.members ?? (await pedir(tok.admin, 'GET', `${base}/members`)).body);
+    const mem = exigeEntrada('membresía prod1', miembros.find((m) => m.email === E.cuentas.prod1.email)?.membership_id);
+    const antes = (await bajar(tok.prod1, doc, ver)).status;
+    const retirado = await unlink(null);
+    const sin = [(await pedir(tok.prod1, 'GET', `${base}/documents/${doc}`)).status, (await bajar(tok.prod1, doc, ver)).status];
+    const repuesto = await unlink(mem);
+    const con = (await bajar(tok.prod1, doc, ver)).status;
+    return [antes === 200 && retirado.status === 200 && sin.every((s) => s === 404) && repuesto.status === 200 && con === 200, `antes=${antes} · retirado=${retirado.status} → ver/descargar=${sin.join('/')} · restablecido=${repuesto.status} → descargar=${con}`];
   });
 
   await browser.close();

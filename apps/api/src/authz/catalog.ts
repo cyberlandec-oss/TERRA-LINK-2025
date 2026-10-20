@@ -38,6 +38,9 @@ export type Permission =
   // A-01 (2026-10-20) — alcance PROPIO del productor: solo su productor vinculado (`producers.self_membership_id`) y sus
   // parcelas. `producer:link_self` administra ese vínculo (explícito y auditable); el rol por sí solo no concede nada.
   | 'producer:read_own'
+  // A-01: ver y descargar las FOTOGRAFÍAS DE CAMPO (FIELD_PHOTO, dato personal) de las parcelas del propio productor vinculado. NO es
+  // `producer:read_identity` ni lectura de otras fotografías: el alcance por titular (parcela propia) lo sigue fijando PlotsService.
+  | 'document:read_field_photo_own'
   | 'plot:read_own'
   | 'plot:create_own'
   | 'plot:update_own'
@@ -185,7 +188,7 @@ const ALL_MEMBER_READ: Permission[] = ['organization:read'];
 
 const PRODUCER_ALL: Permission[] = [
   'producer:read', 'producer:read_assigned', 'producer:read_identity', 'producer:create',
-  'producer:update', 'producer:update_assigned', 'producer:assign', 'producer:archive', 'producer:review_duplicates', 'producer:link_self', 'producer:read_own',
+  'producer:update', 'producer:update_assigned', 'producer:assign', 'producer:archive', 'producer:review_duplicates', 'producer:link_self', 'producer:read_own', 'document:read_field_photo_own',
 ];
 
 const PLOT_ALL: Permission[] = [
@@ -210,7 +213,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   // A-01: el productor captura y consulta SOLO lo suyo. Sin `plot:evaluate_gis*`, `document:review`, `evidence:*`, `risk:*`:
   // registrar coordenadas no concede aprobar evidencias ni concluir riesgo. `document:read/upload` son la puerta de entrada;
   // el alcance real lo pone el titular del documento (parcela o productor propios).
-  PRODUCER: ['producer:read_own', 'plot:read_own', 'plot:create_own', 'plot:update_own', 'plot:read_geometry', 'document:read', 'document:upload'],
+  PRODUCER: ['producer:read_own', 'plot:read_own', 'plot:create_own', 'plot:update_own', 'plot:read_geometry', 'document:read', 'document:upload', 'document:read_field_photo_own'],
 };
 
 export const PLATFORM_PERMISSIONS: Record<'SUPER_ADMIN', PlatformPermission[]> = {

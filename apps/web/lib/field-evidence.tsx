@@ -115,7 +115,7 @@ export function FieldEvidence({ orgId, plotId, canUpload }: { orgId: string; plo
           <label htmlFor="fe-title-in">{t('Título')}</label>
           <input id="fe-title-in" required minLength={3} maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
           <p className="field-help">{t('Las fotos se suben como «Fotografía de campo»: se prepara una copia sin metadatos (EXIF/XMP: ubicación, dispositivo, hora). Tu archivo original no se modifica y sigue en tu equipo; la copia tiene otro SHA-256. La ubicación de la parcela se registra aparte, con su procedencia.')}</p>
-          <p className="field-help">{t('El contenido de las fotografías de campo es dato personal: solo lo ven los roles con acceso a la identidad del productor.')}</p>
+          <p className="field-help">{t('El contenido de las fotografías de campo es dato personal: lo ven los roles con acceso a la identidad del productor y, en sus propias parcelas, el productor vinculado.')}</p>
           <button type="submit" disabled={!file || busy} aria-busy={busy}>{busy ? t('Subiendo…') : t('Subir evidencia')}</button>
         </form>
       )}

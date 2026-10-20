@@ -17,7 +17,7 @@ const PANTALLAS = [
   'app/organizaciones/[id]/captura/page.tsx', 'app/organizaciones/[id]/parcelas/page.tsx', 'app/organizaciones/[id]/parcelas/[plotId]/page.tsx',
   'lib/field-capture.tsx', 'lib/field-evidence.tsx', 'lib/manual-capture.tsx', 'lib/location-capture.tsx', 'lib/polygon-capture.tsx',
   'lib/geometry-import.tsx', 'lib/satellite.tsx', 'lib/producer-self-link.tsx', 'lib/plots.tsx',
-  'lib/gis-evaluation.tsx', 'lib/geo-profile.tsx',
+  'lib/gis-evaluation.tsx', 'lib/geo-profile.tsx', 'lib/map-capture.tsx',
 ];
 
 describe('internacionalización', () => {
@@ -51,7 +51,7 @@ describe('internacionalización', () => {
   });
 
   it('ninguna traducción está vacía, ni es igual al español por descuido salvo nombres propios', () => {
-    const iguales = new Set(['Authorization Code + PKCE', 'Auditor', 'General', 'No']);
+    const iguales = new Set(['Authorization Code + PKCE', 'Auditor', 'General', 'No', 'Zoom']);
     for (const [es, en] of Object.entries(EN)) {
       expect(en.trim().length, es).toBeGreaterThan(0);
       if (!iguales.has(es)) expect(en, `sin traducir: ${es}`).not.toBe(es);

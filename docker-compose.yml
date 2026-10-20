@@ -169,11 +169,40 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: http://localhost:${API_HOST_PORT:-4000}
+        # Cartografía LOCAL (A-01): la web nunca consulta teselas, estilos ni fuentes de un tercero.
+        NEXT_PUBLIC_MAPS_URL: http://localhost:${MAPS_HOST_PORT:-8090}
     image: terra-link-web:local
     ports: ["${WEB_HOST_PORT:-3000}:3000"]
     depends_on:
       api: { condition: service_healthy }
+  # A-01 — Cartografía local. Sirve teselas vectoriales (PMTiles), estilo y fuentes tipográficas desde el volumen map-data, que se llena con
+  # `node infra/maps/preparar-mapa.mjs` (datos públicos de OpenStreetMap, Geofabrik). Sin datos, responde 404 y la web lo declara.
+  maps:
+    profiles: [app]
+    image: nginx:1.27-alpine
+    ports: ["${MAPS_HOST_PORT:-8090}:80"]
+    volumes:
+      - map-data:/usr/share/nginx/html:ro
+      - ./infra/maps/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/salud"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+  # Preparación del mapa (perfil maps-prep; no forma parte del despliegue normal). Ver infra/maps/README.md.
+  map-fuentes:
+    profiles: [maps-prep]
+    image: alpine:3.20
+    volumes:
+      - map-data:/data
+      - ./infra/maps:/infra:ro
+  map-teselas:
+    profiles: [maps-prep]
+    image: ghcr.io/onthegomap/planetiler:0.10.2
+    volumes:
+      - map-data:/data
 volumes:
   postgres-data:
   object-data:
   scanner-db:
+  map-data:

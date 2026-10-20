@@ -34,6 +34,7 @@ describeDb('A-01 captura de campo con alcance propio (PostgreSQL real)', () => {
   const m: Record<string, string> = {};
   let p1 = ''; let p2 = ''; let plot1 = ''; let plot2 = ''; let docP2 = ''; let verP2 = '';
 
+  const lista = (r: { body: unknown }): string[] => ((Array.isArray(r.body) ? r.body : (r.body as { items?: unknown[] })?.items ?? []) as Array<{ id: string }>).map((d) => d.id);
   const punto = (lon: number, lat: number) => ({ type: 'Point', coordinates: [lon, lat] });
   const cuadro = (lon: number, lat: number, d = 0.001) => ({ type: 'Polygon', coordinates: [[[lon, lat], [lon + d, lat], [lon + d, lat + d], [lon, lat + d], [lon, lat]]] });
   const pdf = () => Buffer.from(`%PDF-1.4\n% evidencia sintetica ${randomUUID()}\n%%EOF\n`);
@@ -302,16 +303,69 @@ describeDb('A-01 captura de campo con alcance propio (PostgreSQL real)', () => {
     const verId = ok.body.document.versions[0].id; const docId = ok.body.document.id;
     expect(ok.body.document.versions[0].sha256).toBe(createHash('sha256').update(copia).digest('hex'));    // el SHA-256 es el de la copia, no el del original
     expect(createHash('sha256').update(copia).digest('hex')).not.toBe(createHash('sha256').update(original).digest('hex'));
-    // Archivo servido: el contenido es dato personal. El productor no lo descarga (sin acceso a identidad); la administración sí, y sin metadatos.
-    const prod = await http().get(`${api()}/documents/${docId}/versions/${verId}/content`).set(as(PROD1));
-    expect(prod.status).toBe(403);
-    const adm = await http().get(`${api()}/documents/${docId}/versions/${verId}/content`).set(as(ADMIN)).buffer(true).parse((res, cb) => { const c: Buffer[] = []; res.on('data', (d: Buffer) => c.push(d)); res.on('end', () => cb(null, Buffer.concat(c))); });
+    // Archivo servido: el contenido sigue siendo DATO PERSONAL (clasificación intacta) y se entrega exactamente la copia almacenada.
+    const bin = (r: import('supertest').Test) => r.buffer(true).parse((res, cb) => { const c: Buffer[] = []; res.on('data', (d: Buffer) => c.push(d)); res.on('end', () => cb(null, Buffer.concat(c))); });
+    const ruta = `${api()}/documents/${docId}/versions/${verId}/content`;
+    const adm = await bin(http().get(ruta).set(as(ADMIN)));
     expect(adm.status).toBe(200);
     expect(hasImageMetadata(new Uint8Array(adm.body as Buffer), 'image/jpeg')).toBe(false);   // archivo servido: sin metadatos
     expect(Buffer.compare(adm.body as Buffer, copia)).toBe(0);                                  // exactamente los bytes almacenados
+    const vistaAdm = (await http().get(`${api()}/documents/${docId}`).set(as(ADMIN)).expect(200)).body;
+    expect(vistaAdm.classification).toBe('PERSONAL_DATA');
+    // FOTO PROPIA: el productor vinculado la consulta y la descarga con su permiso específico, sin recibir identidad.
+    const propia = await http().get(`${api()}/documents/${docId}`).set(as(PROD1)).expect(200);
+    expect(propia.body.content_access).toBe('ALLOWED');
+    expect(propia.body.versions[0].downloadable).toBe(true);
+    const mia = await bin(http().get(ruta).set(as(PROD1)));
+    expect(mia.status).toBe(200);
+    expect(Buffer.compare(mia.body as Buffer, copia)).toBe(0);
+    expect((await http().get(`${api()}/producers/${p1}`).set(as(PROD1)).expect(200)).body.identity_visible).toBe(false);   // sin lectura de identidad
+    // FOTO DE OTRA PARCELA (misma organización, otro productor): ni la ve, ni la lista, ni la descarga el productor sin alcance.
+    const ajena = await foto(ADMIN, 'FIELD_PHOTO', Buffer.from(stripImageMetadata(new Uint8Array(Buffer.concat([original.subarray(0, original.length - 2), Buffer.from(ascii(randomUUID())), Buffer.from([0xff, 0xd9])])), 'image/jpeg')), plot2).expect(201);
+    const rutaAjena = `${api()}/documents/${ajena.body.document.id}/versions/${ajena.body.document.versions[0].id}/content`;
+    expect((await http().get(`${api()}/documents/${ajena.body.document.id}`).set(as(PROD1))).status).toBe(404);
+    expect((await bin(http().get(rutaAjena).set(as(PROD1)))).status).toBe(404);
+    expect(lista(await http().get(`${api()}/documents`).set(as(PROD1)))).not.toContain(ajena.body.document.id);
+    expect((await bin(http().get(rutaAjena).set(as(PROD2)))).status).toBe(200);                 // control: el productor de ESA parcela sí
+    expect((await bin(http().get(ruta).set(as(PROD2)))).status).toBe(404);                      // y no la foto de la primera
+    // Sin vínculo con ningún productor, haber subido una foto no basta; y el permiso no existe para otros roles sin identidad.
+    expect((await bin(http().get(ruta).set(as(PROD3)))).status).toBe(404);
+    expect((await bin(http().get(ruta).set(as(AUD)))).status).toBe(403);                         // el auditor no lee datos personales
+    // Otra organización.
+    expect((await bin(http().get(`${api(orgB)}/documents/${docId}/versions/${verId}/content`).set(as(ADMIN_B)))).status).toBe(404);
+    expect((await bin(http().get(`${api(orgB)}/documents/${docId}/versions/${verId}/content`).set(as(PROD1)))).status).toBe(404);
+    // PÉRDIDA DE ACCESO al retirar el vínculo: la foto que subió el propio productor deja de ser accesible al instante.
+    await vincular(ADMIN, p1, null, await version(p1), 'Se retira el vínculo (ensayo de fotografías)').expect(200);
+    expect((await http().get(`${api()}/documents/${docId}`).set(as(PROD1))).status).toBe(404);
+    expect((await bin(http().get(ruta).set(as(PROD1)))).status).toBe(404);
+    await vincular(ADMIN, p1, m[PROD1], await version(p1), 'Se restablece el vínculo').expect(200);
+    expect((await bin(http().get(ruta).set(as(PROD1)))).status).toBe(200);
+    // La descarga queda auditada.
+    const dl = await h.db.selectFrom('audit_logs as a').innerJoin('users as u', 'u.id', 'a.actor_user_id').select('a.id').where('a.action', '=', 'document.download').where('u.email', '=', PROD1).execute();
+    expect(dl.length).toBeGreaterThanOrEqual(2);                                                   // cada descarga del productor quedó auditada
     // El rechazo queda auditado (sin el contenido).
     const aud = await h.db.selectFrom('audit_logs').select(['action', 'result']).where('action', '=', 'document.upload_rejected').execute();
     expect(aud.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('POLÍGONO POR VÉRTICES E IMPORTACIÓN GEOJSON: el productor los usa sobre SU parcela y no sobre la ajena (mismo mecanismo, alcance propio)', async () => {
+    // Borrador de polígono: propia 201, ajena 404, sin vínculo 404/403; el borrador no confirma nada por sí solo.
+    const n0 = (await h.db.selectFrom('plot_versions').select('id').where('plot_id', '=', plot1).execute()).length;
+    const d = await http().post(`${api()}/plots/${plot1}/polygon-drafts`).set(as(PROD1)).send({});
+    expect([200, 201]).toContain(d.status);
+    expect((await http().get(`${api()}/plots/${plot1}/polygon-drafts/current`).set(as(PROD1)).expect(200)).body.draft).toBeTruthy();
+    expect((await http().post(`${api()}/plots/${plot2}/polygon-drafts`).set(as(PROD1)).send({})).status).toBe(404);
+    expect((await http().get(`${api()}/plots/${plot2}/polygon-drafts/current`).set(as(PROD1))).status).toBe(404);
+    expect([403, 404]).toContain((await http().post(`${api()}/plots/${plot1}/polygon-drafts`).set(as(PROD3)).send({})).status);
+    expect((await h.db.selectFrom('plot_versions').select('id').where('plot_id', '=', plot1).execute()).length).toBe(n0);
+    // Importación GeoJSON: se analiza (no se guarda) sobre la parcela propia y se rechaza sobre la ajena.
+    const geo = Buffer.from(JSON.stringify(cuadro(-80.3, -0.9)));
+    const imp = (actor: string, plot: string) => http().post(`${api()}/plots/${plot}/geometry-imports`).set(as(actor)).field('operation_id', randomUUID()).attach('file', geo, { filename: 'finca.geojson', contentType: 'application/geo+json' });
+    const ok = await imp(PROD1, plot1);
+    expect([200, 201]).toContain(ok.status);
+    expect((await imp(PROD1, plot2)).status).toBe(404);
+    expect((await h.db.selectFrom('plot_versions').select('id').where('plot_id', '=', plot1).execute()).length).toBe(n0);   // analizar no guarda
+    expect([403, 404]).toContain((await imp(AUD, plot1)).status);
   });
 
   it('AUDITOR Y COMPRADOR: consulta autorizada, sin captura; el comprador no ve nada por su rol', async () => {

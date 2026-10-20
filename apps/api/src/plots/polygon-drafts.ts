@@ -71,7 +71,7 @@ export class PolygonDraftsService {
   private async ctxFor(user: AuthUser, orgId: string, mutation: boolean): Promise<TenantContext> {
     const ctx = await this.authz.tenantContext(user, orgId);
     if (!ctx) throw notFound();
-    if (!this.plots.has(ctx, 'plot:update') && !this.plots.has(ctx, 'plot:update_assigned')) throw forbidden();
+    if (!this.plots.has(ctx, 'plot:update') && !this.plots.has(ctx, 'plot:update_assigned') && !this.plots.has(ctx, 'plot:update_own')) throw forbidden();
     if (!this.plots.geometryAllowed(ctx)) throw forbidden('PERMISSION_DENIED', 'Tu rol no permite capturar geometrías exactas.');
     if (mutation && ctx.organizationStatus !== 'ACTIVE') throw forbidden('ORGANIZATION_SUSPENDED', 'La organización está suspendida; no admite nuevas operaciones.');
     return ctx;

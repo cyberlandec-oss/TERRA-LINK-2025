@@ -159,7 +159,7 @@ export class DocumentsService {
       ORDER BY v.version_number DESC`.execute(db);
     const links = await db.selectFrom('document_links').select(['entity_type', 'entity_id', 'created_at']).where('organization_id', '=', ctx.organizationId).where('document_id', '=', documentId).execute();
     const personal = d.classification === 'PERSONAL_DATA';
-    const contentAllowed = !personal || this.has(ctx, 'producer:read_identity');
+    const contentAllowed = !personal || this.personalContentAllowed(ctx, d.document_type);
     return {
       ...d, row_version: Number(d.row_version), content_access: contentAllowed ? 'ALLOWED' : 'RESTRICTED',
       versions: versions.rows.map((v) => {
@@ -399,12 +399,20 @@ export class DocumentsService {
     });
   }
 
+  /**
+   * Contenido de un documento PERSONAL_DATA: identidad del productor, o —solo para la FOTOGRAFÍA DE CAMPO— el permiso propio del
+   * productor vinculado. El alcance por titular (parcela propia) ya se comprobó en `loadDoc`; este permiso no lo sustituye.
+   */
+  private personalContentAllowed(ctx: TenantContext, documentType: string): boolean {
+    return this.has(ctx, 'producer:read_identity') || (documentType === 'FIELD_PHOTO' && this.has(ctx, 'document:read_field_photo_own'));
+  }
+
   /** Descarga: permiso y alcance revalidados, versión disponible, clasificación respetada, hash verificado. */
   async content(user: AuthUser, orgId: string, documentId: string, versionId: string, requestId?: string) {
     const ctx = await this.ctx(user, orgId, 'document:read', false);
     const d = await this.loadDoc(this.db, ctx, documentId, 'read');
     const t = await this.db.selectFrom('document_types').select('classification').where('code', '=', d.document_type).executeTakeFirstOrThrow();
-    if (t.classification === 'PERSONAL_DATA' && !this.has(ctx, 'producer:read_identity')) throw forbidden('CONTENT_RESTRICTED', 'Este documento contiene datos personales; tu rol no permite ver su contenido.');
+    if (t.classification === 'PERSONAL_DATA' && !this.personalContentAllowed(ctx, d.document_type)) throw forbidden('CONTENT_RESTRICTED', 'Este documento contiene datos personales; tu rol no permite ver su contenido.');
     const v = await this.db.selectFrom('document_versions').select(['object_key', 'sha256', 'mime_type', 'file_name']).where('organization_id', '=', orgId).where('document_id', '=', documentId).where('id', '=', versionId).executeTakeFirst();
     if (!v) throw notFound();
     const last = await this.db.selectFrom('document_version_scans').select('result').where('version_id', '=', versionId).orderBy('id', 'desc').limit(1).executeTakeFirst();
