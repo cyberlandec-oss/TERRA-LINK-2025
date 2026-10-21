@@ -632,6 +632,9 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 
 ## Próxima acción (2026-10-20)
 
+**Corte del 2026-10-21: «desarrollo técnico autorizado completado; aceptación y activaciones pendientes».** SHA validado y desplegado `1de15c0`; cobertura sin cambio (42/60 = 70,0 %, MVP 30/44 = 68,2 %). No hay implementación independiente pendiente identificada: el bloqueo principal es la **revisión regulatoria** (ficha de D-05.B), seguida del perfil legal de Ecuador (P1-005), las decisiones de riesgo (D-07.5/7.6), el proveedor satelital real (D-09.B), las integraciones externas (GUIA/EUDR-IS), el piloto (P0-031) y, al final, el ensayo físico en teléfono Android. **Esto NO declara la plataforma terminada ni apta para producción, ni acredita conformidad EUDR**; el entorno queda disponible para revisión web.
+
+
 **GEOLOCATION_PROFILE I1–I4 (2026-10-21)**: panel de consulta «Evaluación geográfica técnica actual», separado de la instantánea, con guarda y pendientes; validado y desplegado en `ea495a6`; el requisito sigue `NOT_EVALUABLE` y D-05.B pendiente. **Corrección de alcance de A-01**: el Gerente deja de vincular cuentas a productores; validada y desplegada en `1de15c0` (91 suites/1000 pruebas, demostración 6/6). Evidencia: `qa/EVIDENCIA_GEOLOCATION_PROFILE_I1I4_2026-10-21.md`. No cambia 42/60, 30/44 ni 25/32.
 
 **A-03 DONE_LOCAL (2026-10-21)** sobre `d99f40a` (esquema 0058): traspaso de custodia entre organizaciones, desarrollo técnico demostrado. **No está habilitado para operaciones reales**: la salida permanece bloqueada (D4 no adoptada, D-34) y D2 espera revisión competente. Validación APROBADA `2026-10-21T15-35-07-183Z` (90 suites, 990 pruebas, E2E 104) tras una 1.ª ejecución FALLIDA conservada; demostración 7/7; respaldo `…-a03-traspaso-0058` verificado. Detalle: `qa/EVIDENCIA_A03_TRASPASO_2026-10-21.md`. Fuera del conteo: 42/60, 30/44 y 25/32 no cambian.
