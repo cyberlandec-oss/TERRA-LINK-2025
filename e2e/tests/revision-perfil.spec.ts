@@ -131,6 +131,18 @@ test('inglés y 390 px: textos traducidos, sin códigos internos, sin desborde y
   await expect(hist.getByRole('row').nth(1)).toContainText('Objected');
   await expect(hist.getByRole('row').nth(2)).toContainText('Superseded');
   await expect(page.getByRole('button', { name: 'Record effective review' })).toBeDisabled();
+  // el fundamento del historial se lee SIN desplazar la tabla horizontalmente
+  const fund = hist.getByText('Objeción sintética: el soporte no respalda la regla de prueba');
+  await expect(fund).toBeVisible();
+  const cf = await fund.boundingBox();
+  expect(cf!.x + cf!.width).toBeLessThanOrEqual(391);
+  // los controles de opción tienen tamaño de control (no ocupan el ancho) y la etiqueta queda a su lado
+  const radio = page.getByRole('radio', { name: 'Objected' });
+  const cr = await radio.boundingBox();
+  expect(cr!.width).toBeLessThanOrEqual(24);
+  const cl = await page.getByText('Objected', { exact: true }).last().boundingBox();
+  expect(Math.abs(cl!.y - cr!.y)).toBeLessThan(24); // en la misma línea
+  await page.screenshot({ path: 'test-results/revision-perfil-390.png', fullPage: true });
   const cuerpo = await page.locator('main').innerText();
   expect(cuerpo).not.toMatch(/\b(REVIEW_OBJECTED|REVIEW_WITHDRAWN|SCOPE_PARTIAL|NO_REVIEW|PROFILE_SOURCE|CITATION|PUBLISHED|DRAFT|OBJECTED|REVIEWED)\b/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);

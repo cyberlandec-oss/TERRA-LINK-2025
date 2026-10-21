@@ -128,6 +128,7 @@ input, select, textarea {
   background: var(--tl-surface); border: 1px solid var(--tl-border-control); border-radius: var(--tl-radius-sm);
 }
 input[type="checkbox"] { width: 20px; min-height: 20px; height: 20px; accent-color: var(--tl-operation); }
+.checkbox-row input[type="radio"] { width: 20px; min-height: 20px; height: 20px; flex: none; accent-color: var(--tl-operation); }
 input:disabled, select:disabled { background: var(--tl-surface-subtle); color: var(--tl-text-secondary); }
 input[aria-invalid="true"] { border-color: var(--tl-blocked); }
 fieldset { border: 0; padding: 0; margin: 0; }

@@ -156,7 +156,7 @@ export default function VinculoCatalogoPage() {
                     </dl>
                   </>
                 )}
-                <label className="check"><input type="checkbox" checked={confirmo} onChange={(e) => setConfirmo(e.target.checked)} />{' '}{t('Confirmo que la referencia y la revisión indicadas son las que quiero registrar')}</label>
+                <label className="checkbox-row"><input type="checkbox" checked={confirmo} onChange={(e) => setConfirmo(e.target.checked)} />{' '}{t('Confirmo que la referencia y la revisión indicadas son las que quiero registrar')}</label>
                 <button type="submit" disabled={ocupado || !confirmo || !nueva.trim() || motivo.trim().length < 3}>{ocupado ? t('Registrando…') : t('Registrar la vinculación')}</button>
               </form>
             </section>

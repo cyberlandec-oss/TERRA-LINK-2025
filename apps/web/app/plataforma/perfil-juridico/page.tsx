@@ -147,26 +147,26 @@ export default function RevisionPerfilPage() {
             {sel.history.length === 0 ? <EmptyState title={t('Esta versión no tiene ninguna revisión registrada.')} /> : (
               <div className="table-wrap"><table aria-label={t('Historial de revisiones de esta versión')}>
                 <thead><tr>
-                  <th scope="col">{t('Resultado')}</th><th scope="col">{t('Persona revisora y capacidad')}</th><th scope="col">{t('Fecha de la revisión')}</th>
-                  <th scope="col">{t('Fundamento y soporte')}</th><th scope="col">{t('Registrado')}</th>
+                  <th scope="col">{t('Resultado y revisor')}</th><th scope="col">{t('Fundamento, soporte y registro')}</th>
                 </tr></thead>
                 <tbody>{sel.history.map((r) => (
                   <tr key={r.id}>
                     <td>
-                      <StatusBadge tone={TONO[r.decision] ?? 'neutral'}>{t(TB.DECISION[r.decision] ?? r.decision)}</StatusBadge>
-                      <div><StatusBadge tone={r.is_current ? 'process' : 'neutral'}>{r.is_current ? t('Vigente') : t('Reemplazada')}</StatusBadge></div>
+                      <StatusBadge tone={TONO[r.decision] ?? 'neutral'}>{t(TB.DECISION[r.decision] ?? r.decision)}</StatusBadge>{' '}
+                      <StatusBadge tone={r.is_current ? 'process' : 'neutral'}>{r.is_current ? t('Vigente') : t('Reemplazada')}</StatusBadge>
+                      <div>{r.reviewer_name}</div>
+                      <div className="muted">{r.reviewer_capacity}</div>
+                      <div className="muted">{t('Fecha de la revisión')}: {r.reviewed_on}</div>
                     </td>
-                    <td>{r.reviewer_name}<div className="muted">{r.reviewer_capacity}</div></td>
-                    <td>{r.reviewed_on}</td>
                     <td>
                       {r.basis}
                       {r.supports.length > 0 && (
-                        <ul className="muted">{r.supports.map((s, i) => (
-                          <li key={i}>{t(TB.SOPORTE[s.kind] ?? s.kind)}: {s.source_code ?? s.citation}{s.url ? <> · <a href={s.url} target="_blank" rel="noreferrer">{t('enlace')}</a></> : null}</li>
+                        <ul className="muted">{r.supports.map((x, i) => (
+                          <li key={i}>{t(TB.SOPORTE[x.kind] ?? x.kind)}: {x.source_code ?? x.citation}{x.url ? <> · <a href={x.url} target="_blank" rel="noreferrer">{t('enlace')}</a></> : null}</li>
                         ))}</ul>
                       )}
+                      <div className="muted">{t('Registrado')}: {dt(r.recorded_at)} · {r.recorded_by ?? '—'}</div>
                     </td>
-                    <td className="muted">{dt(r.recorded_at)}<div>{r.recorded_by ?? '—'}</div></td>
                   </tr>
                 ))}</tbody>
               </table></div>
@@ -180,7 +180,7 @@ export default function RevisionPerfilPage() {
               <fieldset>
                 <legend>{t('Resultado')}</legend>
                 {(['REVIEWED', 'OBJECTED', 'WITHDRAWN'] as const).map((d) => (
-                  <label key={d} className="check">
+                  <label key={d} className="checkbox-row">
                     <input type="radio" name="rv-decision" value={d} checked={decision === d} disabled={d === 'WITHDRAWN' && !puedeRetirar} onChange={() => { setDecision(d); setConfirmo(false); }} />{' '}
                     {t(TB.DECISION[d])}{d === 'WITHDRAWN' && !puedeRetirar ? ` — ${t('solo si la revisión vigente es favorable')}` : ''}
                   </label>
@@ -199,7 +199,7 @@ export default function RevisionPerfilPage() {
                 <legend>{t('Fuentes y soporte')}</legend>
                 {decision === 'REVIEWED' && <p className="muted">{t('Una revisión favorable exige al menos una fuente del perfil o una cita.')}</p>}
                 {sel.sources.map((s) => (
-                  <label key={s.code} className="check">
+                  <label key={s.code} className="checkbox-row">
                     <input type="checkbox" checked={fuentes.includes(s.code)} onChange={(e) => setFuentes((f) => (e.target.checked ? [...f, s.code] : f.filter((x) => x !== s.code)))} />{' '}
                     {s.title} <span className="muted">({s.code})</span>
                   </label>
@@ -225,7 +225,7 @@ export default function RevisionPerfilPage() {
                 <dt>{t('Soportes')}</dt><dd>{soportes}</dd>
                 <dt>{t('Sustituye a la revisión vigente')}</dt><dd>{sel.current_review ? `${t(TB.DECISION[sel.current_review.decision] ?? sel.current_review.decision)} · ${sel.current_review.reviewed_on}` : t('Ninguna')}</dd>
               </dl>
-              <label className="check"><input type="checkbox" checked={confirmo} onChange={(e) => setConfirmo(e.target.checked)} />{' '}{t('Entiendo que se registra una revisión efectiva e inmutable, no un borrador')}</label>
+              <label className="checkbox-row"><input type="checkbox" checked={confirmo} onChange={(e) => setConfirmo(e.target.checked)} />{' '}{t('Entiendo que se registra una revisión efectiva e inmutable, no un borrador')}</label>
               <button type="submit" disabled={ocupado || !completo || !confirmo}>{ocupado ? t('Registrando…') : t('Registrar revisión efectiva')}</button>
             </form>
           </section>
