@@ -569,6 +569,13 @@ node e2e/review/a02-demostracion.mjs     # propietario admin.cooperativa → des
 ```
 Revoca antes las concesiones ACTIVAS de ensayo de ese destinatario. Respaldo vigente: `_respaldos/2026-10-21-a02-concesiones-0057/` (cubre también la organización de prueba manual de A-01 y los registros `CAD-*`).
 
+## Demostraciones de I1–I4 y de la corrección del Gerente (2026-10-21)
+```
+node e2e/review/i14-demostracion.mjs                # panel «Evaluación geográfica técnica actual»: SOLO LECTURA sobre el DEMO
+node e2e/review/gerente-vinculo-demostracion.mjs    # el Gerente recibe 403 al vincular; la administración conserva la operación; no modifica vínculos
+```
+Ambas dejan capturas y `resultado.json` en `validation-results/`. No hay respaldo nuevo: sin migración ni estado persistente.
+
 ## Demostración y respaldo de A-03 (traspaso de custodia, 2026-10-21)
 ```
 node scripts/desplegar.mjs                    # construir el árbol LIMPIO (no redirigir registros dentro del repositorio: marcaría +sucio)

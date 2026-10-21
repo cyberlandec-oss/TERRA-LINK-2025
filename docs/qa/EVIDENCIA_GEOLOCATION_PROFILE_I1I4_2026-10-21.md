@@ -29,8 +29,22 @@ Material de revisión de D-05.B: `docs/decisiones/D-05B-FICHA-REVISION-2026-10-2
 ## 3. Aclaración de alcance de A-01 y corrección del Gerente (misma fecha)
 El propietario aclaró que A-01 añade capacidades concretas a los roles canónicos sin facultades sobre otros módulos (`docs/07`, «Aclaración de alcance del propietario»). El contraste del catálogo efectivo (`1859aa0` frente a `4913dd3`) halló **un permiso fuera de alcance**: `producer:link_self` concedido al **Gerente**. Se retira del Gerente (cambio funcional de autorización, **candidato propio**). **Resultado de ese candidato:** ver el apartado 4.
 
-## 4. Candidato de la corrección del Gerente
-*(se completa con el SHA y el resultado reales tras su validación)*
+## 4. Corrección del Gerente: validación y demostración PROPIAS (registradas por separado de I1–I4)
+| | |
+| --- | --- |
+| SHA validado y desplegado | **`1de15c0`** (cambio de autorización en `catalog.ts` + pruebas + documentación; sin migración). `/version` → `commit=1de15c0`, esquema `0058` |
+| Validación **APROBADA** (única ejecución sobre ese SHA) | `validation-results/2026-10-21T18-00-11-041Z` — **91 suites / 1000 pruebas**, E2E **109** (registro `validate-APROBADA.log`). Las 4 pruebas de más respecto de `ea495a6` son las del catálogo |
+| Demostración en el despliegue | `e2e/review/gerente-vinculo-demostracion.mjs` **6/6**; `validation-results/gerente-vinculo-2026-10-21/` |
+| Respaldo | **No se aplica**: ni migración ni estado persistente nuevo; la demostración no escribió (vínculos y versiones `LINK_SELF` sin cambio). Solo una solicitud denegada puede dejar un registro de auditoría de denegación |
+
+Qué se demostró (DEMO sintético; Gerente = `supervisor.cooperativa`, administración = `admin.cooperativa`, Productor = `productor.cooperativa`):
+1. El Gerente **no tiene** `producer:link_self` y **conserva** `producer:read/create/update` y `plot:read/create/update`.
+2. **Solicitud directa** del Gerente `PUT …/producers/{id}/self-membership` → **403 `PERMISSION_DENIED`**, sin efecto.
+3. **Control positivo:** la administración, con la misma solicitud, **atraviesa la autorización** y la detiene una regla de negocio (**422 `MEMBERSHIP_WITHOUT_PRODUCER_ROLE`**) **antes de escribir**. Se usó esta vía a propósito para no crear ni alterar vínculos en el DEMO; el éxito real de **vincular y desvincular** lo prueban las suites `a01-alcance-propio` («VINCULAR es explícito…», «DESVINCULAR corta el acceso propio…») dentro de la validación aprobada de este SHA.
+4. El Productor no puede vincular (403) y conserva su alcance propio (lista sus parcelas, 200).
+5. En pantalla: el control de vincular **no aparece** para el Gerente y **sí** para la administración (`can_link_self` falso/verdadero).
+6. **Ningún vínculo existente se eliminó ni modificó.** Aviso de alcance de la prueba: el DEMO **no tenía vínculos** (0 antes y después), así que esta comprobación es de **no efecto**, no de conservación de vínculos preexistentes; la conservación al desvincular/vincular la cubren las suites.
+**Límite:** las capacidades de **escritura** del Gerente (crear/actualizar productores y parcelas) se acreditan por su catálogo de permisos y las suites existentes; la demostración no creó datos en el DEMO.
 
 ## 5. Qué NO queda demostrado ni cambiado
 `GEOLOCATION_PROFILE` sigue `NOT_EVALUABLE` (`profiles.geolocation_profile: null`); la definición de «satisfecho» (D1), los campos de categoría/tamaño/HS/país/período (D2) y la compuerta de A-03 (D3) esperan al revisor. `READY` sigue sin alcanzarse. Android, producción y conformidad EUDR siguen en sus gates propios.
