@@ -439,4 +439,4 @@ Corrección de redacción: A-01 pedía «dibujar sobre el mapa»; se había regi
 ### A-02 y A-03 — Concesiones web y traspaso entre organizaciones (2026-10-21) — **AUTORIZADAS**
 
 El propietario autoriza (1) completar la **administración web de concesiones** (A-02, independiente) y (2) **preparar el contrato de traspaso** entre organizaciones (A-03): propuesta primero, movimientos después.
-Ambas se registran como ampliaciones separadas de los criterios originales y de A-01. La decisión empresarial sobre el traspaso (opción recomendada y decisiones imprescindibles) está en `docs/decisiones/A03-TRASPASO-ENTRE-ORGANIZACIONES.md` y **sigue abierta**.
+Ambas se registran como ampliaciones separadas de los criterios originales y de A-01. La decisión empresarial sobre el traspaso (opción recomendada y **D1–D9 completas**, con su clasificación operativa/regulatoria) está en `docs/decisiones/A03-TRASPASO-ENTRE-ORGANIZACIONES.md` y **sigue abierta**; no se adopta ninguna obligación de diligencia. **A-02: DONE_LOCAL (`0211a30`).**

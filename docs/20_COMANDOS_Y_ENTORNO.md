@@ -562,3 +562,9 @@ node e2e/review/a01-preparar-prueba-manual.mjs          # organización de ensay
 `NEXT_PUBLIC_MAPS_URL` se incrusta al compilar la web (compose: `http://localhost:${MAPS_HOST_PORT:-8090}`). El worker de MapLibre se copia a `apps/web/public/maplibre/` en
 `prebuild`/`predev` (ignorado por git; la imagen lo copia al runtime). El volumen del mapa es **derivado y regenerable**: no entra en el respaldo de la base (cada respaldo guarda su
 `metadata-mapa.json`). Respaldo vigente: `_respaldos/2026-10-20-a01-mapa-fotos-0057/`. Guía de prueba personal: `docs/qa/GUIA_PRUEBA_A01_WEB.md`. Volúmenes Docker: 27 (los 26 anteriores intactos + `map-data`).
+
+## Demostración de A-02 (concesiones web, 2026-10-21)
+```
+node e2e/review/a02-demostracion.mjs     # propietario admin.cooperativa → destinatario comprador.importador (DEMO, sintético); capturas en validation-results/a02-demostracion-2026-10-21/
+```
+Revoca antes las concesiones ACTIVAS de ensayo de ese destinatario. Respaldo vigente: `_respaldos/2026-10-21-a02-concesiones-0057/` (cubre también la organización de prueba manual de A-01 y los registros `CAD-*`).

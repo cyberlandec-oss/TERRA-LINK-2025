@@ -251,7 +251,7 @@ Estado adicional `DONE_LOCAL`: criterios de la historia cumplidos con evidencia 
 
 | ID | Resultado | Dependencia | Estado |
 | --- | --- | --- | --- |
-| A-02 | Administración web de concesiones externas (RF-49, `docs/03`) | P0-003, P1-001 | **EN DESARROLLO (2026-10-21).** Distinta de P1-001, que sigue DONE_LOCAL con la aceptación que tenía (portal del destinatario) |
+| A-02 | Administración web de concesiones externas (RF-49, `docs/03`) | P0-003, P1-001 | **DONE_LOCAL (2026-10-21)** sobre `0211a30` (validación APROBADA `2026-10-21T03-04-51-749Z`; `acac9b5` falló dos veces por la preparación de `a01-alcance-propio`, conservado) — evidencia `docs/qa/EVIDENCIA_A02_CONCESIONES_2026-10-21.md`; límite explícito: `/compartido` sigue en español. Distinta de P1-001, que sigue DONE_LOCAL con la aceptación que tenía (portal del destinatario) |
 | A-03 | Contrato de traspaso entre organizaciones (RF-50, `docs/03`) | P0-012–017, P0-029, P1-001 | **PROPUESTA** (`docs/decisiones/A03-TRASPASO-ENTRE-ORGANIZACIONES.md`); sin implementación hasta decisión del propietario |
 
 **A-02 — alcance de la entrega**: pantalla `/organizaciones/{id}/concesiones` (menú Administración, solo con `grant:manage`); lista con filtro por estado (activa, vencida, revocada) y la historia de cada concesión; alta guiada en cuatro pasos (recurso, destinatario por correo exacto, alcance y vigencia, revisión y confirmación); revocación con motivo; español e inglés. Cambios de API: correo exacto, `shareable`, lista enriquecida y límite de intentos (ver `docs/09`).

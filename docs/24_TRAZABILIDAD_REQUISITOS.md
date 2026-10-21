@@ -52,5 +52,5 @@ Fuera del conteo 42/60 y 30/44; no altera A-01 ni la aceptación externa pendien
 
 | Fuente | Requisito | Historia | QA | Estado |
 | --- | --- | --- | --- | --- |
-| Instrucción del propietario (2026-10-21), tras el recorrido integral web (T14) | RF-49 | A-02 | 02/04/07 | **EN DESARROLLO**; fuera del conteo 42/60 y 30/44. No altera P1-001 |
-| Instrucción del propietario (2026-10-21), tras el recorrido integral web (T15) | RF-50 | A-03 | 07/12 | **PROPUESTA** (sin implementación); fuera del conteo |
+| Instrucción del propietario (2026-10-21), tras el recorrido integral web (T14) | RF-49 | A-02 | 02/04/07 | **DONE_LOCAL** (`0211a30`, 2026-10-21; `docs/qa/EVIDENCIA_A02_CONCESIONES_2026-10-21.md`); fuera del conteo 42/60 y 30/44. No altera P1-001; `/compartido` sigue en español (límite explícito) |
+| Instrucción del propietario (2026-10-21), tras el recorrido integral web (T15) | RF-50 | A-03 | 07/12 | **PROPUESTA** con D1–D9 completas (ninguna adoptada); sin implementación; fuera del conteo |
