@@ -632,6 +632,8 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 
 ## Próxima acción (2026-10-20)
 
+**Paquetes de revisión preparados (2026-10-21):** P1-005 (`decisiones/P1-005-MATRIZ-OBLIGACIONES.md` §6), D-07.5/D-07.6 (`decisiones/D-07-PROPUESTA.md` §11) y D-09.B (`decisiones/P0-028-SATELITE.md`, «Revisión de fuentes oficiales», con copias en `sources/satelite-2026-10-21/`); quién decide cada punto: `22_DECISIONES_Y_PENDIENTES.md`. **Es preparación documental**: no aprueba nada, no cambia porcentajes, requisitos ni compuertas, y no se contrató, registró ni envió nada a ningún proveedor.
+
 **Corte del 2026-10-21: «desarrollo técnico autorizado completado; aceptación y activaciones pendientes».** SHA validado y desplegado `1de15c0`; cobertura sin cambio (42/60 = 70,0 %, MVP 30/44 = 68,2 %). No hay implementación independiente pendiente identificada: el bloqueo principal es la **revisión regulatoria** (ficha de D-05.B), seguida del perfil legal de Ecuador (P1-005), las decisiones de riesgo (D-07.5/7.6), el proveedor satelital real (D-09.B), las integraciones externas (GUIA/EUDR-IS), el piloto (P0-031) y, al final, el ensayo físico en teléfono Android. **Esto NO declara la plataforma terminada ni apta para producción, ni acredita conformidad EUDR**; el entorno queda disponible para revisión web.
 
 

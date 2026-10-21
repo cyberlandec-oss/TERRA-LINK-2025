@@ -277,3 +277,90 @@ Mientras A y B no estén aprobadas: **no se contrata, no se registra clave y no 
 
 **Fuera de alcance por decisión ajena:** selección y contratación de proveedor (D-09), evaluabilidad de la regla de
 riesgo (D-07 + catálogo aprobado), vínculo resultado→evidencia (D-37), perfil de destino geoespacial (D-05).
+
+---
+
+## Revisión de fuentes oficiales para D-09.B (2026-10-21)
+
+**Propósito:** poner delante de quien decida la parte B (envío de geometrías reales) la documentación pública oficial **vigente a esta fecha**, separando lo que **dice la fuente** de lo que **no dice**. **No se contrató, no se creó cuenta, no se obtuvo clave y no se envió ninguna geometría ni dato personal.** `SATELLITE_LIVE_CALLS` permanece `disabled`; `WHISP` sigue `SELECTED_FOR_DEVELOPMENT` y sin credencial. Copias, URLs y huellas en `docs/sources/satelite-2026-10-21/` (`MANIFIESTO.md`).
+Este apartado **actualiza** la «Propuesta de proveedor para D-09» de arriba (consulta del 2026-10-14) sin borrarla; donde difieren, manda lo fechado aquí.
+
+### A. Qué cambió o se precisó frente a la consulta del 2026-10-14/15
+| Tema | Antes (resumen del 2026-10-14) | Ahora (fuente leída el 2026-10-21) |
+| --- | --- | --- |
+| Contrato de la API | OpenAPI 2.3.0 | **Sin cambio**: OpenAPI 3.1.0, versión **2.3.0**; las rutas son las mismas |
+| Datos personales | «sin identificadores de usuario» | Los **Términos** añaden: «Users must refrain from submitting any personally identifiable information including sensitive personal data» |
+| Datos que llegan a Google Earth Engine | Geometría exacta | **Los Términos** dicen que a GEE solo llega «approximated geographic information» con datos de enmascaramiento; **las FAQ** dicen que a GEE llegan «geometry coordinates and technical parameters». **La fuente se contradice a sí misma**: no se puede afirmar cuál es |
+| Almacenamiento | Temporal, ~10 min | Términos: «FAO does not store or retain user-submitted geo-data» y el procesamiento ocurre en servidores «in Europe»; FAQ: geometrías en el sistema de archivos del servidor «for the duration of the analysis», borrado típico en ~10 min |
+| Condiciones del servicio | No leídas | **Modificables por FAO «without prior notice»**; FAO puede «modify, temporarily suspend or permanently terminate» el servicio «with or without prior notice»; información «as is», sin garantía de exactitud ni de vigencia; **sin acuerdo de nivel de servicio**; «Privileges and Immunities»: «The operation and management of this application are not subject to any national or regional legal system» |
+| Versiones | — | La aplicación muestra **v2.3.0** y la biblioteca de análisis **«v3.0.0a17»** (una *alfa*); qué significa para los resultados **no está documentado** en lo leído |
+
+### B. Whisp (Open Foris / FAO · Forest Data Partnership) — servicio y capacidades
+- **Qué ofrece:** API REST que recibe geometrías (GeoJSON, WKT o GeoIDs) y devuelve «forest, land-use, and deforestation-risk analysis» de la biblioteca `openforis-whisp`, «backed by Google Earth Engine» (OpenAPI `info`). Rutas: `/api/config`, `/api/submit/{geojson|wkt|geo-ids}`, `/api/status/{token}` (+ `/cancel`, `/stream`), `/api/generate-geojson/{token}`, `/api/download-csv/{token}`, `/api/health`. Autenticación por cabecera `x-api-key`; «Register for free to get an API key».
+- **Límites publicados (FAQ, «defaults … subject to change»):** hasta 5 000 geometrías por solicitud asíncrona y 250 por síncrona; 30 solicitudes por 60 s por clave; 2 trabajos simultáneos; plazos de 600 s (asíncrono) y 90 s (síncrono). *(La FAQ imprime «600 seconds for synchronous requests» en la primera línea: es una errata evidente de la fuente; se toma 600 s asíncrono por coherencia con la sección de límites; el valor autoritativo es `GET /api/config`.)*
+- **Qué NO es:** «there is no certification involved»; «Compliance with the EUDR falls solely within the responsibility of competent authorities». Whisp no certifica ni garantiza cumplimiento.
+
+### C. Datos que saldrían de Terra Link (según el adaptador implementado, no según el proveedor)
+El adaptador envía **una geometría por trabajo**: `{ "type":"FeatureCollection", "features":[{ "type":"Feature", "properties":{}, "geometry": <geometría de la parcela> }], "analysisOptions":{ "async": false } }` con la cabecera `x-api-key`. **No envía** identidad del productor, códigos internos, nombres ni propiedades. Salen además, inevitablemente, la **IP del servidor de Terra Link** y la clave (que el proveedor registra como metadato de la solicitud; la FAQ dice que las IP se anonimizan tras un período configurable, por defecto 90 días).
+**Decisión de fondo para el responsable de datos:** una geometría de parcela vinculada a un productor puede ser **dato personal** si permite identificarlo (el Reglamento de Ejecución 2024/3084, Art. 12(2)(d), trata la geolocalización como categoría de dato personal «where natural persons can be identified»). Los Términos de Whisp **prohíben enviar datos personales**. Si una geometría real es o no «datos personales» para este fin **no lo decide este documento**: lo determina quien tenga competencia en protección de datos (D-14).
+
+### D. Cobertura, fechas y significado de los indicadores (solo lo que la fuente dice)
+- **Corte temporal:** fin de 2020 (31-12-2020) como referencia de EUDR; las preguntas que contesta: ¿había cobertura arbórea en 2020?, ¿cultivos u otros usos agrícolas en 2020?, ¿perturbaciones hasta el 31-12-2020?, ¿desde el 01-01-2021?, y bosques primarios, regenerados y plantados en 2020.
+- **Umbrales por defecto:** una pregunta se contesta «sí» cuando algún conjunto de datos relevante cubre más de un porcentaje de la parcela: **10 %** para todos los indicadores excepto cultivos en 2020 y perturbaciones anteriores a 2020, donde es **50 %**.
+- **Resolución:** todas las capas se muestrean a **10 m**; la FAQ dice que las diferencias frente a la resolución nativa son «typically negligible (<1 %)».
+- **Árboles de decisión de riesgo:** columnas `Risk_PCrop` (cultivos perennes, el caso del cacao), `Risk_ACrop`, `Risk_Timber`. Para cultivos perennes: **bajo** si no hay cobertura arbórea a fines de 2020, o si un conjunto de datos de cultivo detecta uso agrícola a fines de 2020, o (solo PCrop) si una perturbación anterior sugiere plantación previa al corte; **alto** = «evidence of tree loss on the plot after end-2020»; **«more info needed»** = lo que queda cuando nada de lo anterior se cumple: «a request for evidence, not a rejection».
+- **Datasets de cacao citados en `layers_description.md`:** `Cocoa_FDaP` (modelo `model_2025b`, filtrado a 2020), `Cocoa_ETH` (umbral >65 %) y `Cocoa_bnetd` (solo Côte d'Ivoire). **Cuál se usa en la configuración por defecto para Ecuador no está dicho en lo leído.**
+- **Cambios en el tiempo:** «Results may change as underlying datasets are updated or improved.» La documentación de apoyo advierte que los conjuntos nombrados en los diagramas «may not all be reflected in the current codebase».
+- **Lo que la respuesta NO declara** (y Terra Link no inventa; ver `P0-028-WHISP-CONTRATO.md`): fecha del análisis, resolución, confianza, versión de cada dataset; ni un campo de cobertura. Un `200` no equivale a análisis completo: `whisp_processing_metadata` puede listar datasets no disponibles.
+- **Significado operativo en Terra Link:** ninguno decidido. Qué hace una regla con estos indicadores es **D-07**, y que el resultado sea evidencia es **D-42**. Hasta entonces, consultable y trazable, **sin alimentar conclusiones**.
+
+### E. Términos, licencia y tratamiento de datos
+| Punto | Lo que dice la fuente | Pendiente de decisión humana |
+| --- | --- | --- |
+| Licencia | **MIT** para el software; la FAQ dice que, en general, «your organization does not need a formal agreement with the FAO to integrate Whisp» y que, si una política interna exige un documento formal, hay que pedirlo al equipo | MIT cubre el **código**; **no** sustituye la aceptación de los **Términos del servicio alojado** |
+| Titularidad de los datos enviados | «Users retain ownership»; quien envía es «solely responsible for ensuring they have the legal rights to upload and process such data» | Que la organización/productor **tenga** esos derechos para esta finalidad |
+| Datos personales | Prohibido enviarlos | Si una geometría de parcela lo es (ver C) |
+| Procesamiento por terceros | Google Earth Engine (nube de terceros); datos «may be temporarily cached» | Aceptar la transferencia a un tercero y su base de tratamiento (D-14) |
+| Retención | Términos: FAO no almacena ni retiene; FAQ: borrado típico ~10 min; metadatos de solicitud con IP anonimizada a los 90 días | **No verificado** por Terra Link |
+| Cambios y continuidad | Términos modificables **sin aviso previo**; servicio suspendible o terminable en cualquier momento; sin SLA | Qué hace Terra Link si el servicio cambia o desaparece (la sustituibilidad de proveedores ya existe) |
+| Responsabilidad y ley aplicable | «as is»; sin garantía; FAO sin responsabilidad; **privilegios e inmunidades** (el servicio no queda sujeto a un sistema legal nacional) | Valoración jurídica del riesgo de contratar un servicio sin SLA ni foro nacional |
+| Identidad del titular de la cuenta | La clave se obtiene registrándose con una cuenta de identidad de FAO | Quién registra (una persona concreta queda como titular); qué ocurre si esa persona se va |
+
+### F. Costes publicados y condiciones desconocidas
+- **Publicado:** gratuito y de código abierto (FAQ); **ninguna tarifa, cotización ni acuerdo de nivel de servicio** aparece en las fuentes leídas.
+- **Desconocido, y no se supone:** costes futuros; garantías de disponibilidad; condiciones de uso comercial intensivo más allá de «for very large datasets processed on a regular basis, we recommend reaching out to the Whisp team»; si habrá límites distintos para Terra Link.
+
+### G. Titularidad y custodia de credenciales
+- **Mecanismo existente:** clave **por organización**, cifrada con el mecanismo del proyecto, nunca devuelta por la API, enviada solo a hosts de la lista blanca.
+- **A decidir:** (a) **una clave por organización** (cada una responde por su uso; N registros FAO) o (b) **una clave de plataforma** (un solo titular, pero tráfico mezclado y un único punto de revocación); (c) quién la registra y con qué cuenta; (d) rotación y revocación; (e) quién custodia la identidad FAO asociada.
+
+### H. Aceptación técnica requerida para activarlo (antes de cualquier geometría real)
+Orden propuesto, cada paso con su evidencia; ninguno está hecho:
+1. **Contrato**: reconfirmar la versión de la especificación en el momento (hoy 2.3.0) y que el adaptador coincide; si cambió, corregir el adaptador y la referencia fechada, no el documento.
+2. **Ensayo con geometría sintética** (`P0-028-ENSAYO-EXTERNO-PROPUESTA.md`, **no ejecutado**): correspondencia de respuestas, `x-api-key`, TLS con la defensa de salida puesta, límites reales frente a `/api/config`.
+3. **Cobertura parcial**: que `unavailable_datasets`/`risk_inputs_unavailable` queden guardados como cobertura `PARTIAL`; el caso sin incidencias queda `UNKNOWN`, nunca `COVERED`.
+4. **Interruptor y fallo cerrado**: `SATELLITE_LIVE_CALLS=enabled` solo mientras dure la prueba; apagarlo y verificar el rechazo `LIVE_CALLS_DISABLED`.
+5. **Revocación y rotación de la clave** probadas.
+6. **Ninguna geometría en registros** (el proveedor dice que no registra geometrías; Terra Link tampoco debe).
+7. **Reversibilidad**: marcar `SELECTED` exige responsable y referencia de decisión; deshacerlo debe dejar el sistema sin llamadas.
+Solo después, y con D-14 resuelta, se elige **con qué parcela real** y con qué consentimiento.
+
+### I. Alternativas documentadas (sin cambio de recomendación existente)
+| | Global Forest Watch / Global Nature Watch Pro (WRI) | EU Forest Observatory — GFC 2020 (JRC) |
+| --- | --- | --- |
+| Qué se pudo leer | **Términos de servicio** (el sitio redirige ahora a `globalnaturewatch.org`) | Página «Global forest cover 2020 — Data Access» |
+| Lo que dicen | Cuenta obligatoria; claves de API por cuenta y responsabilidad del titular; WRI puede **rechazar** registros y **cancelar o suspender sin aviso**; la cuenta Pro exige representar a una organización «actively involved in commodity supply chains and/or their financing» con correo válido; el contenido enviado concede a WRI una licencia no exclusiva, mundial, transferible y sublicenciable (el de Forest Watcher/Pro se declara confidencial); atribución obligatoria de las APIs; «as is», responsabilidad limitada, ley de Delaware y arbitraje | Mapa global de cobertura forestal 2020 armonizado, creado con reglas que excluyen las áreas que no son bosque según la definición de FAO-FRA y EUDR; la **versión 4** tendrá informe técnico «expected to be released by December 2026»; «Known issues: Soon available…»; «The GFC 2020 map may be revised» |
+| Lo que **no** se pudo leer | La **documentación de la API** (ReDoc con JavaScript no renderizado): cuotas, precios, condiciones de uso por parcela | El portal de descarga (aplicación JavaScript) |
+| Consecuencia | **No se afirma** coste, cuota ni forma de envío de una parcela | Sigue siendo **capa de referencia**, no proveedor por parcela |
+
+### J. Decisiones concretas
+**Las resuelve el propietario del producto:** (1) ¿se autoriza preparar el **ensayo con geometría sintética** (paso H.2) con una clave de prueba, sin geometrías reales? (2) titularidad y custodia de la clave (G); (3) conservar Whisp como primer adaptador o reabrir la elección; (4) qué responsable acepta los Términos en nombre de la organización.
+**Las resuelve un revisor competente (datos/jurídico):** (5) si una geometría de parcela es dato personal para este fin y su base de tratamiento (D-14); (6) si es aceptable contratar un servicio sin SLA, con términos modificables sin aviso, procesamiento por un tercero y privilegios e inmunidades; (7) la contradicción de la fuente sobre qué llega a Google Earth Engine.
+
+### K. Integración con el desarrollo
+| | |
+| --- | --- |
+| **Implementación existente** | Adaptador de Whisp contra el contrato 2.3.0; registro de proveedores (`WHISP` `SELECTED_FOR_DEVELOPMENT`, `GFW` y `EU_FOREST_OBSERVATORY` `PROPOSED`, `FIXTURE_SYNTHETIC` `TEST_ONLY`); credencial por organización cifrada; defensa de salida (SSRF); interruptor `SATELLITE_LIVE_CALLS` (hoy `disabled`); resultados con cobertura/procedencia; 10 trabajos de ensayo; 0 credenciales |
+| **Implementación original pendiente** | Pasar de «fixture/ensayo» a servicio real; la regla `SATELLITE_COVERAGE_UNKNOWN` depende de D-09.B |
+| **Puede completarse sin resolver la decisión** | **Nada inequívoco**: todo lo restante es una llamada al tercero o una decisión de datos |
+| **Condición externa exacta** | Autorización de datos (D-14) + aceptación de Términos + titularidad de la clave; y, para el ensayo sintético, aprobación explícita acotada |

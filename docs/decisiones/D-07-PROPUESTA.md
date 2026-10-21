@@ -6,7 +6,7 @@
 | **D-07.2 · severidad** | **MECANISMO ADOPTADO**: declarada por regla y versión, agregada por **máximo**, presentada **con su cobertura**. **A.2**: sin hallazgos, `NOT_ASSESSED` |
 | **D-07.3 · score** | **NO APLICA.** No hay pesos, cortes ni puntuaciones, y el modelo no los admite |
 | **D-07.4 · vigencia** | **MECANISMO ADOPTADO**: desactualización por cambio de datos o de reglas; una evaluación `STALE` no sostiene un requisito satisfecho |
-| **D-07.5 y D-07.6** | **PENDIENTES.** La conclusión regulatoria sigue `UNDETERMINED` por `CHECK` |
+| **D-07.5 y D-07.6** | **PENDIENTES.** La conclusión regulatoria sigue `UNDETERMINED` por `CHECK`. Paquete de revisión (significado exacto, opciones, ejemplos sintéticos, responsables): **§11** |
 
 **Lo que la adopción de los mecanismos NO hace:**
 
@@ -493,6 +493,8 @@ reescribir la evaluación anterior.
 
 ### D-07.5 — Perfil jurídico aplicable
 
+> **Errata (2026-10-21), el texto de abajo se conserva:** esta sección es anterior a P1-005 y atribuye a D-07.5 el requisito `LEGAL_PROFILE`. Desde P1-005 ese requisito lo sostiene el perfil jurídico de `P1-005-MATRIZ-OBLIGACIONES.md` (§6); a D-07.5 le **queda** vincular una versión del catálogo con un perfil revisado (`regulatory_profile`, que sostiene `RISK_CATALOG_APPROVED`). Ver §11.1.
+
 **Pregunta concreta.** Qué requisitos legales aplican a un operador de cacao con origen en Ecuador, con qué
 autoridad, artículo, versión y vigencia. Hoy el requisito `LEGAL_PROFILE` del expediente es `NOT_EVALUABLE` y la
 categoría `LEGALITY` del catálogo **no tiene ninguna regla**.
@@ -612,3 +614,83 @@ mismo problema que D-05.A resolvió en `plots_valid` declarando `mixed_versions`
 | Conclusión regulatoria | **Bloqueada por `CHECK`** | D-07.5 y D-07.6 |
 | Mitigación con ejecutor ≠ verificador | **Implementado** (P0-021) | Ratificar que **habilita reevaluar**, no concluir |
 | Cuatro categorías sin reglas | **Vacías** | Decidir si entran, con fuente |
+
+---
+
+## 11. Paquete de revisión de D-07.5 y D-07.6 (2026-10-21)
+
+**No aprueba nada.** Contrasta el significado de ambas decisiones con sus fuentes vigentes, completa sus opciones y fija quién decide qué. `UNDETERMINED` se conserva y ninguna clasificación parcial se convierte en conclusión.
+
+### 11.1 Significado exacto: las fuentes no dicen lo mismo, y hay que fijarlo antes de decidir
+| Fuente | Qué llama «D-07.5» | Qué dice que desbloquea |
+| --- | --- | --- |
+| §7 de esta propuesta (rev. 2, 2026-10-15) | «Perfil jurídico aplicable»: qué requisitos legales aplican a un operador de cacao en Ecuador | `LEGAL_PROFILE` de P0-022 |
+| `docs/13` (mecanismos adoptados) y `docs/22` (tabla del bloque regulatorio) | «**Aprobación bajo perfil jurídico**» de una versión del catálogo de riesgo (`risk_rule_sets.regulatory_profile`) | `RISK_CATALOG_APPROVED`; poder concluir |
+| Código (`dd/requirements.ts`) y comentario de la columna (migración `0043`) | `regulatory_profile` = «perfil jurídico bajo el que esta versión fue aprobada para concluir (D-07.5). `NULL` = publicada técnicamente, sin aprobación regulatoria» | `RISK_CATALOG_APPROVED` (a `MET` solo con catálogo adoptado **y** `regulatory_profile` no nulo) |
+| `docs/23` | Ambas lecturas a la vez | `LEGAL_PROFILE` y `RISK_CATALOG_APPROVED` |
+
+**Hallazgo (errata, el texto original de §7 se conserva):** el §7 es **anterior** a P1-005 (2026-10-17). Desde entonces `LEGAL_PROFILE` lo sostiene el perfil jurídico de P1-005 (qué obligaciones legales, con qué fuente y evidencia), y lo que **queda** de D-07.5 es otra cosa:
+**con qué perfil jurídico revisado se aprueba una versión del catálogo para poder concluir**. Por tanto D-07.5 se descompone en dos preguntas que no son la misma:
+- **D-07.5(a) — contenido del perfil jurídico** (qué obligaciones): es el paquete P1-005 (`P1-005-MATRIZ-OBLIGACIONES.md` §6). Las alternativas A/B/C de §7 se aplican **aquí**.
+- **D-07.5(b) — vinculación catálogo ↔ perfil**: qué valor puede llevar `regulatory_profile`, quién lo fija y qué debe cumplir el perfil referenciado.
+
+**Hallazgo técnico que importa a (b):** hoy `RISK_CATALOG_APPROVED` pasa a `MET` con **cualquier texto no nulo** en `regulatory_profile`: el código **no comprueba** que ese valor corresponda a un perfil con revisión jurídica registrada. Tampoco existe un camino de API para fijarlo (solo una migración). La protección actual es que **nadie lo fija**. Si se adopta la opción (b-1) de abajo, esa comprobación es implementación **original pendiente**.
+
+### 11.2 Cuatro dimensiones que no se mezclan (estado real)
+| Dimensión | Qué es | Dónde vive | Estado | Quién la decide |
+| --- | --- | --- | --- | --- |
+| **Configuración técnica del riesgo** | Reglas, efectos, severidad por regla, agregación por máximo, vigencia (D-07.1/.2/.4) | `risk_rule_sets` `1.0.0`, adopción por organización | **Adoptada** para el MVP local (adopción de ensayo en la Cooperativa DEMO) | Producto |
+| **Cobertura del catálogo** | Qué categorías tienen alguna regla | Catálogo `1.0.0`: ocho reglas; **sin regla** `LEGALITY`, `EVASION`, `HUMAN_RIGHTS`, `INDIGENOUS_RIGHTS` | Toda clasificación es **PARCIAL** y lo dice | Producto, con revisión de qué falta (depende de P1-005) |
+| **Revisión del perfil legal** | Que alguien competente revisó las obligaciones | `legal_profile_reviews` | **Ninguna** | Responsable jurídico (P1-005) |
+| **Conclusión regulatoria** | `NEGLIGIBLE` / `NON_NEGLIGIBLE` | `risk_evaluations.conclusion` (`CHECK`: solo `UNDETERMINED`) | **Bloqueada** | Revisor autorizado bajo perfil (D-07.6) |
+Una severidad (p. ej. `CRITICAL`) **no** es una conclusión; un perfil adoptado **no** es un perfil revisado; un catálogo publicado **no** es un catálogo aprobado bajo perfil.
+
+### 11.3 Opciones completas
+**D-07.5(a) — contenido del perfil (misma pregunta que P1-005).**
+| Opción | Qué implica | Efecto en `LEGAL_PROFILE` |
+| --- | --- | --- |
+| **A** Perfil completo antes de habilitar nada | Cubrir todas las materias del art. 2(40) con fuente | `MET` posible solo con `COMPLETE` + revisión + sujeto resuelto; plazo largo |
+| **B** *(recomendación existente)* Perfil **mínimo** versionado que declare lo que cubre y lo que no | Versión `PARTIAL` revisada por competente; ampliable | Sigue `PENDING` mientras sea `PARTIAL`: **dice la verdad sobre su alcance** |
+| **C** Fuera del alcance del MVP | No se revisa perfil | `LEGAL_PROFILE` permanece `PENDING`/`NOT_EVALUABLE`; `READY` inalcanzable |
+
+**D-07.5(b) — vinculación catálogo ↔ perfil (`regulatory_profile`).** *(opciones nuevas, para decidir; no figuraban en §7)*
+| Opción | Qué implica | Qué habría que implementar |
+| --- | --- | --- |
+| **b-1** `regulatory_profile` = **referencia a una versión del perfil jurídico con revisión `REVIEWED`**, fijada por un acto autorizado | El valor solo es válido si esa versión tiene revisión registrada; `RISK_CATALOG_APPROVED` verifica ambas cosas | Verificación en el requisito + camino para fijarlo (hoy solo una migración). Como las versiones publicadas no se editan, lo coherente es **publicar una versión nueva del catálogo** (p. ej. `1.1.0`) que lo declare, no modificar `1.0.0` |
+| **b-2** Etiqueta de texto libre fijada por un acto autorizado | Simple, pero **no está atada a revisión alguna**: el riesgo descrito en 11.1 | Camino para fijarlo |
+| **b-3** Mantener `NULL` en el MVP | `RISK_CATALOG_APPROVED` permanece `NOT_EVALUABLE`; conclusión inalcanzable | Nada |
+
+**D-07.6 — quién concluye.**
+| Opción | Qué implica | Estado |
+| --- | --- | --- |
+| **A** El motor concluye a partir de la severidad | **Prohibida por la fuente** (S1 §35): `LOW` no es «insignificante» | Descartada |
+| **B** *(recomendación existente)* Una **persona autorizada** concluye sobre una evaluación concreta, con motivo y registro; el motor puede **proponer** | Condiciones previas acumulativas (abajo) | Pendiente |
+| **C** Nadie concluye en el MVP | `READY` inalcanzable | Pendiente |
+Condiciones previas de B (acumulativas): (1) catálogo aprobado y adoptado, con severidades; (2) **perfil jurídico revisado** y catálogo aprobado bajo él (D-07.5); (3) evaluación **no** `STALE`; (4) revisor **autorizado y distinto** de quien evaluó; (5) **motivo escrito**. Hoy **no existe** un permiso de «concluir» ni un endpoint: el `CHECK` lo impide por diseño. **Decisión asociada:** qué permiso lo gobierna (nuevo, p. ej. separado de `risk:review`) y quién lo recibe — decisión del propietario **después** de que el revisor identifique la capacidad requerida.
+
+### 11.4 Ejemplos sintéticos (NO ejecutados sobre ningún expediente)
+Catálogo `1.0.0` adoptado; severidades por regla: `MATERIAL_OF_UNKNOWN_ORIGIN` CRITICAL, `DATA_MISSING_ORIGIN` HIGH, `GEOMETRY_INVALID` HIGH, `MASS_BALANCE_INCONSISTENT` CRITICAL, `DOCUMENT_EXPIRED` MEDIUM; `MITIGATION_UNVERIFIED`, `SATELLITE_COVERAGE_UNKNOWN` y `GEOLOCATION_PROFILE` **sin** severidad.
+| Caso sintético | Resultado técnico y severidad (ya ocurre hoy) | Conclusión según opción |
+| --- | --- | --- |
+| **S1** Lote con origen declarado en todo su grafo, geometrías válidas, ledger conciliado y documentos vigentes | Ningún `HIT`; severidad `NOT_ASSESSED` (**sin hallazgos no es «bajo»**); cobertura **parcial** | **D-07.6 B con todo cumplido**: un revisor *podría* registrar `NEGLIGIBLE`. **A/C:** `UNDETERMINED`. Aun así `READY` sigue bloqueado por `GEOLOCATION_PROFILE`, `DEFORESTATION_ANALYSIS`, `LEGAL_PROFILE`, `SHIPMENT_LINK` |
+| **S2** Lote con un insumo de origen desconocido | `MATERIAL_OF_UNKNOWN_ORIGIN` `HIT`, severidad `CRITICAL`, efecto `BLOCKING` | **B:** un revisor puede registrar `NON_NEGLIGIBLE` con motivo; **el motor no lo deduce** de `CRITICAL`. **C:** `UNDETERMINED` |
+| **S3** Lote con una parcela sin evaluación técnica de geometría | `GEOMETRY_INVALID` → `NOT_EVALUABLE`; la severidad del lote **no se completa** y se dice qué regla faltó | Ninguna opción convierte lo no evaluable en favorable |
+| **S4** Misma evaluación que S1, pero cambió una geometría después | Evaluación `STALE` | **B:** la conclusión se **rechaza** (condición 3). La anterior permanece como historia |
+| **S5** Catálogo adoptado con `regulatory_profile = NULL` | `RISK_CATALOG_APPROVED` = `NOT_EVALUABLE` | **b-3:** se mantiene. **b-1/b-2:** pasa a `MET` solo cuando el campo se fija; con **b-2** bastaría un texto cualquiera (el riesgo de 11.1) |
+| **S6** Revisor que es la misma persona que evaluó | — | **B:** rechazada (condición 4) |
+
+### 11.5 Dependencias, evidencia y responsable
+| Decisión | Depende de | Evidencia necesaria | Responsable |
+| --- | --- | --- | --- |
+| **D-07.5(a)** contenido del perfil | P1-005 §6; fuentes oficiales | Revisión jurídica registrada del perfil, con revisor identificado | **Responsable jurídico/regulatorio competente** |
+| **D-07.5(b)** vinculación | (a) resuelta; decisión de producto sobre b-1/b-2/b-3 | Perfil `REVIEWED` referenciable; acto autorizado de fijación | Propietario (opción) + implementación posterior |
+| **D-07.6** quién concluye | D-07.5, D-07.1/.2/.4 (hechos), D-05.B y el resto de requisitos para `READY` | Capacidad y fundamento del revisor; permiso nuevo y su asignación | **Responsable regulatorio** (competencia) + propietario (permisos) |
+Ninguna se desbloquea con solo decidir D-07.6: `READY` sigue necesitando `GEOLOCATION_PROFILE` (D-05.B), `DEFORESTATION_ANALYSIS` (D-09.B), `LEGAL_PROFILE`, `RISK_CATALOG_APPROVED` y `SHIPMENT_LINK` (D-34).
+
+### 11.6 Integración con el desarrollo
+| | |
+| --- | --- |
+| **Implementación existente** | Mecanismos D-07.1/.2/.4; catálogo `1.0.0`; adopción por organización; severidad con cobertura; `CHECK` que fija `UNDETERMINED`; requisitos `RISK_CATALOG_APPROVED` y `REGULATORY_CONCLUSION` (hoy `NOT_EVALUABLE`); `regulatory_profile` (nulo) |
+| **Implementación original pendiente** | Fijar `regulatory_profile` (solo por migración hoy) y comprobar que corresponda a un perfil revisado (si b-1); el permiso, el endpoint y el `CHECK` sustituto para **registrar una conclusión** |
+| **Puede completarse sin resolver la decisión** | **Nada inequívoco**: ambas piezas dependen de la opción elegida y de qué capacidad exige el revisor; implementarlas antes sería fabricar la condición de aprobación |
+| **Condición externa exacta** | Un responsable regulatorio/jurídico competente que (1) revise el perfil (P1-005) y (2) defina la capacidad y fundamento para concluir; luego, decisión del propietario sobre b-1/b-2/b-3 y el permiso |
