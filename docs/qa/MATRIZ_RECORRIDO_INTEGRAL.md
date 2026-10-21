@@ -1,5 +1,7 @@
 # Matriz del recorrido completo: qué está demostrado y dónde se detiene (2026-10-15)
 
+> **Actualización 2026-10-21**: el mismo encadenamiento se recorrió **desde la web, un rol por transición**, sobre los datos DEMO: `docs/qa/RECORRIDO_INTEGRAL_WEB_2026-10-21.md` (15 transiciones; 0 defectos del producto; bloqueos esperados en riesgo, expediente y despacho; 2 puntos no definidos). Esta matriz (API/integración) sigue vigente.
+
 Preparación de **P0-031**. Esto **no inicia ni completa el piloto**: no hay operadores reales, ni dataset de piloto,
 ni Android real, ni restauración de respaldo. Preparar documentos y ejecutar pruebas sintéticas no es operar.
 

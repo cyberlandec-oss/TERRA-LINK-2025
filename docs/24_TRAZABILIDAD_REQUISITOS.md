@@ -38,3 +38,12 @@ Propuestas adicionales rastreables: outbox y ledger (ADR-0003), membresías/gran
 | Fuente | Requisito | Historia | QA | Estado |
 | --- | --- | --- | --- | --- |
 | Instrucción del propietario del producto (2026-10-20), posterior a las cuatro fuentes | RF-48 | A-01 | 02/04/08/15 | **DONE_LOCAL** (`4913dd3`, 2026-10-20; `docs/qa/EVIDENCIA_A01_CAPTURA_CAMPO_2026-10-20.md`); fuera del conteo 42/60 y 30/44, sin cambiar denominadores ni porcentajes. No altera P0-006–010 ni P0-023/P0-024 |
+
+## Recorrido integral desde la web (2026-10-21) — preparación de P0-031
+
+| Fuente | Requisito / QA | Historia | Evidencia | Estado |
+| --- | --- | --- | --- | --- |
+| docs/14 «Workflows de punta a punta» 3–6 y 7 (parte de consulta) | RF-31; QA-07 | P0-031 (preparación) | `docs/qa/RECORRIDO_INTEGRAL_WEB_2026-10-21.md`, `e2e/review/cadena-integral-web.mjs` | Recorrido web por rol **demostrado** (T1–T8, T10, T13, T14); **bloqueos esperados** en riesgo (D-05.B), expediente (D-07.5/7.6) y despacho (D-34). Sin defectos del producto. No es el piloto |
+| docs/14 workflow 6 («compartir información autorizada») entre organizaciones | — | — | T15 | **NO DEFINIDO** (traspaso de lotes entre organizaciones; pantalla de concesiones del propietario): decisión del producto, no implementado |
+
+Fuera del conteo 42/60 y 30/44; no altera A-01 ni la aceptación externa pendiente.
