@@ -707,6 +707,56 @@ Ninguna se desbloquea con solo decidir D-07.6: `READY` sigue necesitando `GEOLOC
 | Opción | Texto | Efecto técnico |
 | --- | --- | --- |
 | **b-1** | `regulatory_profile` = **referencia a una versión del perfil jurídico con revisión `REVIEWED`**, fijada por un acto autorizado | La guarda ya comprueba la referencia; falta el **acto autorizado** que la fije (hoy solo migración). Como las versiones publicadas no se editan, lo coherente es **publicar una versión nueva del catálogo** (p. ej. `1.1.0`) que la declare |
+| **b-2** | Etiqueta de texto libre fijada por un acto autorizado | **Qué parte contradice la guarda autorizada:** que esa etiqueta, **por sí sola**, haga cumplir `RISK_CATALOG_APPROVED`: la guarda exige una referencia a un perfil adoptado, completo y con revisión vigente, y una etiqueta no está atada a ninguna revisión (es el defecto que se corrigió). **Qué parte sigue abierta (decisión de producto):** si se quiere, además de la referencia, un texto descriptivo informativo (p. ej. el nombre del marco bajo el que se redactó el catálogo), quién lo fija con qué acto y con qué rótulo que diga que **no acredita revisión**. Esa variante no satisface el requisito y no estaba excluida por el código. **No se marca como rechazada:** el código nuevo solo impide la lectura que hacía la etiqueta suficiente |
+| **b-3** Mantener `NULL` en el MVP | `RISK_CATALOG_APPROVED` permanece `NOT_EVALUABLE`; conclusión inalcanzable | Nada |
+
+**D-07.6 — quién concluye.**
+| Opción | Qué implica | Estado |
+| --- | --- | --- |
+| **A** El motor concluye a partir de la severidad | **Prohibida por la fuente** (S1 §35): `LOW` no es «insignificante» | Descartada |
+| **B** *(recomendación existente)* Una **persona autorizada** concluye sobre una evaluación concreta, con motivo y registro; el motor puede **proponer** | Condiciones previas acumulativas (abajo) | Pendiente |
+| **C** Nadie concluye en el MVP | `READY` inalcanzable | Pendiente |
+Condiciones previas de B (acumulativas): (1) catálogo aprobado y adoptado, con severidades; (2) **perfil jurídico revisado** y catálogo aprobado bajo él (D-07.5); (3) evaluación **no** `STALE`; (4) revisor **autorizado y distinto** de quien evaluó; (5) **motivo escrito**. Hoy **no existe** un permiso de «concluir» ni un endpoint: el `CHECK` lo impide por diseño. **Decisión asociada:** qué permiso lo gobierna (nuevo, p. ej. separado de `risk:review`) y quién lo recibe — decisión del propietario **después** de que el revisor identifique la capacidad requerida.
+
+### 11.4 Ejemplos sintéticos (NO ejecutados sobre ningún expediente)
+Catálogo `1.0.0` adoptado; severidades por regla: `MATERIAL_OF_UNKNOWN_ORIGIN` CRITICAL, `DATA_MISSING_ORIGIN` HIGH, `GEOMETRY_INVALID` HIGH, `MASS_BALANCE_INCONSISTENT` CRITICAL, `DOCUMENT_EXPIRED` MEDIUM; `MITIGATION_UNVERIFIED`, `SATELLITE_COVERAGE_UNKNOWN` y `GEOLOCATION_PROFILE` **sin** severidad.
+| Caso sintético | Resultado técnico y severidad (ya ocurre hoy) | Conclusión según opción |
+| --- | --- | --- |
+| **S1** Lote con origen declarado en todo su grafo, geometrías válidas, ledger conciliado y documentos vigentes | Ningún `HIT`; severidad `NOT_ASSESSED` (**sin hallazgos no es «bajo»**); cobertura **parcial** | **D-07.6 B con todo cumplido**: un revisor *podría* registrar `NEGLIGIBLE`. **A/C:** `UNDETERMINED`. Aun así `READY` sigue bloqueado por `GEOLOCATION_PROFILE`, `DEFORESTATION_ANALYSIS`, `LEGAL_PROFILE`, `SHIPMENT_LINK` |
+| **S2** Lote con un insumo de origen desconocido | `MATERIAL_OF_UNKNOWN_ORIGIN` `HIT`, severidad `CRITICAL`, efecto `BLOCKING` | **B:** un revisor puede registrar `NON_NEGLIGIBLE` con motivo; **el motor no lo deduce** de `CRITICAL`. **C:** `UNDETERMINED` |
+| **S3** Lote con una parcela sin evaluación técnica de geometría | `GEOMETRY_INVALID` → `NOT_EVALUABLE`; la severidad del lote **no se completa** y se dice qué regla faltó | Ninguna opción convierte lo no evaluable en favorable |
+| **S4** Misma evaluación que S1, pero cambió una geometría después | Evaluación `STALE` | **B:** la conclusión se **rechaza** (condición 3). La anterior permanece como historia |
+| **S5** Catálogo adoptado con `regulatory_profile = NULL` | `RISK_CATALOG_APPROVED` = `NOT_EVALUABLE` | **b-3:** se mantiene. **b-1/b-2:** pasa a `MET` solo cuando el campo se fija; con **b-2** bastaría un texto cualquiera (el riesgo de 11.1) |
+| **S6** Revisor que es la misma persona que evaluó | — | **B:** rechazada (condición 4) |
+
+### 11.5 Dependencias, evidencia y responsable
+| Decisión | Depende de | Evidencia necesaria | Responsable |
+| --- | --- | --- | --- |
+| **D-07.5(a)** contenido del perfil | P1-005 §6; fuentes oficiales | Revisión jurídica registrada del perfil, con revisor identificado | **Responsable jurídico/regulatorio competente** |
+| **D-07.5(b)** vinculación | (a) resuelta; decisión de producto sobre b-1/b-2/b-3 | Perfil `REVIEWED` referenciable; acto autorizado de fijación | Propietario (opción) + implementación posterior |
+| **D-07.6** quién concluye | D-07.5, D-07.1/.2/.4 (hechos), D-05.B y el resto de requisitos para `READY` | Capacidad y fundamento del revisor; permiso nuevo y su asignación | **Responsable regulatorio** (competencia) + propietario (permisos) |
+Ninguna se desbloquea con solo decidir D-07.6: `READY` sigue necesitando `GEOLOCATION_PROFILE` (D-05.B), `DEFORESTATION_ANALYSIS` (D-09.B), `LEGAL_PROFILE`, `RISK_CATALOG_APPROVED` y `SHIPMENT_LINK` (D-34).
+
+### 11.6 Integración con el desarrollo
+| | |
+| --- | --- |
+| **Implementación existente** | Mecanismos D-07.1/.2/.4; catálogo `1.0.0`; adopción por organización; severidad con cobertura; `CHECK` que fija `UNDETERMINED`; requisitos `RISK_CATALOG_APPROVED` y `REGULATORY_CONCLUSION` (hoy `NOT_EVALUABLE`); `regulatory_profile` (nulo) |
+| **Implementación original pendiente** | Fijar `regulatory_profile` (solo por migración hoy) y comprobar que corresponda a un perfil revisado (si b-1); el permiso, el endpoint y el `CHECK` sustituto para **registrar una conclusión** |
+| **Puede completarse sin resolver la decisión** | **Nada inequívoco**: ambas piezas dependen de la opción elegida y de qué capacidad exige el revisor; implementarlas antes sería fabricar la condición de aprobación |
+| **Condición externa exacta** | Un responsable regulatorio/jurídico competente que (1) revise el perfil (P1-005) y (2) defina la capacidad y fundamento para concluir; luego, decisión del propietario sobre b-1/b-2/b-3 y el permiso |
+
+## 12. Estado tras la guarda técnica de `RISK_CATALOG_APPROVED` (2026-10-21)
+
+**Implementado (guarda técnica del requisito original; no decide el contenido jurídico):**
+- `RISK_CATALOG_APPROVED` ya **no** pasa a `MET` con cualquier `regulatory_profile` no nulo. Solo con una **referencia `x.y.z`** igual a la versión del perfil que la organización **adoptó**, con alcance **COMPLETO** y última revisión **REVIEWED**. Una cadena arbitraria, una referencia inexistente o de otra versión, un perfil sin revisar, **parcial**, o cuya revisión fue luego **objetada/retirada**, dejan el requisito en `PENDING` y el detalle dice qué falta. `NULL` sigue `NOT_EVALUABLE`.
+- La base lo impone (`0059`): `risk_rule_sets.regulatory_profile` solo admite una versión **existente, PUBLICADA, COMPLETA y con revisión vigente**. No hay API que lo fije y hoy **ninguna versión lo lleva**; el control positivo existe solo con datos sintéticos en bases de prueba.
+- No define qué es un perfil «suficiente»: reutiliza el contrato de `LEGAL_PROFILE`.
+
+**Sigue pendiente de decisión (no se adopta ninguna opción).** Las tres opciones de D-07.5(b), con su efecto técnico:
+
+| Opción | Texto | Efecto técnico |
+| --- | --- | --- |
+| **b-1** | `regulatory_profile` = **referencia a una versión del perfil jurídico con revisión `REVIEWED`**, fijada por un acto autorizado | La guarda ya comprueba la referencia; falta el **acto autorizado** que la fije (hoy solo migración). Como las versiones publicadas no se editan, lo coherente es **publicar una versión nueva del catálogo** (p. ej. `1.1.0`) que la declare |
 | **b-2** | Etiqueta de texto libre fijada por un acto autorizado | **Ya no es posible tal cual**: la guarda rechaza cualquier valor que no sea una referencia revisada. Adoptarla exigiría **retirar** la guarda |
 | **b-3** | Mantener `NULL` en el MVP | `RISK_CATALOG_APPROVED` permanece `NOT_EVALUABLE`; la conclusión sigue inalcanzable. Nada que implementar |
 

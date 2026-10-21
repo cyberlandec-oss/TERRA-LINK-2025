@@ -690,3 +690,5 @@ provisional del MVP local** el 2026-10-15 (no validada en campo ni para producci
 ## Anterior: P0-006 Parcela
 
 Dependencias: P0-004 (DONE_LOCAL). Leer docs/10 (GIS), 05/06 (`plots`, `plot_versions`, `gps_samples`) y 18 §P0-006–P0-010. Alcance de P0-006: parcela vinculada a un productor de la misma organización, con código único por tenant, versión geométrica (PostGIS, SRID 4326), permisos `plot:*` y eventos. La validación GIS y el umbral de 4 ha son P0-010 y dependen de D-05.
+
+**Guarda de `RISK_CATALOG_APPROVED` y perfil `0.2.0` borrador (2026-10-21, `f40b9f4`, validación APROBADA, desplegado, esquema `0060`).** `regulatory_profile` es ahora una referencia a un perfil adoptado, completo y con revisión vigente (trigger `0059`); `0.2.0` existe como borrador no adoptable (`0060`). Evidencia y separación de dimensiones: `qa/EVIDENCIA_GUARDA_CATALOGO_PERFIL_0_2_0_2026-10-21.md`. D-07.5(b) b-1/b-2/b-3 siguen sin decidir (`decisiones/D-07-PROPUESTA.md` §12). No cambia porcentajes, requisitos de expedientes ni compuertas; `UNDETERMINED` se conserva.

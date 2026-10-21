@@ -586,3 +586,5 @@ cd e2e && npx playwright test tests/traspasos.spec.ts                    # E2E a
 La demostración desplegada llega hasta la **salida bloqueada** y la cancelación; no hay forma operativa de pasar a `IN_TRANSIT`. Deja traspasos de ensayo `CANCELLED` (los tres de la entrega) y un vínculo activo entre ambas organizaciones DEMO.
 Respaldo vigente: `_respaldos/2026-10-21-a03-traspaso-0058/` (58 migraciones, 142 tablas; incluye los datos de la demostración). Volúmenes Docker: 27, sin cambio.
 Para una validación larga, mantener el equipo despierto: una corrida de `validate` de `d99f40a` falló con timeouts de preparación y duraciones de miles de segundos; la causa no está identificada (`docs/qa/EVIDENCIA_A03_TRASPASO_2026-10-21.md` §1).
+
+Guarda de `RISK_CATALOG_APPROVED` y `0.2.0` (migraciones 0059–0060): respaldo `_respaldos/2026-10-21-guarda-catalogo-0059-0060/` (restauración aislada verificada); demostración `node e2e/review/guarda-catalogo-demostracion.mjs` (9/9, no aprueba perfiles).
