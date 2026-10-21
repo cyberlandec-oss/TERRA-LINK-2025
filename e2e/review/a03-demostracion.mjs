@@ -26,19 +26,19 @@ async function caso(titulo, fn) {
   catch (e) { console.log(`FALLA ${titulo.padEnd(100)} ${String(e.message).slice(0, 240)}`); resultados.push({ titulo, ok: false, detalle: String(e.message).slice(0, 240) }); }
 }
 const pedir = async (t, m, p, body) => { const r = await fetch(API + p, { method: m, headers: { authorization: `Bearer ${t}`, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined }); let b = null; try { b = await r.json(); } catch { /* sin cuerpo */ } return { s: r.status, b }; };
-const login = async (cta) => { const c = cuentaDemo(cta); return { token: (await (await fetch(API + '/api/v1/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: c.email, password: c.password }) })).json()).access_token, email: c.email }; };
+const login = async (cta) => { const c = cuentaDemo(cta); return { token: (await (await fetch(API + '/api/v1/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: c.email, password: c.contrasena }) })).json()).access_token, email: c.email }; };
 const sesion = async (browser, token, lang = 'es', viewport) => { const ctx = await browser.newContext(viewport ? { viewport } : {}); await ctx.addInitScript(([t, l]) => { sessionStorage.setItem('tl_token', t); localStorage.setItem('tl_lang', l); }, [token, lang]); const page = await ctx.newPage(); return { ctx, page }; };
 const lista = (b) => (Array.isArray(b) ? b : b?.items ?? b?.data ?? []);
 
 const adm = await login('admin.cooperativa'); const exp = await login('admin.exportadora'); const tec = await login('tecnico1.cooperativa'); const aje = await login('comprador.importador');
-const orgE = (await pedir(adm.token, 'GET', '/api/v1/organizations')).b.find((o) => o.name.includes('Río Verde'));
-const orgR = (await pedir(exp.token, 'GET', '/api/v1/organizations')).b[0];
-const orgX = (await pedir(aje.token, 'GET', '/api/v1/organizations')).b[0];
+const orgE = lista((await pedir(adm.token, 'GET', '/api/v1/organizations')).b).find((o) => o.name.includes('Río Verde'));
+const orgR = lista((await pedir(exp.token, 'GET', '/api/v1/organizations')).b)[0];
+const orgX = lista((await pedir(aje.token, 'GET', '/api/v1/organizations')).b)[0];
 const E = `/api/v1/organizations/${orgE.id}`; const R = `/api/v1/organizations/${orgR.id}`; const X = `/api/v1/organizations/${orgX.id}`;
 console.log(`\n== A-03 · emisora ${orgE.name} · receptora ${orgR.name} ==\n`);
 
 // Preparación mínima de la receptora (solo si falta): un producto en KG y un centro. Es dato de demostración sintético de la propia organización.
-const productosR = lista((await pedir(exp.token, 'GET', `${R}/products?limit=100`)).b).filter((p) => p.unit === 'KG' && p.status !== 'INACTIVE');
+const productosR = lista((await pedir(exp.token, 'GET', `${R}/products?limit=100`)).b).filter((p) => (p.unit?.code ?? p.unit) === 'KG' && p.status !== 'INACTIVE');
 let productoR = productosR[0]?.id;
 if (!productoR) productoR = (await pedir(exp.token, 'POST', `${R}/products`, { code: 'CACAO_CUSTODIA', name: 'Cacao recibido en custodia', product_state: 'CACAO_BABA', unit: 'KG' })).b?.id;
 let centrosR = lista((await pedir(exp.token, 'GET', `${R}/locations`)).b).filter((l) => l.status !== 'INACTIVE');
@@ -136,7 +136,7 @@ await caso('4 Salida: la compuerta real BLOQUEA; la pantalla lo explica, el serv
     `pantalla bloquea=${bloquea}; API=${api.s} ${api.b?.error?.code}; con bandera de omisión=${bypass.s}; físico ${antes.physical}→${despues.physical}, reservado ${antes.reserved}→${despues.reserved}`];
 });
 
-await caso('5 Rechazos: sin permiso no hay menú ni acceso; una tercera organización recibe 404; cada lado solo actúa en el suyo; controles autorizados', async () => {
+await caso('5 Rechazos: sin permiso no hay menú ni acceso; una cuenta de otra organización sin permiso recibe 403 en la suya y 404 en la ruta de la emisora (el 404 de un administrador de una tercera organización lo acreditan integración y E2E); cada lado solo actúa en el suyo; controles autorizados', async () => {
   const t = await sesion(browser, tec.token); await t.page.goto(`${WEB}/organizaciones/${orgE.id}/traspasos`);
   const denegado = await t.page.getByText('No tienes permiso para consultar traspasos.').waitFor({ timeout: 10000 }).then(() => true, () => false);
   const menuT = await t.page.getByRole('link', { name: 'Traspasos', exact: true }).count();
@@ -149,7 +149,7 @@ await caso('5 Rechazos: sin permiso no hay menú ni acceso; una tercera organiza
   const ladoMalo2 = await pedir(exp.token, 'POST', `${R}/custody-transfers/${traspaso}/cancel`, { operation_id: randomUUID(), expected_version: v, reason: 'La receptora no cancela' });
   const ctrlE = await pedir(adm.token, 'GET', `${E}/custody-transfers/${traspaso}`); const ctrlR = await pedir(exp.token, 'GET', `${R}/custody-transfers/${traspaso}`);
   const sinFuga = !JSON.stringify(ctrlR.b).includes(stock.location_code) && !JSON.stringify(ctrlE.b).includes(productoR);
-  return [denegado && menuT === 0 && tecApi.s === 403 && tercero.s === 404 && terceroPorA.s === 404 && ladoMalo.s === 403 && ladoMalo2.s === 403 && ctrlE.s === 200 && ctrlR.s === 200 && sinFuga,
+  return [denegado && menuT === 0 && tecApi.s === 403 && tercero.s === 403 && terceroPorA.s === 404 && ladoMalo.s === 403 && ladoMalo2.s === 403 && ctrlE.s === 200 && ctrlR.s === 200 && sinFuga,
     `técnico: pantalla=${denegado}, menú=${menuT}, API=${tecApi.s} · tercera: ${tercero.s}/${terceroPorA.s} · lado equivocado: ${ladoMalo.s}/${ladoMalo2.s} · controles: ${ctrlE.s}/${ctrlR.s} · sin fuga=${sinFuga}`];
 });
 

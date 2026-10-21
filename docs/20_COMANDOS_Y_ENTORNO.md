@@ -568,3 +568,14 @@ node e2e/review/a01-preparar-prueba-manual.mjs          # organización de ensay
 node e2e/review/a02-demostracion.mjs     # propietario admin.cooperativa → destinatario comprador.importador (DEMO, sintético); capturas en validation-results/a02-demostracion-2026-10-21/
 ```
 Revoca antes las concesiones ACTIVAS de ensayo de ese destinatario. Respaldo vigente: `_respaldos/2026-10-21-a02-concesiones-0057/` (cubre también la organización de prueba manual de A-01 y los registros `CAD-*`).
+
+## Demostración y respaldo de A-03 (traspaso de custodia, 2026-10-21)
+```
+node scripts/desplegar.mjs                    # construir el árbol LIMPIO (no redirigir registros dentro del repositorio: marcaría +sucio)
+node e2e/review/a03-demostracion.mjs          # emisora Río Verde → receptora Exportadora Pacífico (DEMO, sintético); capturas en validation-results/a03-demostracion-2026-10-21/
+cd apps/api && npx jest --runInBand test/custody-transfers.int-spec.ts   # recorrido aislado completo (compuerta sustituida SOLO con jest.spyOn)
+cd e2e && npx playwright test tests/traspasos.spec.ts                    # E2E aislado (terra_link_e2e); el tránsito se prepara con un FIXTURE SQL rotulado
+```
+La demostración desplegada llega hasta la **salida bloqueada** y la cancelación; no hay forma operativa de pasar a `IN_TRANSIT`. Deja traspasos de ensayo `CANCELLED` (los tres de la entrega) y un vínculo activo entre ambas organizaciones DEMO.
+Respaldo vigente: `_respaldos/2026-10-21-a03-traspaso-0058/` (58 migraciones, 142 tablas; incluye los datos de la demostración). Volúmenes Docker: 27, sin cambio.
+Para una validación larga, mantener el equipo despierto: una corrida de `validate` de `d99f40a` falló con timeouts de preparación y duraciones de miles de segundos; la causa no está identificada (`docs/qa/EVIDENCIA_A03_TRASPASO_2026-10-21.md` §1).

@@ -632,6 +632,8 @@ Aplicado a las pantallas existentes y conectadas a operaciones reales: tokens M1
 
 ## Próxima acción (2026-10-20)
 
+**A-03 DONE_LOCAL (2026-10-21)** sobre `d99f40a` (esquema 0058): traspaso de custodia entre organizaciones, desarrollo técnico demostrado. **No está habilitado para operaciones reales**: la salida permanece bloqueada (D4 no adoptada, D-34) y D2 espera revisión competente. Validación APROBADA `2026-10-21T15-35-07-183Z` (90 suites, 990 pruebas, E2E 104) tras una 1.ª ejecución FALLIDA conservada; demostración 7/7; respaldo `…-a03-traspaso-0058` verificado. Detalle: `qa/EVIDENCIA_A03_TRASPASO_2026-10-21.md`. Fuera del conteo: 42/60, 30/44 y 25/32 no cambian.
+
 **A-02 DONE_LOCAL (2026-10-21)** sobre `0211a30`: administración web de concesiones, demostrada 7/7 y con respaldo `…-a02-concesiones-0057`. **A-03** sigue como propuesta con D1–D9 abiertas. Pendiente propio: diagnosticar la causa de los commits lentos del entorno de pruebas (dos validaciones de `acac9b5` fallaron por ello). Detalle: `qa/EVIDENCIA_A02_CONCESIONES_2026-10-21.md`. No cambia 42/60, 30/44 ni 25/32.
 
 **Recorrido integral desde la web (2026-10-21)**: 15 transiciones por rol sobre los datos DEMO, **sin defectos del producto** y con los bloqueos esperados (D-05.B, D-07.5/7.6, D-34); dos puntos **no definidos** para decisión del producto (traspaso de lotes entre organizaciones; pantalla del propietario para concesiones). Detalle: `qa/RECORRIDO_INTEGRAL_WEB_2026-10-21.md`. Prepara P0-031; **no** la inicia como piloto.
