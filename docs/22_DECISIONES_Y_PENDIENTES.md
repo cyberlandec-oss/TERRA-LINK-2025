@@ -466,3 +466,7 @@ Q8 (D-05.B) **no recorta el proyecto**: Terra Link conserva la preparación de e
 ### Guarda de `RISK_CATALOG_APPROVED` y perfil `0.2.0` (2026-10-21)
 
 Implementada la guarda técnica (`regulatory_profile` es una referencia a un perfil adoptado, completo y con revisión vigente; trigger `0059`) y preparado `0.2.0` como borrador no adoptable (`0060`). Siguen pendientes: D-07.5(b) b-1/b-2/b-3 (`D-07-PROPUESTA.md` §12), la revisión jurídica (P1-005 §6–7) y D-07.6. Sin cambios de porcentaje, requisitos ni compuertas.
+
+### D-07.5(b): opción b-1 adoptada (2026-10-21)
+
+Adoptada por el propietario e implementada (`decisiones/D-07-PROPUESTA.md` §13). Pendientes que NO resuelve: contenido del perfil y su revisión jurídica (D-07.5(a), P1-005), D-07.6 (quién concluye y con qué permiso), y un perfil completo y revisado que permita vincular una versión real. La etiqueta opcional de b-2 no se implementó.
