@@ -66,7 +66,9 @@ describeDb('A-01 captura de campo con alcance propio (PostgreSQL real)', () => {
     org = await mk('Coop A01', ADMIN);
     orgB = await mk('Coop A01 B', ADMIN_B);
     step = 'invites';
-    for (const [e, r] of [[TEC1, 'FIELD_TECHNICIAN'], [TEC2, 'FIELD_TECHNICIAN'], [PROD1, 'PRODUCER'], [PROD2, 'PRODUCER'], [PROD3, 'PRODUCER'], [AUD, 'AUDITOR'], [BUY, 'BUYER'], [MGR, 'MANAGER']]) await invitar(e, r);
+    // Las ocho altas son independientes: en paralelo, para no encadenar ocho esperas de disco dentro del mismo hook (con el disco lento, la
+    // preparación en serie rozaba el límite de 60 s del hook; se reduce el trabajo, no se sube el límite).
+    await Promise.all([[TEC1, 'FIELD_TECHNICIAN'], [TEC2, 'FIELD_TECHNICIAN'], [PROD1, 'PRODUCER'], [PROD2, 'PRODUCER'], [PROD3, 'PRODUCER'], [AUD, 'AUDITOR'], [BUY, 'BUYER'], [MGR, 'MANAGER']].map(([e, r]) => invitar(e, r)));
     step = 'members';
     const miembros = (await http().get(`${api()}/members`).set(as(ADMIN)).expect(200)).body;
     for (const x of (Array.isArray(miembros) ? miembros : miembros.members) as Array<{ email: string; membership_id: string }>) m[x.email] = x.membership_id;
