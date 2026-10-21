@@ -629,6 +629,20 @@ perfil deja preparar.
 
 ---
 
+## Erratas comprobadas (2026-10-21) — el texto original NO se modifica
+
+Comprobadas contra los textos guardados; el detalle y la revisión de las fuentes están en `docs/decisiones/D-05B-FICHA-REVISION-2026-10-21.md`. **Cada línea de abajo corrige o matiza una afirmación anterior, que se conserva donde está.**
+
+| Dónde | Afirmación original | Errata |
+| --- | --- | --- |
+| §6, **U7** | «Si Ecuador está clasificado como riesgo bajo (Art. 29)… No verificado en esta sesión» | **Resuelta por el propio §5.4**: Ecuador figura como *standard risk* en la lista consultada el 2026-10-15 (con huella). Es un dato **fechado y revocable**, no una constante |
+| §5.3, cond. 1 | «Una cooperativa de Ecuador que vende a un importador europeo normalmente **no** es el operador: lo es el importador» | Es una **lectura preliminar** (consistente con el Art. 7 del Reglamento) y **no una conclusión verificada**. Debe tratarse como pregunta (Q1) |
+| §9, punto 7 | «Contenido del **Anexo III** y efecto de la modificación en curso del Reglamento de Ejecución (UE) 2024/3084» | (a) El Anexo III **es** la declaración simplificada de micro y pequeños operadores primarios (Art. 4a(3)); su texto está guardado: lo pendiente es **si alguien entra en esa categoría**. (b) La modificación **ya está adoptada**: Reglamento de Ejecución (UE) **2026/1565** (13-07-2026); ambos actos se guardaron y leyeron (`docs/sources/eudr-ejecucion-2026-10-21/`). **No contienen reglas de geometría** ni modifican D-05.A |
+| §1.2 y §6 | «Concerning the amendment procedure of the Implementing Regulation (EU) 2024/3084 that is currently undergoing…» (cita de la fuente B) | La fuente B es del 2026-10-15; el procedimiento ya terminó con 2026/1565. **No está comprobado** si la documentación del destino ya lo refleja |
+| §5 (norma base) | Solo cita 2(15), 2(15a), 4a(5), 9(1)(d) | **Faltan** 2(15b), 2(17), 2(22), Art. 6, Art. 7, Art. 4(2) y Anexo II, Art. 4(7), Art. 5 para la pregunta «¿qué actor es cada usuario?» |
+
+---
+
 ## 9. Qué sigue abierto
 
 ### D-05.A — abierto pero no bloqueante
