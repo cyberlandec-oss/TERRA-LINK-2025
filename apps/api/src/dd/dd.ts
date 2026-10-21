@@ -14,6 +14,7 @@ import type { Permission } from '../authz/catalog';
 import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { EVENT_STORE, type EventStore } from '../events/events';
 import { RiskService } from '../risk/risk';
+import { geoEvaluationPanel } from './geo-panel';
 import { buildPackage, evaluateRequirements, manifestOf, readinessOf, sectionHashes, sha256, summary, DISCLAIMER, type DdContent, type Requirement } from './requirements';
 
 /** D-34.A.1: el vínculo concreto que una acreditación debe cubrir para despachar ese ítem. */
@@ -444,6 +445,19 @@ export class DdService {
   async detail(user: AuthUser, orgId: string, id: string) { return this.view(await this.ctx(user, orgId, 'dd:read', false), id); }
   async snapshotDetail(user: AuthUser, orgId: string, id: string) { return this.snapshotView(await this.ctx(user, orgId, 'dd:read', false), id); }
 
+  /**
+   * «Evaluación geográfica técnica actual»: consulta de SOLO LECTURA de las evaluaciones del perfil EUDR_GEO_V1 de las parcelas de origen del lote del expediente.
+   * No es contenido de la instantánea ni entra en su hash (no cambia su frescura) y no cumple GEOLOCATION_PROFILE. Mismo permiso y alcance que el expediente.
+   */
+  async geoEvaluation(user: AuthUser, orgId: string, caseId: string) {
+    const ctx = await this.ctx(user, orgId, 'dd:read', false);
+    const c = (await sql<{ id: string; case_number: string; subject_id: string }>`SELECT id, case_number, subject_id FROM dd_cases WHERE organization_id = ${orgId} AND id = ${caseId}`.execute(this.db)).rows[0];
+    if (!c) throw notFound();
+    const origin = await this.risk.snapshot(this.db, orgId, c.subject_id);
+    const plotIds = [...new Set(origin.origins.map((o) => o.plot_id))];
+    return geoEvaluationPanel(this.db, ctx, c, plotIds);
+  }
+
   async list(user: AuthUser, orgId: string) {
     const ctx = await this.ctx(user, orgId, 'dd:read', false);
     const rows = (await sql<{ id: string; case_number: string; lot_id: string; lot_code: string; snapshot_id: string | null; snapshot_number: number | null; readiness: string | null }>`
@@ -471,6 +485,7 @@ export class DdController {
   @Post('dd-cases') create(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Body() dto: CreateCaseDto, @Req() req: AuthedRequest) { return this.service.create(u, o, dto, req.requestId); }
   @Get('dd-cases/:id') detail(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string) { return this.service.detail(u, o, id); }
   @Post('dd-cases/:id/snapshots') snapshot(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: OperationDto, @Req() req: AuthedRequest) { return this.service.snapshot(u, o, id, dto, req.requestId); }
+  @Get('dd-cases/:id/geo-evaluation') geoEvaluation(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string) { return this.service.geoEvaluation(u, o, id); }
   @Get('dd-snapshots/:id') snapshotDetail(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string) { return this.service.snapshotDetail(u, o, id); }
   @Post('dd-snapshots/:id/reviews') review(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ReviewDto, @Req() req: AuthedRequest) { return this.service.review(u, o, id, dto, req.requestId); }
   @Post('dd-snapshots/:id/exports') export(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ExportDto, @Req() req: AuthedRequest) { return this.service.export(u, o, id, dto, req.requestId); }

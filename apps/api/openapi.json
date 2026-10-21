@@ -7415,6 +7415,42 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/dd-cases/{id}/geo-evaluation": {
+      "get": {
+        "operationId": "DdController_geoEvaluation",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "due-diligence"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/dd-snapshots/{id}": {
       "get": {
         "operationId": "DdController_snapshotDetail",

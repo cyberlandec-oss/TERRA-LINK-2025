@@ -10,6 +10,7 @@ import { GIS_STATUS, GIS_TABLES } from './gis-evaluation';
 import { PROFILE_TABLES } from './geo-profile';
 import { CONCESION_TABLAS } from './concesiones';
 import { TRASPASO_TABLAS } from './traspasos';
+import { GEO_PANEL_TABLAS } from './geo-eval-panel';
 
 // P1-015 / D-54 — Español fuente, inglés segunda lengua (ADR-0007, opción B).
 const PANTALLAS = [
@@ -22,6 +23,8 @@ const PANTALLAS = [
   'lib/gis-evaluation.tsx', 'lib/geo-profile.tsx', 'lib/map-capture.tsx', 'app/organizaciones/[id]/concesiones/page.tsx',
   // A-03: traspaso de custodia entre organizaciones
   'app/organizaciones/[id]/traspasos/page.tsx', 'app/organizaciones/[id]/traspasos/[transferId]/page.tsx',
+  // I1–I4: panel de evaluación geográfica técnica actual del expediente
+  'lib/geo-eval-panel.tsx',
 ];
 
 describe('internacionalización', () => {
@@ -46,8 +49,17 @@ describe('internacionalización', () => {
       ...Object.values(TRASPASO_TABLAS.ESTADO_TRASPASO).map((x) => x.label), ...Object.values(TRASPASO_TABLAS.ESTADO_VINCULO).map((x) => x.label),
       ...Object.values(TRASPASO_TABLAS.PASOS), ...Object.values(TRASPASO_TABLAS.DIFERENCIAS), ...Object.values(TRASPASO_TABLAS.RESOLUCIONES), ...Object.values(TRASPASO_TABLAS.CIERRES),
       ...Object.values(TRASPASO_TABLAS.LADOS), ...Object.values(TRASPASO_TABLAS.COMPROBACIONES),
+      ...Object.values(GEO_PANEL_TABLAS.PENDING_LABEL), ...Object.values(GEO_PANEL_TABLAS.REQ_LABEL),
     ];
     expect(valores.filter((v) => !(v in EN))).toEqual([]);
+  });
+
+  it('los textos que entrega la API del panel geográfico (vigencia, motivos, siguientes acciones, avisos) tienen su traducción', () => {
+    const src = readFileSync('../api/src/dd/geo-panel.ts', 'utf8');
+    const bloque = src.slice(src.indexOf('export const GEO_PANEL_NOTE'), src.indexOf('interface EvalRow')) + src.slice(src.indexOf("'Tener todas"), src.indexOf("'Tener todas") + 400);
+    const textos = [...bloque.matchAll(/'([^'\n]{5,})'/g)].map((m) => m[1]).filter((x) => x.includes(' ') || ['Vigente', 'Obsoleta'].includes(x)).filter((x) => !/^[A-Z_]+$/.test(x));
+    expect(textos.length).toBeGreaterThan(10);
+    expect(textos.filter((x) => !(x in EN))).toEqual([]);
   });
 
   it('el español es fuente y reserva: sin traducción devuelve el español, nunca una clave', () => {

@@ -7,6 +7,7 @@ import { useWorkspace } from '../../../../../lib/workspace';
 import { Alert, Breadcrumb, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../../lib/ui';
 import { ErrorDetails } from '../../../../../lib/deliveries';
 import { DD_PROCESS, READINESS_TONE, REQ_STATUS } from '../../../../../lib/dd';
+import { GeoEvaluationPanel } from '../../../../../lib/geo-eval-panel';
 
 interface Req { code: string; label: string; status: string; detail: string; source: string; references: string[] }
 interface Exp { id: string; kind: string; label: string; package_hash: string; size_bytes: number; exported_at: string; exported_by: string; disclaimer: string }
@@ -83,6 +84,7 @@ export default function DdCasePage() {
         {d.actions.snapshot && <p><button type="button" disabled={busy} onClick={() => void capture()}>{s ? 'Capturar nueva instantánea' : 'Capturar instantánea'}</button></p>}
       </section>
       {!s && <p className="muted">Sin instantáneas: captura una para calcular los requisitos.</p>}
+      <GeoEvaluationPanel orgId={orgId} caseId={caseId} />
       {s && <>
         <section className="card" aria-labelledby="dd-ready">
           <h2 id="dd-ready">Preparación (instantánea {s.snapshot_number})</h2>

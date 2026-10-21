@@ -48,6 +48,12 @@ Propuestas adicionales rastreables: outbox y ledger (ADR-0003), membresías/gran
 
 Fuera del conteo 42/60 y 30/44; no altera A-01 ni la aceptación externa pendiente.
 
+## Requisito original GEOLOCATION_PROFILE: implementación pendiente I1–I4 (2026-10-21)
+
+| Fuente | Requisito | Historia | Estado |
+| --- | --- | --- | --- |
+| P0-022 (matriz fila 14, `GEOLOCATION_PROFILE`); `docs/22` D-05 | Perfil de geolocalización aplicable del expediente | P0-022 / D-05 | **Parcial por diseño**: I1–I4 hechos (panel de consulta separado de la instantánea; guarda; pendientes; semántica de `organizations.country`) — `apps/api/test/dd-geo-panel.int-spec.ts` (4), `e2e/tests/panel-geografico.spec.ts` (5), `src/dd/requirements.spec.ts` (2). El requisito **sigue `NOT_EVALUABLE`**: espera D-05.B y la definición de «satisfecho». **No cambia los porcentajes** |
+
 ## Ampliaciones autorizadas A-02 y A-03 (2026-10-21)
 
 | Fuente | Requisito | Historia | QA | Estado |

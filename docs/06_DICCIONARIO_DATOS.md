@@ -227,3 +227,13 @@ Clasificación de la identidad del productor: documento, teléfono y dirección 
 | custody_lot_links | 0058 | A-03. Linaje entre lote de la emisora y lote de la receptora, con ambos `organization_id`; append-only |
 | lots.source = CUSTODY_TRANSFER | 0058 | A-03. Lote nacido de un traspaso: sin recepciones ni proceso, cerrado a entradas y siempre con origen INCOMPLETO |
 | stock_movements.movement_type | 0058 | A-03. Nuevos tipos `CUSTODY_RESERVE`, `CUSTODY_RESERVE_RELEASE`, `CUSTODY_OUT`, `CUSTODY_IN`, `CUSTODY_RETURN` (el origen de CUSTODY_IN y CUSTODY_RETURN es el paso, porque el ledger admite un movimiento por tipo y origen) |
+
+## Semántica de `organizations.country` (comprobada el 2026-10-21 contra su captura y su uso)
+**Es ambiguo y así se declara.** No significa «país de establecimiento jurídico», «país de producción» ni «criterio de aplicabilidad». Lo que consta en el código:
+| Aspecto | Hecho comprobado |
+| --- | --- |
+| **Captura** | Lo fija **solo** quien crea la organización (`POST /organizations`, plataforma/`SUPER_ADMIN`). El campo del formulario se rotula **«País (código ISO de 2 letras)»**, **sin definir a qué país se refiere** y con `EC` **precargado** (`apps/web/app/organizaciones/page.tsx`). Validación: dos letras mayúsculas (`^[A-Z]{2}$`), **no** se comprueba contra el catálogo ISO 3166 |
+| **Cambio** | **No se puede modificar**: no figura en el DTO de actualización (`UpdateOrganizationDto`). Si se capturó mal, no hay forma de corregirlo con la API actual |
+| **Uso** | Solo se **devuelve** en las respuestas y se **muestra** («tipo · país · versión») en la ficha de la organización. **Ninguna regla, perfil, evaluación, exportación ni compuerta lo lee.** En los datos DEMO sintéticos se asigna `DE` al tipo `IMPORTER` y `EC` al resto |
+| **No relacionado** | `buyers.country` (país del comprador **declarado**) y `shipments.destination_country` (destino **declarado**) son campos distintos; `plots` guarda provincia/cantón/parroquia, no país; `ProducerCountry` no se emite (reportes) por no existir país de producción |
+**Consecuencias:** (a) **no se usa automáticamente** como país de producción, de establecimiento ni como criterio de aplicabilidad (hecho F1 de `docs/decisiones/D-05B-FICHA-REVISION-2026-10-21.md`); (b) **reutilizar** este campo para un uso regulatorio exige antes **definir su significado** y permitir corregirlo (decisión pendiente, parte de Q1/Q3); (c) no se crea un campo nuevo mientras el existente pueda reutilizarse con un significado definido.

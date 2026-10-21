@@ -203,3 +203,17 @@ describe('P0-022 generador del paquete', () => {
     expect(r.hash).not.toBe(buildPackage(input(SYNTHETIC, 'INTERNAL_REVIEW'), { geometry: true, personal_documents: true }).hash);
   });
 });
+
+describe('GEOLOCATION_PROFILE: el resultado técnico no lo cumple (D-05.B y la definición de «satisfecho» pendientes)', () => {
+  it('con la fixture sintética en la que todo lo demás se cumple, sin la condición regulatoria revisada GEOLOCATION_PROFILE no es MET y READY no se alcanza', () => {
+    const sinCondicion: DdContent = { ...SYNTHETIC, profiles: { ...SYNTHETIC.profiles, geolocation_profile: null } };
+    expect(st(sinCondicion, 'GEOLOCATION_PROFILE')).toBe('NOT_EVALUABLE');
+    expect(readinessOf(evaluateRequirements(sinCondicion))).not.toBe('READY');
+  });
+  it('el dictamen técnico por parcela (TL_GIS_TECH válido, EUDR_GEO_V1 que cumple) no entra en el contenido que evalúa el requisito', () => {
+    const conVeredicto = { ...SYNTHETIC, profiles: { ...SYNTHETIC.profiles, geolocation_profile: null }, plots: SYNTHETIC.plots.map((p) => ({ ...p, gis_status: 'VALID', geo_profile: 'MEETS_PROFILE' })) } as unknown as DdContent;
+    expect(st(conVeredicto, 'GEOLOCATION_PROFILE')).toBe('NOT_EVALUABLE');
+    // Y añadir ese campo cambiaría el hash del contenido: por eso el veredicto vive en un panel de consulta aparte y no en la instantánea.
+    expect(sha256(conVeredicto)).not.toBe(sha256({ ...SYNTHETIC, profiles: { ...SYNTHETIC.profiles, geolocation_profile: null } }));
+  });
+});

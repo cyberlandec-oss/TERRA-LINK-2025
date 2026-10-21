@@ -2,6 +2,7 @@ import { EN_CAMPO } from './i18n-en-campo';
 import { EN_GIS } from './i18n-en-gis';
 import { EN_CONCESIONES } from './i18n-en-concesiones';
 import { EN_TRASPASOS } from './i18n-en-traspasos';
+import { EN_GEOPANEL } from './i18n-en-geopanel';
 
 // Traducción de INTERFAZ al inglés (P1-015 / D-54; ADR-0007). La clave es el texto en español —la fuente—.
 // No es una traducción jurídica certificada. Un texto sin entrada aquí se muestra en español, nunca como clave.
@@ -278,6 +279,7 @@ Object.assign(EN, EN_CAMPO); // A-01: recorrido de captura de campo
 Object.assign(EN, EN_GIS); // A-01: paneles de evaluación GIS y perfil de destino
 Object.assign(EN, EN_CONCESIONES); // A-02: administración de concesiones
 Object.assign(EN, EN_TRASPASOS); // A-03: traspaso de custodia entre organizaciones
+Object.assign(EN, EN_GEOPANEL); // I1–I4: evaluación geográfica técnica actual del expediente
 
 /** Mensajes con cifras: no pueden ser claves exactas, así que se traducen por patrón. */
 export const EN_PATTERNS: Array<[RegExp, string]> = [
