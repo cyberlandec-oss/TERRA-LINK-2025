@@ -186,7 +186,10 @@ export type PlatformPermission =
   | 'observability:read'
   // P1-006: verificar el acuerdo/canal de intercambio con un registro externo. Separado de la organización
   // a propósito: quien va a intercambiar no puede declarar comprobado su propio canal.
-  | 'exchange:verify';
+  | 'exchange:verify'
+  // D-07.5(b), b-1: vincular una versión NUEVA del catálogo de riesgo (global) con una versión de perfil jurídico revisado.
+  // NO concede concluir ni adoptar: la adopción es de cada organización y la conclusión sigue bloqueada.
+  | 'risk_catalog:link_profile';
 
 const ALL_MEMBER_READ: Permission[] = ['organization:read'];
 
@@ -226,7 +229,7 @@ export const PLATFORM_PERMISSIONS: Record<'SUPER_ADMIN', PlatformPermission[]> =
   // organization:onboard_admin: solo invitar (y ver/revocar invitaciones de) ORG_ADMIN en una organización
   // donde no es miembro. NO da acceso a miembros, datos personales ni operación: eso requiere la
   // política de elevación auditada (D-04, pendiente). No hay bypass global de SUPER_ADMIN.
-  SUPER_ADMIN: ['organization:create', 'organization:suspend', 'organization:list_all', 'organization:onboard_admin', 'user:deactivate', 'observability:read', 'exchange:verify'],
+  SUPER_ADMIN: ['organization:create', 'organization:suspend', 'organization:list_all', 'organization:onboard_admin', 'user:deactivate', 'observability:read', 'exchange:verify', 'risk_catalog:link_profile'],
 };
 
 export function permissionsForRoles(roles: string[]): Permission[] {

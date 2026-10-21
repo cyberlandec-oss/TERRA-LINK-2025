@@ -268,3 +268,7 @@ Recorrido: propietario otorga (revisión + confirmación) → destinatario consu
 | `transfer:resolve` | Resolver diferencias (la contraparte confirma pérdidas y sobrantes) | ORG_ADMIN, TRACEABILITY_MANAGER |
 
 Anti-escalamiento: un rol con estos permisos solo es otorgable por quien los posee. Un auditor lee, no actúa.
+
+## Vinculación del catálogo de riesgo con un perfil jurídico (D-07.5(b), b-1; 2026-10-21)
+
+Nuevo permiso de **plataforma** `risk_catalog:link_profile` (solo `SUPER_ADMIN`, nunca por membresía). Permite consultar los perfiles elegibles, confirmar el acto y ver su historial. **No** concede adoptar un catálogo (sigue `risk:approve_rules` de cada organización), **no** concede registrar conclusiones regulatorias y no cambia ninguna responsabilidad de los roles canónicos. Contrato: `decisiones/D-07-PROPUESTA.md` §13.

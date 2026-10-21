@@ -193,6 +193,71 @@
         ]
       }
     },
+    "/api/v1/platform/risk-catalog/profile-links/eligibility": {
+      "get": {
+        "operationId": "RiskProfileLinkController_eligibility",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/platform/risk-catalog/profile-links": {
+      "get": {
+        "operationId": "RiskProfileLinkController_history",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "operationId": "RiskProfileLinkController_link",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/legal-profile/catalog": {
       "get": {
         "description": "Versiones, fuentes y reglas CANDIDATAS. Una regla en DRAFT no es una regla aprobada.",
@@ -12192,6 +12257,42 @@
       }
     },
     "schemas": {
+      "LinkProfileDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "base_rule_set_version": {
+            "type": "string",
+            "description": "Versión publicada del catálogo cuyas reglas se copian sin cambios"
+          },
+          "new_rule_set_version": {
+            "type": "string",
+            "description": "Versión NUEVA del catálogo que nace vinculada; no puede existir"
+          },
+          "profile_version": {
+            "type": "string",
+            "description": "Referencia exacta (x.y.z) a una versión de legal_profile_versions; no se acepta una etiqueta"
+          },
+          "review_id": {
+            "type": "string",
+            "description": "Revisión jurídica vigente que sustenta la referencia; si dejó de ser la vigente, se rechaza"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Motivo del acto; queda en el registro y en auditoría"
+          }
+        },
+        "required": [
+          "operation_id",
+          "base_rule_set_version",
+          "new_rule_set_version",
+          "profile_version",
+          "review_id",
+          "reason"
+        ]
+      },
       "AdoptarDto": {
         "type": "object",
         "properties": {}

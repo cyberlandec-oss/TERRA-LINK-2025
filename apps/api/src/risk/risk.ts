@@ -483,7 +483,9 @@ export class RiskService {
         // Tercera cosa distinta de las dos anteriores: bajo qué PERFIL JURÍDICO se aprobó la versión para concluir.
         // Hoy es `null` en todas: D-07.5 sigue pendiente y por eso ninguna evaluación acredita preparación.
         regulatory_profile: e.regulatory_profile,
-        note: 'Tres actos distintos: la PUBLICACIÓN global dice que la versión existe y está respaldada por el proyecto; la ADOPCIÓN la decide cada organización y es la que habilita clasificar hallazgos; la APROBACIÓN BAJO PERFIL JURÍDICO (D-07.5, pendiente: regulatory_profile = null) sería la que permitiría concluir. Sin pesos ni umbrales: D-07.3 no aplica.',
+        note: 'Tres actos distintos: la PUBLICACIÓN global dice que la versión existe y está respaldada por el proyecto; la ADOPCIÓN la decide cada organización y es la que habilita clasificar hallazgos; ' + (e.regulatory_profile
+          ? `la APROBACIÓN BAJO PERFIL JURÍDICO (D-07.5(b), b-1) declara una referencia al perfil ${e.regulatory_profile}: solo se da por vigente mientras ese perfil siga publicado, completo y con su revisión vigente, y no equivale a una conclusión. Sin pesos ni umbrales: D-07.3 no aplica.`
+          : 'la APROBACIÓN BAJO PERFIL JURÍDICO (D-07.5, pendiente: regulatory_profile = null) sería la que permitiría concluir. Sin pesos ni umbrales: D-07.3 no aplica.'),
       },
       parameters: e.parameters, snapshot: { hash: e.snapshot_hash, data: e.snapshot },
       technical_findings: findings, data_quality: notEvaluable,

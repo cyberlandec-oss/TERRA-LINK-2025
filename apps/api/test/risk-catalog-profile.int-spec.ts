@@ -20,6 +20,15 @@ describeDb('RISK_CATALOG_APPROVED y perfil 0.2.0', () => {
   const conjunto = (version: string, perfil: string | null) => sql`
     INSERT INTO risk_rule_sets (version, approval_status, source, notes, regulatory_profile)
     VALUES (${version}, 'NOT_APPROVED', 'fixture sintética', 'fixture sintética de prueba', ${perfil})`.execute(h.db);
+  /** Camino completo de la base: versión + acto (con la revisión vigente) en una sola transacción. */
+  const vinculado = (version: string, perfilRef: string) => h.db.transaction().execute(async (trx) => {
+    const rev = (await sql<{ id: string }>`SELECT id FROM legal_profile_reviews WHERE version = ${perfilRef} ORDER BY decided_at DESC, id DESC LIMIT 1`.execute(trx)).rows[0];
+    await sql`INSERT INTO risk_rule_sets (version, approval_status, source, notes, regulatory_profile) VALUES (${version}, 'NOT_APPROVED', 'fixture sintética', 'fixture sintética de prueba', ${perfilRef})`.execute(trx);
+    await sql`INSERT INTO risk_rule_set_profile_links (id, rule_set_version, base_rule_set_version, profile_version, review_id, reason, decided_by, operation_id)
+      VALUES (${randomUUID()}, ${version}, '1.0.0', ${perfilRef}, ${rev?.id ?? randomUUID()}, 'fixture sintética', ${revisor}, ${randomUUID()})`.execute(trx);
+    await sql`INSERT INTO risk_rules (rule_set_version, code, category, condition_kind, inputs, effect, explanation, limit_note, evidence_required, source, depends_on, severity)
+      SELECT ${version}, code, category, condition_kind, inputs, effect, explanation, limit_note, evidence_required, source, depends_on, severity FROM risk_rules WHERE rule_set_version = '1.0.0'`.execute(trx);
+  });
   const revision = (version: string, decision: 'REVIEWED' | 'OBJECTED' | 'WITHDRAWN') => sql`
     INSERT INTO legal_profile_reviews (id, version, decision, reviewer_id, reviewer_capacity, basis, operation_id)
     VALUES (${randomUUID()}, ${version}, ${decision}, ${revisor}, 'FIXTURE SINTÉTICA DE PRUEBA', 'Fixture sintética: no acredita ninguna revisión jurídica real', ${randomUUID()})`.execute(h.db);
@@ -70,13 +79,19 @@ describeDb('RISK_CATALOG_APPROVED y perfil 0.2.0', () => {
 
   it('CONTROL POSITIVO SINTÉTICO: publicado, completo y con revisión vigente sí; una revisión posterior que lo objeta lo invalida', async () => {
     await revision('9.9.9', 'REVIEWED');
-    await conjunto('7.2.0', '9.9.9'); // no lanza
+    await vinculado('7.2.0', '9.9.9'); // no lanza
     const fila = await sql<{ regulatory_profile: string }>`SELECT regulatory_profile FROM risk_rule_sets WHERE version = '7.2.0'`.execute(h.db);
     expect(fila.rows[0].regulatory_profile).toBe('9.9.9');
     await revision('9.9.9', 'OBJECTED');
-    await expect(conjunto('7.2.1', '9.9.9')).rejects.toThrow(/revisión jurídica vigente/);
+    await expect(vinculado('7.2.1', '9.9.9')).rejects.toThrow(/revisión jurídica vigente/);
     await revision('9.9.9', 'REVIEWED');
-    await conjunto('7.2.2', '9.9.9'); // una revisión posterior la restablece, por el mismo mecanismo
+    await vinculado('7.2.2', '9.9.9'); // una revisión posterior la restablece, por el mismo mecanismo
+  });
+
+  it('una referencia sin acto de vinculación no puede quedar escrita, aunque el perfil sea válido', async () => {
+    await expect(conjunto('7.3.0', '9.9.9')).rejects.toThrow(/exige un acto de vinculación/);
+    const n = await sql<{ n: string }>`SELECT count(*)::text AS n FROM risk_rule_sets WHERE version = '7.3.0'`.execute(h.db);
+    expect(Number(n.rows[0].n)).toBe(0);
   });
 
   it('no existe API que fije regulatory_profile', async () => {

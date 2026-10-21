@@ -761,3 +761,19 @@ Ninguna se desbloquea con solo decidir D-07.6: `READY` sigue necesitando `GEOLOC
 | **b-3** | Mantener `NULL` en el MVP | `RISK_CATALOG_APPROVED` permanece `NOT_EVALUABLE`; la conclusión sigue inalcanzable. Nada que implementar |
 
 No se asigna ningún permiso para «concluir» ni se cambian responsabilidades de los roles canónicos; D-07.6 sigue pendiente.
+
+## 13. D-07.5(b) — opción **b-1 ADOPTADA** como contrato técnico (2026-10-21)
+
+**Decisión del propietario:** `regulatory_profile` es una **referencia explícita a una versión del perfil jurídico revisado**, fijada mediante un **acto autorizado** que forma parte de una **versión nueva** del catálogo. Adoptar b-1 no aprueba contenido jurídico ni resuelve D-07.5(a) (el contenido del perfil) ni D-07.6 (quién concluye).
+
+**Implementación (migración `0061`, `apps/api/src/risk/risk-profile-link.ts`, pantalla `/plataforma/catalogo-riesgo`):**
+| Aspecto | Contrato |
+| --- | --- |
+| Acto | `POST /api/v1/platform/risk-catalog/profile-links`: crea una versión **nueva** del catálogo, copia **exacta** de las reglas de una versión base, con `regulatory_profile` = versión exacta (x.y.z) de `legal_profile_versions` |
+| Registro | `risk_rule_set_profile_links` (append-only): autor (sesión), fecha, motivo, versión nueva y base, perfil y **revisión exacta** (`review_id`) que lo sustenta; idempotente por `operation_id` |
+| Quién | Acto **de plataforma**: permiso `risk_catalog:link_profile` (solo `SUPER_ADMIN`), porque el catálogo es global. No hay permiso nuevo para adoptar ni para concluir; adoptar sigue siendo de cada organización (`risk:approve_rules`) |
+| Condición (API **y** base) | Perfil **publicado**, alcance **completo** y última decisión de revisión **REVIEWED** (la misma de `LEGAL_PROFILE`). La revisión citada debe ser la vigente (si cambió: 409 `REVIEW_CHANGED`). Una etiqueta se rechaza (400/422). La base lo repite (`0059`, `0061`): una referencia sin acto no puede quedar escrita |
+| Versionado | No modifica `1.0.0` ni sus adopciones. La versión nueva nace `NOT_APPROVED` (la aprobación técnica de la base **no se hereda**) y **no se adopta** en ninguna organización |
+| Frescura | La referencia histórica permanece. Si la revisión se objeta o retira, el historial marca el acto «ya no vigente», `RISK_CATALOG_APPROVED` pasa a pendiente y las instantáneas anteriores quedan **desactualizadas** (mecanismo existente) sin reescribirse |
+
+**Límites:** no hay ninguna versión real vinculada (no existe un perfil completo y revisado: `0.1.0` es parcial y sin revisión, `0.2.0` es borrador); la pantalla lo explica y no ofrece confirmar. El caso positivo está demostrado **solo con datos sintéticos aislados**. El acto no crea ni cambia reglas, no es una conclusión regulatoria y no hace `READY` alcanzable (siguen `GEOLOCATION_PROFILE`, `DEFORESTATION_ANALYSIS`, `LEGAL_PROFILE`, `SHIPMENT_LINK` y `REGULATORY_CONCLUSION`). **La etiqueta opcional de b-2 no se implementa.** Decisión de producto abierta dentro de esta implementación: se eligió el permiso de plataforma por ser el catálogo global; si se prefiriera otro responsable, es un cambio de permiso, no de modelo.
