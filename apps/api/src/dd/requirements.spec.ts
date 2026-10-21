@@ -15,12 +15,12 @@ const SYNTHETIC: DdContent = {
   evidence: [],
   // Fixture SINTÉTICA de un futuro que todavía no existe: catálogo adoptado Y aprobado bajo un perfil jurídico
   // (D-07.5). Hoy ninguna versión real lleva `regulatory_profile`, y la prueba de integración lo comprueba.
-  risk: { evaluation_id: 'e1', evaluation_number: 1, snapshot_hash: 'c'.repeat(64), rule_set_version: 'SINT', rule_set_approval: 'APPROVED', rule_set_adopted: true, rule_set_regulatory_profile: 'PERFIL SINTÉTICO DE PRUEBA', technical_result: 'NO_FINDINGS_IN_EVALUATED_RULES', severity: 'LOW', conclusion: 'NEGLIGIBLE', is_current: true, review_process: 'RESOLVED', factors: [{ code: 'X', result: 'NOT_HIT', effect: 'BLOCKING' }] },
+  risk: { evaluation_id: 'e1', evaluation_number: 1, snapshot_hash: 'c'.repeat(64), rule_set_version: 'SINT', rule_set_approval: 'APPROVED', rule_set_adopted: true, rule_set_regulatory_profile: '9.9.9', technical_result: 'NO_FINDINGS_IN_EVALUATED_RULES', severity: 'LOW', conclusion: 'NEGLIGIBLE', is_current: true, review_process: 'RESOLVED', factors: [{ code: 'X', result: 'NOT_HIT', effect: 'BLOCKING' }] },
   mitigations: [],
   // D-34.A.1: el vínculo se satisface con un ítem de embarque con reserva ACTIVA (fixture sintética).
   shipment_links: [{ shipment_id: 's1', shipment_code: 'EMB-SINT-1', shipment_status: 'DRAFT', item_id: 'i1', reservation_id: 'r1', lot_id: 'l1', quantity: '100', unit: 'KG', location_id: 'loc1' }],
   // Perfil SINTÉTICO completo y revisado: solo así READY puede llegar a evaluarse en esta fixture.
-  profiles: { legal_profile: { version: '0.0.0-sintetico', scope: 'COMPLETE', legal_review_status: 'REVIEWED', pending_matters: [], subjects: [{ plot_id: 'p1', assessed_version: '0.0.0-sintetico', unresolved: [], not_satisfied: [], stale_evidence: [], foreign_evidence: [] }] }, geolocation_profile: 'PERFIL SINTÉTICO DE PRUEBA', satellite_provider: 'PROVEEDOR SINTÉTICO DE PRUEBA' },
+  profiles: { legal_profile: { version: '9.9.9', scope: 'COMPLETE', legal_review_status: 'REVIEWED', pending_matters: [], subjects: [{ plot_id: 'p1', assessed_version: '9.9.9', unresolved: [], not_satisfied: [], stale_evidence: [], foreign_evidence: [] }] }, geolocation_profile: 'PERFIL SINTÉTICO DE PRUEBA', satellite_provider: 'PROVEEDOR SINTÉTICO DE PRUEBA' },
 };
 const st = (c: DdContent, code: string) => evaluateRequirements(c).find((r) => r.code === code)?.status;
 
@@ -215,5 +215,35 @@ describe('GEOLOCATION_PROFILE: el resultado técnico no lo cumple (D-05.B y la d
     expect(st(conVeredicto, 'GEOLOCATION_PROFILE')).toBe('NOT_EVALUABLE');
     // Y añadir ese campo cambiaría el hash del contenido: por eso el veredicto vive en un panel de consulta aparte y no en la instantánea.
     expect(sha256(conVeredicto)).not.toBe(sha256({ ...SYNTHETIC, profiles: { ...SYNTHETIC.profiles, geolocation_profile: null } }));
+  });
+});
+
+describe('RISK_CATALOG_APPROVED: regulatory_profile es una referencia revisada, no una etiqueta', () => {
+  const lp = (over: Record<string, unknown> = {}) => ({ ...SYNTHETIC.profiles.legal_profile!, ...over }) as DdContent['profiles']['legal_profile'];
+  const con = (ref: string | null, perfil: DdContent['profiles']['legal_profile'] = SYNTHETIC.profiles.legal_profile) =>
+    ({ ...SYNTHETIC, risk: { ...SYNTHETIC.risk!, rule_set_regulatory_profile: ref }, profiles: { ...SYNTHETIC.profiles, legal_profile: perfil } }) as DdContent;
+  const det = (c: DdContent) => evaluateRequirements(c).find((x) => x.code === 'RISK_CATALOG_APPROVED')!.detail;
+
+  it('control positivo SINTÉTICO: referencia = versión adoptada, completa y revisada → MET', () => {
+    expect(st(con('9.9.9'), 'RISK_CATALOG_APPROVED')).toBe('MET');
+  });
+  it('NULL sigue NOT_EVALUABLE', () => expect(st(con(null), 'RISK_CATALOG_APPROVED')).toBe('NOT_EVALUABLE'));
+  it.each(['PERFIL SINTÉTICO DE PRUEBA', 'aprobado', 'true', '1.0', 'v1.0.0', '9.9.9-x'])('una cadena arbitraria («%s») no da MET', (s) => {
+    expect(st(con(s), 'RISK_CATALOG_APPROVED')).toBe('PENDING');
+    expect(det(con(s))).toMatch(/no es una referencia/);
+  });
+  it('referencia inexistente / de otra versión que la adoptada: PENDING', () => {
+    expect(st(con('8.8.8'), 'RISK_CATALOG_APPROVED')).toBe('PENDING');
+    expect(det(con('8.8.8'))).toMatch(/no corresponde a la versión adoptada/);
+  });
+  it('sin perfil adoptado: PENDING', () => expect(st(con('9.9.9', null), 'RISK_CATALOG_APPROVED')).toBe('PENDING'));
+  it('perfil sin revisión, con revisión invalidada, o PARCIAL: PENDING y dice qué falta', () => {
+    const sinRev = con('9.9.9', lp({ legal_review_status: 'PENDING' }));
+    expect(st(sinRev, 'RISK_CATALOG_APPROVED')).toBe('PENDING');
+    expect(det(sinRev)).toMatch(/revisión jurídica vigente/);
+    const parcial = con('9.9.9', lp({ scope: 'PARTIAL', pending_matters: ['LABOUR'] }));
+    expect(st(parcial, 'RISK_CATALOG_APPROVED')).toBe('PENDING');
+    expect(det(parcial)).toMatch(/PARCIAL/);
+    expect(readinessOf(evaluateRequirements(parcial))).not.toBe('READY');
   });
 });

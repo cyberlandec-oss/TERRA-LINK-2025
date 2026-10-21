@@ -22,7 +22,7 @@ interface Fuente {
   modifications_found: string; gaps: string;
 }
 interface Regla { code: string; matter: string; article: string; subject: string; applicability_condition: string; evidence_required: string; product_can_check: string; review_status: string; gaps: string }
-interface Version { version: string; scope: string; scope_note: string; pending_matters: string[]; covered_matters: string[]; legal_review_status: string; sources: Fuente[]; rules: Regla[] }
+interface Version { version: string; technical_status: string; scope: string; scope_note: string; pending_matters: string[]; covered_matters: string[]; legal_review_status: string; sources: Fuente[]; rules: Regla[] }
 interface Catalogo { adopted: { version: string; scope: string; legal_review_status: string } | null; note: string; versions: Version[] }
 interface Item {
   id: string; rule_code: string; applicability: string; applicability_reason: string | null;
@@ -116,7 +116,9 @@ export default function PerfilJuridicoPage() {
     return <ErrorPanel error={new ApiError(403, { code: 'PERMISSION_DENIED', message: 'Tu rol no permite consultar el catálogo de perfiles jurídicos.', request_id: null })} />;
   }
 
-  const v = cat?.versions[0];
+  // El perfil principal (adoptable) es el más reciente PUBLICADO. Un borrador nunca se presenta como adoptable.
+  const v = cat?.versions.find((x) => x.technical_status === 'PUBLISHED');
+  const borradores = cat?.versions.filter((x) => x.technical_status !== 'PUBLISHED') ?? [];
   return (
     <>
       <Breadcrumb items={[{ label: ws.activeOrg.name, href: `/organizaciones/${orgId}` }, { label: 'Perfil jurídico' }]} />
@@ -139,13 +141,13 @@ export default function PerfilJuridicoPage() {
           <section>
             <h2>Adopción en esta organización</h2>
             <p className="muted">
-              {cat.adopted
-                ? `Adoptado: ${cat.adopted.version} (alcance ${cat.adopted.scope}, revisión jurídica ${cat.adopted.legal_review_status}). Adoptar un perfil parcial no lo vuelve suficiente.`
+              {cat?.adopted
+                ? `Adoptado: ${cat?.adopted.version} (alcance ${cat?.adopted.scope}, revisión jurídica ${cat?.adopted.legal_review_status}). Adoptar un perfil parcial no lo vuelve suficiente.`
                 : 'Esta organización no ha adoptado ningún perfil jurídico.'}
             </p>
             {ws.can('risk:approve_rules') ? (
-              <button type="button" disabled={ocupado} onClick={() => void adoptar(cat.adopted ? 'WITHDRAW' : 'ADOPT', v.version)}>
-                {cat.adopted ? 'Retirar el perfil' : 'Adoptar el perfil'}
+              <button type="button" disabled={ocupado} onClick={() => void adoptar(cat?.adopted ? 'WITHDRAW' : 'ADOPT', v.version)}>
+                {cat?.adopted ? 'Retirar el perfil' : 'Adoptar el perfil'}
               </button>
             ) : <p className="muted">Tu rol no permite adoptar ni retirar perfiles.</p>}
           </section>
@@ -193,6 +195,27 @@ export default function PerfilJuridicoPage() {
             </table></div>
           </section>
         </>
+      )}
+
+      {borradores.length > 0 && (
+        <section>
+          <h2>Borradores en preparación</h2>
+          <Alert tone="review" title="No son perfiles aprobados ni adoptables">
+            <p>Un borrador reúne reglas candidatas con su procedencia, interpretación propuesta y preguntas pendientes para el revisor. No se puede adoptar, no sustituye al perfil vigente y no cambia ningún expediente ni resultado anterior.</p>
+          </Alert>
+          {borradores.map((b) => (
+            <div key={b.version}>
+              <h3>Borrador {b.version} <StatusBadge tone="review">Borrador · no adoptable</StatusBadge></h3>
+              <p className="muted">{b.scope_note}</p>
+              <div className="table-wrap"><table aria-label={'Reglas candidatas del borrador ' + b.version}>
+                <thead><tr><th scope="col">Regla</th><th scope="col">Fuente y artículo</th><th scope="col">Interpretación propuesta y preguntas para el revisor</th></tr></thead>
+                <tbody>{b.rules.map((r) => (
+                  <tr key={r.code}><td>{r.code}</td><td className="muted">{r.article}</td><td className="muted">{r.gaps}</td></tr>
+                ))}</tbody>
+              </table></div>
+            </div>
+          ))}
+        </section>
       )}
 
       {cat?.adopted && ws.can('dd:manage') && (

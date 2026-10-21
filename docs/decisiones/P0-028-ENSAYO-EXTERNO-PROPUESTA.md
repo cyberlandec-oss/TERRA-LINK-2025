@@ -86,3 +86,33 @@ que le corresponde, conforme al contrato, con su procedencia conservada y su inc
 **No** hay ningún resultado ambiental esperado: si las dos geometrías dan indicadores iguales, el ensayo es
 igualmente satisfactorio. Fijar de antemano qué «debería» responder el proveedor convertiría la comprobación técnica
 en una profecía, que es justo lo que este proyecto evita en todo lo demás.
+
+## Entradas y comprobaciones esperadas, preparadas (2026-10-21) — NO ejecutado
+
+Esto **prepara** el ensayo; no lo ejecuta, no contacta a ningún tercero, no usa clave ni acepta términos. El interruptor
+`SATELLITE_LIVE_CALLS` sigue en `disabled`. Ejecutarlo exige las decisiones (1)–(4) de `P0-028-SATELITE.md` §J.
+
+**Dos geometrías sintéticas (propuesta; el propietario puede cambiarlas antes del ensayo).** Dos cuadrados de unas
+2 ha (lado ≈ 141 m, ≈ 0,00127°), orden GeoJSON `[longitud, latitud]`, anillo cerrado, separados ≈ 5,5 km. No proceden de
+ninguna parcela, no se registran como parcela y se rotulan `SINTETICA-ENSAYO-A` / `SINTETICA-ENSAYO-B`:
+
+| Id | Anillo (lon, lat) |
+| --- | --- |
+| `SINTETICA-ENSAYO-A` | (-76.00000, -1.00000) → (-75.99873, -1.00000) → (-75.99873, -0.99873) → (-76.00000, -0.99873) → (-76.00000, -1.00000) |
+| `SINTETICA-ENSAYO-B` | (-75.95000, -1.00000) → (-75.94873, -1.00000) → (-75.94873, -0.99873) → (-75.95000, -0.99873) → (-75.95000, -1.00000) |
+
+**Comprobaciones esperadas** (cada una con evidencia al ejecutar; hoy todas pendientes):
+
+| # | Comprobación | Resultado esperado |
+| --- | --- | --- |
+| 1 | Contrato vivo frente a `whisp-openapi.json` (2.3.0) | Mismas rutas, campos y códigos; si difiere, se corrige el adaptador y la referencia fechada |
+| 2 | Cada trabajo conserva su `request_fingerprint` y su identificador | El de A no coincide con el de B; cada respuesta casa con su entrada |
+| 3 | Flujo `submit → status → descarga` | Termina o falla con un estado explícito; se registran tiempos reales |
+| 4 | Indicadores ausentes (`unavailable_datasets`, `risk_inputs_unavailable`) | Se conservan y la cobertura queda `PARTIAL`; sin incidencias → `UNKNOWN`, nunca `COVERED` |
+| 5 | Autenticación `x-api-key` y TLS con la defensa de salida puesta | Acepta con la clave de prueba; rechaza sin ella; la clave no aparece en registros |
+| 6 | Ninguna geometría en registros ni en la base | Búsqueda de las coordenadas en registros y tablas: sin coincidencias |
+| 7 | Interruptor | Con `disabled`, `LIVE_CALLS_DISABLED`; se apaga al terminar |
+| 8 | Resultado | Puede coincidir entre A y B; no se interpreta ambientalmente ni se usa como evidencia |
+
+Whisp sigue siendo el **primer adaptador técnico existente**; eso no es aceptación de sus términos ni autorización de
+llamadas externas.

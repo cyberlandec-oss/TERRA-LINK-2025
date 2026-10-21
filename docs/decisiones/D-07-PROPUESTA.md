@@ -694,3 +694,20 @@ Ninguna se desbloquea con solo decidir D-07.6: `READY` sigue necesitando `GEOLOC
 | **Implementación original pendiente** | Fijar `regulatory_profile` (solo por migración hoy) y comprobar que corresponda a un perfil revisado (si b-1); el permiso, el endpoint y el `CHECK` sustituto para **registrar una conclusión** |
 | **Puede completarse sin resolver la decisión** | **Nada inequívoco**: ambas piezas dependen de la opción elegida y de qué capacidad exige el revisor; implementarlas antes sería fabricar la condición de aprobación |
 | **Condición externa exacta** | Un responsable regulatorio/jurídico competente que (1) revise el perfil (P1-005) y (2) defina la capacidad y fundamento para concluir; luego, decisión del propietario sobre b-1/b-2/b-3 y el permiso |
+
+## 12. Estado tras la guarda técnica de `RISK_CATALOG_APPROVED` (2026-10-21)
+
+**Implementado (guarda técnica del requisito original; no decide el contenido jurídico):**
+- `RISK_CATALOG_APPROVED` ya **no** pasa a `MET` con cualquier `regulatory_profile` no nulo. Solo con una **referencia `x.y.z`** igual a la versión del perfil que la organización **adoptó**, con alcance **COMPLETO** y última revisión **REVIEWED**. Una cadena arbitraria, una referencia inexistente o de otra versión, un perfil sin revisar, **parcial**, o cuya revisión fue luego **objetada/retirada**, dejan el requisito en `PENDING` y el detalle dice qué falta. `NULL` sigue `NOT_EVALUABLE`.
+- La base lo impone (`0059`): `risk_rule_sets.regulatory_profile` solo admite una versión **existente, PUBLICADA, COMPLETA y con revisión vigente**. No hay API que lo fije y hoy **ninguna versión lo lleva**; el control positivo existe solo con datos sintéticos en bases de prueba.
+- No define qué es un perfil «suficiente»: reutiliza el contrato de `LEGAL_PROFILE`.
+
+**Sigue pendiente de decisión (no se adopta ninguna opción).** Las tres opciones de D-07.5(b), con su efecto técnico:
+
+| Opción | Texto | Efecto técnico |
+| --- | --- | --- |
+| **b-1** | `regulatory_profile` = **referencia a una versión del perfil jurídico con revisión `REVIEWED`**, fijada por un acto autorizado | La guarda ya comprueba la referencia; falta el **acto autorizado** que la fije (hoy solo migración). Como las versiones publicadas no se editan, lo coherente es **publicar una versión nueva del catálogo** (p. ej. `1.1.0`) que la declare |
+| **b-2** | Etiqueta de texto libre fijada por un acto autorizado | **Ya no es posible tal cual**: la guarda rechaza cualquier valor que no sea una referencia revisada. Adoptarla exigiría **retirar** la guarda |
+| **b-3** | Mantener `NULL` en el MVP | `RISK_CATALOG_APPROVED` permanece `NOT_EVALUABLE`; la conclusión sigue inalcanzable. Nada que implementar |
+
+No se asigna ningún permiso para «concluir» ni se cambian responsabilidades de los roles canónicos; D-07.6 sigue pendiente.

@@ -329,3 +329,8 @@ Las reglas de integridad están **en la base**, no solo en el servicio: aplicabi
 | **Implementación original pendiente** | El **acto de revisión jurídica** (sin endpoint a propósito) y, según R4–R5, contenido adicional |
 | **Puede completarse sin resolver la decisión** | **Nada inequívoco.** Publicar `0.2.0` con EC-7–EC-9 en `DRAFT` es posible, pero es **contenido jurídico candidato**: decisión del propietario (arriba), no una función faltante |
 | **Condición externa exacta** | **Designación de un responsable jurídico competente** y su pronunciamiento sobre R1–R8 |
+
+## 7. Perfil `0.2.0` preparado como BORRADOR (2026-10-21)
+
+Migración `0060`, con el mecanismo existente: versión `0.2.0` con `technical_status = DRAFT`, alcance **PARCIAL**, las cuatro reglas de `0.1.0` y tres candidatas ambientales (fuente `COA-983`, sha256 `033ffdd2…61af`): `EC-PFN-CONVERSION-USO` (EC-7, COA Art. 94 / 89), `EC-PARAMOS-MORETALES-MANGLARES` (EC-8, Art. 99) y `EC-PROPIEDAD-EN-PFN` (EC-9, Art. 92). Por regla: fuente y artículo, versión, interpretación propuesta y preguntas para el revisor (en `gaps`).
+**No está publicado ni es adoptable** (`LEGAL_PROFILE_NOT_PUBLISHED`), no sustituye a `0.1.0`, no activa nada en organizaciones ni reevalúa expedientes, y **no valida contenido jurídico**: el contenido y su publicación dependen de R1–R8 (§6). La interfaz lo muestra aparte como «Borrador · no adoptable».

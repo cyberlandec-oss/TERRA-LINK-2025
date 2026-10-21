@@ -63,6 +63,25 @@ export const sha256 = (v: unknown) => createHash('sha256').update(typeof v === '
 
 const dec = (s: string) => Number(s); // solo para comparar signo; las cantidades se conservan como texto decimal
 
+/**
+ * `RISK_CATALOG_APPROVED`: `regulatory_profile` es una REFERENCIA, no una etiqueta. Solo cuenta si resuelve contra el
+ * modelo vigente de P1-005: es la versión x.y.z del perfil que la organización adoptó, su alcance es COMPLETO y su
+ * última decisión de revisión es REVIEWED (OBJECTED/WITHDRAWN la invalidan). No define qué es un perfil «suficiente»:
+ * reutiliza el contrato de `LEGAL_PROFILE`. Cualquier otra cosa deja el requisito pendiente y dice qué falta.
+ */
+export function catalogUnderProfile(cat: string, ref: string, lp: DdContent['profiles']['legal_profile']): [ReqStatus, string, string] {
+  const SRC = 'docs/13 §Registro de regla';
+  if (!/^\d+\.\d+\.\d+$/.test(ref)) return ['PENDING', `${cat}: el valor «${ref.slice(0, 40)}» no es una referencia a una versión de perfil jurídico (x.y.z); una etiqueta no equivale a un perfil revisado.`, SRC];
+  if (!lp) return ['PENDING', `${cat}: remite al perfil ${ref}, pero la organización no tiene perfil jurídico adoptado (P1-005).`, SRC];
+  if (lp.version !== ref) return ['PENDING', `${cat}: remite al perfil ${ref}, pero la organización adoptó ${lp.version}; la referencia no corresponde a la versión adoptada.`, SRC];
+  const falta = [
+    ...(lp.scope !== 'COMPLETE' ? [`el alcance del perfil es PARCIAL (faltan: ${lp.pending_matters.join(', ') || 'sin declarar'})`] : []),
+    ...(lp.legal_review_status !== 'REVIEWED' ? ['no tiene una revisión jurídica vigente (REVIEWED); sin revisión o con revisión objetada/retirada'] : []),
+  ];
+  if (falta.length) return ['PENDING', `${cat}: remite al perfil ${ref}, pero ${falta.join(' y ')}.`, SRC];
+  return ['MET', `${cat}: adoptadas y aprobadas bajo el perfil ${ref}, completo y con revisión jurídica vigente.`, SRC];
+}
+
 export function evaluateRequirements(c: DdContent): Requirement[] {
   const r = (code: string, label: string, status: ReqStatus, detail: string, source: string, references: string[] = []): Requirement => ({ code, label, status, detail, source, references });
   const out: Requirement[] = [];
@@ -198,7 +217,7 @@ export function evaluateRequirements(c: DdContent): Requirement[] {
       ? r('RISK_CATALOG_APPROVED', 'Catálogo de reglas de riesgo aprobado bajo perfil jurídico', 'NOT_EVALUABLE', `${cat}: esta organización NO las ha adoptado (D-07.1); publicar no es adoptar.`, 'docs/13 §Registro de regla')
       : !c.risk.rule_set_regulatory_profile
         ? r('RISK_CATALOG_APPROVED', 'Catálogo de reglas de riesgo aprobado bajo perfil jurídico', 'NOT_EVALUABLE', `${cat}: adoptadas por la organización, pero su publicación es una decisión TÉCNICA de producto y no hay perfil jurídico aprobado (D-07.5). No permiten afirmar preparación regulatoria.`, 'docs/13 §Registro de regla')
-        : r('RISK_CATALOG_APPROVED', 'Catálogo de reglas de riesgo aprobado bajo perfil jurídico', 'MET', `${cat}: adoptadas y aprobadas bajo el perfil ${c.risk.rule_set_regulatory_profile}.`, 'docs/13 §Registro de regla'));
+        : r('RISK_CATALOG_APPROVED', 'Catálogo de reglas de riesgo aprobado bajo perfil jurídico', ...catalogUnderProfile(cat, c.risk.rule_set_regulatory_profile, c.profiles.legal_profile)));
     out.push(c.risk.conclusion === 'NEGLIGIBLE' ? r('REGULATORY_CONCLUSION', 'Conclusión regulatoria bajo perfil aprobado', 'MET', 'Conclusión NEGLIGIBLE bajo perfil aprobado.', 'docs/13 §Dimensiones')
       : c.risk.conclusion === 'NON_NEGLIGIBLE' ? r('REGULATORY_CONCLUSION', 'Conclusión regulatoria bajo perfil aprobado', 'INVALID', 'Conclusión NON_NEGLIGIBLE.', 'docs/13 §Dimensiones')
         : r('REGULATORY_CONCLUSION', 'Conclusión regulatoria bajo perfil aprobado', 'NOT_EVALUABLE', 'Conclusión UNDETERMINED: no hay perfil jurídico ni reglas aprobadas.', 'docs/13 §Dimensiones'));
