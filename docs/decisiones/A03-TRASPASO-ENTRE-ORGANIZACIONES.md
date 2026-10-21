@@ -80,70 +80,116 @@ Eventos de dominio y auditoría en **cada** organización (`CustodyTransferOffer
 3. Origen compartido con consentimiento (si se decide D3) y su efecto en el riesgo del receptor.
 Hasta que el propietario decida, **no se crea ningún artefacto de esquema ni de API** para esto.
 
-## 9. Decisiones D1–D9 (a cargo del propietario; ninguna está adoptada)
+## 9. Decisiones D1–D9 (ninguna está adoptada)
 
-**Clasificación.** *Operativa de producto*: la decide el propietario del producto. *Regulatoria*: es una conclusión sobre obligaciones jurídicas y **requiere revisión competente** (D-05.B, D-07.5/7.6, perfil jurídico P1-005); aquí solo se describe el efecto técnico de cada opción y **no se adopta ninguna obligación de diligencia**. *Mixta*: parte de producto, parte regulatoria o de privacidad.
+**Clasificación.** *Operativa de producto*: la resuelve el propietario del producto. *Regulatoria*: es una conclusión sobre obligaciones jurídicas; **requiere revisión competente** (D-05.B, D-07.5/7.6, perfil jurídico P1-005) y **no se deduce de una decisión de producto**. *Mixta*: parte de producto y parte regulatoria o de privacidad. Aquí solo se describe el efecto técnico de cada opción; **no se adopta ninguna obligación de diligencia**.
 
-### D1 — ¿Debe la plataforma soportar el traspaso entre organizaciones? *(operativa de producto)*
-- **Opciones**: (a) No: la cadena opera dentro de una organización y los terceros reciben lectura por concesión (hoy). (b) Sí, como **custodia física** (esta propuesta). (c) Sí, integrado con compraventa y cambio de propiedad.
-- **Recomendación**: **(b)**.
-- **Efecto**: (a) la Exportadora no tiene existencias propias de lo que recibe; (b) habilita lotes espejo, tránsito y recepción con trazabilidad; (c) arrastra precio, factura y propiedad (D7).
-- **Dependencias**: ninguna regulatoria directa para (b); (c) depende de D-16 y del contrato comercial.
+### D1 — ¿Debe la plataforma soportar el traspaso de lotes entre organizaciones? *(operativa de producto)*
+- **Pregunta**: ¿el paso cooperativa → exportadora es una operación que Terra Link debe registrar con cantidades, tránsito y recepción?
+- **Opciones**: (a) No: cada cadena opera dentro de una organización y los terceros reciben lectura por concesión (hoy). (b) Sí, como **custodia física** (sin propiedad ni precio). (c) Sí, integrado con compraventa y cambio de propiedad.
+- **Recomendación**: **(b)**. *Fundamento*: resuelve el hueco hallado en el recorrido integral (T15) sin asumir efectos jurídicos ni comerciales que ninguna fuente define; conserva el ledger como único libro.
+- **Efecto**: (a) la Exportadora no tiene existencias de lo que recibe. (b) aparecen traspasos, un saldo «en tránsito», lotes de la receptora y enlaces de linaje. (c) añade precio, factura y propiedad (D7).
+- **Dependencias**: (b) ninguna regulatoria directa. (c) D7, D-16.
+- **Quién resuelve**: propietario del producto.
 
-### D2 — ¿Qué obligaciones de diligencia pasan a quien recibe? *(REGULATORIA — revisión competente)*
-- **Opciones**: (a) Ninguna se hereda: el receptor evalúa por su cuenta con su catálogo y su perfil jurídico. (b) El receptor puede **referenciar** el expediente del emisor como antecedente, sin sustituir el suyo. (c) El expediente del emisor se hereda como propio.
-- **Recomendación técnica provisional**: **(a)**, que es lo que el sistema hace hoy sin concluir nada jurídico; **la decisión de fondo no se toma aquí**.
-- **Efecto**: (a) el receptor no puede despachar sin su propio paquete aprobado y hoy este es inalcanzable; (b) añade un enlace documental; (c) supondría un efecto jurídico que la plataforma no puede conceder.
-- **Dependencias**: **D-05.B** (qué actor es cada usuario: operador, comerciante, Art. 2(15)), D-07.5/7.6, P1-005.
+### D2 — ¿Qué obligaciones de diligencia pasan a quien recibe? *(REGULATORIA — requiere revisión competente)*
+- **Pregunta**: ¿el receptor hereda, referencia o ignora el expediente de diligencia del emisor?
+- **Opciones**: (a) Nada se hereda: el receptor evalúa con su catálogo y su perfil jurídico. (b) El receptor puede **referenciar** el expediente del emisor como antecedente, sin sustituir el suyo. (c) El expediente del emisor se hereda como propio.
+- **Recomendación técnica provisional**: **(a)**, porque es lo que el sistema ya hace sin concluir nada jurídico (la conclusión regulatoria sigue `UNDETERMINED`). **La decisión de fondo no se toma aquí ni se deduce de una decisión de producto.**
+- **Efecto**: (a) el receptor no puede despachar sin su propio paquete aprobado (hoy inalcanzable). (b) añade un enlace documental. (c) supondría un efecto jurídico que la plataforma no puede conceder.
+- **Dependencias**: D-05.B (qué actor es cada usuario: operador, comerciante, Art. 2(15)), D-07.5/7.6, P1-005.
+- **Quién resuelve**: responsable regulatorio / asesoría jurídica competente; el propietario del producto solo registra después la decisión y sus fuentes.
 
-### D3 — ¿Qué origen recibe el receptor? *(mixta: producto + privacidad + posible requisito regulatorio)*
-- **Opciones**: (a) Nada: el lote de B nace con origen INCOMPLETO. (b) La **proyección agregada** que ya existe para concesiones + resumen firmado del lote de A. (c) Una **instantánea inmutable de geolocalización** con consentimiento expreso de A, revocable solo hacia adelante.
-- **Recomendación**: **(b)** por defecto; **(c)** solo con consentimiento expreso y tras D-14 (salida de geometrías).
-- **Efecto**: determina si el lote de B puede tener origen COMPLETO y, por tanto, si su riesgo y su expediente pueden avanzar; (c) hace que coordenadas exactas salgan de A hacia B.
-- **Dependencias**: D-14 (salida de geometrías), D-16 (titularidad de datos), D2 (si B necesita geolocalización por obligación propia, eso es regulatorio).
+### D3 — ¿Qué origen recibe el receptor? *(mixta: producto + privacidad; puede tener componente regulatorio)*
+- **Pregunta**: ¿qué sabe B del origen del lote de A?
+- **Opciones**: (a) Nada: el lote de B nace con origen INCOMPLETO. (b) La **proyección agregada** que ya existe para concesiones (códigos, estados, número de productores y parcelas) más un resumen firmado (huella) del lote de A. (c) Una **instantánea inmutable de geolocalización** con consentimiento expreso de A, revocable solo hacia adelante.
+- **Recomendación**: **(b)** por defecto; **(c)** solo con consentimiento expreso y tras resolver la salida de geometrías. *Fundamento*: (b) reutiliza una proyección ya aprobada sin sacar coordenadas exactas; (c) es la única que permite origen completo en B, pero exporta datos sensibles.
+- **Efecto**: (a) y (b): el lote de B queda con origen INCOMPLETO a efectos de geolocalización (con (b) B ve agregados); su riesgo y su expediente no avanzan. (c): B puede tener origen COMPLETO, y coordenadas exactas salen de A hacia B.
+- **Dependencias**: D-14 (salida de geometrías), D-16 (titularidad de datos). Si B necesita la geolocalización por obligación propia, esa parte es regulatoria (D2).
+- **Quién resuelve**: propietario del producto con privacidad/jurídico; consentimiento expreso de la organización emisora para (c).
 
 ### D4 — ¿Qué exige el emisor para despachar el traspaso? *(mixta)*
-- **Opciones**: (a) Calidad no rechazada + datos mínimos del traspaso (compuerta propia `TRANSFER_DISPATCH`). (b) Además, origen COMPLETO. (c) Además, **DD aprobado**.
-- **Recomendación**: **(a)**; **(c)** solo si una revisión competente concluye que el traspaso equivale a poner el producto en el mercado.
-- **Efecto**: (c) bloquearía todo traspaso mientras el paquete de diligencia sea inalcanzable; (a) permite mover custodia sin simular aprobaciones.
-- **Dependencias**: D-34 (KDE de despacho), D-05.B (si es o no «puesta en el mercado»).
+- **Pregunta**: ¿qué condiciones debe cumplir el lote de A para salir de su custodia?
+- **Opciones**: (a) Calidad no rechazada + datos mínimos del traspaso (compuerta propia `TRANSFER_DISPATCH`, un KDE a definir). (b) Además, origen COMPLETO. (c) Además, **DD aprobado**.
+- **Recomendación**: **(a)**; **(c)** solo si una revisión competente concluye que el traspaso equivale a poner el producto en el mercado. *Fundamento*: sin una conclusión jurídica, exigir DD bloquearía todo traspaso mientras el paquete sea inalcanzable, y no exigir nada más no simula aprobaciones.
+- **Efecto**: (a) permite mover custodia con los datos mínimos; (b) bloquea lotes con origen incompleto; (c) bloquea todo traspaso hoy.
+- **Dependencias**: D-34 (KDE de despacho), D-05.B (si el traspaso es o no «puesta en el mercado»).
+- **Quién resuelve**: propietario del producto para (a)/(b); responsable regulatorio para (c).
 
 ### D5 — Diferencias de peso, pérdidas en tránsito y devoluciones *(operativa de producto)*
-- **Opciones**: (a) Motivo obligatorio para cualquier diferencia, sin tolerancia (regla D-33). (b) Tolerancia configurable por organización. (c) Ajuste automático.
-- **Recomendación**: **(a)**; la devolución es otro traspaso B → A, nunca un borrado.
-- **Efecto**: conserva la conservación de masa explícita entre libros; (c) la ocultaría.
-- **Dependencias**: D-33 (cierre de entregas).
+- **Pregunta**: ¿cómo se cierra un traspaso cuando lo recibido difiere de lo despachado?
+- **Opciones**: (a) Motivo obligatorio para cualquier diferencia, sin tolerancia (como el cierre de entregas, D-33). (b) Tolerancia configurable por organización. (c) Ajuste automático.
+- **Recomendación**: **(a)**; la devolución es **otro traspaso** B → A, nunca un borrado. *Fundamento*: conserva la conservación de masa explícita; (c) la ocultaría.
+- **Efecto**: ninguna cantidad queda «perdida»: la diferencia es un movimiento de pérdida declarado con motivo; el traspaso se cierra recibido, con diferencia o devuelto.
+- **Dependencias**: D-33.
+- **Quién resuelve**: propietario del producto con operaciones de ambas partes.
 
 ### D6 — ¿Cómo se identifica a la contraparte? *(operativa de producto + seguridad)*
-- **Opciones**: (a) Vínculo bilateral previo confirmado por ambas administraciones. (b) Código por traspaso. (c) Directorio de organizaciones.
-- **Recomendación**: **(a)**.
-- **Efecto**: (c) permitiría enumerar organizaciones, lo que A-02 evita por diseño; (b) no deja relación persistente que auditar.
+- **Pregunta**: ¿cómo elige A a B sin poder enumerar organizaciones?
+- **Opciones**: (a) **Vínculo bilateral previo** confirmado por ambas administraciones. (b) Código por traspaso. (c) Directorio de organizaciones.
+- **Recomendación**: **(a)**. *Fundamento*: igual criterio que A-02 (sin enumeración); deja una relación persistente y auditable.
+- **Efecto**: (a) añade una relación entre organizaciones y un paso previo de confirmación; (c) permitiría enumerar organizaciones.
 - **Dependencias**: ninguna.
+- **Quién resuelve**: propietario del producto.
 
-### D7 — Relación con precio, factura y propiedad *(comercial/jurídica)*
-- **Opciones**: (a) Fuera: el traspaso no modela propiedad ni precio; solo permite una referencia documental opcional. (b) Integrar compraventa.
-- **Recomendación**: **(a)**.
-- **Efecto**: (b) exigiría contrato, facturación y reglas fiscales que no están definidos; RF-43 solo registra precio y pagos *informados* y prohíbe ejecutar transferencias.
+### D7 — Relación con precio, factura y propiedad *(comercial / jurídica)*
+- **Pregunta**: ¿el traspaso modela algo de la compraventa?
+- **Opciones**: (a) Fuera: solo una referencia documental opcional. (b) Integrar compraventa (precio, factura, propiedad).
+- **Recomendación**: **(a)**. *Fundamento*: RF-43 solo registra precio y pagos *informados* y prohíbe ejecutar transferencias; no hay reglas fiscales ni contrato definidos.
+- **Efecto**: (b) exigiría contrato, facturación y reglas de propiedad que no existen.
 - **Dependencias**: RF-43 (P1-012), D-16.
+- **Quién resuelve**: dirección comercial con asesoría jurídica.
 
 ### D8 — Unidades *(operativa técnica)*
+- **Pregunta**: ¿se permite cambiar de unidad al traspasar?
 - **Opciones**: (a) Misma unidad en origen y destino. (b) Conversión con factor declarado.
-- **Recomendación**: **(a)** en esta versión.
-- **Efecto**: (b) añade una fuente de discrepancias y exige trazar el factor.
+- **Recomendación**: **(a)** en esta versión. *Fundamento*: (b) añade una fuente de discrepancias y exige trazar el factor.
+- **Efecto**: (a) simplifica la conservación de masa; (b) añade un campo y reglas de redondeo.
 - **Dependencias**: catálogo de unidades.
+- **Quién resuelve**: propietario del producto con ingeniería de datos.
 
-### D9 — ¿Qué ve el emisor del lote hijo? *(operativa/privacidad)*
+### D9 — ¿Qué ve el emisor del lote de la receptora? *(operativa / privacidad)*
+- **Pregunta**: tras el traspaso, ¿qué información de B conserva A?
 - **Opciones**: (a) Nada. (b) Solo el estado del traspaso y sus diferencias. (c) El inventario del receptor.
-- **Recomendación**: **(b)**.
-- **Efecto**: (c) revelaría existencias de otra organización; (a) impide cerrar discrepancias.
+- **Recomendación**: **(b)**. *Fundamento*: (a) impide cerrar discrepancias; (c) revelaría existencias de otra organización.
+- **Efecto**: (b) cada parte ve su propio libro y el estado compartido del traspaso.
 - **Dependencias**: ninguna.
+- **Quién resuelve**: propietario del producto.
 
 ### Resumen
-| Tipo | Decisiones |
-| --- | --- |
-| Operativas de producto | D1, D5, D6, D8, D9 |
-| Mixtas (producto + privacidad/regulatorio) | D3, D4 |
-| Comerciales/jurídicas | D7 |
-| **Regulatorias (revisión competente)** | **D2** y la parte regulatoria de D3 y D4 |
+| Tipo | Decisiones | Quién |
+| --- | --- | --- |
+| Operativas de producto | D1, D5, D6, D8, D9 | Propietario del producto |
+| Mixtas (producto + privacidad/regulatorio) | D3, D4 | Producto con privacidad/jurídico; la parte regulatoria, revisión competente |
+| Comerciales / jurídicas | D7 | Dirección comercial + asesoría jurídica |
+| **Regulatorias (revisión competente)** | **D2** y la parte regulatoria de D3 y D4 | Responsable regulatorio / asesoría competente |
 
-**Mientras tanto** la cadena sigue operando dentro de una organización y los terceros reciben lectura por concesión (A-02). No se adopta ninguna obligación de diligencia ni se implementa el traspaso, el lote espejo o sus movimientos.
+## 10. Ejemplo sintético completo: Cooperativa Río Verde (A) → Exportadora Pacífico (B)
+*Datos inventados; **no se registra ningún movimiento operativo**. Muestra qué pasaría con la opción recomendada y qué decisión gobierna cada parte.*
+
+| Paso | Qué ocurre | A (cooperativa) — lote LOT-A-0017, Cacao fermentado, centro DEMO-CA-01 | Tránsito del traspaso | B (exportadora) — centro EXP-BOD-01 | Depende de |
+| --- | --- | --- | --- | --- | --- |
+| 0 | Estado inicial | físico 450 kg · reservado 0 · disponible 450 | — | sin existencias | — |
+| 1 | Vínculo bilateral A↔B confirmado por ambas administraciones | — | — | — | **D6** |
+| 2 | A **ofrece** 300 kg (unidad KG) | físico 450 · **reservado 300** · disponible 150 (la reserva sale de lo libre; no se puede ofrecer lo ya reservado) | — | ve la oferta con la proyección del lote | **D1**, D6, **D8**, D3 |
+| 3 | B **acepta** los términos (cantidad, unidad, centro de recepción) | sin cambio | — | sin cambio | D1, D6 |
+| 4 | A **despacha** (compuerta propia `TRANSFER_DISPATCH`: calidad no rechazada + datos mínimos; sin DD) | consume la reserva: físico **150** · reservado 0 · disponible 150 (`TRANSFER_OUT` 300) | **300 en tránsito** | — | **D4**, D2 (no exige DD) |
+| 5 | B **recibe** y pesa: **296,5 kg** (método, valor, fecha, responsable) | sin cambio | 300 − 296,5 = **3,5 pendientes** | `TRANSFER_IN` 296,5: **lote nuevo LOT-B-0041** (`source = CUSTODY_TRANSFER`), físico 296,5 | D1, D8 |
+| 6 | **Diferencia** 3,5 kg: B registra el motivo («merma por humedad en tránsito»); se cierra | — | 3,5 → **pérdida declarada** (movimiento con motivo); tránsito = 0 | — | **D5** |
+| 7 | Cierre `CLOSED_WITH_DIFFERENCE` | A: lote con 150 kg; ve el estado y la diferencia | 0 | B: 296,5 kg; no ve el inventario de A | **D9** |
+| 8 | **Linaje** | `custody_lot_links`: LOT-A-0017 → LOT-B-0041, 296,5 kg KG; pérdida 3,5 kg contra LOT-A-0017 | — | LOT-B-0041 apunta a su lote de origen en A | D1, **D3** |
+| 9 | **Origen en B** | — | — | con (a) o (b): origen **INCOMPLETO** a efectos de geolocalización (con (b) ve agregados: nº de productores y parcelas); con (c): COMPLETO si A consintió la instantánea | **D3** (y D2 si B la necesita por obligación propia) |
+| 10 | **Qué NO se hereda** | — | — | B no hereda el expediente de A, ni la severidad, ni la conclusión; para despachar necesita **su** DD, que hoy es inalcanzable | **D2** (pendiente de revisión) |
+| 11 | **Devolución** (ejemplo): B devuelve 50 kg | recibe como **otro traspaso** B → A (`TRANSFER_OUT` en B, `TRANSFER_IN` en A: lote nuevo en A) | 50 en tránsito hasta recibir | físico 246,5 | D5 |
+
+**Conservación de masa**: 450 = 150 (A) + 300 despachados; 300 = 296,5 (B) + 3,5 (pérdida declarada). Ningún `organization_id` cambia y nada se copia: cada kilo se mueve por un movimiento del ledger de su organización.
+
+## 11. Qué puede desarrollarse sin respuesta y qué necesita respuesta antes de implementar
+- **Independiente de A-03 y de D1–D9** (no depende de ninguna decisión; son otras entregas, no se inician aquí): el diagnóstico de rendimiento del entorno de pruebas; el portal del destinatario en inglés (`/compartido`) y rotular el lote en su lista.
+- **Necesita respuesta ANTES de crear esquema, API o movimientos** (no se crea nada hasta entonces): **D1** (si se hace o no), **D6** (relación entre organizaciones), **D5** (cierre y diferencias), **D8** (unidades) y **D9** (visibilidad). Con esas cinco adoptadas se puede construir el núcleo operativo (oferta → aceptación → despacho → tránsito → recepción → cierre, con enlaces de linaje y conciliación entre libros).
+- **Necesita respuesta para la compuerta de salida y el origen**: **D4** y **D3**. Pueden implementarse con sus opciones por defecto ((a) en D4; (b) en D3) como configuración provisional **sin** concluir nada jurídico.
+- **Pendiente de revisión competente, no bloquea el núcleo técnico pero sí cualquier afirmación jurídica**: **D2** (y la parte regulatoria de D3 y D4). Mientras tanto el sistema se comporta como D2 (a): el receptor evalúa por su cuenta, y la conclusión regulatoria sigue `UNDETERMINED`.
+- **Fuera de alcance**: **D7** (compraventa).
+- **Pruebas de aceptación que ya se pueden redactar** (sin código): los pasos 0–11 del ejemplo como casos de dos organizaciones (aislamiento, idempotencia, concurrencia, saldo negativo, conservación de masa).
+
+**Mientras tanto** la cadena sigue operando dentro de una organización y los terceros reciben lectura por concesión (A-02). Limitaciones documentadas sin convertirlas en entrega: `/compartido` sigue en español (`docs/qa/EVIDENCIA_A02_CONCESIONES_2026-10-21.md` §6) y el diagnóstico de rendimiento del entorno de pruebas sigue pendiente (§2 de la misma evidencia).
