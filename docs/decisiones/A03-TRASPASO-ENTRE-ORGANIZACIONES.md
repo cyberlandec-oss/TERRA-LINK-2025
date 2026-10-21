@@ -1,8 +1,22 @@
-# A-03 — Contrato de traspaso entre organizaciones (PROPUESTA, 2026-10-21)
+# A-03 — Traspaso de custodia entre organizaciones (NÚCLEO OPERATIVO ADOPTADO Y DESARROLLADO, 2026-10-21)
 
-**Estado: PROPUESTA. No se implementa ningún movimiento hasta que el propietario decida (§9).** Es una ampliación autorizada (RF-50, `docs/03`) distinta de los criterios
+**Estado (2026-10-21): el propietario adoptó el núcleo operativo (§0) y se desarrolló y demostró en local (§12). Sigue PENDIENTE la activación operativa de la salida (D4) y la revisión competente de D2 (§13).** Es una ampliación autorizada (RF-50, `docs/03`) distinta de los criterios
 originales, de A-01 y de A-02; no cambia coberturas. Origen: el recorrido integral web (`docs/qa/RECORRIDO_INTEGRAL_WEB_2026-10-21.md`, T15) mostró que la Exportadora tiene 0 lotes y no ve
 los de la cooperativa porque la documentación no define cómo pasa un lote de una organización a otra.
+
+## 0. Decisiones del propietario (2026-10-21) — qué quedó adoptado y qué no
+Respuesta del propietario al informe con D1–D9. **El propietario corrigió dos puntos de la propuesta**: D4 proponía despachar sin diligencia debida pese a las compuertas vigentes, y D5 convertía cualquier diferencia de peso en pérdida.
+
+| Decisión | Estado | Contenido adoptado |
+| --- | --- | --- |
+| D1 (b) | **ADOPTADA** | Traspaso de **custodia física**, sin propiedad ni precio |
+| D2 | **PENDIENTE de revisión competente** | Solo se implementa una **salvaguarda técnica**: no hay herencia automática de expediente, severidad, conclusión ni aprobación. **No es una determinación jurídica** y no se presenta como tal |
+| D3 (b) | **ADOPTADA** para la proyección técnica autorizada | La receptora recibe una **instantánea técnica inmutable, con huella**, del origen declarado; **sin acceso general** al origen del emisor. Ni el consentimiento ni la instantánea prueban origen completo: el lote de la receptora nace con origen INCOMPLETO |
+| D4 (a) | **NO ADOPTADA** | Se contrasta con D-34 y las compuertas vigentes. **Mientras no se resuelva, la salida real permanece bloqueada**. No se equipara traspaso con exportación y **no existe un bypass en la API operativa**; las transiciones se demuestran con fixtures y pruebas aisladas |
+| D5 (a) | **ADOPTADA con precisiones** | Toda diferencia exige motivo; **diferencia ≠ pérdida**; se distinguen recepción parcial, faltante, sobrante, rechazo y pérdida declarada; una discrepancia pendiente **conserva su estado y cantidad**; no se crean existencias ni se descuentan pérdidas por resta automática; lo ya recibido se devuelve con **otro traspaso vinculado**; el rechazo en tránsito **conserva la procedencia** |
+| D6 (a), D7 (a), D8 (a), D9 (b) | **ADOPTADAS** | Vínculo bilateral confirmado; sin compraventa; misma unidad (KG); cada parte ve el estado del traspaso y sus diferencias, no el inventario ajeno |
+
+Lo no adoptado (D2, D4) **no se resuelve aquí**: queda en §13 con su consecuencia técnica.
 
 ## 1. Contraste con los flujos de negocio originales
 | Fuente | Qué dice del paso entre actores | Consecuencia |
@@ -78,9 +92,9 @@ Eventos de dominio y auditoría en **cada** organización (`CustodyTransferOffer
 1. Contrato y datos: `transfer_partners`, `custody_transfers`, ítems, enlaces de linaje, bucket en tránsito, movimientos `TRANSFER_OUT/IN`, permisos, eventos, auditoría, conciliación entre libros y pruebas con dos organizaciones reales en PostgreSQL (aislamiento, idempotencia, concurrencia, saldo negativo, masa).
 2. Interfaz: relación, oferta, aceptación, despacho, recepción, diferencias y devolución, por rol.
 3. Origen compartido con consentimiento (si se decide D3) y su efecto en el riesgo del receptor.
-Hasta que el propietario decida, **no se crea ningún artefacto de esquema ni de API** para esto.
+*(Estado original de la propuesta; superado por §0 y §12: el núcleo operativo se desarrolló en una sola entrega completa.)*
 
-## 9. Decisiones D1–D9 (ninguna está adoptada)
+## 9. Decisiones D1–D9 (texto original de la propuesta; el estado vigente de cada una está en §0)
 
 **Clasificación.** *Operativa de producto*: la resuelve el propietario del producto. *Regulatoria*: es una conclusión sobre obligaciones jurídicas; **requiere revisión competente** (D-05.B, D-07.5/7.6, perfil jurídico P1-005) y **no se deduce de una decisión de producto**. *Mixta*: parte de producto y parte regulatoria o de privacidad. Aquí solo se describe el efecto técnico de cada opción; **no se adopta ninguna obligación de diligencia**.
 
@@ -193,3 +207,36 @@ Hasta que el propietario decida, **no se crea ningún artefacto de esquema ni de
 - **Pruebas de aceptación que ya se pueden redactar** (sin código): los pasos 0–11 del ejemplo como casos de dos organizaciones (aislamiento, idempotencia, concurrencia, saldo negativo, conservación de masa).
 
 **Mientras tanto** la cadena sigue operando dentro de una organización y los terceros reciben lectura por concesión (A-02). Limitaciones documentadas sin convertirlas en entrega: `/compartido` sigue en español (`docs/qa/EVIDENCIA_A02_CONCESIONES_2026-10-21.md` §6) y el diagnóstico de rendimiento del entorno de pruebas sigue pendiente (§2 de la misma evidencia).
+
+## 12. Diseño desarrollado y demostrado en local (núcleo operativo)
+**Recorrido**: vínculo bilateral → oferta y reserva → aceptación → salida autorizada → tránsito → recepción (total o parcial) → conciliación de diferencias → cierre, con linaje y auditoría en ambas organizaciones.
+
+| Elemento | Qué es (nombre real) |
+| --- | --- |
+| Tablas (migración `0058`) | `org_partnerships` (vínculo; un activo por pareja; código solo como huella), `custody_transfers` (traspaso; no cambian organizaciones, lote, cantidad ni unidad), `custody_transfer_steps` (pasos **append-only**; de aquí se **deriva el tránsito**), `custody_discrepancies` (faltante/sobrante con estado y cantidad), `custody_lot_links` (linaje append-only con los dos `organization_id`) |
+| Ledger | Movimientos `CUSTODY_RESERVE`, `CUSTODY_RESERVE_RELEASE`, `CUSTODY_OUT`, `CUSTODY_IN`, `CUSTODY_RETURN` (en la propuesta se llamaban `TRANSFER_OUT/IN`); la conciliación del ledger los reconoce. **No hay bucket «en tránsito»**: el tránsito no es saldo de ninguna organización, es `despachado − recibido − devuelto − pérdida confirmada` y la base impide que sea negativo |
+| Lote de la receptora | `lots.source = CUSTODY_TRANSFER`: sin entradas de recepción, cerrado a entradas, origen INCOMPLETO (la base impide marcarlo COMPLETO); nace con la primera cantidad recibida |
+| Estados | `OFFERED → ACCEPTED → IN_TRANSIT ⇄ WITH_DISCREPANCY → CLOSED`; salidas `REJECTED` (receptora rechaza la oferta) y `CANCELLED` (emisora, antes de la salida). Cierre `COMPLETE` (lo recibido iguala lo despachado) o `WITH_DIFFERENCES` |
+| Permisos | `partnership:manage`, `transfer:read`, `transfer:offer`, `transfer:accept`, `transfer:dispatch`, `transfer:receive`, `transfer:resolve` (ver `docs/07`). Cada uno es de **un lado**; ninguno concede lectura del inventario ajeno |
+| Compuerta de salida | Proveedor inyectable `TRANSFER_DISPATCH_GATE`, **que BLOQUEA por defecto**. Solo las pruebas la sustituyen (`jest.spyOn`); el E2E construye el estado «en tránsito» con un fixture SQL rotulado |
+| Diferencias | Recepción parcial deja el resto **en tránsito** (no es pérdida). Faltante = declaración con motivo; la **pérdida** la confirma la **contraparte** de quien lo declaró. Sobrante = declaración con motivo que **no crea existencias** hasta que la emisora lo confirma; también puede retirarse. Rechazo en tránsito: vuelve al lote y centro de origen de la emisora (`CUSTODY_RETURN`) |
+| Devolución | Otro traspaso con `returns_transfer_id`: sale del lote recibido, limitado a lo recibido menos lo ya comprometido; el original no se reabre |
+| Visibilidad (D9 b) | Vista por lado: estado, cantidades y diferencias del traspaso; la receptora ve además la instantánea de origen; nadie ve centros, productos ni inventario de la otra |
+| Eventos y auditoría | `CustodyTransferOffered/Accepted/Dispatched/Received/Rejected/Cancelled/Closed`, `CustodyShortageDeclared`, `CustodyTransitRejected`, `CustodyDiscrepancyResolved`, `OrgPartnershipProposed/Confirmed/Revoked`, en la organización que actúa; auditoría en ambas |
+| Interfaz | `/organizaciones/{id}/traspasos` (vínculos, oferta con revisión previa, lista) y `/traspasos/{id}` (acciones por lado, comprobaciones de salida, cantidades separadas, diferencias, historia); español e inglés, teclado y 390 px |
+
+### 12.1 Desarrollo demostrado (en local; no es activación operativa)
+Pruebas de integración (`apps/api/test/custody-transfers.int-spec.ts`, PostgreSQL real, dos organizaciones y una tercera ajena): vínculo (código de un solo uso, no se autoconfirma, un activo por pareja), oferta (reserva sin mover existencia; idempotente; saldo insuficiente; concurrencia: de dos ofertas que no caben una prospera), aceptación/rechazo/cancelación por estado, **salida bloqueada sin bypass** (un cuerpo con banderas de omisión se rechaza), consistencia entre ambos libros (la conciliación de cada organización queda consistente), recepción parcial, faltante, sobrante (confirmado y retirado), rechazo en tránsito, devolución vinculada, permisos y ausencia de filtraciones (el lado se comprueba antes que la versión), append-only e integridad en la base, eventos y auditoría, y convivencia del lote recibido con lotes, saldos, movimientos, riesgo y expediente. E2E (`e2e/tests/traspasos.spec.ts`, 10 pruebas). La evidencia con SHA, validación y despliegue está en `docs/qa/EVIDENCIA_A03_TRASPASO_2026-10-21.md`.
+
+## 13. Lo que NO está resuelto ni activado
+### 13.1 Activación operativa pendiente
+- **La salida real de un traspaso permanece bloqueada.** La compuerta `TRANSFER_DISPATCH_GATE` rechaza con `TRANSFER_DISPATCH_BLOCKED`. Hasta resolver D4 y D-34 no existe forma operativa de pasar de `ACCEPTED` a `IN_TRANSIT`; la recepción, el faltante, el sobrante y la conciliación se demuestran sobre un estado de tránsito construido en pruebas.
+- Se puede, hoy: proponer y confirmar vínculos, ofrecer (reserva), aceptar, rechazar, cancelar. No se puede, hoy: registrar una salida real.
+### 13.2 Decisiones regulatorias sin resolver
+- **D2** (qué obligaciones de diligencia pasan a quien recibe): pendiente de revisión competente. El sistema no hereda expediente, severidad, conclusión ni aprobación; es una salvaguarda técnica, no una conclusión jurídica. Dependencias: D-05.B, D-07.5/7.6, P1-005.
+- **D4** (condiciones de la salida) y la parte regulatoria de **D3**: sin resolver; la instantánea de origen no acredita origen completo ni cumplimiento.
+- La conclusión regulatoria sigue `UNDETERMINED`; un traspaso no es exportación, no es «puesta en el mercado» y no equivale a presentar una DDS.
+### 13.3 Limitaciones técnicas conocidas
+- El lote recibido tiene origen INCOMPLETO por construcción; no hay camino para completarlo desde el traspaso (D3 c no se adoptó).
+- Sin documentos de traspaso específicos (se usa el servicio de documentos de cada organización); sin límites de tolerancia (D5 b no adoptada).
+- La conciliación entre los dos libros se prueba en integración; no hay un informe de plataforma entre organizaciones.

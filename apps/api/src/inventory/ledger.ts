@@ -10,7 +10,8 @@ import { sql, type Kysely, type Transaction } from 'kysely';
 type AnyDb = Kysely<any> | Transaction<any>;
 
 export type MovementType = 'RECEPTION_IN' | 'RECEPTION_CORRECTION' | 'LOT_ASSIGN' | 'LOT_RELEASE' | 'PROCESS_RESERVE' | 'PROCESS_RESERVE_RELEASE'
-  | 'PROCESS_CLOSE' | 'STOCK_LOSS' | 'TRANSFER' | 'LOCATION_ASSIGN' | 'ADJUSTMENT' | 'SHIPMENT_RESERVE' | 'SHIPMENT_RESERVE_RELEASE' | 'SHIPMENT_DISPATCH';
+  | 'PROCESS_CLOSE' | 'STOCK_LOSS' | 'TRANSFER' | 'LOCATION_ASSIGN' | 'ADJUSTMENT' | 'SHIPMENT_RESERVE' | 'SHIPMENT_RESERVE_RELEASE' | 'SHIPMENT_DISPATCH'
+  | 'CUSTODY_RESERVE' | 'CUSTODY_RESERVE_RELEASE' | 'CUSTODY_OUT' | 'CUSTODY_IN' | 'CUSTODY_RETURN';
 export interface Line { reception_id?: string | null; lot_id?: string | null; location_id: string | null; bucket: 'PHYSICAL' | 'RESERVED'; quantity: string }
 export interface Movement {
   organizationId: string; type: MovementType; sourceType: string | null; sourceId: string | null; operationId: string | null; actorId: string | null;
@@ -149,10 +150,12 @@ export async function reconcile(db: AnyDb, organizationId: string) {
     SELECT l.id, l.lot_code,
            (lot_base_quantity(l.id) - coalesce((SELECT sum(p.quantity) FROM process_inputs p JOIN process_runs r ON r.id = p.run_id WHERE p.lot_id = l.id AND r.status = 'CLOSED'), 0)
              + coalesce((SELECT sum(e.signed_quantity) FROM stock_entries e JOIN stock_movements m ON m.id = e.movement_id WHERE e.lot_id = l.id AND e.bucket = 'PHYSICAL' AND m.movement_type IN ('STOCK_LOSS','ADJUSTMENT')), 0)
-             - coalesce((SELECT sum(s.quantity) FROM shipment_reservations s WHERE s.lot_id = l.id AND s.status = 'CONSUMED'), 0))::text AS expected_physical,
+             - coalesce((SELECT sum(s.quantity) FROM shipment_reservations s WHERE s.lot_id = l.id AND s.status = 'CONSUMED'), 0)
+             + coalesce((SELECT sum(e.signed_quantity) FROM stock_entries e JOIN stock_movements m ON m.id = e.movement_id WHERE e.lot_id = l.id AND e.bucket = 'PHYSICAL' AND m.movement_type IN ('CUSTODY_OUT','CUSTODY_IN','CUSTODY_RETURN')), 0))::text AS expected_physical,
            coalesce((SELECT sum(e.signed_quantity) FROM stock_entries e WHERE e.lot_id = l.id AND e.bucket = 'PHYSICAL'), 0)::text AS ledger_physical,
            (coalesce((SELECT sum(p.quantity) FROM process_inputs p JOIN process_runs r ON r.id = p.run_id WHERE p.lot_id = l.id AND r.status = 'RUNNING'), 0)
-             + coalesce((SELECT sum(s.quantity) FROM shipment_reservations s WHERE s.lot_id = l.id AND s.status = 'ACTIVE'), 0))::text AS expected_reserved,
+             + coalesce((SELECT sum(s.quantity) FROM shipment_reservations s WHERE s.lot_id = l.id AND s.status = 'ACTIVE'), 0)
+             + coalesce((SELECT sum(e.signed_quantity) FROM stock_entries e JOIN stock_movements m ON m.id = e.movement_id WHERE e.lot_id = l.id AND e.bucket = 'RESERVED' AND m.movement_type IN ('CUSTODY_RESERVE','CUSTODY_RESERVE_RELEASE','CUSTODY_OUT')), 0))::text AS expected_reserved,
            coalesce((SELECT sum(e.signed_quantity) FROM stock_entries e WHERE e.lot_id = l.id AND e.bucket = 'RESERVED'), 0)::text AS ledger_reserved
     FROM lots l WHERE l.organization_id = ${organizationId}`.execute(db)).rows;
   const diffs = [

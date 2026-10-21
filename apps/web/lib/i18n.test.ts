@@ -9,6 +9,7 @@ import { SAT_ANALYSIS, SAT_COVERAGE, SAT_OPERATION, SAT_SCENARIO, SAT_STATUS } f
 import { GIS_STATUS, GIS_TABLES } from './gis-evaluation';
 import { PROFILE_TABLES } from './geo-profile';
 import { CONCESION_TABLAS } from './concesiones';
+import { TRASPASO_TABLAS } from './traspasos';
 
 // P1-015 / D-54 — Español fuente, inglés segunda lengua (ADR-0007, opción B).
 const PANTALLAS = [
@@ -19,6 +20,8 @@ const PANTALLAS = [
   'lib/field-capture.tsx', 'lib/field-evidence.tsx', 'lib/manual-capture.tsx', 'lib/location-capture.tsx', 'lib/polygon-capture.tsx',
   'lib/geometry-import.tsx', 'lib/satellite.tsx', 'lib/producer-self-link.tsx', 'lib/plots.tsx',
   'lib/gis-evaluation.tsx', 'lib/geo-profile.tsx', 'lib/map-capture.tsx', 'app/organizaciones/[id]/concesiones/page.tsx',
+  // A-03: traspaso de custodia entre organizaciones
+  'app/organizaciones/[id]/traspasos/page.tsx', 'app/organizaciones/[id]/traspasos/[transferId]/page.tsx',
 ];
 
 describe('internacionalización', () => {
@@ -40,6 +43,9 @@ describe('internacionalización', () => {
       ...Object.values(PROFILE_TABLES.STATUS).map((x) => x.label), ...Object.values(PROFILE_TABLES.OUTCOME),
       ...Object.values(PROFILE_TABLES.CHECK_LABEL), ...Object.values(PROFILE_TABLES.LAYER),
       ...Object.values(CONCESION_TABLAS.TIPOS), ...Object.values(CONCESION_TABLAS.ESTADOS).map((x) => x.label),
+      ...Object.values(TRASPASO_TABLAS.ESTADO_TRASPASO).map((x) => x.label), ...Object.values(TRASPASO_TABLAS.ESTADO_VINCULO).map((x) => x.label),
+      ...Object.values(TRASPASO_TABLAS.PASOS), ...Object.values(TRASPASO_TABLAS.DIFERENCIAS), ...Object.values(TRASPASO_TABLAS.RESOLUCIONES), ...Object.values(TRASPASO_TABLAS.CIERRES),
+      ...Object.values(TRASPASO_TABLAS.LADOS), ...Object.values(TRASPASO_TABLAS.COMPROBACIONES),
     ];
     expect(valores.filter((v) => !(v in EN))).toEqual([]);
   });

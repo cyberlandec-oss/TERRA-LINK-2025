@@ -25,7 +25,7 @@ describe('catálogo RBAC', () => {
   });
 
   it('une permisos de varios roles sin duplicados y desconoce roles no catalogados', () => {
-    expect(permissionsForRoles(['TRACEABILITY_MANAGER', 'AUDITOR', 'INVENTED'])).toEqual(['analytics:read', 'audit:export', 'audit:read', 'dd:read', 'delivery:read', 'document:read', 'economics:read', 'evidence:read', 'location:read', 'lot:create', 'lot:read', 'lot:release_input', 'mitigation:contribute', 'mitigation:read', 'organization:read', 'plot:evaluate_gis', 'plot:read', 'plot:read_geometry', 'process:close', 'process:manage', 'producer:read', 'product:read', 'report:export', 'report:read', 'risk:read', 'satellite:read', 'shipment:read', 'stock:move', 'stock:read', 'traceability:read_catalog']);
+    expect(permissionsForRoles(['TRACEABILITY_MANAGER', 'AUDITOR', 'INVENTED'])).toEqual(['analytics:read', 'audit:export', 'audit:read', 'dd:read', 'delivery:read', 'document:read', 'economics:read', 'evidence:read', 'location:read', 'lot:create', 'lot:read', 'lot:release_input', 'mitigation:contribute', 'mitigation:read', 'organization:read', 'plot:evaluate_gis', 'plot:read', 'plot:read_geometry', 'process:close', 'process:manage', 'producer:read', 'product:read', 'report:export', 'report:read', 'risk:read', 'satellite:read', 'shipment:read', 'stock:move', 'stock:read', 'traceability:read_catalog', 'transfer:accept', 'transfer:dispatch', 'transfer:offer', 'transfer:read', 'transfer:receive', 'transfer:resolve']);
   });
 
   it('anti-escalamiento: solo se conceden roles cuyos permisos posee el actor', () => {

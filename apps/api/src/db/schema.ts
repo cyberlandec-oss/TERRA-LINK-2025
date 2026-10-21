@@ -619,7 +619,7 @@ export interface ProcessRunsTable {
   created_by: string; operation_id: string; start_operation_id: string | null; close_operation_id: string | null; cancel_operation_id: string | null; row_version: Generated<string>; created_at: Generated<Timestamp>;
 }
 export interface LotsTable {
-  id: string; organization_id: string; lot_code: string; product_id: string; unit: string; source: 'RECEPTIONS' | 'PROCESS_OUTPUT'; status: 'OPEN' | 'CLOSED_FOR_INPUT';
+  id: string; organization_id: string; lot_code: string; product_id: string; unit: string; source: 'RECEPTIONS' | 'PROCESS_OUTPUT' | 'CUSTODY_TRANSFER'; status: 'OPEN' | 'CLOSED_FOR_INPUT';
   origin_status: 'COMPLETE' | 'INCOMPLETE'; process_run_id: string | null; output_quantity: string | null; created_by: string; operation_id: string; row_version: Generated<string>; created_at: Generated<Timestamp>;
 }
 export interface LotInputsTable { id: string; organization_id: string; lot_id: string; reception_id: string; weighing_id: string; reception_version: number; quantity: string; unit: string; origin_known: boolean; assigned_by: string; assigned_at: Generated<Timestamp>; operation_id: string }
@@ -646,6 +646,34 @@ export interface ShipmentItemsTable { id: string; organization_id: string; shipm
 export interface ShipmentReservationsTable {
   id: string; organization_id: string; shipment_id: string; item_id: string; lot_id: string; location_id: string; quantity: string; unit: string; status: 'ACTIVE' | 'RELEASED' | 'CONSUMED';
   reserve_movement_id: string; end_movement_id: string | null; release_reason: string | null; created_by: string; created_at: Generated<Timestamp>; ended_at: Timestamp | null; operation_id: string;
+}
+
+
+// A-03 traspaso de custodia (migración 0058)
+export interface OrgPartnershipsTable {
+  id: string; requester_org_id: string; counterpart_org_id: string | null; code_hash: string; status: 'PENDING' | 'ACTIVE' | 'REVOKED'; expires_at: Timestamp;
+  created_by: string; confirmed_by: string | null; confirmed_at: Timestamp | null; revoked_by: string | null; revoked_by_org: string | null; revoked_at: Timestamp | null; revoke_reason: string | null;
+  operation_id: string; created_at: Generated<Timestamp>;
+}
+export type CustodyStatus = 'OFFERED' | 'ACCEPTED' | 'IN_TRANSIT' | 'WITH_DISCREPANCY' | 'CLOSED' | 'REJECTED' | 'CANCELLED';
+export interface CustodyTransfersTable {
+  id: string; transfer_code: string; partnership_id: string; sender_org_id: string; receiver_org_id: string; status: CustodyStatus;
+  sender_lot_id: string; sender_location_id: string; receiver_location_id: string | null; receiver_product_id: string | null; receiver_lot_id: string | null;
+  quantity: string; unit: 'KG'; returns_transfer_id: string | null; origin_projection: unknown; origin_projection_hash: string; note: string | null;
+  closure: 'COMPLETE' | 'WITH_DIFFERENCES' | null; reject_reason: string | null; cancel_reason: string | null; offered_by: string; offer_operation_id: string;
+  row_version: Generated<string>; created_at: Generated<Timestamp>; updated_at: Generated<Timestamp>;
+}
+export type CustodyStep = 'OFFER' | 'ACCEPT' | 'REJECT_OFFER' | 'CANCEL' | 'DISPATCH' | 'RECEIPT' | 'OVERAGE_RECORDED' | 'REJECT_TRANSIT' | 'DECLARE_SHORTAGE' | 'LOSS_CONFIRMED' | 'OVERAGE_CONFIRMED' | 'OVERAGE_WITHDRAWN' | 'SHORTAGE_REOPENED';
+export interface CustodyTransferStepsTable {
+  id: string; transfer_id: string; actor_org_id: string; actor_user_id: string; step: CustodyStep; quantity: string | null; reason: string | null; detail: unknown;
+  movement_id: string | null; operation_id: string; created_at: Generated<Timestamp>;
+}
+export interface CustodyDiscrepanciesTable {
+  id: string; transfer_id: string; kind: 'SHORTAGE' | 'OVERAGE'; quantity: string; status: 'OPEN' | 'RESOLVED'; resolution: 'LOSS_CONFIRMED' | 'OVERAGE_CONFIRMED' | 'OVERAGE_WITHDRAWN' | 'SHORTAGE_REOPENED' | null;
+  reason: string; recorded_by_org: string; recorded_by: string; created_at: Generated<Timestamp>; resolved_by_org: string | null; resolved_by: string | null; resolved_at: Timestamp | null; resolution_reason: string | null;
+}
+export interface CustodyLotLinksTable {
+  id: string; transfer_id: string; step_id: string; parent_org_id: string; parent_lot_id: string; child_org_id: string; child_lot_id: string; quantity: string; unit: 'KG'; created_at: Generated<Timestamp>;
 }
 
 // P0-020 riesgo
@@ -1021,6 +1049,11 @@ export interface Database {
   dd_exports: DdExportsTable;
   public_references: PublicReferencesTable;
   access_grants: AccessGrantsTable;
+  org_partnerships: OrgPartnershipsTable;
+  custody_transfers: CustodyTransfersTable;
+  custody_transfer_steps: CustodyTransferStepsTable;
+  custody_discrepancies: CustodyDiscrepanciesTable;
+  custody_lot_links: CustodyLotLinksTable;
   platform_elevations: PlatformElevationsTable;
   satellite_providers: SatelliteProvidersTable;
   satellite_jobs: SatelliteJobsTable;

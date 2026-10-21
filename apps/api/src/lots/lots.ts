@@ -578,6 +578,12 @@ export class LotsService {
              (${this.deliveryVisible(ctx)}) AS visible, d.id AS delivery_id, d.delivery_code, pr.producer_code, r.received_at
       FROM lot_inputs i JOIN receptions r ON r.id = i.reception_id JOIN deliveries d ON d.id = r.delivery_id JOIN producers pr ON pr.id = d.producer_id
       LEFT JOIN lot_input_releases x ON x.input_id = i.id WHERE i.lot_id = ${id} ORDER BY i.assigned_at`.execute(db)).rows : [];
+    // A-03: un lote recibido en custodia no tiene insumos propios; su procedencia es el traspaso (instantánea técnica del origen, D3b). No hereda
+    // expediente, severidad ni conclusión del emisor (D2) y su origen es INCOMPLETO por construcción.
+    const custody = l.source === 'CUSTODY_TRANSFER' ? (await sql<{ transfer_id: string; transfer_code: string; sender_name: string; projection_hash: string; projection: unknown; received: string }>`
+      SELECT t.id AS transfer_id, t.transfer_code, o.name AS sender_name, t.origin_projection_hash AS projection_hash, t.origin_projection AS projection,
+             (coalesce((SELECT sum(s.quantity) FROM custody_transfer_steps s WHERE s.transfer_id = t.id AND s.step IN ('RECEIPT','OVERAGE_CONFIRMED')), 0))::text AS received
+      FROM custody_transfers t JOIN organizations o ON o.id = t.sender_org_id WHERE t.receiver_org_id = ${ctx.organizationId} AND t.receiver_lot_id = ${id}`.execute(db)).rows[0] ?? null : null;
     const run = l.process_run_id ? await db.selectFrom('process_runs').select(['id', 'run_code', 'process_type']).where('id', '=', l.process_run_id).executeTakeFirst() : null;
     const uses = await sql<{ run_id: string; run_code: string; process_type: string; status: string; quantity: string }>`
       SELECT r.id AS run_id, r.run_code, r.process_type, r.status, p.quantity::text FROM process_inputs p JOIN process_runs r ON r.id = p.run_id WHERE p.lot_id = ${id} ORDER BY r.created_at`.execute(db);
@@ -589,18 +595,19 @@ export class LotsService {
       // audiencias (eso es RF-33) ni concede acceso: quien lee esto ya está autorizado sobre el recurso.
       public_reference: await referenciaDe(db, ctx.organizationId, 'LOT', l.id),
       id: l.id, lot_code: l.lot_code, source: l.source, status: l.status, row_version: Number(l.row_version), product,
-      origin: { status: l.origin_status, label: l.origin_status === 'COMPLETE' ? 'Origen declarado en todos los insumos' : 'Origen incompleto', note: l.origin_status === 'INCOMPLETE' ? 'Algún insumo procede de una entrega sin origen declarado. No se mezcla con material de origen conocido y la condición se conserva en las salidas (D-39).' : null },
+      origin: { status: l.origin_status, label: l.origin_status === 'COMPLETE' ? 'Origen declarado en todos los insumos' : 'Origen incompleto', note: l.source === 'CUSTODY_TRANSFER' ? 'Lote recibido en custodia desde otra organización. Solo conserva una instantánea técnica del origen declarado por la emisora: no prueba origen completo y no hereda su expediente, severidad, conclusión ni aprobación.' : l.origin_status === 'INCOMPLETE' ? 'Algún insumo procede de una entrega sin origen declarado. No se mezcla con material de origen conocido y la condición se conserva en las salidas (D-39).' : null },
       quality: this.qualitySummary(await this.quality(db, id)),
       quantities: { ...(await this.lotQuantities(db, id)), unit: 'KG', note: 'Existencia física, reserva y disponible salen del ledger de inventario (única fuente). Reservar no reduce la existencia. Tener existencia no significa calidad liberada ni origen completo.' },
       // Solo insumos cuya entrega puede leer el usuario; los demás se omiten sin conteos ni marcadores.
       inputs: inputs.filter((i) => i.visible).map((i) => ({ id: i.id, reception_id: i.reception_id, delivery_id: i.delivery_id, delivery_code: i.delivery_code, producer_code: i.producer_code, received_at: i.received_at,
         weighing_id: i.weighing_id, reception_version: i.reception_version, quantity: { value: dec(i.quantity), unit: 'KG' }, origin_known: i.origin_known,
         released: i.released_at ? { reason: i.released_reason, at: i.released_at } : null })),
+      custody_origin: custody ? { transfer_id: custody.transfer_id, transfer_code: custody.transfer_code, sender_name: custody.sender_name, received: { value: dec(custody.received), unit: 'KG' }, origin_projection: custody.projection, origin_projection_hash: custody.projection_hash } : null,
       produced_by: run ? { run_id: run.id, run_code: run.run_code, process_type: run.process_type, quantity: { value: dec(l.output_quantity), unit: 'KG' } } : null,
       used_by: uses.rows.map((u) => ({ run_id: u.run_id, run_code: u.run_code, process_type: u.process_type, status: u.status, effect: u.status === 'RUNNING' ? 'RESERVED' : u.status === 'CLOSED' ? 'CONSUMED' : 'RELEASED', quantity: { value: dec(u.quantity), unit: 'KG' } })),
       upstream: await this.upstream(db, ctx, id), downstream: await this.downstream(db, ctx, id), shipments: await this.shipments(db, ctx, id),
       history: history.map((h) => ({ event_type: h.event_type, version: Number(h.aggregate_version), occurred_at: h.occurred_at, actor: `${h.first_name ?? ''} ${h.last_name ?? ''}`.trim() || 'Miembro' })),
-      actions: { stock_move: this.has(ctx, 'stock:move'), stock_adjust: this.has(ctx, 'stock:adjust'), assign: l.status === 'OPEN' && l.source === 'RECEPTIONS' && this.has(ctx, 'lot:create'), release_input: this.has(ctx, 'lot:release_input'), close_for_input: l.status === 'OPEN' && this.has(ctx, 'lot:create') },
+      actions: { stock_move: this.has(ctx, 'stock:move'), stock_adjust: this.has(ctx, 'stock:adjust'), assign: l.status === 'OPEN' && l.source === 'RECEPTIONS' && this.has(ctx, 'lot:create'), release_input: l.source === 'RECEPTIONS' && this.has(ctx, 'lot:release_input'), close_for_input: l.status === 'OPEN' && this.has(ctx, 'lot:create') },
     };
   }
 

@@ -10870,6 +10870,730 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/partnerships": {
+      "get": {
+        "operationId": "CustodyTransfersController_partnerships",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      },
+      "post": {
+        "operationId": "CustodyTransfersController_invite",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnershipInviteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/partnerships/confirm": {
+      "post": {
+        "operationId": "CustodyTransfersController_confirm",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnershipConfirmDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/partnerships/{id}/revoke": {
+      "post": {
+        "operationId": "CustodyTransfersController_revoke",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnershipRevokeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/custody-transfers/options": {
+      "get": {
+        "operationId": "CustodyTransfersController_options",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/custody-transfers": {
+      "get": {
+        "operationId": "CustodyTransfersController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      },
+      "post": {
+        "operationId": "CustodyTransfersController_offer",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustodyOfferDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/custody-transfers/lineage/{lotId}": {
+      "get": {
+        "operationId": "CustodyTransfersController_lineage",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/custody-transfers/{id}": {
+      "get": {
+        "operationId": "CustodyTransfersController_detail",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/custody-transfers/{id}/preflight": {
+      "get": {
+        "operationId": "CustodyTransfersController_preflight",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/custody-transfers/{id}/accept": {
+      "post": {
+        "operationId": "CustodyTransfersController_accept",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustodyAcceptDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/custody-transfers/{id}/reject": {
+      "post": {
+        "operationId": "CustodyTransfersController_reject",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustodyReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/custody-transfers/{id}/cancel": {
+      "post": {
+        "operationId": "CustodyTransfersController_cancel",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustodyReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/custody-transfers/{id}/dispatch": {
+      "post": {
+        "operationId": "CustodyTransfersController_dispatch",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustodyDispatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/custody-transfers/{id}/receive": {
+      "post": {
+        "operationId": "CustodyTransfersController_receive",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustodyReceiveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/custody-transfers/{id}/shortage": {
+      "post": {
+        "operationId": "CustodyTransfersController_shortage",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustodyQuantityReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/custody-transfers/{id}/reject-in-transit": {
+      "post": {
+        "operationId": "CustodyTransfersController_rejectInTransit",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustodyQuantityReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/custody-transfers/{id}/discrepancies/{discrepancyId}/resolve": {
+      "post": {
+        "operationId": "CustodyTransfersController_resolve",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "discrepancyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustodyResolveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "custody-transfers"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/satellite/providers": {
       "get": {
         "operationId": "SatelliteController_providers",
@@ -14172,6 +14896,220 @@
         "required": [
           "operation_id",
           "expected_version",
+          "reason"
+        ]
+      },
+      "PartnershipInviteDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id"
+        ]
+      },
+      "PartnershipConfirmDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "Código entregado por la otra organización (se muestra una sola vez al proponer)"
+          }
+        },
+        "required": [
+          "operation_id",
+          "code"
+        ]
+      },
+      "PartnershipRevokeDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "reason"
+        ]
+      },
+      "CustodyOfferDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "partnership_id": {
+            "type": "string"
+          },
+          "lot_id": {
+            "type": "string"
+          },
+          "location_id": {
+            "type": "string",
+            "description": "Centro del emisor del que sale la existencia"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "KG, texto decimal"
+          },
+          "note": {
+            "type": "string"
+          },
+          "returns_transfer_id": {
+            "type": "string",
+            "description": "Devolución vinculada: traspaso anterior recibido por esta organización"
+          }
+        },
+        "required": [
+          "operation_id",
+          "partnership_id",
+          "lot_id",
+          "location_id",
+          "quantity"
+        ]
+      },
+      "CustodyAcceptDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "expected_version": {
+            "type": "number"
+          },
+          "product_id": {
+            "type": "string",
+            "description": "Producto de la receptora con el que se registrará lo recibido (KG)"
+          },
+          "location_id": {
+            "type": "string",
+            "description": "Centro de la receptora donde ingresará"
+          }
+        },
+        "required": [
+          "operation_id",
+          "expected_version",
+          "product_id",
+          "location_id"
+        ]
+      },
+      "CustodyReasonDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "expected_version": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "expected_version",
+          "reason"
+        ]
+      },
+      "CustodyDispatchDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "description": "Idempotencia: repetir con el mismo identificador no da salida dos veces"
+          },
+          "expected_version": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "operation_id",
+          "expected_version"
+        ]
+      },
+      "CustodyReceiveDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "expected_version": {
+            "type": "number"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "KG que llegaron de verdad en esta recepción"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Obligatorio si lo que llegó supera lo que está en tránsito"
+          }
+        },
+        "required": [
+          "operation_id",
+          "expected_version",
+          "quantity"
+        ]
+      },
+      "CustodyQuantityReasonDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "expected_version": {
+            "type": "number"
+          },
+          "quantity": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "expected_version",
+          "quantity",
+          "reason"
+        ]
+      },
+      "CustodyResolveDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "expected_version": {
+            "type": "number"
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "LOSS_CONFIRMED",
+              "SHORTAGE_REOPENED",
+              "OVERAGE_CONFIRMED",
+              "OVERAGE_WITHDRAWN"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "expected_version",
+          "resolution",
           "reason"
         ]
       },

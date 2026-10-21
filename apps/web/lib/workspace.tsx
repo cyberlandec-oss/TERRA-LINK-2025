@@ -80,6 +80,8 @@ function navFor(ws: Workspace, orgId: string | null, t: (es: string) => string):
     if (ws.can('lot:read')) operacion.push({ href: `${base}/lotes`, label: t('Lotes'), match: (p) => p.startsWith(`${base}/lotes`) });
     if (ws.can('stock:read')) operacion.push({ href: `${base}/inventario`, label: t('Inventario'), match: (p) => p.startsWith(`${base}/inventario`) });
     if (ws.can('shipment:read')) operacion.push({ href: `${base}/embarques`, label: t('Embarques'), match: (p) => p.startsWith(`${base}/embarques`) });
+    // A-03: traspaso de custodia entre organizaciones. Estar en el menú no concede `transfer:*`; la API decide cada acción.
+    if (ws.can('transfer:read')) operacion.push({ href: `${base}/traspasos`, label: t('Traspasos'), match: (p) => p.startsWith(`${base}/traspasos`) });
     if (ws.can('lot:read')) operacion.push({ href: `${base}/procesos`, label: t('Procesos'), match: (p) => p.startsWith(`${base}/procesos`) });
     if (ws.can('product:read')) operacion.push({ href: `${base}/productos`, label: t('Productos'), match: (p) => p.startsWith(`${base}/productos`) });
     if (operacion.length) groups.push({ title: t('Operación'), items: operacion });

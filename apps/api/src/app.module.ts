@@ -31,6 +31,7 @@ import { RiskController, RiskService } from './risk/risk';
 import { MitigationsController, MitigationsService } from './mitigations/mitigations';
 import { DdController, DdService } from './dd/dd';
 import { ShipmentsController, ShipmentsService } from './shipments/shipments';
+import { BlockingTransferDispatchGate, CustodyTransfersController, CustodyTransfersService, TRANSFER_DISPATCH_GATE } from './custody/custody-transfers';
 import { SatelliteController, SatelliteService } from './satellite/satellite';
 import { SyncController, SyncService } from './sync/sync';
 import { ImportsController, ImportsService } from './imports/imports';
@@ -204,7 +205,7 @@ export class AppModule implements NestModule {
       controllers: [
         HealthController, VersionController, ObservabilityController, OperationsAlertsController, OperationsOrgAlertsController,
         LegalProfileController, LegalAssessmentsController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
-        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, GeoProfileController, ProductsController, CteController, KdeController, PublicReferencesController, AccessGrantsController, GrantedController, PlatformElevationController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, OnboardingController, ExchangeController, SimulationController, CostController, HistoryController, EconomicsController, AnalyticsController, ExtractionController, LimitsController, PlatformCostController, SsoController, WebhookController, ShipmentsController, SatelliteController, ReportsController, EntityReportsController,
+        MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, GeoProfileController, ProductsController, CteController, KdeController, PublicReferencesController, AccessGrantsController, GrantedController, PlatformElevationController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, OnboardingController, ExchangeController, SimulationController, CostController, HistoryController, EconomicsController, AnalyticsController, ExtractionController, LimitsController, PlatformCostController, SsoController, WebhookController, ShipmentsController, CustodyTransfersController, SatelliteController, ReportsController, EntityReportsController,
       ],
       providers: [
         { provide: APP_CONFIG, useValue: config },
@@ -261,6 +262,8 @@ export class AppModule implements NestModule {
         MitigationsService,
         DdService,
         ShipmentsService,
+        CustodyTransfersService,
+        { provide: TRANSFER_DISPATCH_GATE, useClass: BlockingTransferDispatchGate },
         SatelliteService,
         SyncService,
         ImportsService,

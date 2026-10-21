@@ -220,3 +220,10 @@ Clasificación de la identidad del productor: documento, teléfono y dirección 
 | revoked_sessions | 0056 | Sesiones cerradas por `jti`; el resto de sesiones de la cuenta no se tocan |
 | producers.self_membership_id | 0057 | A-01. Membresía (rol Productor) vinculada de forma explícita a este productor; única por membresía (`producers_self_membership_uq`) y de la misma organización (disparador `producers_self_membership_same_org`). Nulo = sin vínculo = sin acceso propio. Cada cambio queda en `producer_versions` (`LINK_SELF`) y en la auditoría |
 | document_types.FIELD_EVIDENCE | 0057 | A-01. Tipo de documento «Evidencia de recorrido de campo» (fotos, croquis, actas) adjuntable a la parcela; subir no aprueba |
+| org_partnerships | 0058 | A-03. Vínculo bilateral entre dos organizaciones (PENDING/ACTIVE/REVOKED); código solo como huella; un ACTIVO por pareja sin importar quién propuso |
+| custody_transfers | 0058 | A-03. Traspaso de custodia: organizaciones, lote y centro de la emisora, producto y centro de la receptora, cantidad y unidad (KG), instantánea de origen (jsonb) con huella, estado y cierre. No cambian organizaciones, lote, cantidad, unidad ni proyección |
+| custody_transfer_steps | 0058 | A-03. Pasos **append-only** (oferta, aceptación, salida, recepción, sobrante, rechazos, faltante, pérdida confirmada…); de aquí se deriva el tránsito; un disparador diferido impide tránsito negativo |
+| custody_discrepancies | 0058 | A-03. Faltante o sobrante con cantidad, motivo y estado (OPEN/RESOLVED); no se borra; una resuelta no cambia |
+| custody_lot_links | 0058 | A-03. Linaje entre lote de la emisora y lote de la receptora, con ambos `organization_id`; append-only |
+| lots.source = CUSTODY_TRANSFER | 0058 | A-03. Lote nacido de un traspaso: sin recepciones ni proceso, cerrado a entradas y siempre con origen INCOMPLETO |
+| stock_movements.movement_type | 0058 | A-03. Nuevos tipos `CUSTODY_RESERVE`, `CUSTODY_RESERVE_RELEASE`, `CUSTODY_OUT`, `CUSTODY_IN`, `CUSTODY_RETURN` (el origen de CUSTODY_IN y CUSTODY_RETURN es el paso, porque el ledger admite un movimiento por tipo y origen) |

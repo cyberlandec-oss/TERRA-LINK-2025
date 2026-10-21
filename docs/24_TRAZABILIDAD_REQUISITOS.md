@@ -53,4 +53,4 @@ Fuera del conteo 42/60 y 30/44; no altera A-01 ni la aceptación externa pendien
 | Fuente | Requisito | Historia | QA | Estado |
 | --- | --- | --- | --- | --- |
 | Instrucción del propietario (2026-10-21), tras el recorrido integral web (T14) | RF-49 | A-02 | 02/04/07 | **DONE_LOCAL** (`0211a30`, 2026-10-21; `docs/qa/EVIDENCIA_A02_CONCESIONES_2026-10-21.md`); fuera del conteo 42/60 y 30/44. No altera P1-001; `/compartido` sigue en español (límite explícito) |
-| Instrucción del propietario (2026-10-21), tras el recorrido integral web (T15) | RF-50 | A-03 | 07/12 | **PROPUESTA** con D1–D9 completas (ninguna adoptada); sin implementación; fuera del conteo |
+| Instrucción del propietario (2026-10-21), tras el recorrido integral web (T15) | RF-50 | A-03 | 07/12 | Núcleo operativo **ADOPTADO** (D1 b, D3 b, D5 a, D6 a, D7 a, D8 a, D9 b); D2 pendiente de revisión competente; D4 no adoptada (**salida real bloqueada**). `test/custody-transfers.int-spec.ts` (15), `e2e/tests/traspasos.spec.ts` (10); evidencia `docs/qa/EVIDENCIA_A03_TRASPASO_2026-10-21.md`; fuera del conteo |

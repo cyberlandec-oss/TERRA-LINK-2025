@@ -234,4 +234,16 @@ códigos, estados y agregados (sin identidad de productores, geometrías, docume
 no disponible = inexistente = inactivo (misma respuesta), con intentos fallidos auditados (`grant.recipient_unavailable`, sin el correo en claro) y limitados a 10 por hora y persona.
 Recorrido: propietario otorga (revisión + confirmación) → destinatario consulta lo autorizado en `/compartido` → propietario revoca (motivo obligatorio) → el acceso se pierde al instante. Quien no es miembro recibe 404.
 
-**Traspaso entre organizaciones (A-03)**: los permisos `transfer:*` de `docs/decisiones/A03-TRASPASO-ENTRE-ORGANIZACIONES.md` §5.1 son una **propuesta**; no existen en el catálogo.
+**Traspaso entre organizaciones (A-03, 2026-10-21)**: siete permisos nuevos, cada uno de **un lado** del traspaso; ninguno concede lectura del inventario ajeno ni amplía otros permisos. El backend comprueba además el **lado** (emisora/receptora) y que la organización sea parte del traspaso (404 para terceros); el lado se comprueba antes que la versión.
+
+| Permiso | Acción | Roles |
+| --- | --- | --- |
+| `partnership:manage` | Proponer, confirmar y revocar vínculos | ORG_ADMIN |
+| `transfer:read` | Consultar vínculos, traspasos, opciones y linaje | ORG_ADMIN, TRACEABILITY_MANAGER, EXPORT_MANAGER, RECEPTION_OPERATOR, MANAGER, AUDITOR |
+| `transfer:offer` | Ofrecer (reserva en el libro propio) y cancelar | ORG_ADMIN, TRACEABILITY_MANAGER, EXPORT_MANAGER |
+| `transfer:accept` | Aceptar o rechazar una oferta (receptora) | ORG_ADMIN, TRACEABILITY_MANAGER, EXPORT_MANAGER |
+| `transfer:dispatch` | Registrar la salida (emisora); **bloqueada por la compuerta** | ORG_ADMIN, TRACEABILITY_MANAGER, EXPORT_MANAGER |
+| `transfer:receive` | Registrar recepciones, faltantes y rechazos en tránsito (receptora) | ORG_ADMIN, TRACEABILITY_MANAGER, RECEPTION_OPERATOR |
+| `transfer:resolve` | Resolver diferencias (la contraparte confirma pérdidas y sobrantes) | ORG_ADMIN, TRACEABILITY_MANAGER |
+
+Anti-escalamiento: un rol con estos permisos solo es otorgable por quien los posee. Un auditor lee, no actúa.
