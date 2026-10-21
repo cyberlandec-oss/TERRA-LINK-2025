@@ -105,6 +105,11 @@ test('inglés y 390 px: mismos textos traducidos, sin códigos internos y sin de
   const fila = page.getByRole('table', { name: 'Link history' }).getByRole('row', { name: /^1\.1\.0/ });
   await expect(fila).toContainText('No longer valid');
   await expect(fila).toContainText('The latest review decision is "objected".');
+  // Lo que falta de cada perfil se ve SIN desplazar la tabla: queda dentro del ancho de 390 px.
+  const razon = page.getByRole('table', { name: 'Legal profiles and their eligibility' }).getByText('The latest review decision is "objected".');
+  await expect(razon).toBeVisible();
+  const caja = await razon.boundingBox();
+  expect(caja!.x + caja!.width).toBeLessThanOrEqual(391);
   const cuerpo = await page.locator('main').innerText();
   expect(cuerpo).not.toMatch(/\b(NO_LONGER_VALID|REVIEW_OBJECTED|SCOPE_PARTIAL|NO_REVIEW|NOT_APPROVED|PUBLISHED)\b/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);

@@ -36,7 +36,7 @@ export const EN_VINCULO: Record<string, string> = {
   'Estado': 'Status',
   'Alcance': 'Scope',
   'Revisión vigente': 'Current review',
-  'Elegibilidad': 'Eligibility',
+  'Versión y elegibilidad': 'Version and eligibility',
   'Elegible': 'Eligible',
   'No elegible': 'Not eligible',
   'Sin revisión': 'No review',

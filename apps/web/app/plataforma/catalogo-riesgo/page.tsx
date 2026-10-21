@@ -105,19 +105,19 @@ export default function VinculoCatalogoPage() {
             <p className="muted">{t('Un perfil es elegible solo si está publicado, tiene alcance completo y su última revisión es «revisado». Elegible no significa aprobado.')}</p>
             <div className="table-wrap"><table aria-label={t('Perfiles jurídicos y su elegibilidad')}>
               <thead><tr>
-                <th scope="col">{t('Versión')}</th><th scope="col">{t('Estado')}</th><th scope="col">{t('Alcance')}</th>
-                <th scope="col">{t('Revisión vigente')}</th><th scope="col">{t('Elegibilidad')}</th>
+                <th scope="col">{t('Versión y elegibilidad')}</th><th scope="col">{t('Estado')}</th><th scope="col">{t('Alcance')}</th>
+                <th scope="col">{t('Revisión vigente')}</th>
               </tr></thead>
               <tbody>{el.profiles.map((p) => (
                 <tr key={p.version}>
-                  <td>{p.version}</td>
-                  <td>{t(TB.ESTADO_PERFIL[p.technical_status] ?? p.technical_status)}</td>
-                  <td>{t(TB.ALCANCE[p.scope] ?? p.scope)}</td>
-                  <td>{p.review ? <>{t(TB.DECISION[p.review.decision] ?? p.review.decision)}<div className="muted">{dt(p.review.decided_at)}</div></> : <span className="muted">{t('Sin revisión')}</span>}</td>
                   <td>
+                    {p.version}{' '}
                     <StatusBadge tone={p.eligible ? 'valid' : 'blocked'}>{p.eligible ? t('Elegible') : t('No elegible')}</StatusBadge>
                     {!p.eligible && razones(p.reasons)}
                   </td>
+                  <td>{t(TB.ESTADO_PERFIL[p.technical_status] ?? p.technical_status)}</td>
+                  <td>{t(TB.ALCANCE[p.scope] ?? p.scope)}</td>
+                  <td>{p.review ? <>{t(TB.DECISION[p.review.decision] ?? p.review.decision)}<div className="muted">{dt(p.review.decided_at)}</div></> : <span className="muted">{t('Sin revisión')}</span>}</td>
                 </tr>
               ))}</tbody>
             </table></div>
