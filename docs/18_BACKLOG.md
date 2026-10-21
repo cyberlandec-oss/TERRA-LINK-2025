@@ -246,3 +246,13 @@ Se detectó un ciclo: P0-012 dependía de P0-011 completa; el criterio de transf
 ### Criterio de cierre de la etapa local (desde 2026-10-10)
 
 Estado adicional `DONE_LOCAL`: criterios de la historia cumplidos con evidencia de pruebas locales (`npm run validate` aprobado + suites de la historia) y documentación al día. No requiere GitHub Actions. No equivale a producción ni a conformidad EUDR. Un criterio que dependa de una decisión no tomada o de un contrato inexistente deja la historia abierta solo si ese criterio forma parte de su aceptación; el resto de decisiones provisionales se registran sin bloquear. Estado vigente en docs/23.
+
+## Ampliaciones autorizadas A-02 y A-03 (2026-10-21)
+
+| ID | Resultado | Dependencia | Estado |
+| --- | --- | --- | --- |
+| A-02 | Administración web de concesiones externas (RF-49, `docs/03`) | P0-003, P1-001 | **EN DESARROLLO (2026-10-21).** Distinta de P1-001, que sigue DONE_LOCAL con la aceptación que tenía (portal del destinatario) |
+| A-03 | Contrato de traspaso entre organizaciones (RF-50, `docs/03`) | P0-012–017, P0-029, P1-001 | **PROPUESTA** (`docs/decisiones/A03-TRASPASO-ENTRE-ORGANIZACIONES.md`); sin implementación hasta decisión del propietario |
+
+**A-02 — alcance de la entrega**: pantalla `/organizaciones/{id}/concesiones` (menú Administración, solo con `grant:manage`); lista con filtro por estado (activa, vencida, revocada) y la historia de cada concesión; alta guiada en cuatro pasos (recurso, destinatario por correo exacto, alcance y vigencia, revisión y confirmación); revocación con motivo; español e inglés. Cambios de API: correo exacto, `shareable`, lista enriquecida y límite de intentos (ver `docs/09`).
+**A-03 — alcance**: solo la propuesta; ningún movimiento ni esquema nuevo hasta la decisión del propietario.

@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiOperation, ApiPropertyOptional, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsISO8601, IsOptional, IsString, IsUUID, Length } from 'class-validator';
-import { randomUUID } from 'crypto';
+import { IsBoolean, IsEmail, IsIn, IsISO8601, IsOptional, IsString, IsUUID, Length } from 'class-validator';
+import { createHash, randomUUID } from 'crypto';
 import { sql, type Kysely } from 'kysely';
 import { AuditService } from '../audit/audit.service';
 import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
@@ -23,6 +23,12 @@ import { indicadoresDe, periodoDeProduccion } from '../sharing/indicadores';
 // revocación, en **cada** acceso y en **cada** descarga. Por eso una segunda membresía no puede hacerse pasar
 // por una concesión.
 //
+// A-02 (2026-10-21) — administración WEB de concesiones. La pantalla reutiliza esta API y `grant:manage`; no amplía permisos. Novedades de contrato:
+//   · el destinatario se identifica por su CORREO EXACTO (`grantee_email`), sin buscador, lista ni autocompletado; «no existe» y «no está disponible»
+//     responden lo mismo, y los intentos fallidos se auditan y se limitan por persona (10 por hora);
+//   · `GET …/access-grants/shareable` ofrece solo los recursos que quien concede PUEDE leer (no se concede lo que no se tiene);
+//   · `GET …/access-grants` añade código del recurso, quién concedió/revocó, cuándo y el motivo.
+//
 // Lo que esta entrega NO hace: no construye el portal comprador (RF-32/P1-001), no introduce elevación de
 // plataforma —D-04 sigue pendiente y no se cierra por omisión—, no crea permisos para `BUYER` ni para
 // `SUPER_ADMIN`, y no infiere acceso por identidad (ni correo, ni nombre, ni país).
@@ -34,8 +40,10 @@ const LECTURA: Record<Tipo, Permission> = { LOT: 'lot:read', SHIPMENT: 'shipment
 
 class CrearConcesionDto {
   @ApiProperty() @IsUUID() operation_id!: string;
-  @ApiProperty({ description: 'Cuenta destinataria, existente y activa. No se crea ni se invita desde aquí.' })
-  @IsUUID() grantee_user_id!: string;
+  @ApiPropertyOptional({ description: 'Cuenta destinataria, existente y activa. No se crea ni se invita desde aquí. Alternativa a `grantee_email`.' })
+  @IsOptional() @IsUUID() grantee_user_id?: string;
+  @ApiPropertyOptional({ description: 'Correo EXACTO de la cuenta destinataria (alternativa a `grantee_user_id`). No hay búsqueda ni lista: si no se puede identificar una cuenta activa, la respuesta es la misma.' })
+  @IsOptional() @IsEmail() @Length(3, 254) grantee_email?: string;
   @ApiProperty({ enum: ['LOT', 'SHIPMENT', 'DD_SNAPSHOT'] }) @IsIn(['LOT', 'SHIPMENT', 'DD_SNAPSHOT']) resource_type!: Tipo;
   @ApiProperty({ description: 'Instancia concreta. No se admiten comodines ni alcances por organización.' })
   @IsUUID() resource_id!: string;
@@ -91,7 +99,11 @@ export class AccessGrantsService {
     }
 
     // 3) Destinatario: cuenta existente y activa. No se crea ni se invita desde aquí, y no se infiere por identidad.
-    const destinatario = await this.db.selectFrom('users').select(['id', 'status']).where('id', '=', dto.grantee_user_id).executeTakeFirst();
+    if (!!dto.grantee_user_id === !!dto.grantee_email) {
+      throw new AppError(422, 'GRANTEE_REQUIRED', 'Indica la cuenta destinataria por su correo exacto.', [{ field: 'grantee_email', reason: 'indica uno solo' }]);
+    }
+    const granteeId = dto.grantee_email ? await this.resolverCorreo(user, orgId, dto.grantee_email, requestId) : dto.grantee_user_id!;
+    const destinatario = await this.db.selectFrom('users').select(['id', 'status']).where('id', '=', granteeId).executeTakeFirst();
     if (!destinatario) throw new AppError(422, 'REFERENCE_NOT_FOUND', 'La cuenta destinataria no existe.', [{ field: 'grantee_user_id', reason: 'no existe' }]);
     if (destinatario.status !== 'ACTIVE') throw new AppError(422, 'GRANTEE_NOT_ACTIVE', 'La cuenta destinataria no está activa.', [{ field: 'grantee_user_id', reason: destinatario.status }]);
     if (destinatario.id === user.id) throw new AppError(422, 'GRANT_TO_SELF', 'No tiene sentido concederte acceso a ti mismo.', [{ field: 'grantee_user_id', reason: 'es quien concede' }]);
@@ -102,12 +114,12 @@ export class AccessGrantsService {
         const previa = await trx.selectFrom('access_grants').select('id').where('organization_id', '=', orgId).where('operation_id', '=', dto.operation_id).executeTakeFirst();
         if (previa) return; // reintento idempotente
         await trx.insertInto('access_grants').values({
-          id, organization_id: orgId, grantee_user_id: dto.grantee_user_id, resource_type: dto.resource_type, resource_id: dto.resource_id,
+          id, organization_id: orgId, grantee_user_id: granteeId, resource_type: dto.resource_type, resource_id: dto.resource_id,
           can_read: quiereLeer, can_download: quiereDescargar, expires_at: vence, reason: dto.reason.trim(),
           granted_by: user.id, operation_id: dto.operation_id,
         }).execute();
         await this.audit.record(trx, { organizationId: orgId, actorUserId: user.id, action: 'grant.create', entityType: 'access_grant', entityId: id, requestId, result: 'SUCCESS',
-          after: { resource_type: dto.resource_type, resource_id: dto.resource_id, grantee_user_id: dto.grantee_user_id, can_read: quiereLeer, can_download: quiereDescargar, expires_at: vence.toISOString(), reason: dto.reason.trim() } });
+          after: { resource_type: dto.resource_type, resource_id: dto.resource_id, grantee_user_id: granteeId, can_read: quiereLeer, can_download: quiereDescargar, expires_at: vence.toISOString(), reason: dto.reason.trim() } });
       });
     } catch (e) {
       const c = (e as { constraint?: string }).constraint;
@@ -136,14 +148,60 @@ export class AccessGrantsService {
     return { grant: await this.verPorId(orgId, id) };
   }
 
+  /**
+   * Identifica al destinatario por su correo exacto SIN permitir enumerar cuentas: quien no encuentra a nadie recibe siempre la
+   * misma respuesta (no existe, está inactiva o no se puede conceder), cada fallo queda auditado sin guardar el correo en claro y
+   * cada persona tiene un máximo de intentos fallidos por hora.
+   */
+  private async resolverCorreo(user: AuthUser, orgId: string, correo: string, requestId?: string): Promise<string> {
+    const fallos = await sql<{ n: number }>`
+      SELECT count(*)::int AS n FROM audit_logs
+      WHERE organization_id = ${orgId} AND actor_user_id = ${user.id} AND action = 'grant.recipient_unavailable' AND occurred_at > now() - interval '1 hour'`.execute(this.db);
+    if ((fallos.rows[0]?.n ?? 0) >= 10) {
+      throw new AppError(429, 'TOO_MANY_ATTEMPTS', 'Demasiados intentos con destinatarios no disponibles. Espera un rato antes de volver a intentarlo.');
+    }
+    const email = correo.trim().toLowerCase();
+    const u = await sql<{ id: string }>`SELECT id FROM users WHERE lower(email) = ${email} AND status = 'ACTIVE' LIMIT 1`.execute(this.db);
+    if (!u.rows[0]) {
+      await this.audit.record(this.db, { organizationId: orgId, actorUserId: user.id, action: 'grant.recipient_unavailable', entityType: 'access_grant', entityId: null, requestId, result: 'DENIED',
+        after: { email_sha256_prefix: createHash('sha256').update(email).digest('hex').slice(0, 12) } });
+      throw new AppError(422, 'GRANTEE_NOT_AVAILABLE', 'No se pudo identificar una cuenta destinataria disponible con ese correo. Revisa que sea el correo exacto de una cuenta activa.', [{ field: 'grantee_email', reason: 'no disponible' }]);
+    }
+    return u.rows[0].id;
+  }
+
   async listar(user: AuthUser, orgId: string) {
     const ctx = await this.authz.require(user, orgId, 'grant:manage', { mutation: false });
-    const filas = await sql<{ id: string; grantee_user_id: string; grantee_email: string; resource_type: Tipo; resource_id: string; can_read: boolean; can_download: boolean; expires_at: string; revoked_at: string | null; reason: string }>`
-      SELECT g.id, g.grantee_user_id, u.email AS grantee_email, g.resource_type, g.resource_id, g.can_read, g.can_download,
-             g.expires_at::text, g.revoked_at::text, g.reason
+    const filas = await sql<{ id: string; grantee_user_id: string; grantee_email: string; resource_type: Tipo; resource_id: string; resource_label: string | null; can_read: boolean; can_download: boolean; expires_at: string; revoked_at: string | null; reason: string; created_at: string; granted_by_name: string | null; revoked_by_name: string | null; revoke_reason: string | null }>`
+      SELECT g.id, g.grantee_user_id, u.email AS grantee_email, g.resource_type, g.resource_id,
+             COALESCE(l.lot_code, s.shipment_code, CASE WHEN sn.id IS NOT NULL THEN c.case_number || ' · instantánea ' || sn.snapshot_number END) AS resource_label,
+             g.can_read, g.can_download, g.expires_at::text, g.revoked_at::text, g.reason, g.created_at::text,
+             NULLIF(trim(coalesce(gb.first_name, '') || ' ' || coalesce(gb.last_name, '')), '') AS granted_by_name,
+             NULLIF(trim(coalesce(rb.first_name, '') || ' ' || coalesce(rb.last_name, '')), '') AS revoked_by_name,
+             g.revoke_reason
       FROM access_grants g JOIN users u ON u.id = g.grantee_user_id
+      LEFT JOIN users gb ON gb.id = g.granted_by LEFT JOIN users rb ON rb.id = g.revoked_by
+      LEFT JOIN lots l ON g.resource_type = 'LOT' AND l.id = g.resource_id AND l.organization_id = g.organization_id
+      LEFT JOIN shipments s ON g.resource_type = 'SHIPMENT' AND s.id = g.resource_id AND s.organization_id = g.organization_id
+      LEFT JOIN dd_snapshots sn ON g.resource_type = 'DD_SNAPSHOT' AND sn.id = g.resource_id AND sn.organization_id = g.organization_id
+      LEFT JOIN dd_cases c ON c.id = sn.case_id
       WHERE g.organization_id = ${ctx.organizationId} ORDER BY g.created_at DESC`.execute(this.db);
     return { grants: filas.rows.map((g) => ({ ...g, estado: this.estado(g) })) };
+  }
+
+  /** Recursos que ESTA persona puede compartir: solo los que puede leer (no se concede lo que no se tiene). Sin comodines. */
+  async compartibles(user: AuthUser, orgId: string, tipo: string) {
+    const ctx = await this.authz.require(user, orgId, 'grant:manage', { mutation: false });
+    if (!['LOT', 'SHIPMENT', 'DD_SNAPSHOT'].includes(tipo)) throw new AppError(422, 'VALIDATION_FAILED', 'Tipo de recurso no admitido.', [{ field: 'type', reason: 'LOT, SHIPMENT o DD_SNAPSHOT' }]);
+    const t = tipo as Tipo;
+    if (!ctx.permissions.includes(LECTURA[t])) return { type: t, available: false, items: [], note: 'No puedes compartir este tipo de recurso: no tienes permiso para leerlo.' };
+    const org = ctx.organizationId;
+    const items = t === 'LOT'
+      ? (await sql<{ id: string; label: string; detail: string }>`SELECT l.id, l.lot_code AS label, p.name || ' · ' || l.status AS detail FROM lots l JOIN products p ON p.id = l.product_id WHERE l.organization_id = ${org} ORDER BY l.created_at DESC LIMIT 200`.execute(this.db)).rows
+      : t === 'SHIPMENT'
+        ? (await sql<{ id: string; label: string; detail: string }>`SELECT s.id, s.shipment_code AS label, s.destination_country || ' · ' || s.status AS detail FROM shipments s WHERE s.organization_id = ${org} ORDER BY s.created_at DESC LIMIT 200`.execute(this.db)).rows
+        : (await sql<{ id: string; label: string; detail: string }>`SELECT sn.id, c.case_number || ' · instantánea ' || sn.snapshot_number AS label, sn.readiness AS detail FROM dd_snapshots sn JOIN dd_cases c ON c.id = sn.case_id WHERE sn.organization_id = ${org} ORDER BY sn.created_at DESC LIMIT 200`.execute(this.db)).rows;
+    return { type: t, available: true, items, note: items.length === 200 ? 'Se muestran los 200 más recientes.' : null };
   }
 
   private estado(g: { expires_at: string; revoked_at: string | null }) {
@@ -306,6 +364,12 @@ export class AccessGrantsController {
   @Get()
   listar(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string) {
     return this.service.listar(u, o);
+  }
+
+  @Get('shareable')
+  @ApiOperation({ summary: 'Recursos que puedes compartir (A-02)', description: 'Solo los de tu organización que tú puedes leer. Sin búsqueda de destinatarios.' })
+  compartibles(@CurrentUser() u: AuthUser, @Param('orgId', ParseUUIDPipe) o: string, @Query('type') tipo: string) {
+    return this.service.compartibles(u, o, tipo);
   }
 
   @Post(':id/revoke')

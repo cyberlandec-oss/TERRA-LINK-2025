@@ -225,3 +225,13 @@ la extracción de cualquier documento por su identificador; ahora se verifica el
 de los documentos `FIELD_PHOTO` (dato personal) **solo** cuando el titular (la parcela) está en el alcance propio del productor vinculado: el alcance por titular se comprueba
 al consultar el documento y al obtener su contenido; no concede `producer:read_identity`, ni lectura de otras fotografías de la organización; retirar el vínculo corta el acceso al instante.
 Auditor, comprador y técnicos sin identidad siguen sin acceso al contenido. El polígono por vértices y la importación GeoJSON admiten `plot:update_own` (antes devolvían 403 al productor).
+
+## Ampliación autorizada A-02 (2026-10-21): administración web de concesiones
+
+La pantalla `/organizaciones/{id}/concesiones` **no crea permisos**: usa `grant:manage` (hoy solo ORG_ADMIN) y, además, solo ofrece recursos que quien concede **puede leer**
+(`lot:read`, `shipment:read`, `dd:read`; la API lo impone con `GRANT_BEYOND_GRANTOR`). Una concesión sigue sin crear membresía ni roles, no da propiedad ni capacidad de modificar y proyecta solo
+códigos, estados y agregados (sin identidad de productores, geometrías, documentos personales ni economía). El destinatario se identifica por **correo exacto**, sin buscador ni lista de cuentas u organizaciones;
+no disponible = inexistente = inactivo (misma respuesta), con intentos fallidos auditados (`grant.recipient_unavailable`, sin el correo en claro) y limitados a 10 por hora y persona.
+Recorrido: propietario otorga (revisión + confirmación) → destinatario consulta lo autorizado en `/compartido` → propietario revoca (motivo obligatorio) → el acceso se pierde al instante. Quien no es miembro recibe 404.
+
+**Traspaso entre organizaciones (A-03)**: los permisos `transfer:*` de `docs/decisiones/A03-TRASPASO-ENTRE-ORGANIZACIONES.md` §5.1 son una **propuesta**; no existen en el catálogo.

@@ -165,3 +165,18 @@ anterior: eran correctas con el catálogo que se conocía entonces.
 ## Condiciones de cierre
 
 Una historia incluye permisos, validación, persistencia, API, auditoría, errores y prueba del resultado. UI/móvil/offline aplican según alcance. Si falta prueba de dispositivo, regulatoria o integración externa, se registra como gate pendiente; no se declara producto listo por porcentajes de avance.
+
+### Ampliaciones autorizadas A-02 y A-03 (2026-10-21): administración web de concesiones y contrato de traspaso entre organizaciones
+
+Instrucciones del propietario del producto, **posteriores a la documentación original y a A-01**. **No alteran ningún criterio original** ni los de A-01, y **no entran en el conteo 42/60 ni 30/44**
+(ni modifican el denominador) hasta que el propietario lo decida. La recomendación que las originó vino del recorrido integral web (`docs/qa/RECORRIDO_INTEGRAL_WEB_2026-10-21.md`, T14 y T15).
+
+| ID | Requisito | Historia | Restricción |
+| --- | --- | --- | --- |
+| RF-49 | Administración **web** de concesiones externas de lectura: consultar vigentes, vencidas y revocadas; elegir el recurso que se comparte (lote, embarque o instantánea de diligencia); identificar al destinatario sin enumerar usuarios ni organizaciones; revisar el alcance; otorgar con confirmación; consultar el estado y revocar | A-02 | Reutiliza la API, el permiso `grant:manage` y la auditoría existentes; la pantalla **no amplía permisos**; compartir lectura no concede propiedad, modificación ni identidad, geometrías o economía; vencimiento obligatorio |
+| RF-50 | **Contrato** de traspaso entre organizaciones (transferencia física y cambio de custodia de lotes), distinto de la concesión de lectura y de la compraventa jurídica | A-03 | Primero **propuesta** en las fuentes responsables (`docs/decisiones/A03-TRASPASO-ENTRE-ORGANIZACIONES.md`); **no se implementan movimientos** hasta que el propietario decida; no se resuelve cambiando `organization_id` ni copiando inventario sin movimientos trazables |
+
+Aceptación de A-02 (propuesta de ingeniería): (1) lista con estados ACTIVA/VENCIDA/REVOCADA, recurso con su código, destinatario, alcance, vigencia, quién concedió y revocó y por qué;
+(2) recursos compartibles limitados a lo que la persona puede leer; (3) destinatario identificado por su correo exacto, sin buscador ni lista, con respuesta indistinguible para «no existe» y
+«no disponible»; (4) revisión del alcance y confirmación antes de otorgar; (5) revocar con motivo y efecto inmediato; (6) recorrido propietario → destinatario → revocación → pérdida de
+acceso, con rechazos por recurso y organización ajenos; (7) español e inglés, teclado y 390 px.

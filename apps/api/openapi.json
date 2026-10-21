@@ -3637,6 +3637,39 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/access-grants/shareable": {
+      "get": {
+        "description": "Solo los de tu organización que tú puedes leer. Sin búsqueda de destinatarios.",
+        "operationId": "AccessGrantsController_compartibles",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Recursos que puedes compartir (A-02)",
+        "tags": [
+          "Autorización"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/access-grants/{id}/revoke": {
       "post": {
         "operationId": "AccessGrantsController_revocar",
@@ -12241,7 +12274,11 @@
           },
           "grantee_user_id": {
             "type": "string",
-            "description": "Cuenta destinataria, existente y activa. No se crea ni se invita desde aquí."
+            "description": "Cuenta destinataria, existente y activa. No se crea ni se invita desde aquí. Alternativa a `grantee_email`."
+          },
+          "grantee_email": {
+            "type": "string",
+            "description": "Correo EXACTO de la cuenta destinataria (alternativa a `grantee_user_id`). No hay búsqueda ni lista: si no se puede identificar una cuenta activa, la respuesta es la misma."
           },
           "resource_type": {
             "type": "string",
@@ -12273,7 +12310,6 @@
         },
         "required": [
           "operation_id",
-          "grantee_user_id",
           "resource_type",
           "resource_id",
           "expires_at",

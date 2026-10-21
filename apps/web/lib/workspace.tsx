@@ -119,6 +119,8 @@ function navFor(ws: Workspace, orgId: string | null, t: (es: string) => string):
     }
     if (ws.can('import:manage')) admin.push({ href: `${base}/importaciones`, label: t('Importar datos (Excel)'), match: (p) => p.startsWith(`${base}/importaciones`) });
     if (ws.can('location:manage')) admin.push({ href: `${base}/centros`, label: t('Centros de acopio'), match: (p) => p.startsWith(`${base}/centros`) });
+    // A-02: administración de concesiones externas de lectura. Estar en el menú no concede `grant:manage`; la API decide.
+    if (ws.can('grant:manage')) admin.push({ href: `${base}/concesiones`, label: t('Concesiones'), match: (p) => p.startsWith(`${base}/concesiones`) });
     if (ws.can('audit:read')) admin.push({ href: `${base}/auditoria`, label: t('Auditoría'), match: (p) => p.startsWith(`${base}/auditoria`) });
     if (ws.can('events:reprocess')) admin.push({ href: `${base}/entregas-eventos`, label: t('Entregas de eventos'), match: (p) => p.startsWith(`${base}/entregas-eventos`) });
     // P1-008: destinos de integración y resultado de cada entrega. Leerlo exige `integration:read`;

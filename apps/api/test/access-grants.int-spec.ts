@@ -478,4 +478,68 @@ describeDb('P0-003 concesiones externas: alcance, vencimiento, revocación, clas
     expect(d.text).not.toContain('DERIVED');
     await revocar(g.id).expect(201);
   });
+
+  // ------------------------------------------------------------------------------------------------ A-02: administración web
+  it('A-02 identificar al destinatario por correo exacto: sin enumeración, respuesta única, intentos auditados y limitados', async () => {
+    const nuevoLote = await crearLote(orgA, ADMIN, 'CW');
+    // Correo exacto (sin distinguir mayúsculas): concede igual que por identificador.
+    const ok = await conceder({ grantee_email: EXTERNO.toUpperCase(), resource_type: 'LOT', resource_id: nuevoLote, expires_at: futuro(), reason: 'Concesión por correo exacto' }).expect(201);
+    expect(ok.body.grant.grantee_user_id).toBe(externoId);
+    // Exactamente uno de los dos.
+    expect((await conceder({ resource_type: 'LOT', resource_id: nuevoLote, expires_at: futuro(), reason: 'Sin destinatario' }).expect(422)).body.error.code).toBe('GRANTEE_REQUIRED');
+    expect((await conceder({ grantee_email: EXTERNO, grantee_user_id: externoId, resource_type: 'LOT', resource_id: nuevoLote, expires_at: futuro(), reason: 'Ambos' }).expect(422)).body.error.code).toBe('GRANTEE_REQUIRED');
+    // Cuenta inexistente e inactiva: la MISMA respuesta (no es un oráculo de existencia).
+    await sql`INSERT INTO users (id, email, password_hash, first_name, last_name, status) SELECT gen_random_uuid(), 'inactiva-a02@test.local', password_hash, 'In', 'Activa', 'INACTIVE' FROM users WHERE email = ${EXTERNO}`.execute(h.db);
+    const noExiste = await conceder({ grantee_email: 'nadie-a02@test.local', resource_type: 'LOT', resource_id: nuevoLote, expires_at: futuro(), reason: 'No existe' }).expect(422);
+    const inactiva = await conceder({ grantee_email: 'inactiva-a02@test.local', resource_type: 'LOT', resource_id: nuevoLote, expires_at: futuro(), reason: 'Inactiva' }).expect(422);
+    expect(noExiste.body.error.code).toBe('GRANTEE_NOT_AVAILABLE');
+    expect(inactiva.body.error.code).toBe(noExiste.body.error.code);
+    expect(inactiva.body.error.message).toBe(noExiste.body.error.message);
+    // Auditado sin el correo en claro.
+    const aud = await sql<{ after: unknown }>`SELECT after FROM audit_logs WHERE action = 'grant.recipient_unavailable' AND organization_id = ${orgA}`.execute(h.db);
+    expect(aud.rows.length).toBeGreaterThanOrEqual(2);
+    expect(JSON.stringify(aud.rows)).not.toMatch(/nadie-a02|inactiva-a02/);
+  });
+
+  it('A-02 recursos compartibles y lista enriquecida: solo lo propio, con código, estado y responsables', async () => {
+    const lote2 = await crearLote(orgA, ADMIN, 'CX');
+    const compartibles = (await http().get(`${base(orgA)}/access-grants/shareable?type=LOT`).set(as(ADMIN)).expect(200)).body;
+    expect(compartibles.available).toBe(true);
+    const ids = compartibles.items.map((i: { id: string }) => i.id);
+    expect(ids).toContain(lote2);
+    expect(ids).not.toContain(loteB);                                          // un lote de otra organización jamás se ofrece
+    expect((await http().get(`${base(orgA)}/access-grants/shareable?type=PLOT`).set(as(ADMIN))).status).toBe(422);
+    // Sin grant:manage no hay lista, ni recursos compartibles, ni concesiones.
+    for (const u of [TEC]) {
+      expect((await http().get(`${base(orgA)}/access-grants`).set(as(u))).status).toBe(403);
+      expect((await http().get(`${base(orgA)}/access-grants/shareable?type=LOT`).set(as(u))).status).toBe(403);
+    }
+    expect((await http().get(`${base(orgA)}/access-grants/shareable?type=LOT`).set(as(ADMIN_B))).status).toBe(404);   // ADMIN_B no es miembro de orgA: ni siquiera sabe que existe
+    const g = (await conceder({ grantee_email: EXTERNO, resource_type: 'LOT', resource_id: lote2, expires_at: futuro(2), reason: 'Revisión A-02' }).expect(201)).body.grant;
+    const fila = (await http().get(`${base(orgA)}/access-grants`).set(as(ADMIN)).expect(200)).body.grants.find((x: { id: string }) => x.id === g.id);
+    expect(fila).toMatchObject({ estado: 'ACTIVA', can_read: true, can_download: false, grantee_email: EXTERNO });
+    expect(fila.resource_label).toMatch(/^LOT-/);
+    expect(fila.granted_by_name).toBeTruthy();
+    expect(fila.created_at).toBeTruthy();
+    // Otra organización no ve ni revoca la concesión.
+    expect((await http().get(`${base(orgB)}/access-grants`).set(as(ADMIN_B)).expect(200)).body.grants.map((x: { id: string }) => x.id)).not.toContain(g.id);
+    expect((await http().post(`${base(orgB)}/access-grants/${g.id}/revoke`).set(as(ADMIN_B)).send({ operation_id: randomUUID(), reason: 'Intento ajeno' })).status).toBe(404);
+    // Propietario → destinatario → revocación → pérdida de acceso.
+    const v = (await leerConcedido(g.id).expect(200)).body;
+    expect(JSON.stringify(v)).not.toMatch(/coordinates|legal_name|document_number|precio|price|amount|importe/i);   // sin identidad, geometrías ni economía
+    await http().post(`${base(orgA)}/access-grants/${g.id}/revoke`).set(as(ADMIN)).send({ operation_id: randomUUID(), reason: 'Fin de la revisión' }).expect(201);
+    await leerConcedido(g.id).expect(404);
+    const tras = (await http().get(`${base(orgA)}/access-grants`).set(as(ADMIN)).expect(200)).body.grants.find((x: { id: string }) => x.id === g.id);
+    expect(tras).toMatchObject({ estado: 'REVOCADA', revoke_reason: 'Fin de la revisión' });
+    expect(tras.revoked_by_name).toBeTruthy();
+  });
+
+  it('A-02 límite de intentos con destinatarios no disponibles: 10 por hora y persona; después espera (sin revelar nada nuevo)', async () => {
+    const nuevoLote = await crearLote(orgA, ADMIN, 'CZ');
+    let ultimo = 0;
+    for (let i = 0; i < 12; i++) ultimo = (await conceder({ grantee_email: `nadie-${i}-a02@test.local`, resource_type: 'LOT', resource_id: nuevoLote, expires_at: futuro(), reason: 'Intento' })).status;
+    expect(ultimo).toBe(429);
+    // Otra persona de la organización o el mismo flujo por identificador no quedan afectados por el límite.
+    await conceder({ grantee_user_id: externoId, resource_type: 'LOT', resource_id: nuevoLote, expires_at: futuro(), reason: 'Por identificador' }).expect(201);
+  });
 });

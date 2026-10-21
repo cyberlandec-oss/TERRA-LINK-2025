@@ -129,3 +129,10 @@ Operaciones largas responden 202 y job autorizado: `PENDING/RUNNING/SUCCEEDED/FA
 - `GET …/documents/{id}` y `…/versions/{vid}/content`: para `FIELD_PHOTO` el contenido lo entrega `producer:read_identity` **o** `document:read_field_photo_own` con el titular en alcance propio; si no, `CONTENT_RESTRICTED` (403) o 404 fuera de alcance.
 - `POST …/plots/{plotId}/polygon-drafts` y `…/geometry-imports` admiten `plot:update_own`.
 - Cartografía: no es parte de la API de negocio. Es el servicio local `maps` (`GET /estilo.json`, `/metadata.json`, `/tiles/ecuador.pmtiles` por rangos, `/fonts/{pila}/{rango}.pbf`), sin autenticación porque solo sirve datos públicos de OpenStreetMap y no recibe datos de Terra Link.
+
+### Concesiones: administración web (A-02, 2026-10-21)
+- `POST /organizations/{orgId}/access-grants` admite `grantee_email` (correo exacto, sin distinguir mayúsculas) **o** `grantee_user_id` (exactamente uno; si no, 422 `GRANTEE_REQUIRED`). Sin cuenta activa identificable:
+  422 `GRANTEE_NOT_AVAILABLE` con el mismo mensaje para «no existe» e «inactiva»; más de 10 fallos por hora y persona → 429 `TOO_MANY_ATTEMPTS`; cada fallo se audita como `grant.recipient_unavailable` con un prefijo de huella, no el correo.
+- `GET …/access-grants` añade `resource_label` (código del lote, del embarque o «DD-… · instantánea n»), `created_at`, `granted_by_name`, `revoked_by_name` y `revoke_reason`.
+- `GET …/access-grants/shareable?type=LOT|SHIPMENT|DD_SNAPSHOT` → `{ type, available, items:[{id,label,detail}], note }`: solo recursos de la organización que quien consulta puede leer (`available:false` si no tiene la lectura). Requiere `grant:manage`.
+- Sin cambios: vencimiento obligatorio y futuro, `POST …/revoke` con motivo, `/granted` para el destinatario.

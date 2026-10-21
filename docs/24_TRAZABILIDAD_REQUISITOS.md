@@ -47,3 +47,10 @@ Propuestas adicionales rastreables: outbox y ledger (ADR-0003), membresías/gran
 | docs/14 workflow 6 («compartir información autorizada») entre organizaciones | — | — | T15 | **NO DEFINIDO** (traspaso de lotes entre organizaciones; pantalla de concesiones del propietario): decisión del producto, no implementado |
 
 Fuera del conteo 42/60 y 30/44; no altera A-01 ni la aceptación externa pendiente.
+
+## Ampliaciones autorizadas A-02 y A-03 (2026-10-21)
+
+| Fuente | Requisito | Historia | QA | Estado |
+| --- | --- | --- | --- | --- |
+| Instrucción del propietario (2026-10-21), tras el recorrido integral web (T14) | RF-49 | A-02 | 02/04/07 | **EN DESARROLLO**; fuera del conteo 42/60 y 30/44. No altera P1-001 |
+| Instrucción del propietario (2026-10-21), tras el recorrido integral web (T15) | RF-50 | A-03 | 07/12 | **PROPUESTA** (sin implementación); fuera del conteo |
