@@ -5,6 +5,8 @@
 | **D-05.A · perfil técnico de intercambio** | **ADOPTADO como regla provisional para desarrollo local** (2026-10-15, instrucción del responsable de producto). Implementado como `EUDR_GEO_V1`. **No** es validación en campo ni aprobación para producción |
 | **D-05.B · aplicabilidad jurídica** | **PENDIENTE.** Necesita un responsable regulatorio |
 
+> **Material de revisión de D-05.B (2026-10-21)**: `docs/decisiones/D-05B-FICHA-REVISION-2026-10-21.md` (hechos por entidad, comprobación de las referencias normativas, preguntas Q1–Q8 y ficha). No cambia esta propuesta ni adopta nada.
+
 **Lo que la adopción de D-05.A NO hace**, y conviene leerlo antes de seguir:
 
 - **No acredita conformidad jurídica.** `MEETS_PROFILE` dice que el archivo está bien formado para una versión
