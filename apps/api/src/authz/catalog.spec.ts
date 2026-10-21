@@ -91,3 +91,25 @@ describe('catálogo RBAC', () => {
     expect([...perfiles][0]).toBe('true|true');
   });
 });
+
+describe('A-01: los permisos de captura propia no amplían responsabilidades ajenas a cada rol canónico', () => {
+  const OWN = ['producer:read_own', 'plot:read_own', 'plot:create_own', 'plot:update_own', 'document:read_field_photo_own'];
+  it('solo el Productor y la administración de la organización tienen alcance propio; ningún otro rol canónico lo recibe', () => {
+    for (const rol of ['MANAGER', 'FIELD_TECHNICIAN', 'AUDITOR', 'BUYER', 'RECEPTION_OPERATOR', 'QUALITY_OPERATOR', 'TRACEABILITY_MANAGER', 'EUDR_MANAGER', 'EXPORT_MANAGER']) {
+      expect(permissionsForRoles([rol]).filter((p) => OWN.includes(p))).toEqual([]);
+    }
+    expect(permissionsForRoles(['PRODUCER'])).toEqual(expect.arrayContaining(OWN));
+  });
+  it('vincular una cuenta a un productor (producer:link_self) es gestión de la organización: solo ORG_ADMIN; ni el Gerente ni el Productor ni el técnico', () => {
+    expect(permissionsForRoles(['ORG_ADMIN'])).toContain('producer:link_self');
+    for (const rol of ['MANAGER', 'PRODUCER', 'FIELD_TECHNICIAN', 'AUDITOR', 'BUYER', 'EUDR_MANAGER', 'TRACEABILITY_MANAGER']) expect(permissionsForRoles([rol])).not.toContain('producer:link_self');
+  });
+  it('capturar coordenadas no concede evaluar GIS, encargar satélite, revisar documentos, aprobar evidencias ni ver riesgo al Productor', () => {
+    const p = permissionsForRoles(['PRODUCER']);
+    for (const prohibido of ['plot:evaluate_gis', 'plot:evaluate_gis_assigned', 'satellite:request', 'document:review', 'evidence:review', 'evidence:approve', 'risk:read', 'risk:evaluate', 'dd:read', 'producer:read_identity', 'producer:read']) expect(p).not.toContain(prohibido);
+  });
+  it('el Gerente conserva sus permisos de gestión de productores y parcelas (captura cuando le corresponde) sin la vinculación de cuentas', () => {
+    const m = permissionsForRoles(['MANAGER']);
+    expect(m).toEqual(expect.arrayContaining(['producer:read', 'producer:create', 'producer:update', 'plot:read', 'plot:create', 'plot:update', 'plot:read_geometry']));
+  });
+});

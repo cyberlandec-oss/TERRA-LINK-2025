@@ -247,6 +247,8 @@ Se detectó un ciclo: P0-012 dependía de P0-011 completa; el criterio de transf
 
 Estado adicional `DONE_LOCAL`: criterios de la historia cumplidos con evidencia de pruebas locales (`npm run validate` aprobado + suites de la historia) y documentación al día. No requiere GitHub Actions. No equivale a producción ni a conformidad EUDR. Un criterio que dependa de una decisión no tomada o de un contrato inexistente deja la historia abierta solo si ese criterio forma parte de su aceptación; el resto de decisiones provisionales se registran sin bloquear. Estado vigente en docs/23.
 
+**Aclaración de alcance de A-01 (2026-10-21):** roles canónicos y permisos base intactos; A-01 añade capacidades a Productor (parcelas vinculadas), Técnico (asignados), Administrador (su organización) y Gerente (según sus permisos vigentes), sin facultades sobre otros módulos ni sobre satélite, evidencias o riesgo; la web no sustituye el ensayo físico móvil (pospuesto). Detalle y corrección del permiso `producer:link_self` del Gerente: `docs/07`.
+
 ## Ampliaciones autorizadas A-02 y A-03 (2026-10-21)
 
 | ID | Resultado | Dependencia | Estado |

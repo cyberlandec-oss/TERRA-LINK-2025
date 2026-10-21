@@ -212,7 +212,7 @@ se vincula a un solo productor de su misma organización (índice único y dispa
 | Productor (vinculado) | Elegir su parcela, escribir coordenadas, dibujar sobre el mapa (o croquis), usar el polígono por vértices y la importación GeoJSON, revisar, guardar, corregir con motivo, adjuntar evidencias y fotografías, **consultar y descargar las fotografías de sus parcelas**, consultar sus versiones | Solo sus parcelas, documentos y evidencias; 404 ante lo ajeno; no evalúa GIS, no encarga satélite, no ve riesgo ni miembros, no aprueba evidencias |
 | Técnico de campo | Lo mismo sobre parcelas de productores **asignados** (la extracción documental ahora también respeta la asignación) | Sin parcelas de productores no asignados; sin evaluación GIS fuera de sus permisos previos |
 | Administrador de organización | Todo el recorrido sobre la organización; vincula productor–usuario; encarga satélite (ensayo) | Su organización |
-| Gerente | Según sus permisos de gestión (lee la organización completa; vincula productor–usuario) | Sin captura propia adicional |
+| Gerente | Según sus permisos de gestión **vigentes** (lee la organización completa y gestiona productores y parcelas como ya podía). **No vincula cuentas a productores** (corrección del 2026-10-21, ver «Aclaración de alcance») | Sin captura propia adicional ni administración de accesos |
 | Auditor | Consulta autorizada | Sin captura: la revisión previa y la confirmación devuelven 403 |
 | Comprador | Nada de parcelas por su rol | 403 |
 
@@ -225,6 +225,27 @@ la extracción de cualquier documento por su identificador; ahora se verifica el
 de los documentos `FIELD_PHOTO` (dato personal) **solo** cuando el titular (la parcela) está en el alcance propio del productor vinculado: el alcance por titular se comprueba
 al consultar el documento y al obtener su contenido; no concede `producer:read_identity`, ni lectura de otras fotografías de la organización; retirar el vínculo corta el acceso al instante.
 Auditor, comprador y técnicos sin identidad siguen sin acceso al contenido. El polígono por vértices y la importación GeoJSON admiten `plot:update_own` (antes devolvían 403 al productor).
+
+### Aclaración de alcance del propietario (2026-10-21) y contraste con el catálogo
+**Alcance autorizado.** La documentación raíz sigue gobernando el proyecto: se conservan los **roles canónicos, sus responsabilidades y sus permisos base**; la ampliación de captura geográfica **no crea roles alternativos ni redistribuye funciones**. A-01 añade capacidades **concretas a los roles existentes**:
+| Rol canónico | Capacidad que añade A-01 |
+| --- | --- |
+| Productor/agricultor | Captura y consulta **sobre sus parcelas vinculadas** |
+| Técnico de campo | Captura sobre productores y parcelas **asignados** (sin permisos nuevos: usa los de asignación que ya tenía) |
+| Administrador de organización | Gestión dentro de su organización (incluye vincular cuentas a productores) |
+| Gerente | Captura cuando corresponda a sus permisos y responsabilidades **vigentes** (sin permisos de captura nuevos) |
+Estos permisos adicionales **no conceden facultades generales sobre otros módulos**. Capturar coordenadas **no** concede ejecutar análisis satelitales, aprobar evidencias ni concluir riesgo: esas acciones conservan su autorización específica.
+**Separación.** La captura web permite preparar parcelas y demostrar el recorrido de evaluación satelital sin esperar al teléfono. Se conservan **separados** el mapa base, la geometría capturada y el resultado satelital; los escenarios locales siguen identificados como **ensayo** y no habilitan decisiones operativas.
+**App móvil.** Conserva su alcance original. Su **ensayo físico sigue pospuesto**; la web **no sustituye** esa aceptación ni permite cerrar sus criterios pendientes (P0-023/P0-024).
+
+**Contraste (2026-10-21): ¿modificó A-01 permisos o responsabilidades ajenas a su alcance?** Comparación exacta del catálogo efectivo por rol entre `1859aa0` (antes de A-01) y `4913dd3` (cierre de A-01), ignorando A-03:
+| Rol | Permisos añadidos por A-01 | ¿Dentro del alcance aclarado? |
+| --- | --- | --- |
+| PRODUCER | `producer:read_own`, `plot:read_own`, `plot:create_own`, `plot:update_own`, `document:read_field_photo_own`; además `plot:read_geometry`, `document:read`, `document:upload` | **Sí.** Los tres últimos son «la puerta de entrada»; el alcance real lo fija el titular (parcela o productor propios) y **no** da lectura general: lo comprueban las pruebas «SOLO LO PROPIO», «LA PARCELA AJENA NO SE TOCA» y «CAPTURAR NO ES DECIDIR» (sin evaluar GIS, sin revisar documentos, sin encargar satélite, sin ver riesgo) |
+| ORG_ADMIN | `producer:link_self`, `producer:read_own`, `document:read_field_photo_own`, `plot:read_own`, `plot:create_own`, `plot:update_own` | **Sí** (gestión dentro de su organización) |
+| FIELD_TECHNICIAN | Ninguno | **Sí** (usa los permisos de asignación que ya tenía) |
+| **MANAGER** | **`producer:link_self`** | **No.** Vincular una cuenta a un productor otorga a esa cuenta acceso a sus parcelas y fotografías (dato personal): es **administración de accesos**, no captura, y el Gerente no tenía gestión de membresías. Excedía la aclaración («Gerente: captura cuando corresponda a sus permisos vigentes») |
+**Corrección.** Se retira `producer:link_self` del Gerente. **Se conservan** todas las capacidades autorizadas: el Gerente mantiene los permisos de gestión de productores y parcelas que ya tenía (captura cuando le corresponde), y la vinculación sigue disponible para la administración de la organización. Ningún otro rol cambia. Prueba: `src/authz/catalog.spec.ts` («A-01: los permisos de captura propia no amplían responsabilidades ajenas…») y las suites `a01-alcance-propio`, `rbac`, `members`, `producers`. La corrección es un cambio funcional de autorización: se confirma como candidato propio y se valida una vez (`docs/qa/EVIDENCIA_GEOLOCATION_PROFILE_I1I4_2026-10-21.md`).
 
 ## Ampliación autorizada A-02 (2026-10-21): administración web de concesiones
 
