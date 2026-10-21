@@ -29,6 +29,7 @@ import { LotsController, LotsService } from './lots/lots';
 import { InventoryController, InventoryService } from './inventory/inventory';
 import { RiskController, RiskService } from './risk/risk';
 import { RiskProfileLinkController, RiskProfileLinkService } from './risk/risk-profile-link';
+import { LegalProfileReviewController, LegalProfileReviewService } from './legal/legal-profile-review';
 import { MitigationsController, MitigationsService } from './mitigations/mitigations';
 import { DdController, DdService } from './dd/dd';
 import { ShipmentsController, ShipmentsService } from './shipments/shipments';
@@ -205,7 +206,7 @@ export class AppModule implements NestModule {
       module: AppModule,
       controllers: [
         HealthController, VersionController, ObservabilityController, OperationsAlertsController, OperationsOrgAlertsController,
-        RiskProfileLinkController, LegalProfileController, LegalAssessmentsController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
+        RiskProfileLinkController, LegalProfileReviewController, LegalProfileController, LegalAssessmentsController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
         MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, GeoProfileController, ProductsController, CteController, KdeController, PublicReferencesController, AccessGrantsController, GrantedController, PlatformElevationController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, OnboardingController, ExchangeController, SimulationController, CostController, HistoryController, EconomicsController, AnalyticsController, ExtractionController, LimitsController, PlatformCostController, SsoController, WebhookController, ShipmentsController, CustodyTransfersController, SatelliteController, ReportsController, EntityReportsController,
       ],
       providers: [
@@ -259,7 +260,7 @@ export class AppModule implements NestModule {
         DeliveriesService,
         LotsService,
         InventoryService,
-        RiskService, RiskProfileLinkService,
+        RiskService, RiskProfileLinkService, LegalProfileReviewService,
         MitigationsService,
         DdService,
         ShipmentsService,

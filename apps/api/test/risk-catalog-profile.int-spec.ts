@@ -29,9 +29,14 @@ describeDb('RISK_CATALOG_APPROVED y perfil 0.2.0', () => {
     await sql`INSERT INTO risk_rules (rule_set_version, code, category, condition_kind, inputs, effect, explanation, limit_note, evidence_required, source, depends_on, severity)
       SELECT ${version}, code, category, condition_kind, inputs, effect, explanation, limit_note, evidence_required, source, depends_on, severity FROM risk_rules WHERE rule_set_version = '1.0.0'`.execute(trx);
   });
-  const revision = (version: string, decision: 'REVIEWED' | 'OBJECTED' | 'WITHDRAWN') => sql`
-    INSERT INTO legal_profile_reviews (id, version, decision, reviewer_id, reviewer_capacity, basis, operation_id)
-    VALUES (${randomUUID()}, ${version}, ${decision}, ${revisor}, 'FIXTURE SINTÉTICA DE PRUEBA', 'Fixture sintética: no acredita ninguna revisión jurídica real', ${randomUUID()})`.execute(h.db);
+  const revision = async (version: string, decision: 'REVIEWED' | 'OBJECTED' | 'WITHDRAWN') => {
+    const id = randomUUID();
+    await h.db.transaction().execute(async (trx) => {
+      await sql`INSERT INTO legal_profile_reviews (id, version, decision, reviewer_id, reviewer_name, reviewer_capacity, reviewed_on, basis, operation_id)
+        VALUES (${id}, ${version}, ${decision}, ${revisor}, 'Persona sintética de prueba', 'FIXTURE SINTÉTICA DE PRUEBA', CURRENT_DATE, 'Fixture sintética: no acredita ninguna revisión jurídica real', ${randomUUID()})`.execute(trx);
+      await sql`INSERT INTO legal_profile_review_supports (id, review_id, version, kind, citation) VALUES (${randomUUID()}, ${id}, ${version}, 'CITATION', 'Cita sintética de prueba')`.execute(trx);
+    });
+  };
   const perfil = (version: string, scope: 'PARTIAL' | 'COMPLETE', status: 'DRAFT' | 'PUBLISHED') => sql`
     INSERT INTO legal_profile_versions (version, jurisdiction, scope, scope_note, covered_matters, pending_matters, technical_status, published_by, reason)
     VALUES (${version}, 'EC', ${scope}, 'Fixture sintética de prueba, sin valor jurídico', ARRAY['TENURE'],

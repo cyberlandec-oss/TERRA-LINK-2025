@@ -689,6 +689,8 @@ export interface LegalProfileVersionsTable {
 export interface LegalProfileReviewsTable {
   id: string; version: string; decision: 'REVIEWED' | 'OBJECTED' | 'WITHDRAWN';
   reviewer_id: string; reviewer_capacity: string; basis: string;
+  /** Persona revisora DECLARADA; `reviewer_id` es quien REGISTRÓ el acto (0062). */
+  reviewer_name: string; reviewed_on: string;
   decided_at: Generated<Timestamp>; operation_id: string;
 }
 export interface LegalProfileSourcesTable {

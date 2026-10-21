@@ -30,10 +30,12 @@ describeDb('D-07.5(b) b-1: acto de vinculación del catálogo con un perfil revi
         ${scope === 'COMPLETE' ? sql`ARRAY[]::text[]` : sql`ARRAY['LABOUR']`}, ${over.status ?? 'PUBLISHED'}, 'fixture', 'fixture sintética')`.execute(h.db);
   };
   const revision = async (version: string, decision: 'REVIEWED' | 'OBJECTED' | 'WITHDRAWN') => {
-    const id = randomUUID();
-    await sql`INSERT INTO legal_profile_reviews (id, version, decision, reviewer_id, reviewer_capacity, basis, operation_id)
-      VALUES (${id}, ${version}, ${decision}, ${revisor}, 'FIXTURE SINTÉTICA DE PRUEBA', 'Fixture sintética: no acredita ninguna revisión jurídica real', ${randomUUID()})`.execute(h.db);
-    return id;
+    // Por el camino REAL de la API (acto de plataforma), con datos sintéticos: no se escribe en la base a mano.
+    const actual = (await sql<{ id: string }>`SELECT id::text FROM legal_profile_reviews WHERE version = ${version} ORDER BY decided_at DESC, id DESC LIMIT 1`.execute(h.db)).rows[0]?.id ?? null;
+    const r = await http().post('/api/v1/platform/legal-profile/reviews').set(as(SUPER)).send({
+      operation_id: randomUUID(), version, decision, reviewer_name: 'Persona sintética de prueba', reviewer_capacity: 'FIXTURE SINTÉTICA DE PRUEBA', reviewed_on: new Date().toISOString().slice(0, 10),
+      basis: 'Fixture sintética: no acredita ninguna revisión jurídica real', supports: [{ kind: 'CITATION', citation: 'Cita sintética de prueba' }], expected_current_review_id: actual }).expect(201);
+    return r.body.review.id as string;
   };
   const vincular = (over: Record<string, unknown> = {}, actor = SUPER) => http().post(P).set(as(actor)).send({
     operation_id: randomUUID(), base_rule_set_version: '1.0.0', new_rule_set_version: '1.1.0', profile_version: '9.9.9',

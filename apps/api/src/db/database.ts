@@ -63,6 +63,7 @@ import * as m0058 from './migrations/0058_a03_traspaso_custodia';
 import * as m0059 from './migrations/0059_catalogo_riesgo_perfil_referencia';
 import * as m0060 from './migrations/0060_p1005_perfil_0_2_0_borrador';
 import * as m0061 from './migrations/0061_d075b_vinculacion_catalogo_perfil';
+import * as m0062 from './migrations/0062_p1005_acto_revision_perfil';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -127,6 +128,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0059_catalogo_riesgo_perfil_referencia': m0059,
   '0060_p1005_perfil_0_2_0_borrador': m0060,
   '0061_d075b_vinculacion_catalogo_perfil': m0061,
+  '0062_p1005_acto_revision_perfil': m0062,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

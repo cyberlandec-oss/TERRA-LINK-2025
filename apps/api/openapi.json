@@ -258,6 +258,52 @@
         ]
       }
     },
+    "/api/v1/platform/legal-profile/reviews": {
+      "get": {
+        "operationId": "LegalProfileReviewController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "operationId": "LegalProfileReviewController_record",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/legal-profile/catalog": {
       "get": {
         "description": "Versiones, fuentes y reglas CANDIDATAS. Una regla en DRAFT no es una regla aprobada.",
@@ -12293,6 +12339,81 @@
           "reason"
         ]
       },
+      "SupportDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "document_version_id": {
+            "type": "string"
+          },
+          "evidence_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id"
+        ]
+      },
+      "RecordReviewDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "description": "Versión EXACTA del perfil (x.y.z)"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "REVIEWED",
+              "OBJECTED",
+              "WITHDRAWN"
+            ]
+          },
+          "reviewer_name": {
+            "type": "string",
+            "description": "Persona revisora declarada (puede no tener cuenta en la plataforma)"
+          },
+          "reviewer_capacity": {
+            "type": "string",
+            "description": "Cargo o capacidad declarada"
+          },
+          "reviewed_on": {
+            "type": "string",
+            "description": "Fecha de la revisión (YYYY-MM-DD); no puede ser futura"
+          },
+          "basis": {
+            "type": "string",
+            "description": "Fundamento de la decisión"
+          },
+          "supports": {
+            "description": "Fuentes y soporte. REVIEWED exige al menos uno",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupportDto"
+            }
+          },
+          "expected_current_review_id": {
+            "type": "object",
+            "nullable": true,
+            "description": "Revisión que quien registra veía como vigente (null si no había ninguna). Si ya no lo es, se rechaza: no se pisa a ciegas"
+          }
+        },
+        "required": [
+          "operation_id",
+          "version",
+          "decision",
+          "reviewer_name",
+          "reviewer_capacity",
+          "reviewed_on",
+          "basis",
+          "supports"
+        ]
+      },
       "AdoptarDto": {
         "type": "object",
         "properties": {}
@@ -13593,23 +13714,6 @@
         },
         "required": [
           "expected_version"
-        ]
-      },
-      "SupportDto": {
-        "type": "object",
-        "properties": {
-          "operation_id": {
-            "type": "string"
-          },
-          "document_version_id": {
-            "type": "string"
-          },
-          "evidence_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "operation_id"
         ]
       },
       "CloseDeliveryDto": {

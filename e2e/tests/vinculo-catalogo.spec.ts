@@ -28,12 +28,13 @@ async function conDb<T>(fn: (db: Client) => Promise<T>) {
   await db.connect();
   try { return await fn(db); } finally { await db.end(); }
 }
-const revisionSintetica = (decision: 'REVIEWED' | 'OBJECTED') => conDb(async (db) => {
-  const u = (await db.query(`SELECT id FROM users WHERE email = $1`, [SUPER_EMAIL])).rows[0].id;
-  await db.query(
-    `INSERT INTO legal_profile_reviews (id, version, decision, reviewer_id, reviewer_capacity, basis, operation_id) VALUES ($1, '8.8.8', $2, $3, 'FIXTURE SINTÉTICA DE PRUEBA', 'Fixture sintética: no acredita ninguna revisión jurídica real', $4)`,
-    [randomUUID(), decision, u, randomUUID()]);
-});
+// Por el camino REAL de la API (acto de plataforma) con datos SINTÉTICOS: no se escribe la revisión en la base a mano.
+const revisionSintetica = async (decision: 'REVIEWED' | 'OBJECTED') => {
+  const actual = await conDb(async (db) => (await db.query(`SELECT id FROM legal_profile_reviews WHERE version = '8.8.8' ORDER BY decided_at DESC, id DESC LIMIT 1`)).rows[0]?.id ?? null);
+  await api('/api/v1/platform/legal-profile/reviews', { method: 'POST', token: tokenSuper, body: {
+    operation_id: randomUUID(), version: '8.8.8', decision, reviewer_name: 'Persona sintética de prueba', reviewer_capacity: 'FIXTURE SINTÉTICA DE PRUEBA',
+    reviewed_on: new Date().toISOString().slice(0, 10), basis: 'Fixture sintética: no acredita ninguna revisión jurídica real', supports: [{ kind: 'CITATION', citation: 'Cita sintética de prueba' }], expected_current_review_id: actual } });
+};
 
 test('preparación: sesión de plataforma', async () => {
   tokenSuper = (await api('/api/v1/auth/login', { method: 'POST', body: { email: SUPER_EMAIL, password: process.env.E2E_SUPER_PASSWORD } })).access_token;
@@ -106,7 +107,7 @@ test('inglés y 390 px: mismos textos traducidos, sin códigos internos y sin de
   await expect(fila).toContainText('No longer valid');
   await expect(fila).toContainText('The latest review decision is "objected".');
   // Lo que falta de cada perfil se ve SIN desplazar la tabla: queda dentro del ancho de 390 px.
-  const razon = page.getByRole('table', { name: 'Legal profiles and their eligibility' }).getByText('The latest review decision is "objected".');
+  const razon = page.getByRole('table', { name: 'Legal profiles and their eligibility' }).getByText('The latest review decision is "objected".').first();
   await expect(razon).toBeVisible();
   const caja = await razon.boundingBox();
   expect(caja!.x + caja!.width).toBeLessThanOrEqual(391);

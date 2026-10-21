@@ -346,8 +346,12 @@ describeDb('P1-005 perfil jurídico revisable', () => {
   it('FIXTURE SINTÉTICA: ni siquiera una revisión jurídica vuelve suficiente un perfil PARCIAL', async () => {
     const revisor = (await sql<{ id: string }>`SELECT id FROM users WHERE email = ${ADMIN_A}`.execute(h.db)).rows[0].id;
     // Se escribe DIRECTAMENTE en la base: no existe endpoint, y así debe seguir hasta que haya una decisión.
-    await sql`INSERT INTO legal_profile_reviews (id, version, decision, reviewer_id, reviewer_capacity, basis, operation_id)
-      VALUES (${randomUUID()}, '0.1.0', 'REVIEWED', ${revisor}, 'FIXTURE SINTÉTICA DE PRUEBA', 'Fixture sintética: no acredita ninguna revisión jurídica real', ${randomUUID()})`.execute(h.db);
+    const rid = randomUUID();
+    await h.db.transaction().execute(async (trx) => {
+      await sql`INSERT INTO legal_profile_reviews (id, version, decision, reviewer_id, reviewer_name, reviewer_capacity, reviewed_on, basis, operation_id)
+        VALUES (${rid}, ${'0.1.0'}, ${'REVIEWED'}, ${revisor}, 'Persona sintética de prueba', 'FIXTURE SINTÉTICA DE PRUEBA', CURRENT_DATE, 'Fixture sintética: no acredita ninguna revisión jurídica real', ${randomUUID()})`.execute(trx);
+      await sql`INSERT INTO legal_profile_review_supports (id, review_id, version, kind, citation) VALUES (${randomUUID()}, ${rid}, ${'0.1.0'}, 'CITATION', 'Cita sintética de prueba')`.execute(trx);
+    });
     const estado = await perfilDeOrganizacion(h.db, orgA);
     expect(estado?.legal_review_status).toBe('REVIEWED');
     // Y aun así sigue siendo PARCIAL: el alcance no se arregla revisando.
@@ -356,8 +360,8 @@ describeDb('P1-005 perfil jurídico revisable', () => {
   });
 
   it('la revisión jurídica exige responsable identificado y fundamento: la base lo impone', async () => {
-    await expect(sql`INSERT INTO legal_profile_reviews (id, version, decision, reviewer_id, reviewer_capacity, basis, operation_id)
-      VALUES (${randomUUID()}, '0.1.0', 'REVIEWED', NULL, 'x', 'y', ${randomUUID()})`.execute(h.db)).rejects.toThrow();
+    await expect(sql`INSERT INTO legal_profile_reviews (id, version, decision, reviewer_id, reviewer_name, reviewer_capacity, reviewed_on, basis, operation_id)
+      VALUES (${randomUUID()}, '0.1.0', 'REVIEWED', NULL, 'Persona', 'x', CURRENT_DATE, 'y', ${randomUUID()})`.execute(h.db)).rejects.toThrow();
   });
 
   // ---------------------------------------------------------------- cobertura del SUJETO

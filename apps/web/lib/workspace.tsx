@@ -131,6 +131,7 @@ function navFor(ws: Workspace, orgId: string | null, t: (es: string) => string):
     if (admin.length) groups.push({ title: t('Administración'), items: admin });
   }
   const general: NavItem[] = [{ href: '/organizaciones', label: ws.isPlatformAdmin ? t('Organizaciones (plataforma)') : t('Mis organizaciones'), match: (p) => p === '/organizaciones' }];
+  if (ws.isPlatformAdmin) general.push({ href: '/plataforma/perfil-juridico', label: t('Revisión de perfiles jurídicos'), match: (p) => p.startsWith('/plataforma/perfil-juridico') });
   if (ws.isPlatformAdmin) general.push({ href: '/plataforma/catalogo-riesgo', label: t('Catálogo de riesgo y perfil jurídico'), match: (p) => p.startsWith('/plataforma/catalogo-riesgo') });
   general.push({ href: '/cuenta', label: t('Mi cuenta'), match: (p) => p.startsWith('/cuenta') });
   groups.push({ title: ws.isPlatformAdmin ? t('Plataforma') : t('General'), items: general });
