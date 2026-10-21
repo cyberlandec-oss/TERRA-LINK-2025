@@ -448,6 +448,8 @@ Consecuencia técnica registrada: `TRANSFER_DISPATCH_GATE` bloquea por defecto. 
 
 ### Paquetes de revisión de los bloqueos regulatorios y de proveedor (2026-10-21)
 
+> **Actualización (2026-10-21): el punto de entrada único es `decisiones/INDICE-REVISION-REGULATORIA.md`** (documento y versión por revisar, preguntas, hechos por organización, registro de la respuesta y efecto técnico; qué aporta el propietario y qué exige la revisión competente). La tabla de abajo se conserva como referencia histórica; no la dupliques.
+
 Los cuatro paquetes están **preparados en sus fuentes responsables**; esta tabla solo los enlaza y separa **quién decide**. Preparar un paquete **no es decidirlo** ni cambia ningún porcentaje, estado de requisito, compuerta o `UNDETERMINED`.
 
 | Bloqueo | Paquete (fuente responsable) | Decide el **propietario** | Decide un **revisor competente** |
