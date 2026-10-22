@@ -13,6 +13,7 @@ import { TRASPASO_TABLAS } from './traspasos';
 import { GEO_PANEL_TABLAS } from './geo-eval-panel';
 import { VINCULO_TABLAS } from './vinculo-catalogo';
 import { REVISION_TABLAS } from './revision-perfil';
+import { GEO_CONFIG_TABLAS } from './geo-config';
 
 // P1-015 / D-54 — Español fuente, inglés segunda lengua (ADR-0007, opción B).
 const PANTALLAS = [
@@ -30,6 +31,7 @@ const PANTALLAS = [
   // D-07.5(b) b-1: vinculación del catálogo de riesgo con un perfil jurídico
   'app/plataforma/catalogo-riesgo/page.tsx',
   'app/plataforma/perfil-juridico/page.tsx',
+  'app/plataforma/geolocalizacion/page.tsx', 'app/organizaciones/[id]/geolocalizacion/page.tsx',
 ];
 
 describe('internacionalización', () => {
@@ -57,6 +59,7 @@ describe('internacionalización', () => {
       ...Object.values(GEO_PANEL_TABLAS.PENDING_LABEL), ...Object.values(GEO_PANEL_TABLAS.REQ_LABEL),
       ...Object.values(VINCULO_TABLAS).flatMap((t) => Object.values(t)),
       ...Object.values(REVISION_TABLAS).flatMap((t) => Object.values(t)),
+      ...Object.values(GEO_CONFIG_TABLAS).flatMap((t) => Object.values(t)),
     ];
     expect(valores.filter((v) => !(v in EN))).toEqual([]);
   });

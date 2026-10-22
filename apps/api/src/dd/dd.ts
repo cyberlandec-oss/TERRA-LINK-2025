@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Req, Res } from '@nestjs/common';
 import { coberturaDeSujetos, perfilDeOrganizacion } from '../legal/legal-profile';
+import { geoConfigContent } from '../geo/geo-config';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsString, IsUUID, Length } from 'class-validator';
 import { randomUUID } from 'crypto';
@@ -164,6 +165,9 @@ export class DdService {
     const legalProfile = perfilAdoptado
       ? { ...perfilAdoptado, subjects: await coberturaDeSujetos(db as Kysely<Database>, ctx.organizationId, [...new Set(plots.map((p) => p.plot_id))]) }
       : null;
+    // GEOLOCATION_PROFILE: la configuración de reglas adoptada, su revisión vigente, su aplicabilidad y las evaluaciones vigentes del perfil técnico por
+    // versión de parcela. null si la organización no adoptó ninguna (el contenido y su hash quedan como antes).
+    const geolocationProfile = await geoConfigContent(db as Kysely<Database>, ctx.organizationId, plots.map((p) => ({ plot_id: p.plot_id, version_id: p.version_id ?? null })));
     return {
       subject: { type: 'LOT', id: lot.id, code: lot.lot_code, product: lot.product, unit: lot.unit, origin_status: lot.origin_status },
       quantities: { ...q, unit: lot.unit, source: 'ledger (stock_entries)' },
@@ -173,7 +177,7 @@ export class DdService {
       // P1-005: el perfil adoptado **y la cobertura del sujeto**. Las dos cosas, porque el catálogo por sí
       // solo no dice si ESTE lote tiene resueltas sus obligaciones. Hoy el perfil es parcial y sin revisión
       // jurídica, así que LEGAL_PROFILE queda PENDING y READY sigue bloqueado.
-      profiles: { legal_profile: legalProfile, geolocation_profile: null, satellite_provider: satelliteProfile },
+      profiles: { legal_profile: legalProfile, geolocation_profile: geolocationProfile, satellite_provider: satelliteProfile },
     };
   }
 

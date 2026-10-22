@@ -51,8 +51,27 @@ export interface DdContent {
        */
       subjects: Array<{ plot_id: string; assessed_version: string | null; unresolved: string[]; not_satisfied: string[]; stale_evidence: string[]; foreign_evidence: string[] }>;
     };
-    geolocation_profile: string | null; satellite_provider: string | null;
+    /**
+     * GEOLOCATION_PROFILE: la CONFIGURACIÓN versionada que la organización adoptó, con la revisión que la sustenta, su aplicabilidad y los
+     * datos (evaluación vigente del perfil técnico por versión de parcela) con que se evalúa. `null` = ninguna configuración adoptada.
+     * Es un objeto —no un texto— para que ninguna etiqueta pueda dar MET. Entra en el contenido de la instantánea: cambiar la configuración,
+     * su revisión o una evaluación la deja desactualizada sin reescribirla.
+     */
+    geolocation_profile: null | GeoConfigContent;
+    satellite_provider: string | null;
   };
+}
+
+export interface GeoConfigContent {
+  config_version: string;
+  /** Perfil técnico para el que se redactó la configuración y el vigente del sistema: deben coincidir. */
+  technical_profile: { id: string; version: string; current_version: string };
+  /** Revisión VIGENTE de ESTA configuración (la última): no es la revisión del perfil jurídico. */
+  review: { id: string | null; decision: 'REVIEWED' | 'OBJECTED' | 'WITHDRAWN' | null };
+  /** La persona revisora declaró aplicable la configuración a esta organización. Revisada ≠ aplicable a todas. */
+  applicable_to_organization: boolean;
+  rules: Array<{ code: string; kind: string; status: 'ACTIVE' | 'CANDIDATE' }>;
+  plots: Array<{ plot_id: string; plot_version_id: string | null; evaluation_id: string | null; evaluated_profile_version: string | null; status: 'MEETS_PROFILE' | 'DOES_NOT_MEET' | 'REVIEW_REQUIRED' | 'NOT_EVALUABLE' | null }>;
 }
 
 export interface Requirement { code: string; label: string; status: ReqStatus; detail: string; source: string; references: string[] }
@@ -62,6 +81,51 @@ export const canonical = (v: unknown): string => Array.isArray(v) ? `[${v.map(ca
 export const sha256 = (v: unknown) => createHash('sha256').update(typeof v === 'string' ? v : canonical(v)).digest('hex');
 
 const dec = (s: string) => Number(s); // solo para comparar signo; las cantidades se conservan como texto decimal
+
+/**
+ * `GEOLOCATION_PROFILE` (requisito original, D-05.B Q4): aplica las reglas de la CONFIGURACIÓN versionada que la organización adoptó. Sin configuración
+ * válida, revisión vigente, aplicabilidad declarada o datos suficientes NO es evaluable (o queda pendiente) y dice qué falta. Que la configuración esté
+ * revisada no demuestra que aplique a todas las organizaciones; que una geometría cumpla el formato técnico tampoco basta: la regla activa exige además la
+ * configuración revisada y aplicable. Las reglas CANDIDATAS (interpretaciones pendientes) nunca se aplican, y mientras existan impiden MET: no se inventan
+ * umbrales ni condiciones jurídicas. Es una condición técnica, no una conclusión regulatoria ni `READY`.
+ */
+export function geolocationRequirement(g: DdContent['profiles']['geolocation_profile']): [ReqStatus, string, string, string[]?] {
+  const SRC = 'docs/22 D-05.B; ficha D-05.B Q4';
+  if (!g) return ['NOT_EVALUABLE', 'La organización no ha adoptado ninguna configuración de geolocalización (reglas versionadas): no hay criterio de «satisfecho» que aplicar. Una configuración candidata sin revisión no se aplica sola.', SRC];
+  const v = `Configuración ${g.config_version}`;
+  if (g.technical_profile.version !== g.technical_profile.current_version) {
+    return ['NOT_EVALUABLE', `${v}: se redactó para ${g.technical_profile.id} ${g.technical_profile.version} y el perfil técnico vigente es ${g.technical_profile.current_version}; se necesita una versión nueva de la configuración.`, SRC];
+  }
+  if (g.review.decision !== 'REVIEWED') {
+    const why = g.review.decision === null ? 'no tiene ninguna revisión registrada' : `su última revisión es «${g.review.decision === 'OBJECTED' ? 'objetada' : 'retirada'}»`;
+    return ['NOT_EVALUABLE', `${v}: ${why}; sin revisión vigente favorable no se aplica.`, SRC];
+  }
+  if (!g.applicable_to_organization) {
+    return ['NOT_EVALUABLE', `${v}: está revisada, pero la revisión NO la declara aplicable a esta organización (aplicabilidad no resuelta para la entidad y la operación). Revisada no significa aplicable a todas.`, SRC];
+  }
+  const candidatas = g.rules.filter((x) => x.status === 'CANDIDATE').map((x) => x.code);
+  const activas = g.rules.filter((x) => x.status === 'ACTIVE');
+  if (!activas.length) return ['NOT_EVALUABLE', `${v}: no tiene ninguna regla activa que aplicar.`, SRC];
+  if (!g.plots.length) return ['NOT_EVALUABLE', `${v}: el lote no tiene parcelas de origen sobre las que evaluar la geolocalización.`, SRC];
+  const refs = g.plots.map((p) => p.plot_id);
+  const incumple = g.plots.filter((p) => p.status === 'DOES_NOT_MEET');
+  if (incumple.length) return ['INVALID', `${v}: ${incumple.length} parcela(s) de origen NO cumplen el perfil técnico vigente.`, SRC, incumple.map((p) => p.plot_id)];
+  const noEvaluable = g.plots.filter((p) => p.status === 'NOT_EVALUABLE' && p.evaluated_profile_version !== null);
+  if (noEvaluable.length) return ['NOT_EVALUABLE', `${v}: ${noEvaluable.length} parcela(s) con evaluación vigente no evaluable (faltan datos de la geometría).`, SRC, noEvaluable.map((p) => p.plot_id)];
+  const sinVigente = g.plots.filter((p) => p.evaluation_id === null || p.status === null || p.evaluated_profile_version !== g.technical_profile.current_version);
+  const revisar = g.plots.filter((p) => p.status === 'REVIEW_REQUIRED');
+  if (sinVigente.length || revisar.length) {
+    const motivos = [
+      ...(sinVigente.length ? [`${sinVigente.length} parcela(s) sin evaluación vigente del perfil técnico (ausente o de una versión anterior)`] : []),
+      ...(revisar.length ? [`${revisar.length} parcela(s) que requieren revisión humana`] : []),
+    ];
+    return ['PENDING', `${v}: ${motivos.join('; ')}.`, SRC, [...new Set([...sinVigente, ...revisar].map((p) => p.plot_id))]];
+  }
+  if (candidatas.length) {
+    return ['PENDING', `${v}: las ${g.plots.length} parcela(s) cumplen la regla activa, pero la configuración conserva reglas CANDIDATAS sin resolver (${candidatas.join(', ')}); no se aplican ni se deducen sus datos, y mientras existan el criterio de «satisfecho» no está completo.`, SRC, refs];
+  }
+  return ['MET', `${v}, revisión vigente favorable y aplicable a esta organización: las ${g.plots.length} parcela(s) de origen tienen una evaluación vigente del perfil técnico ${g.technical_profile.id} ${g.technical_profile.current_version} que cumple las reglas activas. Es una condición técnica: no es una conclusión regulatoria ni habilita READY por sí sola.`, SRC, refs];
+}
 
 /**
  * `RISK_CATALOG_APPROVED`: `regulatory_profile` es una REFERENCIA, no una etiqueta. Solo cuenta si resuelve contra el
@@ -110,7 +174,7 @@ export function evaluateRequirements(c: DdContent): Requirement[] {
       : unknown.length ? r('GEOMETRY_TECHNICAL', 'Geometría vigente técnicamente válida', 'PENDING', 'Parcela(s) sin geometría vigente o sin evaluación técnica: no se presume válida.', 'docs/13 GEOMETRY_INVALID', unknown)
         : r('GEOMETRY_TECHNICAL', 'Geometría vigente técnicamente válida', 'MET', 'Sin invalidez técnica (TL_GIS_TECH). No es análisis de deforestación.', 'docs/13 GEOMETRY_INVALID', c.plots.map((p) => p.plot_code)));
   }
-  out.push(r('GEOLOCATION_PROFILE', 'Perfil de geolocalización aplicable', c.profiles.geolocation_profile ? 'MET' : 'NOT_EVALUABLE', c.profiles.geolocation_profile ?? 'Depende de D-05 (no aprobada): no puede evaluarse.', 'docs/22 D-05'));
+  out.push(r('GEOLOCATION_PROFILE', 'Perfil de geolocalización aplicable', ...geolocationRequirement(c.profiles.geolocation_profile)));
   out.push(r('DEFORESTATION_ANALYSIS', 'Análisis de deforestación con cobertura', c.profiles.satellite_provider ? 'MET' : 'NOT_EVALUABLE', c.profiles.satellite_provider ?? 'Sin proveedor satelital (P0-028): no evaluado. Sin alertas no prueba ausencia de deforestación.', 'docs/13 SATELLITE_COVERAGE_UNKNOWN'));
   // 3) Calidad (operativa; no es requisito regulatorio ni aprobación).
   if (!c.quality.length) out.push(r('QUALITY_DECIDED', 'Calidad decidida en las recepciones', 'NOT_EVALUABLE', 'Sin recepciones en el grafo.', 'D-33 MVP (calidad pendiente)'));

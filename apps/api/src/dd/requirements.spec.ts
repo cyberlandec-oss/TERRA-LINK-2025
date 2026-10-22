@@ -1,4 +1,11 @@
-import { buildPackage, evaluateRequirements, readinessOf, sha256, summary, type DdContent } from './requirements';
+import { buildPackage, evaluateRequirements, readinessOf, sha256, summary, type DdContent, type GeoConfigContent } from './requirements';
+
+// Configuración de geolocalización SINTÉTICA, revisada, aplicable y con todas las reglas activas: solo para ejercitar el requisito.
+const GEO_OK: GeoConfigContent = {
+  config_version: '9.9.9', technical_profile: { id: 'EUDR_GEO_V1', version: '1.0.0', current_version: '1.0.0' },
+  review: { id: 'r1', decision: 'REVIEWED' }, applicable_to_organization: true, rules: [{ code: 'GEO-TECH-PROFILE', kind: 'GEO_TECH_PROFILE', status: 'ACTIVE' }],
+  plots: [{ plot_id: 'p1', plot_version_id: 'pv1', evaluation_id: 'e1', evaluated_profile_version: '1.0.0', status: 'MEETS_PROFILE' }],
+};
 
 // FIXTURE SINTÉTICA: todos los requisitos se fuerzan a cumplidos SOLO para probar el generador y los guards.
 // No representa un expediente real ni aprobado; los perfiles se rellenan con textos de prueba explícitos.
@@ -20,7 +27,7 @@ const SYNTHETIC: DdContent = {
   // D-34.A.1: el vínculo se satisface con un ítem de embarque con reserva ACTIVA (fixture sintética).
   shipment_links: [{ shipment_id: 's1', shipment_code: 'EMB-SINT-1', shipment_status: 'DRAFT', item_id: 'i1', reservation_id: 'r1', lot_id: 'l1', quantity: '100', unit: 'KG', location_id: 'loc1' }],
   // Perfil SINTÉTICO completo y revisado: solo así READY puede llegar a evaluarse en esta fixture.
-  profiles: { legal_profile: { version: '9.9.9', scope: 'COMPLETE', legal_review_status: 'REVIEWED', pending_matters: [], subjects: [{ plot_id: 'p1', assessed_version: '9.9.9', unresolved: [], not_satisfied: [], stale_evidence: [], foreign_evidence: [] }] }, geolocation_profile: 'PERFIL SINTÉTICO DE PRUEBA', satellite_provider: 'PROVEEDOR SINTÉTICO DE PRUEBA' },
+  profiles: { legal_profile: { version: '9.9.9', scope: 'COMPLETE', legal_review_status: 'REVIEWED', pending_matters: [], subjects: [{ plot_id: 'p1', assessed_version: '9.9.9', unresolved: [], not_satisfied: [], stale_evidence: [], foreign_evidence: [] }] }, geolocation_profile: GEO_OK, satellite_provider: 'PROVEEDOR SINTÉTICO DE PRUEBA' },
 };
 const st = (c: DdContent, code: string) => evaluateRequirements(c).find((r) => r.code === code)?.status;
 
@@ -245,5 +252,59 @@ describe('RISK_CATALOG_APPROVED: regulatory_profile es una referencia revisada, 
     expect(st(parcial, 'RISK_CATALOG_APPROVED')).toBe('PENDING');
     expect(det(parcial)).toMatch(/PARCIAL/);
     expect(readinessOf(evaluateRequirements(parcial))).not.toBe('READY');
+  });
+});
+
+describe('GEOLOCATION_PROFILE: configuración versionada adoptada, revisada, aplicable y con datos vigentes', () => {
+  const con = (g: Partial<GeoConfigContent> | null) => ({ ...SYNTHETIC, profiles: { ...SYNTHETIC.profiles, geolocation_profile: g === null ? null : { ...GEO_OK, ...g } } }) as DdContent;
+  const req = (c: DdContent) => evaluateRequirements(c).find((x) => x.code === 'GEOLOCATION_PROFILE')!;
+  const plot = (over: Record<string, unknown>) => [{ ...GEO_OK.plots[0], ...over }] as GeoConfigContent['plots'];
+
+  it('CONTROL POSITIVO SINTÉTICO: revisada, aplicable, reglas activas y la parcela con evaluación vigente que cumple → MET (condición técnica, no READY)', () => {
+    expect(req(con({})).status).toBe('MET');
+    expect(req(con({})).detail).toMatch(/no es una conclusión regulatoria/);
+  });
+  it('sin configuración adoptada → NOT_EVALUABLE con explicación', () => {
+    expect(req(con(null)).status).toBe('NOT_EVALUABLE');
+    expect(req(con(null)).detail).toMatch(/no ha adoptado ninguna configuración/);
+  });
+  it('configuración sin revisión, objetada o retirada → NOT_EVALUABLE; el motivo es concreto', () => {
+    expect(req(con({ review: { id: null, decision: null } })).detail).toMatch(/ninguna revisión registrada/);
+    expect(req(con({ review: { id: 'r', decision: 'OBJECTED' } })).detail).toMatch(/objetada/);
+    expect(req(con({ review: { id: 'r', decision: 'WITHDRAWN' } })).detail).toMatch(/retirada/);
+    for (const d of [null, 'OBJECTED', 'WITHDRAWN'] as const) expect(req(con({ review: { id: null, decision: d } })).status).toBe('NOT_EVALUABLE');
+  });
+  it('revisada pero fuera de alcance (no declarada aplicable a esta organización) → NOT_EVALUABLE: revisada no significa aplicable a todas', () => {
+    const r = req(con({ applicable_to_organization: false }));
+    expect(r.status).toBe('NOT_EVALUABLE');
+    expect(r.detail).toMatch(/NO la declara aplicable/);
+  });
+  it('perfil técnico distinto del vigente → NOT_EVALUABLE (se necesita una versión nueva de la configuración)', () => {
+    const r = req(con({ technical_profile: { id: 'EUDR_GEO_V1', version: '1.0.0', current_version: '2.0.0' } }));
+    expect(r.status).toBe('NOT_EVALUABLE');
+    expect(r.detail).toMatch(/versión nueva/);
+  });
+  it('datos: parcela que no cumple → INVALID; evaluación ausente u obsoleta → PENDING; requiere revisión → PENDING; no evaluable → NOT_EVALUABLE; sin parcelas → NOT_EVALUABLE', () => {
+    expect(req(con({ plots: plot({ status: 'DOES_NOT_MEET' }) })).status).toBe('INVALID');
+    expect(req(con({ plots: plot({ evaluation_id: null, status: null, evaluated_profile_version: null }) })).status).toBe('PENDING');
+    expect(req(con({ plots: plot({ plot_version_id: null, evaluation_id: null, status: null, evaluated_profile_version: null }) })).status).toBe('PENDING');
+    expect(req(con({ plots: plot({ status: 'REVIEW_REQUIRED' }) })).status).toBe('PENDING');
+    expect(req(con({ plots: plot({ status: 'NOT_EVALUABLE' }) })).status).toBe('NOT_EVALUABLE');
+    expect(req(con({ plots: [] })).status).toBe('NOT_EVALUABLE');
+  });
+  it('que la geometría cumpla el formato técnico NO basta: sin configuración válida el resultado técnico no da MET', () => {
+    for (const g of [null, { review: { id: null, decision: null } }, { applicable_to_organization: false }] as const) {
+      expect(req(con(g as Partial<GeoConfigContent> | null)).status).not.toBe('MET');
+    }
+  });
+  it('reglas CANDIDATAS (período, país) nunca se aplican y impiden MET: PENDING y se listan; no se deduce nada', () => {
+    const r = req(con({ rules: [{ code: 'GEO-TECH-PROFILE', kind: 'GEO_TECH_PROFILE', status: 'ACTIVE' }, { code: 'GEO-PRODUCTION-PERIOD', kind: 'PRODUCTION_PERIOD', status: 'CANDIDATE' }] }));
+    expect(r.status).toBe('PENDING');
+    expect(r.detail).toContain('CANDIDATAS sin resolver (GEO-PRODUCTION-PERIOD)');
+    expect(req(con({ rules: [{ code: 'GEO-PRODUCTION-PERIOD', kind: 'PRODUCTION_PERIOD', status: 'CANDIDATE' }] })).status).toBe('NOT_EVALUABLE'); // ninguna regla activa
+  });
+  it('MET no habilita READY y el hash del contenido cambia con la revisión (obsolescencia de instantáneas)', () => {
+    expect(readinessOf(evaluateRequirements({ ...con({}), profiles: { ...con({}).profiles, satellite_provider: null } }))).not.toBe('READY');
+    expect(sha256(con({}))).not.toBe(sha256(con({ review: { id: 'r2', decision: 'OBJECTED' } })));
   });
 });

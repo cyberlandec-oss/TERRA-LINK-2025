@@ -97,6 +97,7 @@ function navFor(ws: Workspace, orgId: string | null, t: (es: string) => string):
     if (ws.can('dd:read')) trazabilidad.push({ href: `${base}/simulacion`, label: t('Simulación'), match: (p) => p.startsWith(`${base}/simulacion`) });
     // P1-005: el catálogo de perfiles es un catálogo de sistema, como los hitos CTE. Entrar no acredita nada:
     // el perfil es parcial y su revisión jurídica sigue pendiente.
+    if (ws.can('traceability:read_catalog')) trazabilidad.push({ href: `${base}/geolocalizacion`, label: t('Geolocalización: reglas'), match: (p) => p.startsWith(`${base}/geolocalizacion`) });
     if (ws.can('traceability:read_catalog')) trazabilidad.push({ href: `${base}/perfil-juridico`, label: t('Perfil jurídico'), match: (p) => p.startsWith(`${base}/perfil-juridico`) });
     // P1-006: intercambio con un registro externo. Solo para quien participa en él; la verificación del
     // canal no está aquí, es de plataforma.
@@ -131,6 +132,7 @@ function navFor(ws: Workspace, orgId: string | null, t: (es: string) => string):
     if (admin.length) groups.push({ title: t('Administración'), items: admin });
   }
   const general: NavItem[] = [{ href: '/organizaciones', label: ws.isPlatformAdmin ? t('Organizaciones (plataforma)') : t('Mis organizaciones'), match: (p) => p === '/organizaciones' }];
+  if (ws.isPlatformAdmin) general.push({ href: '/plataforma/geolocalizacion', label: t('Reglas de geolocalización'), match: (p) => p.startsWith('/plataforma/geolocalizacion') });
   if (ws.isPlatformAdmin) general.push({ href: '/plataforma/perfil-juridico', label: t('Revisión de perfiles jurídicos'), match: (p) => p.startsWith('/plataforma/perfil-juridico') });
   if (ws.isPlatformAdmin) general.push({ href: '/plataforma/catalogo-riesgo', label: t('Catálogo de riesgo y perfil jurídico'), match: (p) => p.startsWith('/plataforma/catalogo-riesgo') });
   general.push({ href: '/cuenta', label: t('Mi cuenta'), match: (p) => p.startsWith('/cuenta') });

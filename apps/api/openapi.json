@@ -193,6 +193,147 @@
         ]
       }
     },
+    "/api/v1/platform/geolocation-config/versions": {
+      "get": {
+        "operationId": "GeoConfigPlatformController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "operationId": "GeoConfigPlatformController_prepare",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/platform/geolocation-config/reviews": {
+      "post": {
+        "operationId": "GeoConfigPlatformController_review",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/geolocation-config/catalog": {
+      "get": {
+        "operationId": "GeoConfigOrgController_catalog",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "geolocation"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/geolocation-config/adoptions": {
+      "post": {
+        "operationId": "GeoConfigOrgController_adopt",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdoptDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "geolocation"
+        ]
+      }
+    },
     "/api/v1/platform/risk-catalog/profile-links/eligibility": {
       "get": {
         "operationId": "RiskProfileLinkController_eligibility",
@@ -12303,6 +12444,235 @@
       }
     },
     "schemas": {
+      "SourceDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "expected_version": {
+            "type": "number"
+          },
+          "document_version_id": {
+            "type": "string"
+          },
+          "relationship": {
+            "type": "string",
+            "enum": [
+              "SUPPORTS",
+              "CONTRADICTS",
+              "BASED_ON"
+            ]
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "expected_version",
+          "document_version_id",
+          "relationship"
+        ]
+      },
+      "RuleDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "GEO_TECH_PROFILE",
+              "PRODUCTION_PERIOD",
+              "PRODUCTION_COUNTRY"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "CANDIDATE"
+            ],
+            "description": "Solo GEO_TECH_PROFILE puede ser ACTIVE: período y país no están vinculados por parcela"
+          },
+          "source_code": {
+            "type": "string"
+          },
+          "article": {
+            "type": "string"
+          },
+          "criterion": {
+            "type": "string"
+          },
+          "proposed_interpretation": {
+            "type": "string"
+          },
+          "pending_questions": {
+            "type": "string",
+            "description": "Obligatoria en una CANDIDATE: qué falta para poder aplicarla"
+          }
+        },
+        "required": [
+          "code",
+          "kind",
+          "status",
+          "source_code",
+          "article",
+          "criterion"
+        ]
+      },
+      "PrepareConfigDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "technical_profile_version": {
+            "type": "string",
+            "description": "Versión del perfil técnico EUDR_GEO_V1 para la que se redacta; debe ser la vigente"
+          },
+          "scope_note": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceDto"
+            }
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuleDto"
+            }
+          }
+        },
+        "required": [
+          "operation_id",
+          "version",
+          "technical_profile_version",
+          "scope_note",
+          "reason",
+          "sources",
+          "rules"
+        ]
+      },
+      "SupportDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "document_version_id": {
+            "type": "string"
+          },
+          "evidence_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id"
+        ]
+      },
+      "ReviewConfigDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "REVIEWED",
+              "OBJECTED",
+              "WITHDRAWN"
+            ]
+          },
+          "reviewer_name": {
+            "type": "string"
+          },
+          "reviewer_capacity": {
+            "type": "string"
+          },
+          "reviewed_on": {
+            "type": "string"
+          },
+          "basis": {
+            "type": "string"
+          },
+          "supports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupportDto"
+            }
+          },
+          "applicable_organizations": {
+            "description": "ALCANCE DE APLICABILIDAD declarado: organizaciones a las que se declara aplicable. Vacío = revisada pero no aplicable a ninguna",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "applicability_note": {
+            "type": "string",
+            "description": "Operación y condiciones a las que se refiere la aplicabilidad declarada"
+          },
+          "expected_current_review_id": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "operation_id",
+          "version",
+          "decision",
+          "reviewer_name",
+          "reviewer_capacity",
+          "reviewed_on",
+          "basis",
+          "supports",
+          "applicable_organizations",
+          "applicability_note"
+        ]
+      },
+      "AdoptDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "ADOPT",
+              "WITHDRAW"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "version",
+          "decision",
+          "reason"
+        ]
+      },
       "LinkProfileDto": {
         "type": "object",
         "properties": {
@@ -12337,23 +12707,6 @@
           "profile_version",
           "review_id",
           "reason"
-        ]
-      },
-      "SupportDto": {
-        "type": "object",
-        "properties": {
-          "operation_id": {
-            "type": "string"
-          },
-          "document_version_id": {
-            "type": "string"
-          },
-          "evidence_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "operation_id"
         ]
       },
       "RecordReviewDto": {
@@ -13475,37 +13828,6 @@
           "acceptance_criteria",
           "assignee_membership_id",
           "due_date"
-        ]
-      },
-      "SourceDto": {
-        "type": "object",
-        "properties": {
-          "operation_id": {
-            "type": "string"
-          },
-          "expected_version": {
-            "type": "number"
-          },
-          "document_version_id": {
-            "type": "string"
-          },
-          "relationship": {
-            "type": "string",
-            "enum": [
-              "SUPPORTS",
-              "CONTRADICTS",
-              "BASED_ON"
-            ]
-          },
-          "note": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "operation_id",
-          "expected_version",
-          "document_version_id",
-          "relationship"
         ]
       },
       "DecisionDto": {
