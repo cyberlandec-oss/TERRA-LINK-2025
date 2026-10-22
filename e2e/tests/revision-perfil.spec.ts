@@ -50,6 +50,7 @@ test('preparación: sesión de plataforma y un perfil SINTÉTICO completo y publ
 test('los perfiles reales no tienen ninguna revisión; el perfil sintético tampoco; un borrador local NO es una revisión', async ({ browser }) => {
   const { ctx, page } = await abrir(browser);
   await expect(page.getByRole('heading', { name: 'Revisión de perfiles jurídicos', level: 1 })).toBeVisible();
+  await page.locator('#rv-version').selectOption('0.1.0'); // la base es compartida: otros specs pueden haber dejado perfiles sintéticos con revisión
   const opciones = page.locator('#rv-version option');
   await expect(opciones.filter({ hasText: '0.1.0' })).toContainText('Sin revisión');
   await expect(opciones.filter({ hasText: '0.2.0' })).toContainText('Sin revisión');

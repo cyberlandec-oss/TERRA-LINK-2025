@@ -2,14 +2,15 @@ import { expect, test, type Browser, type Locator } from '@playwright/test';
 import { randomBytes, randomUUID } from 'crypto';
 import { API_URL, SUPER_EMAIL } from '../env';
 
+// AISLAMIENTO: la base E2E es compartida y el perfil jurídico y el catálogo son GLOBALES (append-only): este spec usa versiones PROPIAS (perfil 7.7.0, catálogo 1.7.0), correos propios y deja el perfil objetado.
 // D-07.6 — conclusión humana del responsable EUDR desde la web. Datos SINTÉTICOS: el perfil jurídico «completo y revisado» y el catálogo vinculado son de ensayo (se crean por
 // la API de plataforma sobre un perfil sintético escrito en la base de prueba) y no aprueban nada real. Recorrido: consultar la evaluación y sus limitaciones → la favorable
 // explica qué falta → registrar una no favorable con el teclado → cumplir las condiciones sintéticas y registrar una favorable posterior (la anterior se conserva) → una objeción
 // del perfil la deja «ya no vigente». También: quien administra solo consulta y quien evaluó no concluye. Español, inglés, teclado y 390 px (inspeccionado antes de congelar).
 test.describe.configure({ mode: 'serial' });
 
-const ADMIN = { email: 'admin-conc@e2e.local', password: randomBytes(12).toString('base64url') };
-const EUDR = { email: 'eudr-conc@e2e.local', password: randomBytes(12).toString('base64url') };
+const ADMIN = { email: 'admin-conclusion-humana@e2e.local', password: randomBytes(12).toString('base64url') };
+const EUDR = { email: 'eudr-conclusion-humana@e2e.local', password: randomBytes(12).toString('base64url') };
 const tok: Record<string, string> = {};
 let org = ''; let lote = ''; let codigoLote = ''; let evaluacion = ''; let revisionPerfil = '';
 const hoy = new Date().toISOString().slice(0, 10);
@@ -124,9 +125,9 @@ test('condiciones SINTÉTICAS cumplidas (perfil revisado, catálogo vinculado y 
   await db.end();
   revisionPerfil = (await api('/api/v1/platform/legal-profile/reviews', { method: 'POST', token: tok.super, body: { operation_id: randomUUID(), version: '7.7.0', decision: 'REVIEWED', reviewer_name: 'Persona sintética', reviewer_capacity: 'Fixture', reviewed_on: hoy,
     basis: 'Fundamento sintético que no acredita ninguna revisión real', supports: [{ kind: 'CITATION', citation: 'Cita sintética' }], expected_current_review_id: null } })).review.id;
-  await api('/api/v1/platform/risk-catalog/profile-links', { method: 'POST', token: tok.super, body: { operation_id: randomUUID(), base_rule_set_version: '1.0.0', new_rule_set_version: '1.1.0', profile_version: '7.7.0', review_id: revisionPerfil, reason: 'Vinculación sintética de ensayo' } });
+  await api('/api/v1/platform/risk-catalog/profile-links', { method: 'POST', token: tok.super, body: { operation_id: randomUUID(), base_rule_set_version: '1.0.0', new_rule_set_version: '1.7.0', profile_version: '7.7.0', review_id: revisionPerfil, reason: 'Vinculación sintética de ensayo' } });
   await api(`${b}/legal-profile/adoptions`, { method: 'POST', token: tok.adminA, body: { operation_id: randomUUID(), version: '7.7.0', decision: 'ADOPT', reason: 'Adopción sintética' } });
-  await api(`${b}/risk/rule-sets/adoptions`, { method: 'POST', token: tok.adminA, body: { operation_id: randomUUID(), rule_set_version: '1.1.0', decision: 'ADOPT', reason: 'Adopción sintética' } });
+  await api(`${b}/risk/rule-sets/adoptions`, { method: 'POST', token: tok.adminA, body: { operation_id: randomUUID(), rule_set_version: '1.7.0', decision: 'ADOPT', reason: 'Adopción sintética' } });
   const stale = await abrir(browser, 'eudr');
   await expect(stale.page.locator('dl[aria-label="Evaluación"]').getByText('Desactualizada')).toBeVisible(); // cambió el catálogo que aplica: reevaluar
   await stale.ctx.close();

@@ -50,7 +50,7 @@ test('sin perfil elegible: explica qué falta de cada perfil y no ofrece confirm
   await expect(tabla.getByRole('row', { name: /^0\.2\.0/ })).toContainText('El perfil es un borrador (no publicado).');
   await expect(tabla.getByRole('row', { name: /^0\.2\.0/ })).toContainText('El perfil no tiene ninguna revisión jurídica registrada.');
   await expect(page.getByRole('button', { name: 'Registrar la vinculación' })).toHaveCount(0);
-  await expect(page.getByText('Todavía no se ha registrado ningún acto de vinculación.')).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Historial de vinculaciones' }).getByRole('row', { name: /^1\.1\.0/ })).toHaveCount(0); // aún no hay un acto propio (el historial global puede traer los de otros specs)
   await ctx.close();
 });
 
