@@ -16,5 +16,6 @@
     "build": "npm run build -w apps/api -w apps/web",
     "test:e2e": "npm run test -w e2e",
     "validate": "node scripts/validate-local.mjs"
-  }
+  },
+  "overrides": { "@nestjs/swagger": { "js-yaml": "5.5.0" } }
 }
