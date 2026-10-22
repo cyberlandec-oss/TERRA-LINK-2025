@@ -83,6 +83,9 @@ Monorepo npm (`apps/api` NestJS + Kysely, `apps/web` Next.js). Comandos verifica
 No ejecutes migraciones sobre producción, reinicios destructivos, borrado de volúmenes ni envíos regulatorios como parte de una tarea local.
 Trabaja en una rama de tarea; conserva cambios ajenos y solicita el dato o autorización faltante solo si bloquea una acción concreta.
 
+## Protocolo de trabajo continuo (adoptado 2026-10-22)
+Completa entregas enteras sin esperar «continúa» entre etapas (implementar → comprobar → validar una vez → desplegar en local → demostrar → respaldar si hay migración → documentar → siguiente tarea). Detalle, autorizaciones permanentes, límites, ciclo de diagnóstico y cuándo preguntar: **`docs/operacion/PROTOCOLO_TRABAJO_CONTINUO.md`**. Complementa —no sustituye— las reglas de este archivo; ante conflicto prevalecen CLAUDE.md y `.claude/rules/`. Las tareas bloqueadas por terceros se registran con su bloqueo concreto en `docs/sesiones/REANUDAR_2026-10-20.md` y se avanza con otra independiente.
+
 ## Documentación por tarea
 Dominio/datos: documentos 04–06. Autorización: 07. Eventos/API: 08–09.
 GIS/offline: 10–11. Evidencia/riesgo/DD: 12–13. UI: **`docs/UX_UI.md`** (identidad visual, tokens, componentes, estados, experiencia por rol; consultar antes de modificar cada pantalla) y 14 (workflows por rol). Integraciones: 15.
