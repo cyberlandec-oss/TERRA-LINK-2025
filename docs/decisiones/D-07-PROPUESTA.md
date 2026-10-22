@@ -777,3 +777,10 @@ No se asigna ningún permiso para «concluir» ni se cambian responsabilidades d
 | Frescura | La referencia histórica permanece. Si la revisión se objeta o retira, el historial marca el acto «ya no vigente», `RISK_CATALOG_APPROVED` pasa a pendiente y las instantáneas anteriores quedan **desactualizadas** (mecanismo existente) sin reescribirse |
 
 **Límites:** no hay ninguna versión real vinculada (no existe un perfil completo y revisado: `0.1.0` es parcial y sin revisión, `0.2.0` es borrador); la pantalla lo explica y no ofrece confirmar. El caso positivo está demostrado **solo con datos sintéticos aislados**. El acto no crea ni cambia reglas, no es una conclusión regulatoria y no hace `READY` alcanzable (siguen `GEOLOCATION_PROFILE`, `DEFORESTATION_ANALYSIS`, `LEGAL_PROFILE`, `SHIPMENT_LINK` y `REGULATORY_CONCLUSION`). **La etiqueta opcional de b-2 no se implementa.** Decisión de producto abierta dentro de esta implementación: se eligió el permiso de plataforma por ser el catálogo global; si se prefiriera otro responsable, es un cambio de permiso, no de modelo.
+
+## 14. D-07.6 resuelta e implementada (2026-10-22)
+
+Decisión del propietario: el rol responsable EUDR (`EUDR_MANAGER`) concluye con el permiso específico `risk:conclude`, en su organización.
+Implementada en las migraciones `0064`–`0065`; ver `qa/EVIDENCIA_D076_CONCLUSION_HUMANA_2026-10-22.md`. **Errata a §11.4:** el ejemplo S1 de criterio favorable allí descrito era una
+propuesta de ingeniería, no un criterio original; el criterio vigente (resolución explícita de cada carencia, fuentes: Reg. (UE) 2023/1115
+arts. 2(26), 10 y 11; S1 §722–724) está en la evidencia. La aceptación regulatoria real del criterio sigue pendiente.

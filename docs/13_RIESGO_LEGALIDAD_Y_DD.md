@@ -74,7 +74,7 @@ reglas, **sin modificarse**. Reevaluar **crea un registro nuevo**; los anteriore
 y su versión. Se conservan las caducidades documentales existentes y **no se inventan plazos generales**.
 
 **Lo que sigue bloqueado.** La **conclusión regulatoria** sigue `UNDETERMINED` por `CHECK`: **D-07.5** (perfil
-jurídico) y **D-07.6** (quién concluye) siguen pendientes. Nada de esto habilita `READY` ni despacho.
+jurídico) y **D-07.6** (quién concluye: mecanismo implementado el 2026-10-22, `risk:conclude` para `EUDR_MANAGER`; su aceptación regulatoria real sigue pendiente) ya no bloquea el mecanismo. Nada de esto habilita `READY` ni despacho.
 
 ### Catálogo `1.0.0` (publicado el 2026-10-15, migración `0043`)
 

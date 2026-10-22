@@ -594,3 +594,10 @@ Vinculación del catálogo con un perfil (migración 0061): respaldo `_respaldos
 Acto de revisión del perfil (migración 0062): respaldo `_respaldos/2026-10-22-revision-perfil-0062/` (restauración aislada verificada); demostración `node e2e/review/revision-perfil-demostracion.mjs` (10/10, sin registrar revisiones).
 
 Configuración de geolocalización (migración 0063): respaldo `_respaldos/2026-10-22-geo-config-0063/` (restauración aislada verificada); demostración `node e2e/review/geo-config-demostracion.mjs` (14/14). Arnés: las conexiones de la base `*_test` usan `synchronous_commit = off` (junto a `client_min_messages=warning`); la URL manda sobre las opciones del Pool.
+
+## Demostración y respaldo de D-07.6 (2026-10-22)
+
+- `node e2e/review/conclusion-humana-demostracion.mjs` (no registra conclusiones sobre datos operativos; 11/11).
+- Respaldo de `0064`–`0065`: `_respaldos/2026-10-22-conclusion-humana-0064-0065/` (restauración aislada verificada).
+- Nota de entorno: el CLI de Next.js < 16.4.2 podía abortar `next build` con `SecurityFatalError` (aviso de vulnerabilidad); resuelto con 16.4.2.
+- Tras crear `tl-restore`, esperar a que el log muestre dos «ready to accept connections» antes de restaurar (el servidor se reinicia tras `initdb`).

@@ -282,3 +282,10 @@ Permiso de **plataforma** `legal_profile:record_review`, solo `SUPER_ADMIN`: cap
 ## Configuración de reglas de geolocalización (2026-10-22)
 
 Permiso de **plataforma** `geo_config:manage` (solo `SUPER_ADMIN`): preparar versiones y registrar su revisión (capacidad específica sobre el catálogo global; no pasa a ningún rol de organización). La organización consulta con `traceability:read_catalog` y adopta con `risk:approve_rules`. **Ningún permiso para concluir riesgo**; los permisos base de los demás roles no cambian.
+
+## Enmienda acotada (2026-10-22): asignación de `EUDR_MANAGER`
+
+Las reglas «rol ⊆ permisos del actor» (invitar y cambiar roles) admiten **una sola excepción exacta**: el par (`EUDR_MANAGER`, `risk:conclude`)
+puede asignarlo quien tenga `membership:assign`, sin poseer `risk:conclude`. `ORG_ADMIN` asigna ese rol solo dentro de su organización
+y **no puede concluir**; no obtiene capacidad para conceder otros permisos, asignar `SUPER_ADMIN` ni administrar miembros de otra organización.
+Sigue prohibido el cambio de roles a uno mismo. Pruebas: `authz/catalog.spec.ts`, `test/rbac.int-spec.ts`. Evidencia: `qa/EVIDENCIA_D076_CONCLUSION_HUMANA_2026-10-22.md`.

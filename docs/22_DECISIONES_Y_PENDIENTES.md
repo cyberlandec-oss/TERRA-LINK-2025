@@ -472,3 +472,14 @@ Implementada la guarda técnica (`regulatory_profile` es una referencia a un per
 ### D-07.5(b): opción b-1 adoptada (2026-10-21)
 
 Adoptada por el propietario e implementada (`decisiones/D-07-PROPUESTA.md` §13). Pendientes que NO resuelve: contenido del perfil y su revisión jurídica (D-07.5(a), P1-005), D-07.6 (quién concluye y con qué permiso), y un perfil completo y revisado que permita vincular una versión real. La etiqueta opcional de b-2 no se implementó.
+
+## D-07.6 — conclusión humana del responsable EUDR (2026-10-22)
+
+**Adoptada por el propietario e implementada (mecanismo).** El rol canónico `EUDR_MANAGER` registra una conclusión humana
+(`NEGLIGIBLE`/`NON_NEGLIGIBLE`) con el permiso específico `risk:conclude`, solo en su organización; ningún otro rol lo recibe.
+El motor nunca concluye (`UNDETERMINED` por `CHECK`). Una conclusión no anula requisitos pendientes ni habilita READY ni despacho,
+y se invalida si cambian evaluación, perfil o catálogo. La favorable exige resolver **cada carencia** con justificación y soporte
+propios; rechazar textos idénticos es solo una comprobación formal. Enmienda acotada de `docs/07` (asignación de
+`EUDR_MANAGER` por `membership:assign`). Migraciones `0064`–`0065`. Evidencia: `qa/EVIDENCIA_D076_CONCLUSION_HUMANA_2026-10-22.md`.
+**Sigue pendiente (separado):** aceptación regulatoria real del criterio y de las conclusiones, revisión jurídica real del perfil,
+política para quien tenga a la vez `ORG_ADMIN` y `EUDR_MANAGER`, y los avisos moderados de `js-yaml`/`sprintf-js`.
