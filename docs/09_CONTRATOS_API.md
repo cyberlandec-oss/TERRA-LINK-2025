@@ -161,3 +161,15 @@ y por parcela `plots[]`: `geometry {version_number, geometry_type}`, `vigencia` 
 | `POST /api/v1/platform/legal-profile/reviews` | ídem | Registra una revisión **efectiva** e inmutable de una versión exacta. Cuerpo: `operation_id`, `version`, `decision` (`REVIEWED`/`OBJECTED`/`WITHDRAWN`), `reviewer_name`, `reviewer_capacity`, `reviewed_on` (no futura), `basis`, `supports[]`, `expected_current_review_id` (opcional) |
 
 **Tres conceptos distintos:** (1) **persona revisora declarada** = `reviewer_name` + `reviewer_capacity` (+ `reviewed_on`); (2) **usuario que registra el acto** = el de la sesión (columna `reviewer_id` **desde `0062`**; el cuerpo no puede suplantarlo; expuesto como `recorded_by`); (3) **soportes** = fuentes del propio perfil (`PROFILE_SOURCE`, misma versión) o citas (`CITATION`, con `url` https y `file_sha256` opcionales). Errores: `REVIEW_SUPPORT_REQUIRED` (favorable sin soporte), `REVIEW_SUPPORT_INVALID`, `REVIEW_DATE_INVALID`, `NOTHING_TO_WITHDRAW`, `REVIEW_SUPERSEDED` (409), `OPERATION_ID_REUSED` (409), `LEGAL_PROFILE_UNKNOWN` (422). Registrar **no** publica, adopta ni vincula, y **no** es una conclusión jurídica del sistema.
+
+## Configuración versionada de reglas de geolocalización (GEOLOCATION_PROFILE; 2026-10-22)
+
+| Método y ruta | Permiso | Contrato |
+| --- | --- | --- |
+| `GET /api/v1/platform/geolocation-config/versions` | `geo_config:manage` (plataforma, `SUPER_ADMIN`) | Versiones con reglas, fuentes, revisión vigente, historial, organizaciones declaradas aplicables y `gaps` |
+| `POST /api/v1/platform/geolocation-config/versions` | ídem | Prepara una versión **inmutable y sin revisión**: reglas `ACTIVE` solo de tipo `GEO_TECH_PROFILE`; `CANDIDATE` exige `pending_questions`; el perfil técnico debe ser el vigente. Errores: `CONFIG_RULE_NOT_APPLICABLE`, `CONFIG_CANDIDATE_QUESTIONS_REQUIRED`, `CONFIG_RULE_SOURCE_UNKNOWN`, `TECHNICAL_PROFILE_MISMATCH`, `CONFIG_VERSION_EXISTS` (409) |
+| `POST /api/v1/platform/geolocation-config/reviews` | ídem | Revisión **de esa configuración** (no la del perfil jurídico): `decision`, `reviewer_name`, `reviewer_capacity`, `reviewed_on`, `basis`, `supports[]` (`CONFIG_SOURCE`/`CITATION`), `applicable_organizations[]` y `applicability_note`. `REVIEWED` exige soporte; `WITHDRAWN` solo sobre una favorable vigente; `REVIEW_SUPERSEDED` (409) |
+| `GET /api/v1/organizations/{orgId}/geolocation-config/catalog` | `traceability:read_catalog` | Versiones con su estado, `applies_to_this_organization` (**nunca** lista otras organizaciones) y `gaps` |
+| `POST /api/v1/organizations/{orgId}/geolocation-config/adoptions` | `risk:approve_rules` | Adopta/retira (`ALREADY_ADOPTED`/`NOT_ADOPTED` 409). No revisa ni declara aplicable |
+
+`GEOLOCATION_PROFILE` se evalúa con la configuración adoptada; el contenido de la instantánea (`profiles.geolocation_profile`) registra configuración, revisión, aplicabilidad y las evaluaciones del perfil técnico por versión de parcela. Evidencia: `qa/EVIDENCIA_GEOLOCATION_PROFILE_CONFIG_2026-10-22.md`.

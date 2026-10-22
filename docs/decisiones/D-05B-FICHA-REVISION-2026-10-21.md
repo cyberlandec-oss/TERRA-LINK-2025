@@ -179,3 +179,7 @@ no contacta al destino ni a TRACES; no presenta ninguna declaración; no modific
 | **I3** Parcelas sin evaluación vigente, distinguiendo ausencia, obsolescencia (por geometría o por versión del perfil) y resultado no evaluable | **Hecho** | Recuentos, lista de pendientes y detalle; permisos aplicados a recuentos, detalle y enlaces |
 | **I4** Semántica de `organizations.country` | **Hecho (documental)** | `docs/06`, «Semántica de `organizations.country`» |
 **Lo que NO cambia:** `profiles.geolocation_profile` sigue siendo `null` y `GEOLOCATION_PROFILE` sigue `NOT_EVALUABLE`; la definición de «satisfecho» (D1), los campos de categoría/tamaño/HS/país/período (D2) y la compuerta de A-03 (D3) siguen esperando al revisor. D-05.B y la revisión de las fuentes permanecen **pendientes**.
+
+## 13. Actualización (2026-10-22): el requisito original GEOLOCATION_PROFILE ya está implementado
+
+La «implementación pendiente del requisito original» (§7) quedó **terminada como mecanismo**: configuración versionada de reglas (la regla activa usa la evaluación vigente de `EUDR_GEO_V1`; período y país de producción son **candidatas**, sin aplicar ni deducir), revisión propia con alcance de aplicabilidad, adopción por organización y aplicación al expediente. **Q4 sigue siendo decisión del revisor**: cuando se responda, se prepara una versión nueva de la configuración; mientras exista una candidata, el requisito no llega a `MET`. Ver `qa/EVIDENCIA_GEOLOCATION_PROFILE_CONFIG_2026-10-22.md`.

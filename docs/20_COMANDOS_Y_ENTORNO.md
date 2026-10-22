@@ -592,3 +592,5 @@ Guarda de `RISK_CATALOG_APPROVED` y `0.2.0` (migraciones 0059–0060): respaldo 
 Vinculación del catálogo con un perfil (migración 0061): respaldo `_respaldos/2026-10-21-vinculo-catalogo-0061/` (restauración aislada verificada); demostración `node e2e/review/vinculo-catalogo-demostracion.mjs` (12/12).
 
 Acto de revisión del perfil (migración 0062): respaldo `_respaldos/2026-10-22-revision-perfil-0062/` (restauración aislada verificada); demostración `node e2e/review/revision-perfil-demostracion.mjs` (10/10, sin registrar revisiones).
+
+Configuración de geolocalización (migración 0063): respaldo `_respaldos/2026-10-22-geo-config-0063/` (restauración aislada verificada); demostración `node e2e/review/geo-config-demostracion.mjs` (14/14). Arnés: las conexiones de la base `*_test` usan `synchronous_commit = off` (junto a `client_min_messages=warning`); la URL manda sobre las opciones del Pool.

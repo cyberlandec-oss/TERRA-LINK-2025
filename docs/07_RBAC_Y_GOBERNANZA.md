@@ -278,3 +278,7 @@ Nuevo permiso de **plataforma** `risk_catalog:link_profile` (solo `SUPER_ADMIN`,
 ## Registro del acto de revisión del perfil jurídico (P1-005; 2026-10-22)
 
 Permiso de **plataforma** `legal_profile:record_review`, solo `SUPER_ADMIN`: capacidad específica sobre el perfil jurídico global; no pasa a ningún rol de organización y no cambia los permisos base de los demás roles. **Registrar el acto no es emitir una conclusión jurídica** ni concede concluir riesgo. Contrato: `09_CONTRATOS_API.md`; datos: `06_DICCIONARIO_DATOS.md`.
+
+## Configuración de reglas de geolocalización (2026-10-22)
+
+Permiso de **plataforma** `geo_config:manage` (solo `SUPER_ADMIN`): preparar versiones y registrar su revisión (capacidad específica sobre el catálogo global; no pasa a ningún rol de organización). La organización consulta con `traceability:read_catalog` y adopta con `risk:approve_rules`. **Ningún permiso para concluir riesgo**; los permisos base de los demás roles no cambian.

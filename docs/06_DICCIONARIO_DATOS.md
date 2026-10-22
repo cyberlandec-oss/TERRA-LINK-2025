@@ -249,3 +249,7 @@ Clasificación de la identidad del productor: documento, teléfono y dirección 
 | `basis` | Fundamento | 10–2000 caracteres |
 | `decision` | `REVIEWED`, `OBJECTED`, `WITHDRAWN` | La **vigente** es la última por `decided_at`; las anteriores se conservan |
 | `legal_profile_review_supports` | Soportes de una revisión | `kind` = `PROFILE_SOURCE` (FK compuesta a una fuente de la **misma versión**) o `CITATION` (cita, `url` https y `file_sha256` opcionales). Una revisión `REVIEWED` exige ≥1 soporte (restricción diferida). Append-only |
+
+## Configuración de reglas de geolocalización (migración 0063; 2026-10-22)
+
+`geo_requirement_configs` (versión, perfil técnico `EUDR_GEO_V1` y su versión, alcance, autor/origen) · `geo_requirement_config_sources` (cita, url https, huella) · `geo_requirement_config_rules` (`kind`: `GEO_TECH_PROFILE`/`PRODUCTION_PERIOD`/`PRODUCTION_COUNTRY`; `status`: `ACTIVE` solo para el primero, `CANDIDATE` con `pending_questions`) · `geo_requirement_config_reviews` (+ `_review_supports`: persona revisora declarada, `recorded_by` = quien registra, `applicable_organizations` = alcance de aplicabilidad declarado, vacío = ninguna) · `geo_requirement_config_adoptions` (por organización). Todo append-only. La revisión es **de esta configuración**, independiente de `legal_profile_reviews`.

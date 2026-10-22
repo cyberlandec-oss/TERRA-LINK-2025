@@ -83,3 +83,7 @@ Cobertura original **42/60 = 70 %**; MVP **30/44 = 68,2 %**; sin cambios por est
 ## 7. Actualización (2026-10-22): el acto de revisión ya existe
 
 El registro de la respuesta de R8/Q7 **ya tiene mecanismo**: `POST /api/v1/platform/legal-profile/reviews` y la pantalla `/plataforma/perfil-juridico` (SUPER_ADMIN), con persona revisora declarada, usuario que registra, fecha, fundamento y soportes. Falta el **contenido real**: ninguna revisión está registrada. Ver `qa/EVIDENCIA_REVISION_PERFIL_2026-10-22.md`.
+
+## 8. Actualización (2026-10-22): la respuesta de Q4 ya tiene mecanismo
+
+La definición de «satisfecho» de `GEOLOCATION_PROFILE` (Q4) se registra como **versión nueva de la configuración de reglas** (`/plataforma/geolocalizacion`) y su **revisión** con el alcance de aplicabilidad (organizaciones y operación) declarado por quien revisa. Falta el contenido real. Ver `qa/EVIDENCIA_GEOLOCATION_PROFILE_CONFIG_2026-10-22.md`.

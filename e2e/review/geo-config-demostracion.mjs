@@ -107,8 +107,9 @@ await caso('Plataforma (en, 390 px): traducida, radios con tamaño de control, q
   const { ctx, page } = await sesion(sup, 'en', { width: 390, height: 844 }); await page.goto(`${WEB}/plataforma/geolocalizacion`);
   await page.locator('#g-sel').selectOption('0.1.0'); const falta = page.getByText('It keeps unresolved candidate rules').first(); await falta.waitFor({ timeout: 15000 });
   const radio = await page.getByRole('radio', { name: 'Objected' }).boundingBox(); const txt = await page.locator('main').innerText(); const sin = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+  const faltaDentro = await dentro(falta);
   await page.screenshot({ path: join(SALIDA, 'plataforma-en-390.png'), fullPage: true }); await ctx.close();
-  return [radio.width <= 24 && await dentro(falta) && sin && !/\b(NO_REVIEW|CANDIDATE_RULES_PENDING|GEO_TECH_PROFILE|PRODUCTION_PERIOD|CONFIG_SOURCE|NONE)\b/.test(txt), `radio ${Math.round(radio.width)} px; sin desborde: ${sin}`];
+  return [radio.width <= 24 && faltaDentro && sin && !/\b(NO_REVIEW|CANDIDATE_RULES_PENDING|GEO_TECH_PROFILE|PRODUCTION_PERIOD|CONFIG_SOURCE|NONE)\b/.test(txt), `radio ${Math.round(radio.width)} px; sin desborde: ${sin}`];
 });
 await caso('Organización (es): catálogo con 0.1.0 sin revisión, qué falta y botón para adoptar (sin adoptar)', async () => {
   const { ctx, page } = await sesion(adm, 'es'); await page.goto(`${WEB}/organizaciones/${orgRV.id}/geolocalizacion`);
