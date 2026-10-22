@@ -37,6 +37,20 @@ describeDb('D-07.6: conclusión humana del responsable EUDR', () => {
   const ctxConc = async (ev: string, actor = E1, org = orgA, estado = 200) => (await http().get(`${base(org)}/risk/evaluations/${ev}/conclusions`).set(as(actor)).expect(estado)).body;
   const concluir = (ev: string, over: Record<string, unknown> = {}, actor = E1, org = orgA) => http().post(`${base(org)}/risk/evaluations/${ev}/conclusions`).set(as(actor)).send({
     operation_id: randomUUID(), result: 'NON_NEGLIGIBLE', reason: 'Motivo sintético de la conclusión humana de ensayo', supports: [{ kind: 'CITATION', citation: 'Evidencia sintética de ensayo' }], ...over });
+  /** Versión de documento SINTÉTICA de la organización A (fixture escrita en la base de prueba). */
+  const docVer = async () => {
+    const doc = randomUUID(); const ver = randomUUID();
+    const creador = (await sql<{ id: string }>`SELECT id::text FROM users WHERE email = ${ADMIN}`.execute(h.db)).rows[0].id;
+    await sql`INSERT INTO documents (id, organization_id, document_type, owner_type, owner_id, title, created_by) VALUES (${doc}, ${orgA}, 'LAND_TENURE', 'producer', ${producer}, 'Evaluación documentada sintética', ${creador})`.execute(h.db);
+    await sql`INSERT INTO document_versions (id, organization_id, document_id, version_number, object_key, file_name, mime_type, size_bytes, sha256, operation_id, uploaded_by)
+      VALUES (${ver}, ${orgA}, ${doc}, 1, ${`conclusion/${ver}`}, 'evaluacion.pdf', 'application/pdf', 10, ${'7'.repeat(64)}, ${randomUUID()}, ${creador})`.execute(h.db);
+    return ver;
+  };
+  type Carencia = { scope: string; code: string };
+  /** Una resolución EXPLÍCITA por carencia (NOT_APPLICABLE), con justificación propia y la evidencia 0 referenciada. */
+  const resolver = (carencias: Carencia[], over: Partial<{ kind: string; support_index: number }> = {}) => carencias.map((c) => ({
+    scope: c.scope, code: c.code, kind: over.kind ?? 'NOT_APPLICABLE', support_index: over.support_index ?? 0,
+    justification: `Justificación sintética propia de la carencia ${c.scope}:${c.code}: no aplica a esta operación de ensayo.` }));
   const mkCase = async (lot: string) => (await http().post(`${base(orgA)}/dd-cases`).set(as(E1)).send({ operation_id: randomUUID(), lot_id: lot, scope_note: 'Expediente sintético de la conclusión humana' }).expect(201)).body.case.id as string;
   const capturar = async (c: string) => (await http().post(`${base(orgA)}/dd-cases/${c}/snapshots`).set(as(E1)).send({ operation_id: randomUUID() }).expect(201)).body.snapshot as { id: string; readiness: { captured: string; effective: string }; requirements: Array<{ code: string; status: string; detail: string }> };
   const req = (s: { requirements: Array<{ code: string; status: string; detail: string }> }, c = 'REGULATORY_CONCLUSION') => s.requirements.find((r) => r.code === c)!;
@@ -83,7 +97,7 @@ describeDb('D-07.6: conclusión humana del responsable EUDR', () => {
     const c = await ctxConc(ev1);
     expect(c.limitations).toEqual(expect.arrayContaining(['ENGINE_NEVER_CONCLUDES', 'SEVERITY_IS_NOT_CONCLUSION', 'CATEGORIES_WITHOUT_RULES', 'RULES_NOT_EVALUABLE']));
     expect(c.evaluation).toMatchObject({ number: 1, is_latest: true, freshness: { status: 'CURRENT' } });
-    expect(c.options.NON_NEGLIGIBLE).toEqual({ allowed: true, missing: [] });
+    expect(c.options.NON_NEGLIGIBLE).toMatchObject({ allowed: true, missing: [] });
     // el catálogo 1.0.0 real no declara perfil jurídico y la organización no lo adoptó: la favorable explica qué falta y se conserva el estado
     expect(c.options.NEGLIGIBLE.allowed).toBe(false);
     expect(c.options.NEGLIGIBLE.missing).toEqual(expect.arrayContaining(['RULE_SET_NOT_ADOPTED', 'PROFILE_REFERENCE_MISSING']));
@@ -183,15 +197,63 @@ describeDb('D-07.6: conclusión humana del responsable EUDR', () => {
     evF = (await evaluar(lotF, ADMIN)).id;
     const c = await ctxConc(evF);
     expect(c.evaluation.rules).toMatchObject({ version: '1.1.0', adopted: true, regulatory_profile: '9.9.9' });
-    expect(c.options.NEGLIGIBLE).toEqual({ allowed: true, missing: [] });
+    expect(c.options.NEGLIGIBLE).toMatchObject({ allowed: true, missing: [] }); // sin impedimentos duros…
+    expect(c.options.NEGLIGIBLE.gaps_to_resolve.length).toBeGreaterThan(0); // …pero CADA carencia debe resolverse explícitamente
+    expect(c.options.NEGLIGIBLE.gaps_to_resolve).toEqual(expect.arrayContaining([{ scope: 'CATEGORY', code: 'LEGALITY' }, { scope: 'CATEGORY', code: 'HUMAN_RIGHTS' }]));
+    expect(c.options.NON_NEGLIGIBLE.gaps_to_resolve).toEqual([]);
     expect(c.limitations).toEqual(expect.arrayContaining(['CATEGORIES_WITHOUT_RULES', 'RULES_NOT_EVALUABLE'])); // las limitaciones se muestran; no impiden registrar
+  });
+
+  it('CARENCIAS: mostrar una limitación NO la resuelve; una sola evidencia no resuelve todas; cada carencia exige su propia resolución con justificación y evidencia', async () => {
+    const gaps = (await ctxConc(evF)).options.NEGLIGIBLE.gaps_to_resolve as Carencia[];
+    const antes = await contar('risk_conclusions');
+    const favorable = (over: Record<string, unknown>) => concluir(evF, { result: 'NEGLIGIBLE', reason: 'Conclusión favorable sintética de ensayo con carencias', ...over });
+    // 1) una evidencia adjunta y NINGUNA resolución: no se resuelve nada
+    const sin = await favorable({}).expect(422);
+    expect(sin.body.error.code).toBe('CONCLUSION_GAPS_UNRESOLVED');
+    expect(sin.body.error.details.map((d: { reason: string }) => d.reason)).toEqual(expect.arrayContaining(gaps.map((g) => `UNRESOLVED:${g.scope}:${g.code}`)));
+    // 2) la misma evidencia referenciada para todas menos una: sigue faltando una
+    const casiTodas = resolver(gaps).slice(1);
+    const falta = await favorable({ gap_resolutions: casiTodas }).expect(422);
+    expect(falta.body.error.code).toBe('CONCLUSION_GAPS_UNRESOLVED');
+    expect(falta.body.error.details).toHaveLength(1);
+    // 3) justificaciones copiadas: no se acepta la misma para todas
+    const copiadas = resolver(gaps).map((r) => ({ ...r, justification: 'La misma justificación copiada para todas las carencias de la evaluación.' }));
+    expect((await favorable({ gap_resolutions: copiadas }).expect(422)).body.error.details[0].reason).toMatch(/^DUPLICATE_JUSTIFICATION/);
+    // 4) evaluada por una persona con solo una CITA: exige una versión de documento del sistema
+    expect((await favorable({ gap_resolutions: resolver(gaps, { kind: 'ASSESSED_BY_HUMAN' }) }).expect(422)).body.error.details[0].reason).toMatch(/^DOCUMENT_REQUIRED/);
+    // 5) evidencia inexistente, carencia ajena a la evaluación, justificación corta y resoluciones en una no favorable
+    expect((await favorable({ gap_resolutions: resolver(gaps, { support_index: 5 }) }).expect(422)).body.error.details[0].reason).toMatch(/^SUPPORT_INDEX/);
+    expect((await favorable({ gap_resolutions: [...resolver(gaps), { scope: 'FACTOR', code: 'NO_EXISTE', kind: 'NOT_APPLICABLE', support_index: 0, justification: 'Justificación sintética de una carencia que no existe en esta evaluación.' }] }).expect(422)).body.error.details[0].reason).toBe('UNKNOWN_GAP');
+    await favorable({ gap_resolutions: resolver(gaps).map((r, i) => (i === 0 ? { ...r, justification: 'corta' } : r)) }).expect(400);
+    expect((await concluir(evF, { result: 'NON_NEGLIGIBLE', gap_resolutions: resolver(gaps) }).expect(422)).body.error.details[0].reason).toBe('NOT_APPLICABLE_TO_RESULT');
+    expect(await contar('risk_conclusions')).toBe(antes); // nada se escribió
+    // 6) la base repite el control: una favorable sin resoluciones no puede quedar escrita aunque se salte la API
+    const e = (await sql<{ subject_id: string; evaluation_number: number; snapshot_hash: string; rule_set_version: string }>`SELECT subject_id::text, evaluation_number, snapshot_hash, rule_set_version FROM risk_evaluations WHERE id = ${evF}`.execute(h.db)).rows[0];
+    const e1id = (await sql<{ id: string }>`SELECT id::text FROM users WHERE email = ${E1}`.execute(h.db)).rows[0].id;
+    const rev = (await sql<{ id: string }>`SELECT id::text FROM legal_profile_reviews WHERE version = '9.9.9' ORDER BY decided_at DESC, id DESC LIMIT 1`.execute(h.db)).rows[0].id;
+    await expect(h.db.transaction().execute(async (trx) => {
+      const cid = randomUUID();
+      await sql`INSERT INTO risk_conclusions (id, organization_id, evaluation_id, subject_id, evaluation_number, evaluation_snapshot_hash, rule_set_version, regulatory_profile, legal_profile_version, legal_review_id, result, reason, recorded_by, operation_id)
+        VALUES (${cid}, ${orgA}, ${evF}, ${e.subject_id}, ${e.evaluation_number}, ${e.snapshot_hash}, ${e.rule_set_version}, '9.9.9', '9.9.9', ${rev}, 'NEGLIGIBLE', 'Intento directo sin resolver las carencias', ${e1id}, ${randomUUID()})`.execute(trx);
+      await sql`INSERT INTO risk_conclusion_supports (id, organization_id, conclusion_id, kind, citation) VALUES (${randomUUID()}, ${orgA}, ${cid}, 'CITATION', 'cita sintética')`.execute(trx);
+    })).rejects.toThrow(/resolver cada carencia/);
   });
 
   it('CASO VÁLIDO (favorable): se registra y el requisito REGULATORY_CONCLUSION pasa a MET; nada más cambia y READY/despacho siguen bloqueados', async () => {
     const antes = await capturar(caseF);
     expect(req(antes).status).toBe('NOT_EVALUABLE');
-    const r = await concluir(evF, { result: 'NEGLIGIBLE', reason: 'Conclusión favorable sintética tras revisar la evidencia', expected_current_conclusion_id: null }).expect(201);
+    const gaps = (await ctxConc(evF)).options.NEGLIGIBLE.gaps_to_resolve as Carencia[];
+    const doc = await docVer();
+    // La primera carencia la evalúa una persona con un documento del sistema (índice 1); el resto se declara no aplicable, cada una con su justificación y su evidencia.
+    const resoluciones = resolver(gaps).map((x, i) => (i === 0 ? { ...x, kind: 'ASSESSED_BY_HUMAN', support_index: 1 } : x));
+    const r = await concluir(evF, { result: 'NEGLIGIBLE', reason: 'Conclusión favorable sintética tras revisar la evidencia', supports: [{ kind: 'CITATION', citation: 'Evidencia sintética de ensayo' }, { kind: 'DOCUMENT_VERSION', document_version_id: doc }], gap_resolutions: resoluciones, expected_current_conclusion_id: null }).expect(201);
     concF = r.body.conclusion.id;
+    const hist = (await ctxConc(evF)).history[0];
+    expect(hist.gap_resolutions).toHaveLength(gaps.length);
+    expect(hist.gap_resolutions.find((x: { kind: string }) => x.kind === 'ASSESSED_BY_HUMAN').evidence).toMatchObject({ kind: 'DOCUMENT_VERSION', document_version_id: doc });
+    expect(hist.gap_resolutions.filter((x: { kind: string }) => x.kind === 'NOT_APPLICABLE').every((x: { evidence: { kind: string } }) => x.evidence.kind === 'CITATION')).toBe(true);
+    await expect(sql`DELETE FROM risk_conclusion_gap_resolutions WHERE conclusion_id = ${concF}`.execute(h.db)).rejects.toThrow(/append-only/);
     const fila = (await sql<{ legal_review_id: string; regulatory_profile: string; legal_profile_version: string; rule_set_version: string }>`SELECT legal_review_id::text, regulatory_profile, legal_profile_version, rule_set_version FROM risk_conclusions WHERE id = ${concF}`.execute(h.db)).rows[0];
     expect(fila).toMatchObject({ legal_review_id: reviewF, regulatory_profile: '9.9.9', legal_profile_version: '9.9.9', rule_set_version: '1.1.0' });
     const despues = await capturar(caseF);
@@ -231,7 +293,8 @@ describeDb('D-07.6: conclusión humana del responsable EUDR', () => {
   it('CAMBIO POSTERIOR: tras reevaluar se registra otra conclusión favorable; una objeción posterior del perfil la invalida (la histórica se conserva)', async () => {
     const ev2 = (await evaluar(lotF, ADMIN)).id;
     expect((await ctxConc(ev2)).options.NEGLIGIBLE.allowed).toBe(true);
-    const r = await concluir(ev2, { result: 'NEGLIGIBLE', reason: 'Conclusión favorable sintética sobre la evaluación vigente', expected_current_conclusion_id: null }).expect(201);
+    const gaps2 = (await ctxConc(ev2)).options.NEGLIGIBLE.gaps_to_resolve as Carencia[];
+    const r = await concluir(ev2, { result: 'NEGLIGIBLE', reason: 'Conclusión favorable sintética sobre la evaluación vigente', gap_resolutions: resolver(gaps2), expected_current_conclusion_id: null }).expect(201);
     const antes = await capturar(caseF);
     expect(req(antes).status).toBe('MET');
     // una revisión posterior OBJETA el perfil jurídico en que se apoyaba

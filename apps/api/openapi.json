@@ -12541,6 +12541,45 @@
           "operation_id"
         ]
       },
+      "GapResolutionDto": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "FACTOR",
+              "CATEGORY"
+            ],
+            "description": "FACTOR = regla no evaluable; CATEGORY = categoría sin ninguna regla en el catálogo"
+          },
+          "code": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "NOT_APPLICABLE",
+              "ASSESSED_BY_HUMAN"
+            ],
+            "description": "ASSESSED_BY_HUMAN exige una versión de documento del sistema como evidencia"
+          },
+          "justification": {
+            "type": "string",
+            "description": "Justificación PROPIA de esta carencia (no se repite entre carencias)"
+          },
+          "support_index": {
+            "type": "number",
+            "description": "Posición (desde 0) en `supports` de la evidencia concreta que sustenta ESTA resolución"
+          }
+        },
+        "required": [
+          "scope",
+          "code",
+          "kind",
+          "justification",
+          "support_index"
+        ]
+      },
       "RecordConclusionDto": {
         "type": "object",
         "properties": {
@@ -12563,6 +12602,13 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SupportDto"
+            }
+          },
+          "gap_resolutions": {
+            "description": "Obligatorio y completo en NEGLIGIBLE: una resolución por cada carencia de la evaluación; no se admite en NON_NEGLIGIBLE",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GapResolutionDto"
             }
           },
           "expected_current_conclusion_id": {

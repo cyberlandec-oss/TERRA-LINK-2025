@@ -251,15 +251,17 @@ export const ORGANIZATION_ROLES = Object.keys(ROLE_PERMISSIONS);
 export function canGrantRole(actorPermissions: Permission[], roleCode: string): boolean {
   const role = ROLE_PERMISSIONS[roleCode];
   if (!role || !actorPermissions.includes('membership:assign')) return false;
-  return role.every((p) => actorPermissions.includes(p) || ASIGNABLE_SIN_POSEER.has(p));
+  return role.every((p) => actorPermissions.includes(p) || (roleCode === ROL_RESPONSABLE_EUDR && p === PERMISO_CONCLUIR));
 }
 
 /**
- * Permisos que la administración de la organización puede ASIGNAR (a través de un rol) sin ejercerlos ella misma. Es una excepción acotada al anti-escalamiento y deliberada:
- * `risk:conclude` (D-07.6) es del rol responsable EUDR, y quien administra los accesos NO concluye riesgo (separación de funciones). Sin esta excepción, `ORG_ADMIN` no podría
- * asignar `EUDR_MANAGER`, porque ese rol incluye un permiso que `ORG_ADMIN` no tiene. No amplía lo que `ORG_ADMIN` puede hacer: solo a quién puede darle el rol.
+ * ÚNICA excepción al anti-escalamiento de docs/07 («rol ⊆ permisos del actor»), adoptada con D-07.6: quien administra los accesos puede ASIGNAR (y retirar) el rol `EUDR_MANAGER` aunque
+ * ese rol incluya `risk:conclude`, que `ORG_ADMIN` NO tiene y no obtiene: administrar la asignación y registrar una conclusión son funciones separadas. La excepción es EXACTA: solo el par
+ * (rol `EUDR_MANAGER`, permiso `risk:conclude`) y solo para quien ya tiene `membership:assign`. No concede ese permiso a nadie, no abre ningún otro rol ni permiso, y no cambia las demás
+ * comprobaciones de `members.ts` (misma organización, no al propio miembro, `SUPER_ADMIN` no asignable).
  */
-export const ASIGNABLE_SIN_POSEER: ReadonlySet<Permission> = new Set<Permission>(['risk:conclude']);
+export const ROL_RESPONSABLE_EUDR = 'EUDR_MANAGER';
+export const PERMISO_CONCLUIR: Permission = 'risk:conclude';
 
 export function assignableRoles(actorPermissions: Permission[]): string[] {
   return ORGANIZATION_ROLES.filter((r) => canGrantRole(actorPermissions, r)).sort();

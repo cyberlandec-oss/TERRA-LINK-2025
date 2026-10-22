@@ -134,15 +134,53 @@ test('condiciones SINTÉTICAS cumplidas (perfil revisado, catálogo vinculado y 
   const { ctx, page } = await abrir(browser, 'eudr');
   const neg = page.getByRole('radio', { name: /Riesgo insignificante \(NEGLIGIBLE\)/ });
   await expect(neg).toBeEnabled();
+  // Inspección a 390 px (inglés) de los bloques de carencias ANTES de registrar: dentro del ancho, controles de tamaño usable y sin desborde.
+  const movil = await abrir(browser, 'eudr', { lang: 'en', viewport: { width: 390, height: 844 } });
+  await movil.page.getByRole('radio', { name: /Negligible risk \(NEGLIGIBLE\)/ }).check();
+  const bloque = movil.page.locator('fieldset[data-gap]').first();
+  await expect(bloque).toBeVisible();
+  const cb = await bloque.boundingBox(); expect(cb!.x + cb!.width).toBeLessThanOrEqual(391);
+  await expect(bloque.getByLabel('How it is resolved')).toBeVisible();
+  await expect(movil.page.getByText('Showing a limitation does not resolve it.', { exact: false })).toBeVisible();
+  expect(await movil.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await movil.page.locator('fieldset[data-gap]').first().scrollIntoViewIfNeeded();
+  await movil.page.screenshot({ path: 'test-results/conclusion-carencias-390.png', fullPage: true });
+  await movil.ctx.close();
   await neg.check();
   await page.getByLabel('Motivo de la conclusión').fill('Conclusión favorable sintética: se cumplen las condiciones de ensayo.');
   await page.getByRole('button', { name: 'Añadir una cita' }).click();
   await page.getByLabel('Cita 1', { exact: true }).fill('Evidencia sintética favorable');
   await expect(page.locator('dl[aria-label="Resumen antes de registrar"]')).toContainText('Ninguna'); // la evaluación nueva aún no tiene conclusión
-  await page.getByLabel('Confirmo que registro una conclusión humana sobre esta evaluación, no un borrador').check();
-  await page.getByRole('button', { name: 'Registrar la conclusión' }).click();
+  // CARENCIAS: mostrar una limitación NO la resuelve; cada carencia exige su propia resolución, justificación y evidencia
+  const gaps = page.locator('fieldset[data-gap]');
+  const n = await gaps.count();
+  expect(n).toBeGreaterThan(0);
+  const boton = page.getByRole('button', { name: 'Registrar la conclusión' });
+  const confirmar = page.getByLabel('Confirmo que registro una conclusión humana sobre esta evaluación, no un borrador');
+  await expect(page.locator('dl[aria-label="Resumen antes de registrar"]')).toContainText(`0 / ${n}`);
+  await confirmar.check();
+  await expect(boton).toBeDisabled(); // con una evidencia pero sin resolver las carencias
+  for (let i = 0; i < n; i++) {
+    const g = gaps.nth(i); const clave = await g.getAttribute('data-gap');
+    await g.getByLabel('Cómo se resuelve').selectOption('NOT_APPLICABLE');
+    await g.getByLabel('Justificación propia de esta carencia').fill('Justificación de ensayo repetida para todas las carencias de la evaluación.');
+    await g.getByLabel('Evidencia que la sustenta').selectOption('0');
+    void clave;
+  }
+  await expect(page.getByText('Las justificaciones no pueden repetirse: cada carencia tiene la suya.')).toBeVisible();
+  await confirmar.check();
+  await expect(boton).toBeDisabled(); // la misma justificación copiada para todas no vale
+  for (let i = 0; i < n; i++) {
+    const g = gaps.nth(i); const clave = await g.getAttribute('data-gap');
+    await g.getByLabel('Justificación propia de esta carencia').fill(`Justificación de ensayo propia de la carencia ${clave}: no aplica a esta operación sintética.`);
+  }
+  await expect(page.locator('dl[aria-label="Resumen antes de registrar"]')).toContainText(`${n} / ${n}`);
+  await confirmar.check();
+  await expect(boton).toBeEnabled();
+  await boton.click();
   await expect(page.getByText('Conclusión humana registrada.', { exact: false })).toBeVisible();
   await expect(page.locator('section[aria-labelledby="c-vig"]')).toContainText('Riesgo insignificante (NEGLIGIBLE)');
+  await expect(page.locator('section[aria-labelledby="c-hist"]').getByRole('list', { name: 'Carencias resueltas' }).first().getByRole('listitem')).toHaveCount(n); // cada carencia con su resolución
   await ctx.close();
 });
 

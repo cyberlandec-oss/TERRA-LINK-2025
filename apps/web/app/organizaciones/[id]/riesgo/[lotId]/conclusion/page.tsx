@@ -14,19 +14,22 @@ import { CONCLUSION_TABLAS as TB } from '../../../../../../lib/conclusion-humana
 // requisitos pendientes ni habilita READY ni despacho. La autorización y las condiciones las decide la API (y la base): la pantalla solo las explica.
 
 interface Soporte { kind: string; document_version_id: string | null; citation: string | null; url: string | null }
+interface ResolucionReg { scope: string; code: string; kind: string; justification: string; evidence: { kind: string; document_version_id: string | null; citation: string | null } }
 interface Registro {
-  id: string; result: string; reason: string; recorded_at: string; recorded_by: string | null; is_latest_record: boolean; on_this_evaluation: boolean; valid_now: boolean; invalid_reasons: string[]; supports: Soporte[];
+  id: string; result: string; reason: string; recorded_at: string; recorded_by: string | null; is_latest_record: boolean; on_this_evaluation: boolean; valid_now: boolean; invalid_reasons: string[]; supports: Soporte[]; gap_resolutions: ResolucionReg[];
   links: { evaluation_number: number; evaluation_snapshot_hash: string; rule_set_version: string; regulatory_profile: string | null; legal_profile_version: string | null; legal_review_id: string | null; dd_snapshot_number: number | null };
 }
 interface Contexto {
   evaluation: { id: string; number: number; lot: { id: string; code: string }; is_latest: boolean; evaluated_at: string; evaluated_by: string; freshness: { status: string }; technical_result: { status: string };
     severity: string; review_process: string; rules: { version: string; adopted: boolean; regulatory_profile: string | null } };
   limitations: string[];
-  options: Record<'NEGLIGIBLE' | 'NON_NEGLIGIBLE', { allowed: boolean; missing: string[] }>;
+  options: Record<'NEGLIGIBLE' | 'NON_NEGLIGIBLE', { allowed: boolean; missing: string[]; gaps_to_resolve: Carencia[] }>;
   can_record: boolean; recorder_is_evaluator: boolean;
   current: { id: string; result: string; effective: string; valid: boolean; invalid_reasons: string[] } | null;
   history: Registro[];
 }
+interface Carencia { scope: string; code: string }
+interface Resolucion { kind: string; justification: string; ev: string }
 interface LotRisk { lot: { id: string; lot_code: string }; latest: { id: string } | null }
 interface Cita { citation: string; url: string }
 const TONO: Record<string, Tone> = { NEGLIGIBLE: 'valid', NON_NEGLIGIBLE: 'blocked', UNDETERMINED: 'neutral' };
@@ -47,6 +50,7 @@ export default function ConclusionPage() {
   const [citas, setCitas] = useState<Cita[]>([]);
   const [docs, setDocs] = useState<string[]>([]);
   const [confirmo, setConfirmo] = useState(false);
+  const [res, setRes] = useState<Record<string, Resolucion>>({});
 
   const cargar = useCallback(async () => {
     if (!orgId || !ws.can('risk:read')) return;
@@ -70,8 +74,22 @@ export default function ConclusionPage() {
 
   const ev = ctx.evaluation;
   const opcion = ctx.options[resultado as 'NEGLIGIBLE' | 'NON_NEGLIGIBLE'];
-  const evidencias = citas.filter((c) => c.citation.trim().length >= 3).length + docs.filter((d) => d.trim().length > 0).length;
-  const completo = motivo.trim().length >= 10 && evidencias > 0 && !!opcion?.allowed;
+  // Las evidencias, en el orden en que se envían (el índice es lo que cada carencia referencia).
+  const lista = [
+    ...citas.filter((c) => c.citation.trim().length >= 3).map((c, i) => ({ kind: 'CITATION' as const, label: `${t('Cita')} ${i + 1}`, value: c })),
+    ...docs.filter((d) => d.trim().length > 0).map((d, i) => ({ kind: 'DOCUMENT_VERSION' as const, label: `${t('Versión de documento')} ${i + 1}`, value: d.trim() })),
+  ];
+  const evidencias = lista.length;
+  const carencias = resultado === 'NEGLIGIBLE' ? ctx.options.NEGLIGIBLE.gaps_to_resolve : [];
+  const claveC = (c: Carencia) => `${c.scope}:${c.code}`;
+  const estadoRes = carencias.map((c) => {
+    const r = res[claveC(c)]; const i = r && r.ev !== '' ? Number(r.ev) : -1; const evid = lista[i];
+    const ok = !!r && !!r.kind && r.justification.trim().length >= 30 && !!evid && (r.kind !== 'ASSESSED_BY_HUMAN' || evid.kind === 'DOCUMENT_VERSION');
+    return { c, ok, texto: r?.justification.trim().toLowerCase() ?? '' };
+  });
+  const distintas = new Set(estadoRes.map((e) => e.texto)).size === estadoRes.length;
+  const resueltas = estadoRes.filter((e) => e.ok).length;
+  const completo = motivo.trim().length >= 10 && evidencias > 0 && !!opcion?.allowed && resueltas === carencias.length && (carencias.length === 0 || distintas);
 
   const registrar = async (e: FormEvent) => {
     e.preventDefault();
@@ -80,10 +98,10 @@ export default function ConclusionPage() {
     try {
       await api(`/api/v1/organizations/${orgId}/risk/evaluations/${ev.id}/conclusions`, { method: 'POST', body: {
         operation_id: crypto.randomUUID(), result: resultado, reason: motivo.trim(), expected_current_conclusion_id: ctx.current?.id ?? null,
-        supports: [...citas.filter((c) => c.citation.trim().length >= 3).map((c) => ({ kind: 'CITATION', citation: c.citation.trim(), ...(c.url.trim() ? { url: c.url.trim() } : {}) })),
-          ...docs.filter((d) => d.trim()).map((d) => ({ kind: 'DOCUMENT_VERSION', document_version_id: d.trim() }))] } });
+        supports: lista.map((e) => (e.kind === 'CITATION' ? { kind: 'CITATION', citation: e.value.citation.trim(), ...(e.value.url.trim() ? { url: e.value.url.trim() } : {}) } : { kind: 'DOCUMENT_VERSION', document_version_id: e.value })),
+        ...(carencias.length ? { gap_resolutions: carencias.map((c) => ({ scope: c.scope, code: c.code, kind: res[claveC(c)].kind, justification: res[claveC(c)].justification.trim(), support_index: Number(res[claveC(c)].ev) })) } : {}) } });
       try { sessionStorage.removeItem(`tl_borrador_conclusion_${lotId}`); } catch { /* idem */ }
-      setMotivo(''); setCitas([]); setDocs([]); setConfirmo(false); setError(null);
+      setMotivo(''); setCitas([]); setDocs([]); setRes({}); setConfirmo(false); setError(null);
       setAviso(t('Conclusión humana registrada. No anula requisitos pendientes ni habilita READY ni despacho por sí sola.'));
       await cargar();
     } catch (err) {
@@ -177,11 +195,40 @@ export default function ConclusionPage() {
               ))}
               <button type="button" onClick={() => setDocs((l) => [...l, ''])}>{t('Añadir una versión de documento')}</button>
             </fieldset>
+            {carencias.length > 0 && (
+              <fieldset>
+                <legend>{t('Carencias de la evaluación')}</legend>
+                <p className="muted">{t('Mostrar una limitación no la resuelve. Una conclusión favorable exige resolver CADA carencia por separado: declararla no aplicable o evaluada por una persona, con su propia justificación y una evidencia concreta. Una sola evidencia no resuelve las demás.')}</p>
+                {carencias.map((c) => {
+                  const k = claveC(c); const r = res[k] ?? { kind: '', justification: '', ev: '' };
+                  const set = (p: Partial<Resolucion>) => { setRes((m) => ({ ...m, [k]: { ...r, ...p } })); setConfirmo(false); };
+                  return (
+                    <fieldset key={k} data-gap={k}>
+                      <legend>{t(TB.SCOPE[c.scope] ?? c.scope)}: {t(TB.CARENCIA[c.code] ?? c.code)}</legend>
+                      <label htmlFor={`g-k-${k}`}>{t('Cómo se resuelve')}</label>
+                      <select id={`g-k-${k}`} value={r.kind} onChange={(e) => set({ kind: e.target.value })}>
+                        <option value="">{t('Elige una opción…')}</option>
+                        {Object.keys(TB.KIND_CARENCIA).map((o) => <option key={o} value={o}>{t(TB.KIND_CARENCIA[o])}</option>)}
+                      </select>
+                      <label htmlFor={`g-j-${k}`}>{t('Justificación propia de esta carencia')}</label>
+                      <textarea id={`g-j-${k}`} value={r.justification} onChange={(e) => set({ justification: e.target.value })} minLength={30} maxLength={1000} />
+                      <label htmlFor={`g-e-${k}`}>{t('Evidencia que la sustenta')}</label>
+                      <select id={`g-e-${k}`} value={r.ev} onChange={(e) => set({ ev: e.target.value })}>
+                        <option value="">{t('Elige una evidencia…')}</option>
+                        {lista.map((e, i) => <option key={i} value={String(i)} disabled={r.kind === 'ASSESSED_BY_HUMAN' && e.kind !== 'DOCUMENT_VERSION'}>{e.label}</option>)}
+                      </select>
+                    </fieldset>
+                  );
+                })}
+                {!distintas && resueltas === carencias.length && <p className="muted">{t('Las justificaciones no pueden repetirse: cada carencia tiene la suya.')}</p>}
+              </fieldset>
+            )}
             <h3>{t('Resumen antes de registrar')}</h3>
             <dl className="props" aria-label={t('Resumen antes de registrar')}>
               <dt>{t('Evaluación')}</dt><dd>{ev.number} · {t('catálogo')} {ev.rules.version}</dd>
               <dt>{t('Resultado')}</dt><dd>{t(TB.RESULTADO[resultado])}</dd>
               <dt>{t('Evidencias')}</dt><dd>{evidencias}</dd>
+              {carencias.length > 0 && <><dt>{t('Carencias resueltas')}</dt><dd>{resueltas} / {carencias.length}</dd></>}
               <dt>{t('Sustituye a la conclusión vigente')}</dt><dd>{ctx.current ? t(TB.RESULTADO[ctx.current.result]) : t('Ninguna')}</dd>
             </dl>
             <label className="checkbox-row"><input type="checkbox" checked={confirmo} onChange={(e) => setConfirmo(e.target.checked)} />{' '}{t('Confirmo que registro una conclusión humana sobre esta evaluación, no un borrador')}</label>
@@ -203,6 +250,11 @@ export default function ConclusionPage() {
               <div className="muted">{t('Versiones con que se decidió')}: {t('evaluación')} {h.links.evaluation_number} · {t('catálogo')} {h.links.rule_set_version}
                 {h.links.legal_profile_version ? ` · ${t('perfil')} ${h.links.legal_profile_version}` : ''}{h.links.dd_snapshot_number ? ` · ${t('expediente: instantánea')} ${h.links.dd_snapshot_number}` : ''}{h.on_this_evaluation ? '' : ` · ${t('sobre una evaluación anterior')}`}</div>
               <div className="muted hash">{h.links.evaluation_snapshot_hash}</div>
+              {h.gap_resolutions.length > 0 && (
+                <ul className="muted" aria-label={t('Carencias resueltas')}>{h.gap_resolutions.map((g) => (
+                  <li key={`${g.scope}:${g.code}`}>{t(TB.CARENCIA[g.code] ?? g.code)}: {t(TB.KIND_CARENCIA[g.kind] ?? g.kind)} · {g.justification} · {g.evidence.kind === 'CITATION' ? `${t('Cita')}: ${g.evidence.citation}` : `${t('Documento')}: ${g.evidence.document_version_id}`}</li>
+                ))}</ul>
+              )}
               {h.supports.length > 0 && <ul className="muted">{h.supports.map((s, i) => <li key={i}>{s.kind === 'CITATION' ? `${t('Cita')}: ${s.citation}` : `${t('Documento')}: ${s.document_version_id}`}</li>)}</ul>}
             </li>
           ))}</ul>

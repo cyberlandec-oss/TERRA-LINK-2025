@@ -33,6 +33,14 @@ export const CONCLUSION_TABLAS = {
     HAS_BLOCKING_FINDINGS: 'La evaluación tiene hallazgos bloqueantes: no se concluye favorablemente.',
     FINDINGS_REVIEW_NOT_RESOLVED: 'Hay hallazgos que requieren revisión y la revisión humana no está resuelta.',
   } as Record<string, string>,
+  SCOPE: { FACTOR: 'Regla no evaluable', CATEGORY: 'Categoría sin ninguna regla' } as Record<string, string>,
+  KIND_CARENCIA: { NOT_APPLICABLE: 'No aplica a esta operación', ASSESSED_BY_HUMAN: 'Evaluada por una persona (con un documento del sistema)' } as Record<string, string>,
+  CARENCIA: {
+    DOCUMENT_EXPIRED: 'Soportes documentales vigentes', GEOMETRY_INVALID: 'Geometría técnicamente válida', GEOLOCATION_PROFILE: 'Perfil de geolocalización', SATELLITE_COVERAGE_UNKNOWN: 'Cobertura satelital',
+    DATA_MISSING_ORIGIN: 'Origen declarado en las entregas', MASS_BALANCE_INCONSISTENT: 'Conciliación del ledger', MATERIAL_OF_UNKNOWN_ORIGIN: 'Material de origen desconocido', MITIGATION_UNVERIFIED: 'Mitigaciones verificadas',
+    DEFORESTATION: 'Deforestación', LEGALITY: 'Legalidad', MIXING: 'Mezcla', SUPPLY_CHAIN: 'Cadena de suministro', DOCUMENT_CREDIBILITY: 'Credibilidad documental', TRACEABILITY: 'Trazabilidad',
+    EVASION: 'Elusión', HUMAN_RIGHTS: 'Derechos humanos', INDIGENOUS_RIGHTS: 'Derechos de pueblos indígenas', DATA_QUALITY: 'Calidad de datos',
+  } as Record<string, string>,
   VIGENCIA: {
     EVALUATION_STALE: 'La evaluación quedó desactualizada.',
     LOST_RULE_SET_NOT_ADOPTED: 'Se perdió la adopción del catálogo.',

@@ -125,4 +125,15 @@ describe('D-07.6: risk:conclude es del rol responsable EUDR y de ningún otro', 
     expect(canGrantRole(permissionsForRoles(['MANAGER']), 'EUDR_MANAGER')).toBe(false); // sin membership:assign
     expect(canGrantRole(permissionsForRoles(['EUDR_MANAGER']), 'EUDR_MANAGER')).toBe(false); // ni el propio responsable reparte el rol
   });
+
+  it('la excepción es EXACTA: el único permiso de un rol que ORG_ADMIN no posee es risk:conclude y solo en EUDR_MANAGER; ningún otro rol ni permiso queda abierto', () => {
+    const admin = permissionsForRoles(['ORG_ADMIN']);
+    const sinPoseer = Object.fromEntries(Object.entries(ROLE_PERMISSIONS).map(([r, p]) => [r, p.filter((x) => !admin.includes(x))]));
+    expect(Object.entries(sinPoseer).filter(([, p]) => p.length).map(([r, p]) => [r, p])).toEqual([['EUDR_MANAGER', ['risk:conclude']]]);
+    // Sin la excepción, un rol con CUALQUIER otro permiso ajeno no sería asignable: ningún rol distinto de EUDR_MANAGER cambia respecto de la regla general.
+    for (const r of Object.keys(ROLE_PERMISSIONS).filter((x) => x !== 'EUDR_MANAGER')) expect(canGrantRole(admin, r)).toBe(ROLE_PERMISSIONS[r].every((p) => admin.includes(p)));
+    // Quien no tiene membership:assign no se beneficia de la excepción, y SUPER_ADMIN no es un rol de organización asignable.
+    expect(canGrantRole(admin.filter((p) => p !== 'membership:assign'), 'EUDR_MANAGER')).toBe(false);
+    expect(canGrantRole(admin, 'SUPER_ADMIN')).toBe(false);
+  });
 });

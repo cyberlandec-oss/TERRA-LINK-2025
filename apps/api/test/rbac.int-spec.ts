@@ -123,6 +123,36 @@ describeDb('P0-003 RBAC y aislamiento (PostgreSQL real)', () => {
       .send({ email: 'y@test.local', role_code: 'AUDITOR', organization_id: orgB }).expect(400);
   });
 
+  it('D-07.6: la excepción al anti-escalamiento es EXACTA: ORG_ADMIN asigna y retira EUDR_MANAGER en SU organización y nada más', async () => {
+    const tech = await membership('tecnico@test.local', orgA);
+    const self = await membership('admin-a@test.local', orgA);
+    const bMember = await membership('admin-b@test.local', orgB);
+    const put = (actor: string, org: string, mid: string, body: object) =>
+      http().put(`/api/v1/organizations/${org}/members/${mid}/roles`).set(as(actor)).send(body);
+    const roles = (await http().get(`/api/v1/organizations/${orgA}/assignable-roles`).set(as('admin-a@test.local')).expect(200)).body.roles as string[];
+    expect(roles).toContain('EUDR_MANAGER');
+    expect(roles).not.toContain('SUPER_ADMIN');
+    // Autorizado: asignar y retirar el rol responsable dentro de la propia organización (queda auditado).
+    await put('admin-a@test.local', orgA, tech.id, { roles: ['FIELD_TECHNICIAN', 'EUDR_MANAGER'], reason: 'Designación del responsable EUDR' }).expect(200);
+    await put('admin-a@test.local', orgA, tech.id, { roles: ['FIELD_TECHNICIAN'], reason: 'Fin de la designación' }).expect(200);
+    // Límites: no a sí mismo, no con roles inexistentes o globales, no en otra organización, no sin membership:assign.
+    await put('admin-a@test.local', orgA, self.id, { roles: ['ORG_ADMIN', 'EUDR_MANAGER'], reason: 'auto-designación' }).expect(409);
+    await put('admin-a@test.local', orgA, tech.id, { roles: ['EUDR_MANAGER', 'SUPER_ADMIN'], reason: 'escalar' }).expect(400);
+    await put('admin-a@test.local', orgA, bMember.id, { roles: ['EUDR_MANAGER'], reason: 'cruce' }).expect(404);
+    await put('admin-b@test.local', orgA, tech.id, { roles: ['FIELD_TECHNICIAN', 'EUDR_MANAGER'], reason: 'cruce' }).expect(404);
+    await put('multi@test.local', orgA, tech.id, { roles: ['FIELD_TECHNICIAN', 'EUDR_MANAGER'], reason: 'sin membership:assign' }).expect(403); // MANAGER
+    // Quien recibe el rol responsable NO obtiene capacidad de administrar miembros ni de repartir roles.
+    await put('admin-a@test.local', orgA, tech.id, { roles: ['EUDR_MANAGER'], reason: 'Designación del responsable EUDR' }).expect(200);
+    await put('tecnico@test.local', orgA, self.id, { roles: ['ORG_ADMIN', 'AUDITOR'], reason: 'sin facultad' }).expect(403);
+    await http().get(`/api/v1/organizations/${orgA}/assignable-roles`).set(as('tecnico@test.local')).expect(403);
+    await put('admin-a@test.local', orgA, tech.id, { roles: ['FIELD_TECHNICIAN'], reason: 'Fin de la designación' }).expect(200);
+    // La excepción NO le da a ORG_ADMIN la capacidad de concluir: los permisos del catálogo lo confirman.
+    const { ROLE_PERMISSIONS } = await import('../src/authz/catalog');
+    expect(ROLE_PERMISSIONS.ORG_ADMIN).not.toContain('risk:conclude');
+    expect(ROLE_PERMISSIONS.EUDR_MANAGER).toContain('risk:conclude');
+    expect(ROLE_PERMISSIONS.EUDR_MANAGER).not.toContain('membership:assign');
+  });
+
   it('bitácora: solo filas de la organización, actor de plataforma anonimizado, permisos por rol', async () => {
     const res = await http().get(`/api/v1/organizations/${orgA}/audit-logs?limit=100`).set(as('auditor@test.local')).expect(200);
     expect(res.body.items.length).toBeGreaterThan(0);
