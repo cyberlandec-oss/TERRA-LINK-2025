@@ -14,6 +14,7 @@ import { GEO_PANEL_TABLAS } from './geo-eval-panel';
 import { VINCULO_TABLAS } from './vinculo-catalogo';
 import { REVISION_TABLAS } from './revision-perfil';
 import { GEO_CONFIG_TABLAS } from './geo-config';
+import { CONCLUSION_TABLAS } from './conclusion-humana';
 
 // P1-015 / D-54 — Español fuente, inglés segunda lengua (ADR-0007, opción B).
 const PANTALLAS = [
@@ -32,6 +33,8 @@ const PANTALLAS = [
   'app/plataforma/catalogo-riesgo/page.tsx',
   'app/plataforma/perfil-juridico/page.tsx',
   'app/plataforma/geolocalizacion/page.tsx', 'app/organizaciones/[id]/geolocalizacion/page.tsx',
+  // D-07.6: conclusión humana
+  'app/organizaciones/[id]/riesgo/[lotId]/conclusion/page.tsx',
 ];
 
 describe('internacionalización', () => {
@@ -60,6 +63,7 @@ describe('internacionalización', () => {
       ...Object.values(VINCULO_TABLAS).flatMap((t) => Object.values(t)),
       ...Object.values(REVISION_TABLAS).flatMap((t) => Object.values(t)),
       ...Object.values(GEO_CONFIG_TABLAS).flatMap((t) => Object.values(t)),
+      ...Object.values(CONCLUSION_TABLAS).flatMap((t) => Object.values(t)),
     ];
     expect(valores.filter((v) => !(v in EN))).toEqual([]);
   });

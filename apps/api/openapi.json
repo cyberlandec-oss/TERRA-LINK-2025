@@ -193,6 +193,86 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/risk/evaluations/{id}/conclusions": {
+      "get": {
+        "operationId": "RiskConclusionController_context",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "risk"
+        ]
+      },
+      "post": {
+        "operationId": "RiskConclusionController_record",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordConclusionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "risk"
+        ]
+      }
+    },
     "/api/v1/platform/geolocation-config/versions": {
       "get": {
         "operationId": "GeoConfigPlatformController_list",
@@ -12444,6 +12524,60 @@
       }
     },
     "schemas": {
+      "SupportDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "document_version_id": {
+            "type": "string"
+          },
+          "evidence_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id"
+        ]
+      },
+      "RecordConclusionDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "NEGLIGIBLE",
+              "NON_NEGLIGIBLE"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Motivo escrito de la conclusión"
+          },
+          "supports": {
+            "description": "Evidencias: al menos una",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupportDto"
+            }
+          },
+          "expected_current_conclusion_id": {
+            "type": "object",
+            "nullable": true,
+            "description": "Conclusión que quien registra veía como vigente (null si ninguna). Si ya no lo es, se rechaza: no se pisa a ciegas"
+          }
+        },
+        "required": [
+          "operation_id",
+          "result",
+          "reason",
+          "supports"
+        ]
+      },
       "SourceDto": {
         "type": "object",
         "properties": {
@@ -12563,23 +12697,6 @@
           "reason",
           "sources",
           "rules"
-        ]
-      },
-      "SupportDto": {
-        "type": "object",
-        "properties": {
-          "operation_id": {
-            "type": "string"
-          },
-          "document_version_id": {
-            "type": "string"
-          },
-          "evidence_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "operation_id"
         ]
       },
       "ReviewConfigDto": {

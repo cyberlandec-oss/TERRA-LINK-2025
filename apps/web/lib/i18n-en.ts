@@ -6,6 +6,7 @@ import { EN_GEOPANEL } from './i18n-en-geopanel';
 import { EN_VINCULO } from './i18n-en-vinculo';
 import { EN_REVISION } from './i18n-en-revision';
 import { EN_GEOCONFIG } from './i18n-en-geoconfig';
+import { EN_CONCLUSION } from './i18n-en-conclusion';
 
 // Traducción de INTERFAZ al inglés (P1-015 / D-54; ADR-0007). La clave es el texto en español —la fuente—.
 // No es una traducción jurídica certificada. Un texto sin entrada aquí se muestra en español, nunca como clave.
@@ -286,6 +287,7 @@ Object.assign(EN, EN_GEOPANEL); // I1–I4: evaluación geográfica técnica act
 Object.assign(EN, EN_VINCULO); // D-07.5(b) b-1: vinculación del catálogo de riesgo con un perfil jurídico
 Object.assign(EN, EN_REVISION); // P1-005: acto de revisión del perfil jurídico
 Object.assign(EN, EN_GEOCONFIG); // GEOLOCATION_PROFILE: configuración versionada de reglas
+Object.assign(EN, EN_CONCLUSION); // D-07.6: conclusión humana del responsable EUDR
 
 /** Mensajes con cifras: no pueden ser claves exactas, así que se traducen por patrón. */
 export const EN_PATTERNS: Array<[RegExp, string]> = [

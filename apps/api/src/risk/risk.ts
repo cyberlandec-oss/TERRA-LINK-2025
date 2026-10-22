@@ -479,7 +479,9 @@ export class RiskService {
         version: e.rule_set_version, approval_status: e.approval_status,
         // Publicación global y adopción por organización son actos distintos (D-07.1).
         global_publication: e.approval_status,
-        adopted_by_organization: !!e.severity_adoption_id,
+        // Adopción VIGENTE del catálogo con que se evaluó. No sale de la severidad: una evaluación sin hallazgos queda NOT_ASSESSED (sin adopción registrada en la
+        // fila) aunque la organización SÍ haya adoptado el catálogo, y eso no debe leerse como «no adoptado» (D-07.6 lo necesita para el caso favorable).
+        adopted_by_organization: !!(await this.currentAdoption(db, ctx.organizationId, e.rule_set_version)),
         // Tercera cosa distinta de las dos anteriores: bajo qué PERFIL JURÍDICO se aprobó la versión para concluir.
         // Hoy es `null` en todas: D-07.5 sigue pendiente y por eso ninguna evaluación acredita preparación.
         regulatory_profile: e.regulatory_profile,

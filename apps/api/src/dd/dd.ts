@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Req, Res } from '@nestjs/common';
 import { coberturaDeSujetos, perfilDeOrganizacion } from '../legal/legal-profile';
 import { geoConfigContent } from '../geo/geo-config';
+import { conclusionEfectiva } from '../risk/risk-conclusion';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsString, IsUUID, Length } from 'class-validator';
 import { randomUUID } from 'crypto';
@@ -131,9 +132,11 @@ export class DdService {
     let risk: DdContent['risk'] = null;
     if (latest) {
       const v = await this.risk.view(db, ctx, latest.id);
+      // D-07.6: la conclusión del expediente es la HUMANA vigente (nunca la del motor, que es UNDETERMINED). Si no hay una vigente, UNDETERMINED.
+      const ef = await conclusionEfectiva(db as Kysely<Database>, ctx.organizationId, v as never);
       risk = { evaluation_id: v.id, evaluation_number: v.evaluation_number, snapshot_hash: v.snapshot.hash, rule_set_version: v.rules.version, rule_set_approval: v.rules.approval_status,
         rule_set_adopted: v.rules.adopted_by_organization, rule_set_regulatory_profile: v.rules.regulatory_profile,
-        technical_result: v.technical_result.status, severity: v.risk_result.severity, conclusion: v.risk_result.conclusion, is_current: v.freshness.status === 'CURRENT', review_process: v.review.process_status,
+        technical_result: v.technical_result.status, severity: v.risk_result.severity, conclusion: ef.effective, ...(ef.record ? { conclusion_record: { id: ef.record.id, result: ef.record.result, valid: ef.valid, invalid_reasons: ef.invalid_reasons } } : {}), is_current: v.freshness.status === 'CURRENT', review_process: v.review.process_status,
         factors: v.factors.map((f) => ({ code: f.code, result: f.result, effect: f.effect })) };
     }
     // P0-028: la procedencia del requisito DEFORESTATION_ANALYSIS sale del REGISTRO de proveedores, no de una

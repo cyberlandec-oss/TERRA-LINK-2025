@@ -27,7 +27,10 @@ export interface DdContent {
     rule_set_adopted: boolean;
     /** D-07.5: perfil jurídico bajo el que la versión fue aprobada para CONCLUIR. Hoy `null` en todas. */
     rule_set_regulatory_profile: string | null;
-    technical_result: string; severity: string; conclusion: string; is_current: boolean; review_process: string; factors: Array<{ code: string; result: string; effect: string }> };
+    technical_result: string; severity: string; conclusion: string;
+      /** D-07.6: la conclusión HUMANA registrada (si la hay), con su vigencia. `conclusion` ya es la EFECTIVA (UNDETERMINED si no hay una vigente). Solo está presente si hay registro. */
+      conclusion_record?: { id: string; result: 'NEGLIGIBLE' | 'NON_NEGLIGIBLE'; valid: boolean; invalid_reasons: string[] };
+      is_current: boolean; review_process: string; factors: Array<{ code: string; result: string; effect: string }> };
   mitigations: Array<{ id: string; factor_code: string; status: string; row_version: string; decision: string | null }>;
   /**
    * D-34.A.1: vínculo PREVIO al despacho. Un ítem de embarque con reserva activa de la misma organización.
@@ -282,9 +285,13 @@ export function evaluateRequirements(c: DdContent): Requirement[] {
       : !c.risk.rule_set_regulatory_profile
         ? r('RISK_CATALOG_APPROVED', 'Catálogo de reglas de riesgo aprobado bajo perfil jurídico', 'NOT_EVALUABLE', `${cat}: adoptadas por la organización, pero su publicación es una decisión TÉCNICA de producto y no hay perfil jurídico aprobado (D-07.5). No permiten afirmar preparación regulatoria.`, 'docs/13 §Registro de regla')
         : r('RISK_CATALOG_APPROVED', 'Catálogo de reglas de riesgo aprobado bajo perfil jurídico', ...catalogUnderProfile(cat, c.risk.rule_set_regulatory_profile, c.profiles.legal_profile)));
-    out.push(c.risk.conclusion === 'NEGLIGIBLE' ? r('REGULATORY_CONCLUSION', 'Conclusión regulatoria bajo perfil aprobado', 'MET', 'Conclusión NEGLIGIBLE bajo perfil aprobado.', 'docs/13 §Dimensiones')
-      : c.risk.conclusion === 'NON_NEGLIGIBLE' ? r('REGULATORY_CONCLUSION', 'Conclusión regulatoria bajo perfil aprobado', 'INVALID', 'Conclusión NON_NEGLIGIBLE.', 'docs/13 §Dimensiones')
-        : r('REGULATORY_CONCLUSION', 'Conclusión regulatoria bajo perfil aprobado', 'NOT_EVALUABLE', 'Conclusión UNDETERMINED: no hay perfil jurídico ni reglas aprobadas.', 'docs/13 §Dimensiones'));
+    // D-07.6: solo cuenta la conclusión HUMANA registrada por una persona autorizada (EUDR_MANAGER) y VIGENTE. El motor nunca concluye. Esta condición es una más: registrarla no anula
+    // ningún otro requisito ni habilita READY por sí sola.
+    const rec = c.risk.conclusion_record;
+    out.push(c.risk.conclusion === 'NEGLIGIBLE' ? r('REGULATORY_CONCLUSION', 'Conclusión regulatoria bajo perfil aprobado', 'MET', 'Conclusión humana NEGLIGIBLE registrada por una persona autorizada y vigente sobre esta evaluación. No anula otros requisitos pendientes ni equivale a READY.', 'docs/13 §Dimensiones; D-07.6')
+      : c.risk.conclusion === 'NON_NEGLIGIBLE' ? r('REGULATORY_CONCLUSION', 'Conclusión regulatoria bajo perfil aprobado', 'INVALID', 'Conclusión humana NON_NEGLIGIBLE vigente sobre esta evaluación.', 'docs/13 §Dimensiones; D-07.6')
+        : rec ? r('REGULATORY_CONCLUSION', 'Conclusión regulatoria bajo perfil aprobado', 'NOT_EVALUABLE', `Hay una conclusión humana (${rec.result}) registrada, pero NO está vigente (${rec.invalid_reasons.join(', ')}): se conserva en el historial y no vale como conclusión.`, 'docs/13 §Dimensiones; D-07.6')
+          : r('REGULATORY_CONCLUSION', 'Conclusión regulatoria bajo perfil aprobado', 'NOT_EVALUABLE', 'Conclusión UNDETERMINED: el motor no concluye y nadie ha registrado una conclusión humana vigente sobre esta evaluación.', 'docs/13 §Dimensiones; D-07.6'));
   }
   const pendingMit = c.mitigations.filter((m) => m.status !== 'VERIFIED');
   out.push(!c.mitigations.length ? r('MITIGATIONS_VERIFIED', 'Mitigaciones verificadas', 'MET', 'Sin mitigaciones registradas para el sujeto.', 'docs/13 MITIGATION_UNVERIFIED')

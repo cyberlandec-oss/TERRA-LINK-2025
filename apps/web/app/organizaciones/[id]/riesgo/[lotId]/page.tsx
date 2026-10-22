@@ -55,6 +55,7 @@ export default function LotRiskPage() {
       <PageHeader title={`Riesgo del lote ${d.lot.lot_code}`} meta={<Link href={`/organizaciones/${orgId}/lotes/${d.lot.id}`}>Abrir el lote</Link>} />
       <Alert tone="info">Reglas {d.rule_set.version} ({d.rule_set.approval_status === 'NOT_APPROVED' ? 'sin aprobar' : 'aprobadas'}): {d.rule_set.notes}</Alert>
       {d.can_evaluate && <p><button type="button" disabled={busy} onClick={() => void evaluate()}>{e ? 'Reevaluar (nueva versión)' : 'Evaluar'}</button></p>}
+      {e && <p><Link href={`/organizaciones/${orgId}/riesgo/${lotId}/conclusion`}>Conclusión humana de esta evaluación</Link></p>}
       {actionError && <ErrorPanel error={actionError} />}
       {!e && <p className="muted">Sin evaluaciones todavía.</p>}
       {e && <>

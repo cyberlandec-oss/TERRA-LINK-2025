@@ -113,3 +113,16 @@ describe('A-01: los permisos de captura propia no amplían responsabilidades aje
     expect(m).toEqual(expect.arrayContaining(['producer:read', 'producer:create', 'producer:update', 'plot:read', 'plot:create', 'plot:update', 'plot:read_geometry']));
   });
 });
+
+describe('D-07.6: risk:conclude es del rol responsable EUDR y de ningún otro', () => {
+  it('solo EUDR_MANAGER lo tiene; ORG_ADMIN puede ASIGNAR ese rol sin poseer el permiso (separación de funciones)', () => {
+    const con = Object.entries(ROLE_PERMISSIONS).filter(([, p]) => p.includes('risk:conclude')).map(([r]) => r);
+    expect(con).toEqual(['EUDR_MANAGER']);
+    const admin = permissionsForRoles(['ORG_ADMIN']);
+    expect(admin).not.toContain('risk:conclude'); // quien administra los accesos no concluye riesgo
+    expect(canGrantRole(admin, 'EUDR_MANAGER')).toBe(true); // pero sí puede asignar el rol responsable
+    expect(assignableRoles(admin)).toContain('EUDR_MANAGER');
+    expect(canGrantRole(permissionsForRoles(['MANAGER']), 'EUDR_MANAGER')).toBe(false); // sin membership:assign
+    expect(canGrantRole(permissionsForRoles(['EUDR_MANAGER']), 'EUDR_MANAGER')).toBe(false); // ni el propio responsable reparte el rol
+  });
+});

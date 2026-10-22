@@ -104,6 +104,8 @@ export type Permission =
   | 'risk:review'
   /** D-07.1: adoptar o retirar un catálogo de reglas DENTRO de una organización. No publica nada global. */
   | 'risk:approve_rules'
+  /** D-07.6: registrar la CONCLUSIÓN HUMANA (NEGLIGIBLE / NON_NEGLIGIBLE) de una evaluación. Solo EUDR_MANAGER (rol responsable EUDR); el motor nunca concluye. */
+  | 'risk:conclude'
   // P0-021 (docs/13 §Mitigación; docs/07 EUDR_MANAGER «crear mitigación, revisar»): leer, crear/asignar, aportar soportes
   // (solo el responsable asignado) y verificar/rechazar (nunca quien ejecutó: separación de funciones sin excepción).
   | 'mitigation:read'
@@ -219,7 +221,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   RECEPTION_OPERATOR: ['transfer:read', 'transfer:receive', ...ALL_MEMBER_READ, 'product:read', 'traceability:read_catalog', 'delivery:read', 'delivery:create', 'reception:confirm', 'reception:correct', 'location:read', 'quality:record', 'lot:read', 'lot:create', 'stock:read'],
   QUALITY_OPERATOR: [...ALL_MEMBER_READ, 'product:read', 'traceability:read_catalog', 'delivery:read', 'location:read', 'quality:record', 'quality:decide', 'lot:read', 'stock:read'],
   TRACEABILITY_MANAGER: ['transfer:read', 'transfer:offer', 'transfer:accept', 'transfer:dispatch', 'transfer:receive', 'transfer:resolve', ...ALL_MEMBER_READ, 'producer:read', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'evidence:read', 'delivery:read', 'location:read', 'lot:read', 'lot:create', 'lot:release_input', 'process:manage', 'process:close', 'stock:read', 'stock:move', 'risk:read', 'mitigation:read', 'mitigation:contribute', 'shipment:read', 'report:read', 'satellite:read'],
-  EUDR_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'producer:read_identity', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'document:review', 'evidence:read', 'evidence:link', 'evidence:verify', 'delivery:read', 'location:read', 'lot:read', 'stock:read', 'risk:read', 'risk:evaluate', 'risk:review', 'mitigation:read', 'mitigation:manage', 'mitigation:contribute', 'mitigation:verify', 'dd:read', 'dd:manage', 'dd:approve_package', 'dd:export_package', 'cost:read', 'shipment:read', 'report:read', 'report:export', 'satellite:read', 'satellite:request'],
+  EUDR_MANAGER: [...ALL_MEMBER_READ, 'producer:read', 'producer:read_identity', 'plot:read', 'plot:read_geometry', 'plot:evaluate_gis', 'product:read', 'traceability:read_catalog', 'document:read', 'document:upload', 'document:review', 'evidence:read', 'evidence:link', 'evidence:verify', 'delivery:read', 'location:read', 'lot:read', 'stock:read', 'risk:read', 'risk:evaluate', 'risk:review', 'risk:conclude', 'mitigation:read', 'mitigation:manage', 'mitigation:contribute', 'mitigation:verify', 'dd:read', 'dd:manage', 'dd:approve_package', 'dd:export_package', 'cost:read', 'shipment:read', 'report:read', 'report:export', 'satellite:read', 'satellite:request'],
   EXPORT_MANAGER: ['transfer:read', 'transfer:offer', 'transfer:accept', 'transfer:dispatch', ...ALL_MEMBER_READ, 'product:read', 'traceability:read_catalog', 'location:read', 'lot:read', 'stock:read', 'shipment:read', 'shipment:manage', 'stock:reserve', 'shipment:dispatch', 'report:read'],
   BUYER: [],
   AUDITOR: ['transfer:read', ...ALL_MEMBER_READ, 'audit:read', 'audit:export', 'economics:read', 'analytics:read', 'producer:read', 'plot:read', 'product:read', 'traceability:read_catalog', 'document:read', 'evidence:read', 'delivery:read', 'location:read', 'lot:read', 'stock:read', 'risk:read', 'mitigation:read', 'dd:read', 'shipment:read', 'report:read', 'report:export', 'satellite:read'],
@@ -249,8 +251,15 @@ export const ORGANIZATION_ROLES = Object.keys(ROLE_PERMISSIONS);
 export function canGrantRole(actorPermissions: Permission[], roleCode: string): boolean {
   const role = ROLE_PERMISSIONS[roleCode];
   if (!role || !actorPermissions.includes('membership:assign')) return false;
-  return role.every((p) => actorPermissions.includes(p));
+  return role.every((p) => actorPermissions.includes(p) || ASIGNABLE_SIN_POSEER.has(p));
 }
+
+/**
+ * Permisos que la administración de la organización puede ASIGNAR (a través de un rol) sin ejercerlos ella misma. Es una excepción acotada al anti-escalamiento y deliberada:
+ * `risk:conclude` (D-07.6) es del rol responsable EUDR, y quien administra los accesos NO concluye riesgo (separación de funciones). Sin esta excepción, `ORG_ADMIN` no podría
+ * asignar `EUDR_MANAGER`, porque ese rol incluye un permiso que `ORG_ADMIN` no tiene. No amplía lo que `ORG_ADMIN` puede hacer: solo a quién puede darle el rol.
+ */
+export const ASIGNABLE_SIN_POSEER: ReadonlySet<Permission> = new Set<Permission>(['risk:conclude']);
 
 export function assignableRoles(actorPermissions: Permission[]): string[] {
   return ORGANIZATION_ROLES.filter((r) => canGrantRole(actorPermissions, r)).sort();
