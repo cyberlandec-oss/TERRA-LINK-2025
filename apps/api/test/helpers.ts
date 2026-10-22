@@ -5,7 +5,7 @@ import request from 'supertest';
 import { createApp } from '../src/bootstrap';
 import type { AppConfig } from '../src/config';
 import { instrumentarConsulta } from '../src/observability/db-hook';
-import { createDb, migrateToLatest } from '../src/db/database';
+import { createDb, migrateToLatest, PG_SESSION_OPTIONS } from '../src/db/database';
 import { S3ObjectStore } from '../src/storage/object-store';
 import type { Database } from '../src/db/schema';
 import { hashPassword } from '../src/auth/passwords';
@@ -88,7 +88,8 @@ export async function setupHarness(overrides: Partial<AppConfig> = {}) {
   // `commit` de 1 a 6 s y migraciones de 16 s en vez de 11 s por latencia de disco del equipo, con un `beforeAll` que superó 60 s. Esto NO cambia lo que se prueba
   // (transacciones, restricciones y concurrencia son las mismas); solo quita la espera de durabilidad, que en una base que se recrea en cada suite no importa.
   const urlPruebas = new URL(TEST_URL!);
-  urlPruebas.searchParams.set('options', '-c synchronous_commit=off');
+  // La URL manda sobre las opciones del Pool: se CONSERVAN las de sesión del producto (client_min_messages=warning) y se añade la de commit.
+  urlPruebas.searchParams.set('options', `${PG_SESSION_OPTIONS.options} -c synchronous_commit=off`);
   const db: Kysely<Database> = createDb(
     urlPruebas.toString(),
     (sqlText, ms) => recordTiming({ phase: 'slow_query', ms, test: expect.getState().currentTestName ?? null, sql: sqlText }),
