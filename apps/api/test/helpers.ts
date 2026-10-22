@@ -84,8 +84,13 @@ async function vaciarBucketDePruebas(config: AppConfig): Promise<void> {
 
 export async function setupHarness(overrides: Partial<AppConfig> = {}) {
   if (!new URL(TEST_URL!).pathname.endsWith('_test')) throw new Error('TEST_DATABASE_URL debe apuntar a una base *_test');
+  // Base DESECHABLE (`*_test`, comprobada arriba): los commits no esperan al disco (`synchronous_commit = off`). Una falla de la corrida del 2026-10-22 mostró
+  // `commit` de 1 a 6 s y migraciones de 16 s en vez de 11 s por latencia de disco del equipo, con un `beforeAll` que superó 60 s. Esto NO cambia lo que se prueba
+  // (transacciones, restricciones y concurrencia son las mismas); solo quita la espera de durabilidad, que en una base que se recrea en cada suite no importa.
+  const urlPruebas = new URL(TEST_URL!);
+  urlPruebas.searchParams.set('options', '-c synchronous_commit=off');
   const db: Kysely<Database> = createDb(
-    TEST_URL!,
+    urlPruebas.toString(),
     (sqlText, ms) => recordTiming({ phase: 'slow_query', ms, test: expect.getState().currentTestName ?? null, sql: sqlText }),
     1000,
     instrumentarConsulta,   // RNF-13: la misma instrumentación que la API, no una de pruebas
