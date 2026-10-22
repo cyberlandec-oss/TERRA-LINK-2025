@@ -482,4 +482,4 @@ y se invalida si cambian evaluación, perfil o catálogo. La favorable exige res
 propios; rechazar textos idénticos es solo una comprobación formal. Enmienda acotada de `docs/07` (asignación de
 `EUDR_MANAGER` por `membership:assign`). Migraciones `0064`–`0065`. Evidencia: `qa/EVIDENCIA_D076_CONCLUSION_HUMANA_2026-10-22.md`.
 **Sigue pendiente (separado):** aceptación regulatoria real del criterio y de las conclusiones, revisión jurídica real del perfil,
-política para quien tenga a la vez `ORG_ADMIN` y `EUDR_MANAGER`, y los avisos moderados de `js-yaml`/`sprintf-js`.
+y los avisos de la cadena de desarrollo (jest).
