@@ -79,13 +79,15 @@ await caso('Pantalla (es): versiones sin revisión, historial vacío, registro d
   await page.screenshot({ path: join(SALIDA, 'pantalla-es.png'), fullPage: true }); await ctx.close();
   return [deshab && /No elegible para vincular un catálogo/.test(cuerpoTxt) && /La última decisión|no tiene ninguna revisión jurídica registrada/.test(cuerpoTxt), 'botón deshabilitado y consecuencia técnica visible'];
 });
-await caso('Pantalla (en, 390 px): traducida, sin códigos internos, consecuencia visible dentro del ancho y sin desborde', async () => {
+await caso('Pantalla (en, 390 px): radios, consecuencia visible dentro del ancho, traducida, sin códigos internos y sin desborde', async () => {
   const { ctx, page } = await sesion(sup, 'en', { width: 390, height: 844 }); await page.goto(`${WEB}/plataforma/perfil-juridico`);
   await page.getByText('This version has no review on record.').waitFor({ timeout: 15000 });
   const razon = page.getByText('The profile has no legal review on record.').first(); await razon.waitFor();
+  const radio = await page.getByRole('radio', { name: 'Objected' }).boundingBox(); const etiqueta = await page.getByText('Objected', { exact: true }).last().boundingBox();
+  const radiosOk = radio.width <= 24 && Math.abs(etiqueta.y - radio.y) < 24;
   const caja = await razon.boundingBox(); const txt = await page.locator('main').innerText(); const sin = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   await page.screenshot({ path: join(SALIDA, 'pantalla-en-390.png'), fullPage: true }); await ctx.close();
-  return [sin && caja.x + caja.width <= 391 && !/\b(NO_REVIEW|SCOPE_PARTIAL|PUBLISHED|DRAFT|REVIEWED|OBJECTED)\b/.test(txt), `sin desborde: ${sin}`];
+  return [radiosOk && sin && caja.x + caja.width <= 391 && !/\b(NO_REVIEW|SCOPE_PARTIAL|PUBLISHED|DRAFT|REVIEWED|OBJECTED)\b/.test(txt), `radios con tamaño de control y etiqueta en su línea: ${radiosOk}; sin desborde: ${sin}`];
 });
 await caso('La administración de la organización no ve la pantalla de plataforma', async () => {
   const { ctx, page } = await sesion(adm, 'es'); await page.goto(`${WEB}/plataforma/perfil-juridico`);

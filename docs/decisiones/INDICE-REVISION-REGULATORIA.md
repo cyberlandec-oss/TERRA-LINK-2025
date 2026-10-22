@@ -79,3 +79,7 @@ Cada una **se contrasta con los criterios originales** antes de implementarse y 
 ## 6. Estado actual (verificable)
 
 Cobertura original **42/60 = 70 %**; MVP **30/44 = 68,2 %**; sin cambios por esta entrega. Perfil `0.1.0` publicado parcial y sin revisión; `0.2.0` borrador no adoptable; ninguna versión del catálogo declara perfil; `REGULATORY_CONCLUSION` = `UNDETERMINED` por `CHECK`. Las guías de revisión web y la plataforma siguen disponibles (`CREDENCIALES.csv` local, `node e2e/review/revision-por-rol.mjs`).
+
+## 7. Actualización (2026-10-22): el acto de revisión ya existe
+
+El registro de la respuesta de R8/Q7 **ya tiene mecanismo**: `POST /api/v1/platform/legal-profile/reviews` y la pantalla `/plataforma/perfil-juridico` (SUPER_ADMIN), con persona revisora declarada, usuario que registra, fecha, fundamento y soportes. Falta el **contenido real**: ninguna revisión está registrada. Ver `qa/EVIDENCIA_REVISION_PERFIL_2026-10-22.md`.

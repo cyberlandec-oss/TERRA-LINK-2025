@@ -590,3 +590,5 @@ Para una validación larga, mantener el equipo despierto: una corrida de `valida
 Guarda de `RISK_CATALOG_APPROVED` y `0.2.0` (migraciones 0059–0060): respaldo `_respaldos/2026-10-21-guarda-catalogo-0059-0060/` (restauración aislada verificada); demostración `node e2e/review/guarda-catalogo-demostracion.mjs` (9/9, no aprueba perfiles).
 
 Vinculación del catálogo con un perfil (migración 0061): respaldo `_respaldos/2026-10-21-vinculo-catalogo-0061/` (restauración aislada verificada); demostración `node e2e/review/vinculo-catalogo-demostracion.mjs` (12/12).
+
+Acto de revisión del perfil (migración 0062): respaldo `_respaldos/2026-10-22-revision-perfil-0062/` (restauración aislada verificada); demostración `node e2e/review/revision-perfil-demostracion.mjs` (10/10, sin registrar revisiones).

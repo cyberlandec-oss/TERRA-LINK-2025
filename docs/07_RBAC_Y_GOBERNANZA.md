@@ -274,3 +274,7 @@ Anti-escalamiento: un rol con estos permisos solo es otorgable por quien los pos
 Nuevo permiso de **plataforma** `risk_catalog:link_profile` (solo `SUPER_ADMIN`, nunca por membresía). Permite consultar los perfiles elegibles, confirmar el acto y ver su historial. **No** concede adoptar un catálogo (sigue `risk:approve_rules` de cada organización), **no** concede registrar conclusiones regulatorias y no cambia ninguna responsabilidad de los roles canónicos. Contrato: `decisiones/D-07-PROPUESTA.md` §13.
 
 **Precisión (2026-10-21):** `risk_catalog:link_profile` es una **capacidad específica de `SUPER_ADMIN` sobre el catálogo global** de reglas de riesgo; no pasa a ningún rol de organización. Los permisos y responsabilidades base de los demás roles no cambian. Crear la versión vinculada, la aprobación técnica, la adopción por organización (`risk:approve_rules`) y la conclusión regulatoria son acciones distintas: ejecutar la primera no ejecuta las otras. No existe permiso para concluir.
+
+## Registro del acto de revisión del perfil jurídico (P1-005; 2026-10-22)
+
+Permiso de **plataforma** `legal_profile:record_review`, solo `SUPER_ADMIN`: capacidad específica sobre el perfil jurídico global; no pasa a ningún rol de organización y no cambia los permisos base de los demás roles. **Registrar el acto no es emitir una conclusión jurídica** ni concede concluir riesgo. Contrato: `09_CONTRATOS_API.md`; datos: `06_DICCIONARIO_DATOS.md`.

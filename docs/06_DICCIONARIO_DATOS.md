@@ -237,3 +237,15 @@ Clasificación de la identidad del productor: documento, teléfono y dirección 
 | **Uso** | Solo se **devuelve** en las respuestas y se **muestra** («tipo · país · versión») en la ficha de la organización. **Ninguna regla, perfil, evaluación, exportación ni compuerta lo lee.** En los datos DEMO sintéticos se asigna `DE` al tipo `IMPORTER` y `EC` al resto |
 | **No relacionado** | `buyers.country` (país del comprador **declarado**) y `shipments.destination_country` (destino **declarado**) son campos distintos; `plots` guarda provincia/cantón/parroquia, no país; `ProducerCountry` no se emite (reportes) por no existir país de producción |
 **Consecuencias:** (a) **no se usa automáticamente** como país de producción, de establecimiento ni como criterio de aplicabilidad (hecho F1 de `docs/decisiones/D-05B-FICHA-REVISION-2026-10-21.md`); (b) **reutilizar** este campo para un uso regulatorio exige antes **definir su significado** y permitir corregirlo (decisión pendiente, parte de Q1/Q3); (c) no se crea un campo nuevo mientras el existente pueda reutilizarse con un significado definido.
+
+## `legal_profile_reviews` y `legal_profile_review_supports` (P1-005, migración 0062; 2026-10-22)
+
+| Campo | Significado | Observaciones |
+| --- | --- | --- |
+| `reviewer_name` | **Persona revisora declarada** | Declaración al registrar; puede no tener cuenta. Filas anteriores a `0062` (ninguna real): `No declarado (anterior a 0062)` |
+| `reviewer_capacity` | Cargo o capacidad declarada | Existente desde `0049` |
+| `reviewed_on` | Fecha declarada de la revisión | No futura; distinta de `decided_at` (cuándo se registró) |
+| `reviewer_id` | **Usuario que registra el acto** (SUPER_ADMIN) **desde `0062`** | Antes de `0062` su comentario lo describía como «responsable identificado»; **no existía ningún registro real** (comprobado en el entorno operativo y sus respaldos), y un eventual dato anterior conserva su sentido histórico, reconocible por el relleno de `reviewer_name` |
+| `basis` | Fundamento | 10–2000 caracteres |
+| `decision` | `REVIEWED`, `OBJECTED`, `WITHDRAWN` | La **vigente** es la última por `decided_at`; las anteriores se conservan |
+| `legal_profile_review_supports` | Soportes de una revisión | `kind` = `PROFILE_SOURCE` (FK compuesta a una fuente de la **misma versión**) o `CITATION` (cita, `url` https y `file_sha256` opcionales). Una revisión `REVIEWED` exige ≥1 soporte (restricción diferida). Append-only |

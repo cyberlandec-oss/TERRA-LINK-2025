@@ -152,3 +152,12 @@ Devuelve `kind: CURRENT_TECHNICAL_GEO_EVALUATION`, `not_snapshot_content: true`,
 y por parcela `plots[]`: `geometry {version_number, geometry_type}`, `vigencia` (`CURRENT` | `OBSOLETE` | `ABSENT`) con `reason` (`NEVER_EVALUATED`, `NO_GEOMETRY_VERSION`, `GEOMETRY_VERSION_CHANGED`, `PROFILE_VERSION_CHANGED`), `evaluation {status, label, profile, source, evaluated_at, evaluated_version_number, explanation, area}` y `next_action {code, message, can_act}`.
 `explanation` y `area` solo se entregan con `plot:read_geometry` (`detail_restricted: true` en caso contrario). `regulatory` recuerda que el requisito `GEOLOCATION_PROFILE` **no cambia** y muestra su estado en la última instantánea.
 **Contrato:** esta respuesta **no forma parte** de `DdContent`, de su hash ni de sus secciones; añadirla no modifica ni desactualiza instantáneas. Si el veredicto debe entrar al contenido formal de la instantánea: contrato versionado y transición explícita (no se hace aquí).
+
+## Acto de revisión del perfil jurídico (P1-005, plataforma; 2026-10-22)
+
+| Método y ruta | Permiso | Contrato |
+| --- | --- | --- |
+| `GET /api/v1/platform/legal-profile/reviews` | `legal_profile:record_review` (plataforma, solo `SUPER_ADMIN`) | Versiones con fuentes, **revisión vigente** (la última), historial (`is_current`), soportes y consecuencia técnica (`link_eligibility`) |
+| `POST /api/v1/platform/legal-profile/reviews` | ídem | Registra una revisión **efectiva** e inmutable de una versión exacta. Cuerpo: `operation_id`, `version`, `decision` (`REVIEWED`/`OBJECTED`/`WITHDRAWN`), `reviewer_name`, `reviewer_capacity`, `reviewed_on` (no futura), `basis`, `supports[]`, `expected_current_review_id` (opcional) |
+
+**Tres conceptos distintos:** (1) **persona revisora declarada** = `reviewer_name` + `reviewer_capacity` (+ `reviewed_on`); (2) **usuario que registra el acto** = el de la sesión (columna `reviewer_id` **desde `0062`**; el cuerpo no puede suplantarlo; expuesto como `recorded_by`); (3) **soportes** = fuentes del propio perfil (`PROFILE_SOURCE`, misma versión) o citas (`CITATION`, con `url` https y `file_sha256` opcionales). Errores: `REVIEW_SUPPORT_REQUIRED` (favorable sin soporte), `REVIEW_SUPPORT_INVALID`, `REVIEW_DATE_INVALID`, `NOTHING_TO_WITHDRAW`, `REVIEW_SUPERSEDED` (409), `OPERATION_ID_REUSED` (409), `LEGAL_PROFILE_UNKNOWN` (422). Registrar **no** publica, adopta ni vincula, y **no** es una conclusión jurídica del sistema.
