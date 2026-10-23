@@ -258,3 +258,11 @@ Estado adicional `DONE_LOCAL`: criterios de la historia cumplidos con evidencia 
 
 **A-02 — alcance de la entrega**: pantalla `/organizaciones/{id}/concesiones` (menú Administración, solo con `grant:manage`); lista con filtro por estado (activa, vencida, revocada) y la historia de cada concesión; alta guiada en cuatro pasos (recurso, destinatario por correo exacto, alcance y vigencia, revisión y confirmación); revocación con motivo; español e inglés. Cambios de API: correo exacto, `shareable`, lista enriquecida y límite de intentos (ver `docs/09`).
 **A-03 — alcance de la entrega**: migración `0058` (cinco tablas, movimientos `CUSTODY_*`, lote `CUSTODY_TRANSFER`), servicio y API de vínculos y traspasos (ver `docs/09`), siete permisos (`docs/07`), eventos y auditoría, pantallas `/traspasos` en español e inglés. **Fuera de alcance**: compraventa (D7), exportación, activación de la salida real (D4), herencia de diligencia (D2), origen completo en la receptora (D3 c), tolerancias (D5 b), conversión de unidades (D8 b).
+
+## Ampliación autorizada A-04 (2026-10-23)
+
+| ID | Resultado | Dependencia | Estado |
+| --- | --- | --- | --- |
+| A-04 | «Mi ubicación» en la captura geográfica de parcelas (web y móvil): obtener la posición del dispositivo, centrar el mapa y mostrar su precisión; incorporarla solo con una acción explícita | P0-007, P0-008, A-01, P0-023 | **DONE_LOCAL (2026-10-23)** sobre `5f77b72` (validación APROBADA `2026-10-23T03-00-54-744Z`; `353d23e` falló por una carrera del test de productos). Evidencia: `qa/EVIDENCIA_A04_MI_UBICACION_2026-10-23.md`. **Posición EMULADA; teléfono físico pendiente.** |
+
+**A-04 — alcance**: web (mapa de dibujo, polígono por vértices y punto de referencia) y móvil (pantalla de captura). Localizarse **no** guarda ni mueve geometrías ni añade vértices; cada lectura conserva SU precisión y SU hora; una lectura de más de 60 s exige localizarse otra vez; la precisión nunca se inventa ni se atribuye al polígono; ubicación en primer plano y a petición (sin seguimiento ni segundo plano). Sin permisos nuevos ni roles nuevos: aparece solo donde ya hay captura/edición. Sin proveedor cartográfico externo; la app móvil no incluye mapa.

@@ -70,3 +70,9 @@ Fuera del conteo 42/60 y 30/44; no altera A-01 ni la aceptación externa pendien
 | GEOLOCATION_PROFILE (configuración versionada) | RF de geolocalización; P0-022 | Reglas versionadas activas/candidatas, revisión con aplicabilidad, adopción y aplicación al expediente | 05/06/07/09 | `test/geo-config.int-spec.ts`, `src/dd/requirements.spec.ts`, `e2e/tests/geolocalizacion-config.spec.ts`, `e2e/review/geo-config-demostracion.mjs`; evidencia `qa/EVIDENCIA_GEOLOCATION_PROFILE_CONFIG_2026-10-22.md` (**mecanismo demostrado; configuración y aceptación reales pendientes**) |
 
 | S1 §722–724; Reg. (UE) 2023/1115 arts. 2(26), 10, 11 | RF-20–21 (conclusión humana) | D-07.6 | 07/13 | `test/risk-conclusion.int-spec.ts`, `authz/catalog.spec.ts`, `e2e/tests/conclusion-humana.spec.ts`; evidencia `docs/qa/EVIDENCIA_D076_CONCLUSION_HUMANA_2026-10-22.md` (mecanismo DONE_LOCAL; aceptación regulatoria pendiente) |
+
+## Ampliación autorizada A-04 (2026-10-23)
+
+| Fuente | Requisito | Historia | QA | Estado |
+| --- | --- | --- | --- | --- |
+| Instrucción del propietario (2026-10-23) | RF-07, RF-08, RF-48 (ampliación de captura) | A-04 | 04/08/14 | **DONE_LOCAL** (`5f77b72`; `qa/EVIDENCIA_A04_MI_UBICACION_2026-10-23.md`): `apps/web/lib/mi-ubicacion.test.ts`, `e2e/tests/mi-ubicacion.spec.ts` (9), `apps/mobile/src/core/__tests__/ubicacion.test.ts`, `e2e/review/mi-ubicacion-demostracion.mjs` (8/8, posición emulada). Fuera del conteo 42/60 y 30/44. No acredita medición GPS real, Android físico ni conformidad. |

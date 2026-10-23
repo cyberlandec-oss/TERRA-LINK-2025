@@ -711,3 +711,6 @@ regulatoria, conformidad EUDR, Android ni producción; la cobertura 42/60 (MVP 3
 
 ## QA integral local y revisión de seguridad (2026-10-22)
 Candidato `29ab9bf`: `npm run validate` **APROBADA** (`validation-results/2026-10-23T00-37-00-488Z`); desplegado. Barrido de las 288 rutas (sin credenciales, otra organización, plataforma, rol de solo lectura): sin fugas. Dos hallazgos corregidos (puertos de datos en loopback; cabeceras de seguridad). Validación previa `3335cd1` FALLIDA por una carrera del test de parcelas, conservada. No es una auditoría independiente. Detalle: `qa/EVIDENCIA_QA_SEGURIDAD_LOCAL_2026-10-22.md`.
+
+## A-04 «Mi ubicación» (2026-10-23)
+`5f77b72`: `npm run validate` **APROBADA** (`validation-results/2026-10-23T03-00-54-744Z`); web desplegada y demostrada (8/8, posición EMULADA, sin cambios en datos operativos); móvil con pruebas del núcleo y verificación en emulador (ver evidencia). Validaciones previas fallidas conservadas: `353d23e` (carrera del test de productos). **No acredita** GPS real, Android físico, producción ni conformidad EUDR; la cobertura 42/60 (MVP 30/44) no cambia. Detalle: `qa/EVIDENCIA_A04_MI_UBICACION_2026-10-23.md`.
