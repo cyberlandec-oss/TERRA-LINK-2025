@@ -446,7 +446,7 @@ Los códigos de F1 y F2 son exactamente los siguientes 12. Estas fichas definen 
 
 ### 7.13 PRODUCER
 
-- **Objetivo/portada:** «Mi finca»: parcelas, entregas, documentos y pendientes propios.
+- **Objetivo/portada:** «Mi finca»: parcelas, entregas, documentos y pendientes propios. **Implementada (2026-10-23, AJ-02/AJ-03)** en `/organizaciones/{id}/mi-finca`: productor, parcelas con su ubicación, pendientes derivados de lo registrado, «Documentos y soportes» con guía orientativa y «Mis entregas» (solo listado, `delivery:read_own`). Estados distintos: sin permiso, cuenta sin vínculo («Tu cuenta todavía no está vinculada a un productor»), vinculada sin parcelas y error. Vocabulario: «archivo recibido; comprobaciones técnicas completadas», «pendiente de revisión», «revisión humana: aceptada/rechazada por {persona}»; nunca «certificado» ni «validado» sin decir quién, qué y cuándo.
 - **Navegación:** pocos destinos, lenguaje claro y móvil primero.
 - **Consulta/captura:** sus datos autorizados; captura propia depende del alcance del portal y RBAC.
 - **Acciones:** consultar, completar o solicitar corrección cuando el backend lo permita.

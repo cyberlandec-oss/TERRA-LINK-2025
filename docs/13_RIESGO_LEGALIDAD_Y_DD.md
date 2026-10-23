@@ -175,3 +175,13 @@ conserva, la acción queda `REOPENED` para otra entrega y se encola una reevalua
 desencadenó, que la ejecutó el worker de reevaluación y si hubo revisión humana. P0-022: el paquete final se bloquea si
 exigiría redactar contenido por alcance (`EXPORT_SCOPE_INSUFFICIENT`); todo paquete declara como pendientes la inclusión
 de archivos y los campos del perfil destino.
+
+## Orientación, soporte, comprobación técnica y revisión humana (precisión de 2026-10-23)
+
+Cuatro cosas distintas que la interfaz no debe confundir (plan de ajuste `contexto/PLAN_AJUSTE_MINIMO_DOCUMENTACION_Y_PRODUCTO_2026-10-23.md`; Documentación Técnica Maestra §§30–32, 41–44, 85 y Arquitectura módulos 07 y 10):
+1. **Orientación** (biblioteca y guías, con fuente y fecha): explica qué aspectos se podrían documentar; **no prueba** la situación de una parcela ni es una lista obligatoria uniforme. No es paso previo para subir un archivo.
+2. **Soporte aportado** por el actor, vinculado a su entidad (productor, parcela y, mediante `delivery_supports`, entrega): tipo, titular, autor de carga, fecha, versión y emisión/vencimiento solo si el documento los tiene.
+3. **Comprobación técnica**: formato, tamaño, análisis antimalware, integridad (hash), acceso y vínculos. «Sin detecciones» no significa auténtico; el hash identifica una versión y detecta cambios, no certifica su contenido.
+4. **Revisión y decisión humanas**, con persona, fecha, objeto revisado y motivo. «Revisado por una persona» no es una certificación de Terra Link. La revisión de un perfil global y la revisión de un documento de una finca son objetos distintos.
+
+Cargar un archivo **no** marca ningún requisito como MET, no relaja READY, despacho ni traspasos, y no depende de la revisión de ningún perfil global. Implementado en `qa/EVIDENCIA_A05_MI_FINCA_DOCUMENTOS_2026-10-23.md` y `qa/EVIDENCIA_AJ_ENTREGA2_2026-10-23.md`.

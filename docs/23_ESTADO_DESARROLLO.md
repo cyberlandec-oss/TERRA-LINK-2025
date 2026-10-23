@@ -717,3 +717,6 @@ Candidato `29ab9bf`: `npm run validate` **APROBADA** (`validation-results/2026-1
 
 ## «Mi finca» y documentos en contexto — entrega 1 (2026-10-23)
 `42f7433`: `npm run validate` **APROBADA** (`validation-results/2026-10-23T05-44-49-396Z`); desplegado y demostrado (7/7, sin cambios en datos). Reutiliza el servicio de documentos; sin migración ni permisos nuevos. Pendiente de la entrega 2: entregas propias (permiso acotado), documentos con titular entrega y textos desactualizados. **No acredita** certificación ni conformidad; 42/60 y 30/44 sin cambio. Detalle: `qa/EVIDENCIA_A05_MI_FINCA_DOCUMENTOS_2026-10-23.md`.
+
+## Ajuste mínimo, entrega 2 (2026-10-23)
+`53f6e81`: `npm run validate` **APROBADA** (`validation-results/2026-10-23T07-56-18-883Z`); desplegado y demostrado (8/8, sin cambios en datos). `delivery:read_own` (solo listado), Mis entregas, textos corregidos, revisión humana con su responsable, y guarda contra respuestas viejas en listados. `1cc6eff` falló en E2E (carrera de respuestas en Productores y un test desactualizado), conservada. Sin migración. **No acredita** certificación ni conformidad; 42/60 y 30/44 sin cambio. Detalle: `qa/EVIDENCIA_AJ_ENTREGA2_2026-10-23.md`.

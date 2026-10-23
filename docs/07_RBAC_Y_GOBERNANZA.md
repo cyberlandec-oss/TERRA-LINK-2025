@@ -23,6 +23,8 @@ Los adjuntos contienen 12 códigos: `SUPER_ADMIN`, `ORG_ADMIN`, `MANAGER`, `FIEL
 | AUDITOR | Encargo/alcance concedido | Eventos, snapshots y evidencia autorizada | Registrar hallazgo si se habilita | No editar operación auditada |
 | PRODUCER | Recursos propios | Perfil, parcelas, entregas, documentos, pendientes | Enviar información/confirmaciones según flujo | No acceso a otros productores ni configuración |
 
+**Precisión (2026-10-23, AJ-02):** las «entregas» propias del PRODUCER se concretan en `delivery:read_own` (PRODUCER y ORG_ADMIN, que debe poder asignar el rol): **solo el listado** de las entregas del productor vinculado a la cuenta (estado, cantidades y recepción). El detalle de una entrega (personal, compuertas internas, historial) y toda escritura siguen siendo de quien opera. Una cuenta sin vínculo recibe una lista vacía. Evidencia: `qa/EVIDENCIA_AJ_ENTREGA2_2026-10-23.md`.
+
 La separación entre quien aporta una mitigación y quien la verifica es política propuesta; para equipos pequeños, cualquier excepción debe tener permiso, motivo y auditoría explícitos.
 
 ## Permisos propuestos

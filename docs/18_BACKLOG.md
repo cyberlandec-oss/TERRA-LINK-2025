@@ -274,6 +274,6 @@ Fuente: plan de ajuste del propietario (`docs/contexto/`) y contexto funcional d
 | ID | Resultado | Historia original | Estado |
 | --- | --- | --- | --- |
 | AJ-02 + AJ-03 (entrega 1; rotulado A-05 en código y pruebas) | «Mi finca» y aportación documental contextual con guía orientativa, reutilizando el servicio de documentos | UI-22; P0-018/019/027; P1-005 | **DONE_LOCAL** sobre `42f7433` (validación APROBADA `2026-10-23T05-44-49-396Z`); evidencia `qa/EVIDENCIA_A05_MI_FINCA_DOCUMENTOS_2026-10-23.md` |
-| AJ-02/AJ-03 (entrega 2) | Entregas propias del productor (lectura), documentos con titular entrega y textos desactualizados | UI-22; P0-012; P0-018 | EN_CURSO |
-| AJ-01 | Aclaración semántica (orientación / soporte / comprobación técnica / revisión humana) en la documentación vigente | RF-18/19/36 | Se cierra con la entrega 2 |
-| AJ-04 | Avisos y accesos de roles afectados | RF-27 | Con la entrega 2 |
+| AJ-02/AJ-03/AJ-04 (entrega 2) | Entregas propias del productor (solo listado, `delivery:read_own`), textos desactualizados de documentos/entregas y atribución de la revisión humana (sin titularidad por entrega: el modelo vigente es `delivery_supports`) | UI-22; P0-012; P0-018 | **DONE_LOCAL** sobre `53f6e81` (validación APROBADA `2026-10-23T07-56-18-883Z`); evidencia `qa/EVIDENCIA_AJ_ENTREGA2_2026-10-23.md` |
+| AJ-01 | Aclaración semántica (orientación / soporte / comprobación técnica / revisión humana) en la documentación vigente (`docs/03`, `07`, `13`, `22`, `UX_UI`) | RF-18/19/36 | **Hecha (2026-10-23)**; solo documentación |
+| AJ-04 | Avisos y accesos de roles afectados | RF-27 | **Hecha** en los recorridos intervenidos (entrega 2); no se abrió una reescritura general |

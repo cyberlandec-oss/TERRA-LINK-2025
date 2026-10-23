@@ -90,4 +90,4 @@ Completa entregas enteras sin esperar «continúa» entre etapas (implementar �
 Dominio/datos: documentos 04–06. Autorización: 07. Eventos/API: 08–09.
 GIS/offline: 10–11. Evidencia/riesgo/DD: 12–13. UI: **`docs/UX_UI.md`** (identidad visual, tokens, componentes, estados, experiencia por rol; consultar antes de modificar cada pantalla) y 14 (workflows por rol). Integraciones: 15.
 QA/operación: 16–17. Plan: 18–19. Inicio en Claude: 21. Decisiones abiertas: 22.
-Contexto funcional de Ecuador (guías EUDR del cacao, **recomendaciones y no requisitos originales**): `docs/contexto/CONTEXTO_FUNCIONAL_EUDR_ECUADOR_2026-10-22.md`; su contraste con el código está en la tabla CTX de `docs/24`.
+Contexto funcional de Ecuador (guías EUDR del cacao, **recomendaciones y no requisitos originales**): `docs/contexto/CONTEXTO_FUNCIONAL_EUDR_ECUADOR_2026-10-22.md`; su contraste con el código está en la tabla CTX de `docs/24`. Plan de ajuste mínimo del propietario (cambios proporcionales; orienta, no certifica): `docs/contexto/PLAN_AJUSTE_MINIMO_DOCUMENTACION_Y_PRODUCTO_2026-10-23.md`.

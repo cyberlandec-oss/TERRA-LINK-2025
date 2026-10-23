@@ -191,3 +191,11 @@ Aceptación de A-03 (propuesta de ingeniería, 2026-10-21; **fuera del conteo 42
 (6) recepción total o parcial, faltante, sobrante, rechazo en tránsito y pérdida declarada, con **motivo obligatorio** en toda diferencia, sin existencias creadas ni descontadas automáticamente; (7) conciliación consistente de **ambos** libros;
 (8) devolución solo como otro traspaso vinculado; (9) permisos por lado, 404 para terceros y ausencia de filtraciones (la receptora ve la instantánea técnica del origen, no el inventario ni los centros de la emisora);
 (10) el lote de la receptora nace con origen INCOMPLETO, sin expediente, severidad, conclusión ni aprobación heredados; (11) español e inglés, teclado y 390 px.
+
+### Precisión de RF-18, RF-19, RF-27 y RF-36 (2026-10-23, sin cambiar sus IDs)
+
+- **RF-18 (documentos):** el documento se aporta a su entidad desde su contexto (productor, parcela, Mi finca) con el mismo servicio; el soporte de una **entrega** se vincula desde la entrega (`delivery_supports`). Subir no aprueba.
+- **RF-19 (evidencia):** la revisión humana identifica a la persona, la fecha y el motivo; no es una certificación.
+- **RF-27 (web por permisos):** «Mi finca» (UI-22) para cuentas con alcance propio, con tres estados distintos: sin permiso, cuenta sin vínculo y sin datos.
+- **RF-36 (legalidad):** la guía por aspecto orienta, con fuente y fecha; no es una lista obligatoria uniforme ni un dictamen de aplicabilidad.
+Fuente: `contexto/PLAN_AJUSTE_MINIMO_DOCUMENTACION_Y_PRODUCTO_2026-10-23.md`. No altera 42/60 ni 30/44.

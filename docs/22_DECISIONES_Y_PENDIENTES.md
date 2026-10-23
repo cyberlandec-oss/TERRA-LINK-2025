@@ -483,3 +483,7 @@ propios; rechazar textos idénticos es solo una comprobación formal. Enmienda a
 `EUDR_MANAGER` por `membership:assign`). Migraciones `0064`–`0065`. Evidencia: `qa/EVIDENCIA_D076_CONCLUSION_HUMANA_2026-10-22.md`.
 **Sigue pendiente (separado):** aceptación regulatoria real del criterio y de las conclusiones, revisión jurídica real del perfil,
 y los avisos de la cadena de desarrollo (jest).
+
+## Aclaración del propietario sobre el propósito y la documentación (2026-10-22/23)
+
+Terra Link **prepara y gestiona evidencia** para la debida diligencia (origen, trazabilidad, soportes, riesgos, medidas); **no certifica** autenticidad ni conformidad y no atribuye aprobación automática al subir un archivo. La responsabilidad de la debida diligencia es de la entidad obligada. Adoptada como criterio de producto y aplicada mediante el plan de ajuste mínimo (`contexto/PLAN_AJUSTE_MINIMO_DOCUMENTACION_Y_PRODUCTO_2026-10-23.md`): Mi finca, aportación documental contextual, entregas propias (listado) y atribución de la revisión humana. **No es una decisión regulatoria**. Pendientes que siguen separados: tipos documentales por aspecto (alta por migración), detalle propio de la entrega para el productor, y todo lo externo (revisión jurídica, GUIA/EUDR-IS, piloto, Android físico).
