@@ -21,6 +21,10 @@ import type { Producer } from '../productores/page';
 //   · «error»              → la consulta falló y se puede reintentar.
 // Los pendientes se DERIVAN de lo ya registrado (ubicación, análisis y revisión de documentos): no son una evaluación de cumplimiento.
 
+interface EntregaPropia {
+  id: string; delivery_code: string; status: string; delivery_date: string | null; product: string | null;
+  quantity_declared: { value: string; unit: string | null } | null; received: { value: string; unit: string } | null; receptions: number; reception_status_label: string;
+}
 interface Pendiente { id: string; texto: string; href: string; accion: string }
 
 export default function MiFincaPage() {
@@ -29,25 +33,28 @@ export default function MiFincaPage() {
   const orgId = ws.activeOrg?.id ?? '';
   const puede = ws.can('producer:read_own');
   const leeDocumentos = ws.can('document:read');
+  const leeEntregas = ws.can('delivery:read_own');
   // La lista de parcelas no trae `can_update` (solo el detalle): se muestra el formulario según el permiso del rol y la API comprueba el alcance de cada parcela.
   const puedeAportarEnParcela = (ws.can('plot:update') || ws.can('plot:update_assigned') || ws.can('plot:update_own')) && ws.can('document:upload');
   const [productores, setProductores] = useState<Producer[] | null>(null);
   const [parcelas, setParcelas] = useState<Plot[] | null>(null);
   const [documentos, setDocumentos] = useState<Doc[] | null>(null);
+  const [entregas, setEntregas] = useState<EntregaPropia[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [duenio, setDuenio] = useState('');
 
   const load = useCallback(async () => {
     if (!orgId || !puede) return;
     try {
-      const [p, l, d] = await Promise.all([
+      const [p, l, d, e] = await Promise.all([
         api<{ items: Producer[] }>(`/api/v1/organizations/${orgId}/producers?limit=100`),
         api<{ items: Plot[] }>(`/api/v1/organizations/${orgId}/plots?limit=100`),
         leeDocumentos ? api<Doc[]>(`/api/v1/organizations/${orgId}/documents`) : Promise.resolve<Doc[]>([]),
+        leeEntregas ? api<EntregaPropia[]>(`/api/v1/organizations/${orgId}/deliveries`) : Promise.resolve<EntregaPropia[] | null>(null),
       ]);
-      setProductores(p.items); setParcelas(l.items); setDocumentos(d); setError(null);
+      setProductores(p.items); setParcelas(l.items); setDocumentos(d); setEntregas(e); setError(null);
     } catch (e) { setError(e as ApiError); }
-  }, [orgId, puede, leeDocumentos]);
+  }, [orgId, puede, leeDocumentos, leeEntregas]);
   useEffect(() => { void load(); }, [load]);
 
   const pendientes = useMemo<Pendiente[]>(() => {
@@ -189,6 +196,31 @@ export default function MiFincaPage() {
         <h2 id="mf-ent">{t('Mis entregas')}</h2>
         {ws.can('delivery:read') || ws.can('delivery:read_assigned') ? (
           <p><Link href={`${base}/entregas`}>{t('Ver las entregas')}</Link></p>
+        ) : leeEntregas ? (
+          entregas === null ? <Loading label={t('Cargando tus entregas…')} /> : entregas.length === 0 ? (
+            <EmptyState title={sinVinculo ? t('Sin vínculo de cuenta no hay entregas que mostrar.') : t('Todavía no hay entregas registradas a tu nombre.')} />
+          ) : (
+            <>
+              <p className="muted">{t('Aquí ves el estado de cada entrega. El detalle de la recepción y la calidad lo gestiona tu organización: no se muestra a tu rol.')}</p>
+              <div className="table-wrap">
+                <table aria-label={t('Mis entregas')}>
+                  <thead><tr><th scope="col">{t('Entrega')}</th><th scope="col">{t('Fecha')}</th><th scope="col">{t('Producto')}</th><th scope="col">{t('Declarado')}</th><th scope="col">{t('Recibido')}</th><th scope="col">{t('Recepción')}</th></tr></thead>
+                  <tbody>
+                    {entregas.map((e) => (
+                      <tr key={e.id}>
+                        <td>{e.delivery_code}</td>
+                        <td>{e.delivery_date ?? '—'}</td>
+                        <td>{e.product ?? '—'}</td>
+                        <td>{e.quantity_declared ? `${e.quantity_declared.value} ${e.quantity_declared.unit ?? ''}` : '—'}</td>
+                        <td>{e.received ? `${e.received.value} ${e.received.unit}` : '—'}</td>
+                        <td>{t(e.reception_status_label)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )
         ) : (
           <Alert tone="info" title={t('Tu rol no incluye la consulta de entregas.')}>
             <p>{t('Esto es una limitación de permisos del rol (no un error ni que no haya entregas): con el alcance vigente no puedes ver tus entregas desde la plataforma. Pregunta a tu organización por su estado.')}</p>

@@ -99,7 +99,8 @@ export class DocumentsService {
 
   /** Alcance sobre la entidad titular o vinculada (404 si está fuera de alcance o es ajena). */
   private async entityScope(db: Db, ctx: TenantContext, type: OwnerType, id: string, kind: 'read' | 'update') {
-    if (type === 'delivery') throw new AppError(422, 'ENTITY_TYPE_NOT_AVAILABLE', 'Las entregas aún no existen; la vinculación llegará con P0-012.', [{ field: 'entity_type', reason: 'NOT_AVAILABLE' }]);
+    // Un documento NO es titularidad de una entrega: se aporta al productor (o a la parcela de origen) y la entrega lo VINCULA como soporte (`POST /deliveries/:id/supports`).
+    if (type === 'delivery') throw new AppError(422, 'ENTITY_TYPE_NOT_AVAILABLE', 'Los soportes de una entrega se aportan al productor o a su parcela de origen (tipo «Soporte de entrega») y se vinculan desde la entrega; una entrega no es titular de documentos.', [{ field: 'entity_type', reason: 'NOT_AVAILABLE' }]);
     if (type === 'producer') await this.producers.load(db, ctx, id, kind);
     else await this.plots.load(db, ctx, id, kind);
   }
@@ -146,15 +147,17 @@ export class DocumentsService {
     const versions = await sql<{
       id: string; version_number: number; file_name: string; mime_type: string; size_bytes: number; sha256: string; issuer: string | null;
       issued_at: string | null; expires_at: string | null; uploaded_at: string; uploaded_by: string; scan_result: string | null; scan_signature: string | null;
-      scan_error: string | null; scanned_at: string | null; review_decision: string | null; review_reason: string | null; reviewed_at: string | null; reviewer_is_uploader: boolean | null; expired: boolean;
+      scan_error: string | null; scanned_at: string | null; review_decision: string | null; review_reason: string | null; reviewed_at: string | null; reviewer_is_uploader: boolean | null; reviewer_name: string | null; expired: boolean;
     }>`
       SELECT v.id, v.version_number, v.file_name, v.mime_type, v.size_bytes, v.sha256, v.issuer, v.issued_at::text, v.expires_at::text, v.uploaded_at, v.uploaded_by,
              s.result AS scan_result, s.signature AS scan_signature, s.error_code AS scan_error, s.scanned_at,
              r.decision AS review_decision, r.reason AS review_reason, r.reviewed_at, (r.reviewer_id = v.uploaded_by) AS reviewer_is_uploader,
+             nullif(btrim(coalesce(ru.first_name, '') || ' ' || coalesce(ru.last_name, '')), '') AS reviewer_name,
              (v.expires_at IS NOT NULL AND v.expires_at < current_date) AS expired
       FROM document_versions v
       LEFT JOIN LATERAL (SELECT * FROM document_version_scans x WHERE x.version_id = v.id ORDER BY x.id DESC LIMIT 1) s ON TRUE
       LEFT JOIN LATERAL (SELECT * FROM document_version_reviews y WHERE y.version_id = v.id ORDER BY y.id DESC LIMIT 1) r ON TRUE
+      LEFT JOIN users ru ON ru.id = r.reviewer_id
       WHERE v.organization_id = ${ctx.organizationId} AND v.document_id = ${documentId}
       ORDER BY v.version_number DESC`.execute(db);
     const links = await db.selectFrom('document_links').select(['entity_type', 'entity_id', 'created_at']).where('organization_id', '=', ctx.organizationId).where('document_id', '=', documentId).execute();
@@ -171,7 +174,8 @@ export class DocumentsService {
           upload: 'COMPLETE',
           scan: { status: v.scan_result ?? 'PENDING', signature: v.scan_signature, error_code: v.scan_error, scanned_at: v.scanned_at },
           availability, validity: v.expires_at ? (v.expired ? 'EXPIRED' : 'VALID') : 'NO_EXPIRY',
-          review: v.review_decision ? { decision: v.review_decision, reason: v.review_reason, reviewed_at: v.reviewed_at, reviewer_is_uploader: v.reviewer_is_uploader } : null,
+          // Atribución explícita: QUÉ persona revisó, CUÁNDO y por qué (la revisión es humana y por versión; no es una certificación de Terra Link).
+          review: v.review_decision ? { decision: v.review_decision, reason: v.review_reason, reviewed_at: v.reviewed_at, reviewer: v.reviewer_name ?? 'Miembro', reviewer_is_uploader: v.reviewer_is_uploader } : null,
           downloadable: availability === 'AVAILABLE' && contentAllowed,
         };
       }),

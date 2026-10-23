@@ -221,6 +221,14 @@ export class DeliveriesService {
     return this.has(ctx, 'delivery:read') ? sql<boolean>`TRUE`
       : this.has(ctx, 'delivery:read_assigned') ? sql<boolean>`pr.assigned_membership_id = ${ctx.membershipId}` : sql<boolean>`FALSE`;
   }
+  /** Alcance del LISTADO: además del de lectura, las entregas del productor vinculado a esta cuenta (`delivery:read_own`). El detalle no lo usa. */
+  private listScope(ctx: TenantContext) {
+    if (this.has(ctx, 'delivery:read')) return sql<boolean>`TRUE`;
+    const conds: ReturnType<typeof sql<boolean>>[] = [];
+    if (this.has(ctx, 'delivery:read_assigned')) conds.push(sql<boolean>`pr.assigned_membership_id = ${ctx.membershipId}`);
+    if (this.has(ctx, 'delivery:read_own')) conds.push(sql<boolean>`pr.self_membership_id = ${ctx.membershipId}`);
+    return conds.length ? sql<boolean>`(${sql.join(conds, sql` OR `)})` : sql<boolean>`FALSE`;
+  }
   private canWrite(ctx: TenantContext, producerAssignee: string | null) {
     return this.has(ctx, 'delivery:create') || (this.has(ctx, 'delivery:create_assigned') && producerAssignee === ctx.membershipId);
   }
@@ -770,7 +778,7 @@ export class DeliveriesService {
   // ---------- Lecturas ----------
 
   async list(user: AuthUser, orgId: string, q: ListQuery) {
-    const ctx = await this.ctx(user, orgId, ['delivery:read', 'delivery:read_assigned'], false);
+    const ctx = await this.ctx(user, orgId, ['delivery:read', 'delivery:read_assigned', 'delivery:read_own'], false);
     const identity = this.has(ctx, 'producer:read_identity') && (this.has(ctx, 'producer:read') || this.has(ctx, 'producer:read_assigned'));
     const rows = await sql<{
       id: string; delivery_code: string; status: string; delivery_date: string | null; quantity_declared: string | null; unit: string | null; producer_id: string; producer_code: string;
@@ -786,7 +794,7 @@ export class DeliveriesService {
       FROM deliveries d
       JOIN producers pr ON pr.id = d.producer_id AND pr.organization_id = d.organization_id
       LEFT JOIN products p ON p.id = d.product_id AND p.organization_id = d.organization_id
-      WHERE d.organization_id = ${orgId} AND ${this.readScope(ctx)}
+      WHERE d.organization_id = ${orgId} AND ${this.listScope(ctx)}
         ${q.status ? sql`AND d.status = ${q.status}` : sql``}
         ${q.producer_id ? sql`AND d.producer_id = ${q.producer_id}` : sql``}
         ${q.q ? sql`AND (d.delivery_code ILIKE ${'%' + q.q + '%'} OR pr.producer_code ILIKE ${'%' + q.q + '%'})` : sql``}

@@ -176,7 +176,7 @@ function Supports({ d, base, orgId, onDone }: { d: Delivery; base: string; orgId
               <select id="sp-doc" required value={f.version} onChange={(e) => setF({ ...f, version: e.target.value })}>
                 <option value="">Selecciona…</option>{candidates.map((c) => <option key={c.version_id} value={c.version_id}>{c.title} · v{c.version_number} · {AVAILABILITY[c.availability] ?? c.availability}</option>)}
               </select>
-              {candidates.length === 0 && <p className="field-help">No hay documentos «soporte de entrega» del productor o sus parcelas. <a href={`/organizaciones/${orgId}/documentos`}>Sube uno en Documentos</a>.</p>}
+              {candidates.length === 0 && <p className="field-help">No hay documentos «soporte de entrega» del productor o sus parcelas. Aporta uno al productor desde <a href={`/organizaciones/${orgId}/productores/${d.producer.id}`}>su ficha (sección «Documentos y soportes»)</a> o en <a href={`/organizaciones/${orgId}/documentos`}>Documentos</a> y vuelve aquí a vincularlo.</p>}
             </div>
             <div><label htmlFor="sp-kind">Tipo de soporte</label>
               <select id="sp-kind" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>{Object.entries(SUPPORT_KIND).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>

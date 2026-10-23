@@ -54,7 +54,7 @@ export default function DocumentDetailPage() {
         {d.links.length === 0 ? <p className="muted">Sin vínculos adicionales al titular.</p> : (
           <ul className="plain">{d.links.map((l) => <li key={`${l.entity_type}:${l.entity_id}`}>{OWNER_LABEL[l.entity_type] ?? l.entity_type} · <code>{l.entity_id}</code></li>)}</ul>
         )}
-        <p className="muted">La vinculación con entregas estará disponible con P0-012. Las relaciones probatorias (respalda/contradice) son del grafo de evidencias (P0-019).</p>
+        <p className="muted">Un soporte de entrega no se vincula desde aquí: se vincula desde la propia entrega («Soportes documentales»), donde queda con su versión exacta. Las relaciones probatorias (respalda/contradice) son del grafo de evidencias (P0-019).</p>
       </section>
     </>
   );
@@ -77,7 +77,7 @@ function VersionItem({ v, canReview, canUpload, extractionHref, onDownload, onRe
         {extractionHref && <><dt>Extracción asistida</dt><dd><a href={extractionHref}>Ver o extraer de esta versión</a></dd></>}
         <dt>Análisis antimalware</dt><dd>{v.scan.status}{v.scan.error_code ? ` · ${v.scan.error_code}` : ''}{v.scan.signature ? ` · ${v.scan.signature}` : ''}</dd>
         <dt>Emisor / emisión / vencimiento</dt><dd>{v.issuer ?? '—'} / {v.issued_at ?? '—'} / {v.expires_at ?? '—'} · {VALIDITY[v.validity]}</dd>
-        <dt>Revisión de esta versión</dt><dd>{v.review ? `${v.review.decision === 'ACCEPTED' ? 'Aceptada' : 'Rechazada'}: ${v.review.reason}${v.review.reviewer_is_uploader ? ' (revisó quien la subió)' : ''}` : 'Sin revisar (las revisiones no se heredan entre versiones)'}</dd>
+        <dt>Revisión de esta versión</dt><dd>{v.review ? `Revisión humana: ${v.review.decision === 'ACCEPTED' ? 'aceptada' : 'rechazada'} por ${v.review.reviewer ?? 'una persona autorizada'} el ${new Date(v.review.reviewed_at).toLocaleString('es-EC')}. Motivo: ${v.review.reason}${v.review.reviewer_is_uploader ? ' (revisó quien la subió)' : ''}. Es la valoración de esa persona; no es una certificación de Terra Link.` : 'Sin revisar (las revisiones no se heredan entre versiones)'}</dd>
       </dl>
       <div className="actions">
         {v.downloadable && <button type="button" className="secondary" onClick={onDownload}>Descargar v{v.version_number}</button>}

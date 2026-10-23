@@ -9,7 +9,7 @@ export interface DocVersion {
   issuer: string | null; issued_at: string | null; expires_at: string | null; uploaded_at: string; upload: string;
   scan: { status: 'PENDING' | 'CLEAN' | 'INFECTED' | 'FAILED'; signature: string | null; error_code: string | null; scanned_at: string | null };
   availability: 'AVAILABLE' | 'PENDING' | 'SCAN_FAILED' | 'REJECTED'; validity: 'VALID' | 'EXPIRED' | 'NO_EXPIRY';
-  review: { decision: 'ACCEPTED' | 'REJECTED'; reason: string; reviewed_at: string; reviewer_is_uploader: boolean } | null; downloadable: boolean;
+  review: { decision: 'ACCEPTED' | 'REJECTED'; reason: string; reviewed_at: string; reviewer?: string; reviewer_is_uploader: boolean } | null; downloadable: boolean;
 }
 export interface Doc {
   id: string; document_type: string; type_label: string; classification: string; owner_type: string; owner_id: string; title: string;

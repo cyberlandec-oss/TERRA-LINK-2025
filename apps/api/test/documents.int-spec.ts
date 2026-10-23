@@ -164,6 +164,9 @@ describeDb('P0-018 documentos privados, escaneo y versiones', () => {
     await http().post(`${base(orgA)}/documents/${docId}/versions/${v1}/reviews`).set(as('tecnico1@test.local')).send({ decision: 'ACCEPTED', reason: 'sin facultad' }).expect(403);
     const rv = (await http().post(`${base(orgA)}/documents/${docId}/versions/${v1}/reviews`).set(as('admin-a@test.local')).send({ decision: 'ACCEPTED', reason: 'Coincide con el original físico' }).expect(201)).body;
     expect(rv.versions[0].review).toMatchObject({ decision: 'ACCEPTED', reviewer_is_uploader: false });
+    expect(rv.versions[0].review.reviewer).toEqual(expect.any(String)); // atribución: quién revisó (persona identificada) y cuándo
+    expect(rv.versions[0].review.reviewer).not.toBe('');
+    expect(rv.versions[0].review.reviewed_at).toBeTruthy();
     const cur = (await http().get(`${base(orgA)}/documents/${docId}`).set(as('admin-a@test.local')).expect(200)).body;
     const r2 = await http().post(`${base(orgA)}/documents/${docId}/versions`).set(as('tecnico1@test.local')).field('operation_id', randomUUID()).field('expected_version', String(cur.row_version)).field('expires_at', '2020-12-31').attach('file', pdf('v2'), { filename: 'v2.pdf', contentType: 'application/pdf' }).expect(201);
     const vs = r2.body.document.versions;

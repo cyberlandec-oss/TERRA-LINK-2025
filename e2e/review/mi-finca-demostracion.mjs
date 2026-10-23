@@ -54,13 +54,20 @@ await caso('Productor DEMO (cuenta sin vínculo): «configuración pendiente», 
   return [/configuración pendiente, no un error ni que no tengas datos/.test(cuerpo) && /Vincular cuenta/.test(cuerpo) && !/Tu rol no incluye «Mi finca»/.test(cuerpo) && tablas === 0 && estado() === antes, 'configuración pendiente + cómo resolverla; sin tablas ni datos de otros'];
 });
 
-await caso('Productor DEMO: la consulta de entregas se explica como límite del rol (sin permiso), distinto de la cuenta sin vínculo', async () => {
+await caso('Productor DEMO (sin vínculo): «Mis entregas» dice que no hay entregas por falta de vínculo, no un error de permiso ni un portal vacío', async () => {
   const ctx = await ctxCon(productor); const page = await ctx.newPage();
   await page.goto(`${WEB}/organizaciones/${org.id}/mi-finca`);
-  await page.getByText('Tu rol no incluye la consulta de entregas.').waitFor({ timeout: 20000 });
+  await page.getByText('Sin vínculo de cuenta no hay entregas que mostrar.').waitFor({ timeout: 20000 });
   const txt = await page.locator('main').innerText();
   await ctx.close();
-  return [/limitación de permisos del rol \(no un error ni que no haya entregas\)/.test(txt), 'sin permiso ≠ sin datos'];
+  return [!/Tu rol no incluye la consulta de entregas/.test(txt) && !/Tu rol no incluye «Mi finca»/.test(txt), 'sin vínculo ≠ sin permiso ≠ sin datos'];
+});
+
+await caso('API con la cuenta DEMO de productor: el listado de entregas responde 200 (alcance propio, vacío por no tener vínculo) y el detalle de una entrega se rechaza (403); sin escrituras', async () => {
+  const lis = await pedir(productor, `/api/v1/organizations/${org.id}/deliveries`);
+  const ajena = lista((await pedir(tecnico, `/api/v1/organizations/${org.id}/deliveries`)).b)[0];
+  const det = ajena ? await pedir(productor, `/api/v1/organizations/${org.id}/deliveries/${ajena.id}`) : { s: 403 };
+  return [lis.s === 200 && lista(lis.b).length === 0 && [403, 404].includes(det.s) && estado() === antes, `listado ${lis.s} (${lista(lis.b).length} entregas) · detalle ${det.s}`];
 });
 
 await caso('Técnico asignado: la parcela muestra «Documentos y soportes» con su guía orientativa y fuente; no aparece «Mi finca» en su menú', async () => {

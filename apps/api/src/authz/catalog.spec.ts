@@ -114,6 +114,18 @@ describe('A-01: los permisos de captura propia no amplían responsabilidades aje
   });
 });
 
+describe('AJ-02: delivery:read_own es solo del Productor (y de ORG_ADMIN, que debe poder asignar ese rol); es lectura y no concede nada más', () => {
+  it('solo PRODUCER y ORG_ADMIN lo tienen; ORG_ADMIN puede seguir asignando PRODUCER (el rol cabe en sus permisos)', () => {
+    const con = Object.entries(ROLE_PERMISSIONS).filter(([, p]) => p.includes('delivery:read_own')).map(([r]) => r).sort();
+    expect(con).toEqual(['ORG_ADMIN', 'PRODUCER']);
+    expect(canGrantRole(permissionsForRoles(['ORG_ADMIN']), 'PRODUCER')).toBe(true);
+  });
+  it('el Productor no obtiene ninguna otra facultad sobre entregas ni recepciones', () => {
+    const p = permissionsForRoles(['PRODUCER']);
+    for (const x of ['delivery:read', 'delivery:read_assigned', 'delivery:create', 'delivery:create_assigned', 'delivery:correct', 'reception:confirm', 'reception:correct', 'quality:record', 'quality:decide']) expect(p).not.toContain(x);
+  });
+});
+
 describe('D-07.6: risk:conclude es del rol responsable EUDR y de ningún otro', () => {
   it('solo EUDR_MANAGER lo tiene; ORG_ADMIN puede ASIGNAR ese rol sin poseer el permiso (separación de funciones)', () => {
     const con = Object.entries(ROLE_PERMISSIONS).filter(([, p]) => p.includes('risk:conclude')).map(([r]) => r);

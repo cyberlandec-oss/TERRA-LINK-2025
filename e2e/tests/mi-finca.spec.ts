@@ -13,7 +13,7 @@ const PROD_A = { email: 'productor-a-mifinca@e2e.local', password: randomBytes(1
 const PROD_B = { email: 'productor-b-mifinca@e2e.local', password: randomBytes(12).toString('base64url') };
 const AUDI = { email: 'auditor-mifinca@e2e.local', password: randomBytes(12).toString('base64url') };
 let adminTok = ''; let prodATok = ''; let prodBTok = ''; let audiTok = '';
-let orgId = ''; let plotA1 = ''; let plotA2 = ''; let plotOtro = ''; let producerA = ''; let producerOtro = '';
+let orgId = ''; let entregaA = ''; let entregaOtra = ''; let plotA1 = ''; let plotA2 = ''; let plotOtro = ''; let producerA = ''; let producerOtro = '';
 const PDF = Buffer.from('%PDF-1.4\n% soporte sintético A-05\n%%EOF\n');
 
 async function api(path: string, init: { method?: string; body?: unknown; token?: string } = {}) {
@@ -51,6 +51,13 @@ test('preparación: organización, dos productores (uno vinculado), una cuenta s
   await api(`${base}/producers/${producerA}/self-membership`, { method: 'PUT', token: adminTok, body: { expected_version: det.row_version, membership_id: memberOf(PROD_A.email), reason: 'Alta del productor en la plataforma' } });
   const plot = async (producer: string, code: string) => (await api(`${base}/plots`, { method: 'POST', token: adminTok, body: { producer_id: producer, plot_code: code, crop: 'Cacao' } })).id as string;
   plotA1 = await plot(producerA, 'MF-A1'); plotA2 = await plot(producerA, 'MF-A2'); plotOtro = await plot(producerOtro, 'MF-X1');
+  // Entregas: una del productor vinculado y otra de otra persona (AJ-02: el productor ve solo las suyas, y solo el listado).
+  const producto = (await api(`${base}/products`, { method: 'POST', token: adminTok, body: { code: 'CACAO_BABA', name: 'Cacao en baba', product_state: 'CACAO_BABA', unit: 'KG' } })).id;
+  const centro = (await api(`${base}/locations`, { method: 'POST', token: adminTok, body: { code: 'MF-C1', name: 'Centro Mi Finca', location_type: 'COLLECTION_CENTER' } })).id;
+  const hoy = new Date().toISOString().slice(0, 10);
+  const entrega = async (productor: string) => (await api(`${base}/deliveries`, { method: 'POST', token: adminTok, body: { operation_id: crypto.randomUUID(), producer_id: productor, product_id: producto, location_id: centro, delivery_date: hoy, quantity_declared: '500', unit: 'KG', register: false } })).delivery as { id: string; delivery_code: string };
+  const eA = await entrega(producerA); const eO = await entrega(producerOtro);
+  entregaA = eA.delivery_code; entregaOtra = eO.delivery_code;
   // MF-A2 tiene ubicación registrada; MF-A1 no (pendiente).
   await api(`${base}/plots/${plotA2}/geometry-versions`, { method: 'POST', token: adminTok, body: { expected_version: 1, survey_method: 'MANUAL_COORDINATES', geometry: { type: 'Point', coordinates: [-80.16, -0.85] }, notes: 'sintética' } });
 });
@@ -69,7 +76,12 @@ test('Mi finca (productor vinculado): menú, solo lo propio, pendientes derivado
   await expect(pend).toContainText('La parcela MF-A1 no tiene ubicación registrada.');     // pendiente derivado de lo registrado
   await expect(pend).not.toContainText('MF-A2');                                            // la que ya tiene ubicación no figura
   await expect(page.getByText(/no son una evaluación de cumplimiento/)).toBeVisible();
-  await expect(page.getByText('Tu rol no incluye la consulta de entregas.')).toBeVisible(); // sin permiso ≠ sin datos
+  // Entregas propias (AJ-02): solo el listado de las suyas; la de otra persona no existe y no hay enlace al detalle.
+  const entregas = page.getByRole('table', { name: 'Mis entregas' });
+  await expect(entregas).toContainText(entregaA);
+  await expect(page.getByText(entregaOtra)).toHaveCount(0);
+  await expect(entregas.getByRole('link')).toHaveCount(0);
+  await expect(page.getByText('Tu rol no incluye la consulta de entregas.')).toHaveCount(0);
   await expect(page.getByText('Tu cuenta todavía no está vinculada a un productor.')).toHaveCount(0);
   await ctx.close();
 });
@@ -162,6 +174,7 @@ test('cuenta sin vínculo: «configuración pendiente», distinta de «sin datos
   await expect(page.getByRole('table', { name: 'Mis parcelas' })).toHaveCount(0);
   await expect(page.getByText('MF-A1')).toHaveCount(0);
   await expect(page.getByText('Tu rol no incluye «Mi finca»')).toHaveCount(0);
+  await expect(page.getByText('Sin vínculo de cuenta no hay entregas que mostrar.')).toBeVisible(); // ni entregas ni error de permiso
   await ctx.close();
 });
 
@@ -181,7 +194,7 @@ test('inglés, teclado y 390 px: textos traducidos, controles alcanzables y sin 
   await page.goto(`/organizaciones/${orgId}/mi-finca`);
   await expect(page.getByRole('heading', { name: 'My farm', level: 1 })).toBeVisible();
   await expect(page.getByRole('table', { name: 'My plots' })).toContainText('MF-A1');
-  await expect(page.getByText('Your role does not include viewing deliveries.')).toBeVisible();
+  await expect(page.getByRole('table', { name: 'My deliveries' })).toContainText(entregaA);
   await expect(page.getByRole('list', { name: 'Pending items' })).toContainText('Plot MF-A1 has no recorded location.');
   // Teclado: el resumen de la guía se abre con Enter y el selector se maneja con el teclado.
   await page.getByText('What you can document and why (guidance)').focus();

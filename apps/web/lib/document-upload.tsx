@@ -79,7 +79,7 @@ export function UploadDocument({ orgId, types, limits, onDone, fixedOwner }: {
                 <label htmlFor={`${uid}-owner-type`}>{t('Titular')}</label>
                 <select id={`${uid}-owner-type`} required value={f.owner_type} onChange={(e) => setF({ ...f, owner_type: e.target.value, owner_id: '' })} disabled={!type}>
                   <option value="">{t('Selecciona…')}</option>
-                  {type?.allowed_owner_types.map((o) => <option key={o} value={o} disabled={o === 'delivery'}>{t(OWNER_LABEL[o] ?? o)}{o === 'delivery' ? ` (${t('disponible con P0-012')})` : ''}</option>)}
+                  {type?.allowed_owner_types.filter((o) => o !== 'delivery').map((o) => <option key={o} value={o}>{t(OWNER_LABEL[o] ?? o)}</option>)}
                 </select>
               </div>
               <div>
@@ -90,6 +90,9 @@ export function UploadDocument({ orgId, types, limits, onDone, fixedOwner }: {
                 </select>
               </div>
             </>
+          )}
+          {!fixedOwner && type?.allowed_owner_types.includes('delivery') && (
+            <p className="field-help">{t('Un soporte de entrega se aporta al productor o a su parcela de origen y se vincula después desde la entrega.')}</p>
           )}
           {fixedOwner && (
             <div>
