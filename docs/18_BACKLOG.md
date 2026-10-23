@@ -266,3 +266,14 @@ Estado adicional `DONE_LOCAL`: criterios de la historia cumplidos con evidencia 
 | A-04 | «Mi ubicación» en la captura geográfica de parcelas (web y móvil): obtener la posición del dispositivo, centrar el mapa y mostrar su precisión; incorporarla solo con una acción explícita | P0-007, P0-008, A-01, P0-023 | **DONE_LOCAL (2026-10-23)** sobre `5f77b72` (validación APROBADA `2026-10-23T03-00-54-744Z`; `353d23e` falló por una carrera del test de productos). Evidencia: `qa/EVIDENCIA_A04_MI_UBICACION_2026-10-23.md`. **Posición EMULADA; teléfono físico pendiente.** |
 
 **A-04 — alcance**: web (mapa de dibujo, polígono por vértices y punto de referencia) y móvil (pantalla de captura). Localizarse **no** guarda ni mueve geometrías ni añade vértices; cada lectura conserva SU precisión y SU hora; una lectura de más de 60 s exige localizarse otra vez; la precisión nunca se inventa ni se atribuye al polígono; ubicación en primer plano y a petición (sin seguimiento ni segundo plano). Sin permisos nuevos ni roles nuevos: aparece solo donde ya hay captura/edición. Sin proveedor cartográfico externo; la app móvil no incluye mapa.
+
+## Ajuste mínimo de producto y documentación (AJ, 2026-10-23)
+
+Fuente: plan de ajuste del propietario (`docs/contexto/`) y contexto funcional de Ecuador; **no son requisitos nuevos**: completan historias originales (UI-22/UX-D08, P0-018, P0-019, P0-027, P1-005).
+
+| ID | Resultado | Historia original | Estado |
+| --- | --- | --- | --- |
+| AJ-02 + AJ-03 (entrega 1; rotulado A-05 en código y pruebas) | «Mi finca» y aportación documental contextual con guía orientativa, reutilizando el servicio de documentos | UI-22; P0-018/019/027; P1-005 | **DONE_LOCAL** sobre `42f7433` (validación APROBADA `2026-10-23T05-44-49-396Z`); evidencia `qa/EVIDENCIA_A05_MI_FINCA_DOCUMENTOS_2026-10-23.md` |
+| AJ-02/AJ-03 (entrega 2) | Entregas propias del productor (lectura), documentos con titular entrega y textos desactualizados | UI-22; P0-012; P0-018 | EN_CURSO |
+| AJ-01 | Aclaración semántica (orientación / soporte / comprobación técnica / revisión humana) en la documentación vigente | RF-18/19/36 | Se cierra con la entrega 2 |
+| AJ-04 | Avisos y accesos de roles afectados | RF-27 | Con la entrega 2 |

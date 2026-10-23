@@ -714,3 +714,6 @@ Candidato `29ab9bf`: `npm run validate` **APROBADA** (`validation-results/2026-1
 
 ## A-04 «Mi ubicación» (2026-10-23)
 `5f77b72`: `npm run validate` **APROBADA** (`validation-results/2026-10-23T03-00-54-744Z`); web desplegada y demostrada (8/8, posición EMULADA, sin cambios en datos operativos); móvil con pruebas del núcleo y verificación en emulador (ver evidencia). Validaciones previas fallidas conservadas: `353d23e` (carrera del test de productos). **No acredita** GPS real, Android físico, producción ni conformidad EUDR; la cobertura 42/60 (MVP 30/44) no cambia. Detalle: `qa/EVIDENCIA_A04_MI_UBICACION_2026-10-23.md`.
+
+## «Mi finca» y documentos en contexto — entrega 1 (2026-10-23)
+`42f7433`: `npm run validate` **APROBADA** (`validation-results/2026-10-23T05-44-49-396Z`); desplegado y demostrado (7/7, sin cambios en datos). Reutiliza el servicio de documentos; sin migración ni permisos nuevos. Pendiente de la entrega 2: entregas propias (permiso acotado), documentos con titular entrega y textos desactualizados. **No acredita** certificación ni conformidad; 42/60 y 30/44 sin cambio. Detalle: `qa/EVIDENCIA_A05_MI_FINCA_DOCUMENTOS_2026-10-23.md`.
