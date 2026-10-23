@@ -29,7 +29,8 @@ export function FieldEvidence({ orgId, plotId, canUpload }: { orgId: string; plo
 
   const load = useCallback(async () => {
     try {
-      setDocs(await api<Doc[]>(`/api/v1/organizations/${orgId}/documents?owner_type=plot&owner_id=${plotId}`));
+      // Solo las evidencias del recorrido (foto, croquis, acta); los demás documentos de la parcela están en «Documentos y soportes».
+      setDocs((await api<Doc[]>(`/api/v1/organizations/${orgId}/documents?owner_type=plot&owner_id=${plotId}`)).filter((d) => d.document_type === 'FIELD_EVIDENCE' || d.document_type === 'FIELD_PHOTO'));
     } catch (err) {
       if ((err as ApiError).status === 403) { setDenied(true); return; }
       setError(err as ApiError);

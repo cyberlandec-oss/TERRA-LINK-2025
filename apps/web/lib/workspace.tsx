@@ -55,6 +55,8 @@ function navFor(ws: Workspace, orgId: string | null, t: (es: string) => string):
     } else {
       inicio.push({ href: base, label: t('Mi espacio'), match: (p) => p === base });
     }
+    // A-05 (UI-22): «Mi finca» para quien trabaja con alcance PROPIO (sin ver productores de otras personas). El alcance lo decide el servidor.
+    if (ws.can('producer:read_own') && !ws.can('producer:read') && !ws.can('producer:read_assigned')) inicio.push({ href: `${base}/mi-finca`, label: t('Mi finca'), match: (p) => p.startsWith(`${base}/mi-finca`) });
     // P1-004: la puesta en marcha la ve cualquier miembro (organization:read); el detalle va por alcance
     // y los enlaces a cada módulo siguen dependiendo de su permiso.
     if (ws.can('organization:read')) inicio.push({ href: `${base}/onboarding`, label: t('Puesta en marcha'), match: (p) => p.startsWith(`${base}/onboarding`) });

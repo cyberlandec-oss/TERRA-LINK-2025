@@ -13,6 +13,7 @@ import { VersionDownloads } from '../../../../../lib/geometry-downloads';
 import { GisEvaluation } from '../../../../../lib/gis-evaluation';
 import { GeoProfileEvaluation } from '../../../../../lib/geo-profile';
 import { SatelliteAnalysis } from '../../../../../lib/satellite';
+import { EntityDocuments } from '../../../../../lib/entity-documents';
 import { FieldEvidence } from '../../../../../lib/field-evidence';
 import { EventHistory } from '../../../../../lib/event-history';
 import { GEOMETRY_STATUS, GEOMETRY_TYPE_LABEL, GeometrySketch, METHOD_LABEL, ha, positions, type Plot, type PlotVersion } from '../../../../../lib/plots';
@@ -141,6 +142,9 @@ export default function PlotDetailPage() {
           <SatelliteAnalysis orgId={orgId} plotId={plot.id} />
 
           <FieldEvidence orgId={orgId} plotId={plot.id} canUpload={!!plot.can_update && ws.can('document:upload')} />
+
+          {/* A-05: documentos en contexto (tenencia, soportes) con su guía orientativa; las fotos y actas del recorrido siguen en su sección. */}
+          <EntityDocuments orgId={orgId} ownerType="plot" ownerId={plot.id} ownerLabel={plot.plot_code} canUpload={!!plot.can_update && ws.can('document:upload')} excludeTypes={['FIELD_EVIDENCE', 'FIELD_PHOTO']} />
 
           <section className="card" aria-labelledby="versions-title">
             <h2 id="versions-title">{t('Versiones geométricas')}</h2>

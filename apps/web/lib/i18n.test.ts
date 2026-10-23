@@ -15,6 +15,7 @@ import { VINCULO_TABLAS } from './vinculo-catalogo';
 import { REVISION_TABLAS } from './revision-perfil';
 import { GEO_CONFIG_TABLAS } from './geo-config';
 import { CONCLUSION_TABLAS } from './conclusion-humana';
+import { textosGuia } from './guia-documental';
 
 // P1-015 / D-54 — Español fuente, inglés segunda lengua (ADR-0007, opción B).
 const PANTALLAS = [
@@ -22,7 +23,7 @@ const PANTALLAS = [
   'app/organizaciones/[id]/limites/page.tsx', 'lib/workspace.tsx', 'lib/ui.tsx', 'lib/i18n.tsx',
   // A-01: recorrido de captura de campo
   'app/organizaciones/[id]/captura/page.tsx', 'app/organizaciones/[id]/parcelas/page.tsx', 'app/organizaciones/[id]/parcelas/[plotId]/page.tsx',
-  'lib/mi-ubicacion-panel.tsx', 'lib/field-capture.tsx', 'lib/field-evidence.tsx', 'lib/manual-capture.tsx', 'lib/location-capture.tsx', 'lib/polygon-capture.tsx',
+  'lib/mi-ubicacion-panel.tsx', 'lib/entity-documents.tsx', 'lib/document-upload.tsx', 'app/organizaciones/[id]/mi-finca/page.tsx', 'lib/field-capture.tsx', 'lib/field-evidence.tsx', 'lib/manual-capture.tsx', 'lib/location-capture.tsx', 'lib/polygon-capture.tsx',
   'lib/geometry-import.tsx', 'lib/satellite.tsx', 'lib/producer-self-link.tsx', 'lib/plots.tsx',
   'lib/gis-evaluation.tsx', 'lib/geo-profile.tsx', 'lib/map-capture.tsx', 'app/organizaciones/[id]/concesiones/page.tsx',
   // A-03: traspaso de custodia entre organizaciones
@@ -44,6 +45,11 @@ describe('internacionalización', () => {
       const src = readFileSync(f, 'utf8');
       for (const m of src.matchAll(/\bt\('([^']*)'/g)) if (!(m[1] in EN)) faltan.push(`${f}: ${m[1]}`);
     }
+    expect(faltan).toEqual([]);
+  });
+
+  it('la guía documental (A-05) y los estados de revisión tienen su traducción al inglés', () => {
+    const faltan = [...textosGuia(), 'Revisado: aceptado', 'Con observaciones', 'Pendiente de revisión'].filter((x) => !(x in EN));
     expect(faltan).toEqual([]);
   });
 

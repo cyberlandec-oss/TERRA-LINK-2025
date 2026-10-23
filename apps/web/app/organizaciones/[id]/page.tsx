@@ -13,7 +13,6 @@ const PENDING_BY_ROLE: Record<string, Array<{ capability: string; story: string 
   FIELD_TECHNICIAN: [{ capability: 'Trabajo de campo sin conexión', story: 'App móvil (P0-023/P0-024): el ensayo en teléfono físico sigue pendiente; la web no guarda datos sin conexión' }],
   EXPORT_MANAGER: [{ capability: 'Despacho de embarques', story: 'Preparar y reservar ya es posible; despachar sigue bloqueado hasta definir las condiciones de paquete y fecha de despacho (D-34)' }],
   BUYER: [{ capability: 'Portal comprador', story: 'P1-001; requiere contrato de concesiones entre organizaciones (UX-D09). Sin concesión no hay acceso implícito' }],
-  PRODUCER: [{ capability: '«Mi finca»: parcelas, entregas y documentos propios', story: 'Requiere vínculo cuenta–productor (UX-D08). Sin vínculo no hay acceso implícito' }],
 };
 const PLATFORM_PENDING = { capability: 'Acceso a datos operativos de una organización', story: 'Requiere elevación auditada (D-04, pendiente). La administración de plataforma no da acceso implícito' };
 

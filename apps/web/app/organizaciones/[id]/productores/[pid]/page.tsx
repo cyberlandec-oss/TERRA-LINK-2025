@@ -8,6 +8,7 @@ import { Alert, Breadcrumb, ErrorPanel, Loading, PageHeader, StatusBadge } from 
 import { ProducerFields, STATUS_LABEL, toPayload, type Producer } from '../page';
 import { ProducerPlots } from './parcelas-productor';
 import { ProducerSelfLink } from '../../../../../lib/producer-self-link';
+import { EntityDocuments } from '../../../../../lib/entity-documents';
 import { EventHistory } from '../../../../../lib/event-history';
 
 type ProducerDetail = Producer & { can_update: boolean; can_assign: boolean; can_archive: boolean; can_link_self?: boolean; self_membership_id?: string | null; is_own?: boolean };
@@ -91,6 +92,8 @@ export default function ProducerDetailPage() {
           {p.can_link_self && p.status !== 'INACTIVE' && <ProducerSelfLink orgId={orgId} producerId={p.id} rowVersion={p.row_version} selfMembershipId={p.self_membership_id ?? null} onSaved={load} />}
           {p.can_archive && <StatusProducer orgId={orgId} producer={p} onSaved={load} />}
           <ProducerPlots orgId={orgId} producerId={p.id} producerActive={p.status !== 'INACTIVE'} />
+          {/* A-05: documentos del productor con su guía orientativa. Subir exige poder actualizar el productor (la API lo comprueba igual). */}
+          <EntityDocuments orgId={orgId} ownerType="producer" ownerId={p.id} ownerLabel={`${p.producer_code}`} canUpload={p.can_update && p.status !== 'INACTIVE' && ws.can('document:upload')} excludeTypes={['FIELD_EVIDENCE', 'FIELD_PHOTO']} />
           <EventHistory orgId={orgId} kind="producers" id={p.id}
             correction={p.can_update && p.status !== 'INACTIVE' ? { current: p as unknown as Record<string, string | null>, rowVersion: p.row_version, onCorrected: load } : null} />
           <section className="card">

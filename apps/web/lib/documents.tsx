@@ -26,3 +26,10 @@ export const AVAILABILITY: Record<DocVersion['availability'], { label: string; t
 export const VALIDITY: Record<DocVersion['validity'], string> = { VALID: 'Vigente', EXPIRED: 'Vencido', NO_EXPIRY: 'Sin vencimiento' };
 export const OWNER_LABEL: Record<string, string> = { producer: 'Productor', plot: 'Parcela', delivery: 'Entrega' };
 export const kb = (n: number) => `${(n / 1024).toLocaleString('es-EC', { maximumFractionDigits: 1 })} KB`;
+
+/** Estado de REVISIÓN de una versión, derivado del contrato existente (no es un catálogo nuevo): sin revisión → pendiente; rechazada → con observaciones. */
+export function estadoRevision(v: Pick<DocVersion, 'review' | 'availability'>): { label: string; tone: 'valid' | 'review' | 'blocked' | 'neutral' } {
+  if (v.review?.decision === 'ACCEPTED') return { label: 'Revisado: aceptado', tone: 'valid' };
+  if (v.review?.decision === 'REJECTED') return { label: 'Con observaciones', tone: 'review' };
+  return { label: 'Pendiente de revisión', tone: 'neutral' };
+}
