@@ -708,3 +708,6 @@ Candidato `747ac41`: `npm run validate` **APROBADA** (`validation-results/2026-1
 con restauración aislada verificada. Incluye Next.js 16.4.2 (avisos GHSA-2464-fhr4-w9xw y GHSA-p3m5-59mp-jv5r ya no figuran).
 Validaciones previas fallidas conservadas (`0864fc4`, `5176d70`, `6ea3d10`); causas en la evidencia. **No acredita** aceptación
 regulatoria, conformidad EUDR, Android ni producción; la cobertura 42/60 (MVP 30/44 = 68,2 %) no cambia. Detalle: `qa/EVIDENCIA_D076_CONCLUSION_HUMANA_2026-10-22.md`.
+
+## QA integral local y revisión de seguridad (2026-10-22)
+Candidato `29ab9bf`: `npm run validate` **APROBADA** (`validation-results/2026-10-23T00-37-00-488Z`); desplegado. Barrido de las 288 rutas (sin credenciales, otra organización, plataforma, rol de solo lectura): sin fugas. Dos hallazgos corregidos (puertos de datos en loopback; cabeceras de seguridad). Validación previa `3335cd1` FALLIDA por una carrera del test de parcelas, conservada. No es una auditoría independiente. Detalle: `qa/EVIDENCIA_QA_SEGURIDAD_LOCAL_2026-10-22.md`.

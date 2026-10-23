@@ -601,3 +601,5 @@ Configuración de geolocalización (migración 0063): respaldo `_respaldos/2026-
 - Respaldo de `0064`–`0065`: `_respaldos/2026-10-22-conclusion-humana-0064-0065/` (restauración aislada verificada).
 - Nota de entorno: el CLI de Next.js < 16.4.2 podía abortar `next build` con `SecurityFatalError` (aviso de vulnerabilidad); resuelto con 16.4.2.
 - Tras crear `tl-restore`, esperar a que el log muestre dos «ready to accept connections» antes de restaurar (el servidor se reinicia tras `initdb`).
+
+- Desde 2026-10-22 PostgreSQL, Redis y el almacenamiento S3 se publican **solo en 127.0.0.1** (prueba `apps/api/src/infra-exposicion.spec.ts`). Para usar la API desde un teléfono: `adb reverse`, no la red local. Evidencia: `qa/EVIDENCIA_QA_SEGURIDAD_LOCAL_2026-10-22.md`.
