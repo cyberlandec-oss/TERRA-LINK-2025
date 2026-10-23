@@ -4,6 +4,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { buildOpenApi } from '../src/bootstrap';
+import { sql } from 'kysely';
 import { describeDb, setupHarness } from './helpers';
 
 // QA-01/QA-02 (docs/16 «Comprobaciones críticas de seguridad»): barrido SISTEMÁTICO de TODA la superficie HTTP descrita en el OpenAPI, no módulo a módulo.
@@ -30,6 +31,9 @@ const PUBLICAS: Record<string, string> = {
 
 // Descriptores ESTÁTICOS bajo una ruta de organización: no leen ningún dato de la organización (el contenido es el mismo para todos) y exigen sesión.
 const ESTATICAS = new Set(['get /api/v1/organizations/{orgId}/exchange/format']);
+
+// Tablas donde una petición DENEGADA puede dejar rastro legítimo: solo la bitácora (resultado DENIED).
+const RASTRO_PERMITIDO = new Set(['audit_logs']);
 
 describeDb('Barrido de la superficie HTTP (QA-01/QA-02)', () => {
   let h: Awaited<ReturnType<typeof setupHarness>>;
@@ -129,6 +133,30 @@ describeDb('Barrido de la superficie HTTP (QA-01/QA-02)', () => {
       if (res.status >= 200 && res.status < 300) exitosas++;
     }
     expect(exitosas).toBeGreaterThan(20);
+  }, 300_000);
+
+  it('SIN EFECTOS: las escrituras denegadas (otra organización, plataforma y rol de solo lectura) no cambian ninguna tabla salvo la bitácora', async () => {
+    const conteos = async () => {
+      const tablas = await sql<{ table_name: string }>`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> 'kysely_migration' AND table_name <> 'kysely_migration_lock' ORDER BY 1`.execute(h.db);
+      const out: Record<string, number> = {};
+      for (const t of tablas.rows) out[t.table_name] = Number((await sql<{ n: string }>`SELECT count(*) AS n FROM ${sql.table(t.table_name)}`.execute(h.db)).rows[0].n);
+      return out;
+    };
+    const antes = await conteos();
+    expect(Object.keys(antes).length).toBeGreaterThan(80); // control: se miró el esquema completo
+    const escrituras = rutas.filter((x) => x.metodo !== 'get');
+    for (const r of escrituras.filter((x) => x.plantilla.includes('{orgId}'))) {
+      await llamar(r, sustituir(r.plantilla, orgA), h.tokens['admin-b@test.local'], cruda);
+      await llamar(r, sustituir(r.plantilla, orgA), h.tokens['auditor@test.local'], cruda);
+    }
+    for (const r of escrituras.filter((x) => x.plantilla.includes('/platform/'))) await llamar(r, sustituir(r.plantilla, orgA), h.tokens['admin-a@test.local'], cruda);
+    const despues = await conteos();
+    const cambios = Object.keys(despues).filter((t) => despues[t] !== antes[t] && !RASTRO_PERMITIDO.has(t)).map((t) => `${t}: ${antes[t]} → ${despues[t]}`);
+    expect(cambios).toEqual([]);
+    // Sensibilidad: una escritura AUTORIZADA sí cambia una tabla y el mismo método la detecta.
+    await h.http().post(`/api/v1/organizations/${orgA}/invitations`).set(h.as('admin-a@test.local')).send({ email: 'sensibilidad@test.local', role_code: 'AUDITOR' }).expect(201);
+    const tras = await conteos();
+    expect(Object.keys(tras).filter((t) => tras[t] !== despues[t] && !RASTRO_PERMITIDO.has(t)).length).toBeGreaterThan(0);
   }, 300_000);
 
   it('rutas de plataforma: un administrador de organización (sin SUPER_ADMIN) no accede a ninguna', async () => {
