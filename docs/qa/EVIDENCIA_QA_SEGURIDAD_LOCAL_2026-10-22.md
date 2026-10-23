@@ -19,8 +19,27 @@ Enumera las 288 rutas del OpenAPI real. Base desechable `*_test`, datos sintéti
 - Rutas de plataforma con un administrador de organización (sin SUPER_ADMIN): 403/404.
 - **AUDITOR** (solo lectura) sobre cada escritura de su organización: nunca 2xx ni 5xx.
 - Controles: A→A responde 200; con el administrador propio el mismo recorrido obtiene >20 respuestas 2xx (sensibilidad: un 2xx indebido sería visible).
-- **Resultado: sin fugas ni escrituras indebidas.** Límites: el AUDITOR es el único rol probado en escrituras; los permisos finos por rol siguen cubiertos por las pruebas de cada módulo; el barrido envía cuerpos vacíos, no prueba referencias cruzadas dentro de cuerpos válidos (cubiertas por módulo, QA-02).
+- **Resultado: sin fugas ni escrituras indebidas en lo que el barrido ejercita** (ver §3.1 para su alcance exacto). Límites: el AUDITOR es el único rol probado en escrituras; los permisos finos por rol y las referencias cruzadas dentro de cuerpos válidos están cubiertos por las pruebas de cada módulo.
 - En el entorno desplegado (`29ab9bf`): 171 rutas GET sin credenciales, 0 anomalías.
+
+### 3.1 Precisión de alcance (contraste del 2026-10-22)
+
+**Dónde se ejecuta cada control (arquitectura real, sin cambios):**
+- **Autenticación:** un único `AuthGuard` global (`APP_GUARD`, `apps/api/src/auth/auth.ts`); las rutas públicas se marcan con `@Public()`.
+- **Permisos y alcance por organización:** **no** hay guards por ruta; se ejecutan dentro de los servicios (`AuthorizationService.tenantContext`, permisos y alcance propio/asignado), es decir, **después** de la pipe de validación global.
+- Consecuencia: con la configuración real, un cuerpo mal formado recibe **400** antes de llegar a la autorización. Un 400 **no** demuestra ni una fuga ni una autorización correcta: solo que la validación de forma ocurrió primero. No se cambió la arquitectura por esto.
+
+**Qué se deshabilitó en el barrido:** únicamente la `ValidationPipe` global. La instancia "cruda" del barrido usa el mismo `AppModule`, el mismo `AuthGuard`, el filtro de errores y los interceptores; no aplica además CORS, el límite del cuerpo, `trust proxy` ni las cabeceras de seguridad de `createApp`, que no intervienen en la autorización. Es una **prueba de autorización aislada**, no una prueba de la configuración real de arranque; su evidencia se describe así.
+
+| Qué se comprueba | Configuración | Dónde |
+| --- | --- | --- |
+| 401 sin credenciales en las 288 rutas, cabeceras | **real** (`createApp`) | `barrido-rutas.int-spec.ts` (instancia del arnés) |
+| Autorización de escrituras de otra organización, plataforma y rol de solo lectura, **sin efectos en ninguna tabla** | **aislada** (sin `ValidationPipe`) | `barrido-rutas.int-spec.ts`: respuesta 403/404 por ruta y, añadido en este contraste, **recuento de filas de todo el esquema antes y después** (solo puede cambiar la bitácora); con control de sensibilidad (una escritura autorizada sí cambia tablas) |
+| Escrituras con **cuerpo válido, validación activada y referencias ajenas**, con comprobación de que no se escribió ni se reveló nada | **real** | pruebas por módulo, ver abajo |
+
+**Cobertura existente de escrituras con cuerpo válido y referencias ajenas (configuración real; no se repite):** `plots` (productor de otra organización rechazado y protegido en base de datos), `producers` (responsable de otra organización → 422), `documents` (referencias ajenas o inexistentes rechazadas), `evidence`, `kde`, `dd` (referencias cruzadas), `mitigations`, `event-corrections`, `custody-transfers` (referencias ajenas, reservas), `d34a-despacho` (paquete de otro lote u organización, impedido por la base), `imports*` (lote ajeno 404, nada se escribe), `deliveries`, `d32-d33`, `cost`/`platform-cost`, `economics`, `organizations` (FK compuesta), `rbac`, `audit`, `qa02-jobs-objetos` (objetos por clave adivinada). Son **46 suites** con casos de aislamiento o referencias ajenas; no se afirma que cada una de las 288 rutas tenga su par positivo/negativo con cuerpo válido.
+
+**Controles positivos:** son **representativos**, no uno por ruta: A→A sobre la organización y, en las lecturas, más de 20 rutas GET con 2xx para el administrador propio. Las escrituras no tienen un control positivo propio en el barrido (solo la invitación de sensibilidad); su caso positivo vive en las pruebas de cada módulo.
 
 ## 4. Hallazgos y correcciones
 | # | Hallazgo (reproducido) | Corrección | Prueba |
@@ -39,6 +58,8 @@ Enumera las 288 rutas del OpenAPI real. Base desechable `*_test`, datos sintéti
 Diagnóstico del fallo: la captura final muestra el aviso de conflicto aún visible y el formulario sin la variedad guardada por la otra pestaña. El test pulsaba «Guardar» justo
 después de «Recargar versión actual» **sin esperar a que terminara la recarga**, por lo que enviaba la versión vieja y volvía a dar conflicto. Se clasifica como **carrera del test**
 (inferida de ese estado; el producto actualiza `row_version` al terminar la recarga). Corrección en `29ab9bf`: el test espera a que desaparezca el aviso antes de guardar; no se redujo ninguna aserción ni se subió ningún plazo. Que la corrida siguiente pase **no demuestra por sí solo** la causa.
+
+**Prueba añadida en el contraste de alcance (§3.1, "SIN EFECTOS"):** verificada de forma dirigida (10/10 en `barrido-rutas.int-spec.ts`, lint y typecheck) sobre una base desechable. No cambia código del producto y no se repitió `npm run validate` solo por ella; la incluirá la siguiente validación de un candidato funcional.
 
 ## 6. Despliegue
 `29ab9bf` desplegado (`/version`, esquema 0065, sin `+sucio`); contenedores de datos recreados con volúmenes intactos (27) y datos presentes (13 evaluaciones). Sin migración: no se hizo respaldo nuevo.
