@@ -74,7 +74,11 @@ export const EN_MIFINCA: Record<string, string> = {
   'Ver las entregas': 'View deliveries',
   'Tu rol no incluye la consulta de entregas.': 'Your role does not include viewing deliveries.',
   'Esto es una limitación de permisos del rol (no un error ni que no haya entregas): con el alcance vigente no puedes ver tus entregas desde la plataforma. Pregunta a tu organización por su estado.': 'This is a role-permission limit (not an error and not an absence of deliveries): with the current scope you cannot see your deliveries on the platform. Ask your organization about their status.',
-  'El catálogo actual no tiene un tipo de documento específico para este aspecto: pídele a tu organización que lo incorpore, o adjunta el soporte como evidencia del recorrido de campo mientras tanto.': 'The current catalog has no specific document type for this aspect: ask your organization to add one, or attach the file as field-visit evidence in the meantime.',
+  'Este tipo puede contener datos personales: tu rol ve que lo aportaste y su estado, pero el contenido solo lo ven los roles con acceso a la identidad del productor.': 'This type may contain personal data: your role sees that you provided it and its status, but the content is only visible to roles with access to producer identity.',
+  // Tipos del catálogo (migración 0066)
+  'Soporte ambiental': 'Environmental supporting document',
+  'Soporte laboral': 'Labor supporting document',
+  'Soporte de derechos de terceros o comunidades': 'Third-party or community rights supporting document',
   'Fuente: síntesis de guías EUDR aportadas por el propietario (22 de octubre de 2026). Orientación, no un dictamen de aplicabilidad.': 'Source: summaries of EUDR guides provided by the owner (22 October 2026). Guidance, not an applicability ruling.',
   'Esto es una guía de orientación, no una lista obligatoria: cada situación es distinta.': 'This is guidance, not a mandatory list: every situation is different.',
   'Subir un archivo no lo aprueba ni acredita su autenticidad o validez: una persona autorizada lo revisa aparte.': 'Uploading a file does not approve it or prove its authenticity or validity: an authorized person reviews it separately.',

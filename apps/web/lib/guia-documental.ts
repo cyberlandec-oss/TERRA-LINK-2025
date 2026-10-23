@@ -4,7 +4,8 @@
 //     empresa con trabajadores) es distinta. Una regla jurídica concreta se contrasta con el PDF original antes de adoptarla.
 //   · Subir un archivo no lo aprueba ni acredita su autenticidad o validez; la revisión es de una persona autorizada y es un paso aparte.
 //   · La guía NO bloquea la carga: no depende de la revisión de ningún perfil global.
-//   · Los tipos de documento son los del catálogo de sistema vigente. Si un aspecto no tiene tipo propio, se dice (decisión pendiente).
+//   · Los tipos de documento son los del catálogo de sistema vigente (migración 0066 añadió los de ambiente, trabajo y terceros). Un tipo solo CLASIFICA un archivo:
+//     no lo vuelve obligatorio, ni evidencia aprobada, ni mueve riesgo, READY o despacho. Si un aspecto no tuviera tipo propio, se diría.
 //   · La «situación de trabajo» solo orienta lo que se muestra: no se guarda ni se usa para deducir una categoría jurídica.
 
 export type OwnerKind = 'plot' | 'producer';
@@ -21,7 +22,7 @@ export interface Aspecto {
   nota?: string;
 }
 
-export const SIN_TIPO = 'El catálogo actual no tiene un tipo de documento específico para este aspecto: pídele a tu organización que lo incorpore, o adjunta el soporte como evidencia del recorrido de campo mientras tanto.';
+export const NOTA_PRIVACIDAD = 'Este tipo puede contener datos personales: tu rol ve que lo aportaste y su estado, pero el contenido solo lo ven los roles con acceso a la identidad del productor.';
 
 export const GUIA: Record<OwnerKind, Aspecto[]> = {
   plot: [
@@ -30,7 +31,7 @@ export const GUIA: Record<OwnerKind, Aspecto[]> = {
       para: 'Documenta cómo se usa la tierra: propiedad, arrendamiento, comodato, comunidad u otra forma.',
       ejemplos: ['Título de propiedad', 'Contrato de arrendamiento o de uso', 'Autorización o adjudicación', 'Otro soporte que consideres pertinente'],
       aclarar: 'Indica quién es titular y cómo se usa la parcela. No hace falta ser propietario: el soporte depende de tu situación.',
-      fuente: 'B02 (tenencia de tierras); B08', tipos: ['LAND_TENURE'],
+      fuente: 'B02 (tenencia de tierras); B08', tipos: ['LAND_TENURE'], nota: NOTA_PRIVACIDAD,
     },
     {
       id: 'cobertura', titulo: 'Historia de la parcela y cambios de cobertura',
@@ -45,14 +46,21 @@ export const GUIA: Record<OwnerKind, Aspecto[]> = {
       para: 'Documenta gestiones o permisos ambientales que correspondan a tu caso.',
       ejemplos: ['Permisos o gestiones ambientales pertinentes', 'Evidencias ambientales de la actividad'],
       aclarar: 'Depende de la actividad, de dónde está la parcela y de la regla que aplique: no es el mismo requisito para todos.',
-      fuente: 'B02; B07', tipos: [], nota: SIN_TIPO,
+      fuente: 'B02; B07', tipos: ['ENVIRONMENTAL_SUPPORT'],
     },
     {
       id: 'terceros', titulo: 'Derechos de terceros y comunidades',
       para: 'Documenta acuerdos o situaciones con otras personas o comunidades, si existen.',
       ejemplos: ['Acuerdos o comunicaciones con comunidades o vecinos', 'Actas relacionadas con una situación declarada'],
       aclarar: 'Indica quiénes son los titulares o las comunidades y el alcance real de cada documento.',
-      fuente: 'B02; B07', tipos: [], nota: SIN_TIPO,
+      fuente: 'B02; B07', tipos: ['THIRD_PARTY_RIGHTS_SUPPORT'], nota: NOTA_PRIVACIDAD,
+    },
+    {
+      id: 'trabajo', titulo: 'Trabajo y aspectos sociales',
+      para: 'Primero cuenta cómo se trabaja la finca; los soportes cambian según el caso.',
+      ejemplos: [],
+      aclarar: 'No es lo mismo el trabajo familiar, ser socio, ser autónomo o tener trabajadores contratados.',
+      fuente: 'B09 pp. 4–6 y 10–12; B08', tipos: ['LABOR_SUPPORT'], nota: NOTA_PRIVACIDAD,
     },
   ],
   producer: [
@@ -68,14 +76,14 @@ export const GUIA: Record<OwnerKind, Aspecto[]> = {
       para: 'Si el soporte describe tu relación con la tierra en general, puede aportarse aquí o en cada parcela.',
       ejemplos: ['Título, contrato o autorización', 'Otro soporte que consideres pertinente'],
       aclarar: 'No hace falta ser propietario: el soporte depende de tu situación.',
-      fuente: 'B02; B08', tipos: ['LAND_TENURE'],
+      fuente: 'B02; B08', tipos: ['LAND_TENURE'], nota: NOTA_PRIVACIDAD,
     },
     {
       id: 'trabajo', titulo: 'Trabajo y aspectos sociales',
       para: 'Primero cuenta cómo se trabaja la finca; los soportes cambian según el caso.',
       ejemplos: [],
       aclarar: 'No es lo mismo el trabajo familiar, ser socio, ser autónomo o tener trabajadores contratados.',
-      fuente: 'B09 pp. 4–6 y 10–12; B08', tipos: [], nota: SIN_TIPO,
+      fuente: 'B09 pp. 4–6 y 10–12; B08', tipos: ['LABOR_SUPPORT'], nota: NOTA_PRIVACIDAD,
     },
   ],
 };
@@ -97,7 +105,7 @@ export const FUENTE_GUIA = 'Fuente: síntesis de guías EUDR aportadas por el pr
 
 /** Todos los textos de la guía (para comprobar su traducción). */
 export function textosGuia(): string[] {
-  const out: string[] = [SIN_TIPO, FUENTE_GUIA, ...NOTAS_GENERALES];
+  const out: string[] = [NOTA_PRIVACIDAD, FUENTE_GUIA, ...NOTAS_GENERALES];
   for (const lista of Object.values(GUIA)) for (const a of lista) out.push(a.titulo, a.para, a.aclarar, ...a.ejemplos, ...(a.nota ? [a.nota] : []));
   for (const s of SITUACIONES_TRABAJO) out.push(s.etiqueta, s.orientacion);
   return [...new Set(out)];

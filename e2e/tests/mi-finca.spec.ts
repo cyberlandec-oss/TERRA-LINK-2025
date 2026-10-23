@@ -109,8 +109,10 @@ test('guía documental: orientativa, no bloquea la carga, sin lista uniforme y c
   await expect(page.getByText('Es solo orientación: no se guarda y no es una calificación jurídica.')).toBeVisible();
   await expect(page.getByText(/Referencia en las guías: B09/)).toBeVisible();                                // fuente visible
   await expect(page.getByText(/no es una lista obligatoria|Orientación, no un dictamen/).first()).toBeVisible();
-  // Aspectos sin tipo propio en el catálogo: se DICE (no se oculta ni se inventa un tipo).
-  await expect(page.getByText(/El catálogo actual no tiene un tipo de documento específico/).first()).toBeVisible();
+  // El aspecto laboral tiene su tipo (migración 0066) y dice que puede contener datos personales; ya no hay aspectos «sin tipo».
+  await expect(page.getByText(/Tipo de documento disponible: Soporte laboral/)).toBeVisible();
+  await expect(page.getByText(/Este tipo puede contener datos personales/).first()).toBeVisible();
+  await expect(page.getByText(/El catálogo actual no tiene un tipo de documento específico/)).toHaveCount(0);
   // El productor (rol PRODUCER) puede consultar pero no aportar a nivel de productor (la API exige poder actualizarlo).
   await expect(page.getByText('Tu rol puede consultar estos documentos, pero no aportar nuevos aquí.')).toBeVisible();
   await ctx.close();
@@ -138,6 +140,42 @@ test('aportar un documento desde Mi finca: queda aportado y PENDIENTE DE REVISI�
   const v = (docs[0].versions as Array<Record<string, unknown>>)[0];
   expect(v.review).toBeNull();                                  // ninguna aprobación automática
   expect(docs[0].owner_id).toBe(plotA1);
+  await ctx.close();
+});
+
+test('AJ-03 soportes ambiental, laboral y de terceros: el Productor vinculado los aporta a su parcela con su tipo, quedan pendientes de revisión y el contenido personal se restringe', async ({ browser }) => {
+  const ctx = await contexto(browser, prodATok);
+  const page = await abrirDesdeMenu(ctx);
+  await page.getByLabel('Aportar o consultar documentos de').selectOption({ label: 'Parcela MF-A2' });
+  await page.getByText('Qué puedes documentar y por qué (guía orientativa)').click();
+  await expect(page.getByText(/Tipo de documento disponible: Soporte ambiental/)).toBeVisible();
+  await expect(page.getByText(/Tipo de documento disponible: Soporte de derechos de terceros o comunidades/)).toBeVisible();
+  const subir = async (tipo: string, titulo: string) => {
+    await page.getByLabel('Tipo de documento').selectOption({ label: tipo });
+    await page.getByLabel('Título').fill(titulo);
+    await page.getByLabel('Archivo').setInputFiles({ name: 'soporte.pdf', mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4
+% soporte sintético ${titulo}
+%%EOF
+`) });
+    await page.getByRole('button', { name: 'Subir documento' }).click();
+    await expect(page.getByText(/Documento registrado:/)).toBeVisible({ timeout: 30_000 });
+  };
+  await subir('Soporte ambiental', 'Gestión ambiental (sintética)');
+  await subir('Soporte laboral (datos personales)', 'Registro laboral (sintético)');
+  await subir('Soporte de derechos de terceros o comunidades (datos personales)', 'Acta con la comunidad (sintética)');
+  const tabla = page.getByRole('table', { name: 'Documentos aportados' });
+  for (const [titulo, tipo] of [['Gestión ambiental (sintética)', 'Soporte ambiental'], ['Registro laboral (sintético)', 'Soporte laboral'], ['Acta con la comunidad (sintética)', 'Soporte de derechos de terceros o comunidades']]) {
+    const fila = tabla.getByRole('row').filter({ hasText: titulo });
+    await expect(fila).toContainText(tipo);                       // clasificado con su tipo, no como «tenencia» ni «evidencia del recorrido»
+    await expect(fila).toContainText('Pendiente de revisión');    // subir no aprueba
+  }
+  // Ninguno quedó como obligatorio ni aprobado: la API no muestra revisión alguna.
+  const docs = items(await api(`/api/v1/organizations/${orgId}/documents?owner_type=plot&owner_id=${plotA2}`, { token: adminTok }));
+  expect(docs.map((d) => d.document_type).sort()).toEqual(['ENVIRONMENTAL_SUPPORT', 'LABOR_SUPPORT', 'THIRD_PARTY_RIGHTS_SUPPORT']);
+  for (const d of docs) expect((d.versions as Array<Record<string, unknown>>)[0].review).toBeNull();
+  // Privacidad: el soporte laboral es dato personal; el Productor ve su estado, no su contenido.
+  await tabla.getByRole('link', { name: 'Registro laboral (sintético)' }).click();
+  await expect(page.getByText('Contiene datos personales: tu rol puede ver los metadatos, no el contenido.')).toBeVisible();
   await ctx.close();
 });
 

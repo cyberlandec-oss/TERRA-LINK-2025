@@ -3,7 +3,7 @@ import { GUIA, NOTAS_GENERALES, SITUACIONES_TRABAJO, textosGuia } from './guia-d
 import { estadoRevision } from './documents';
 
 // Guía documental ORIENTATIVA (A-05): no es una lista obligatoria uniforme, no promete aprobación y no inventa tipos de documento.
-const TIPOS_DEL_CATALOGO = ['LAND_TENURE', 'DELIVERY_SUPPORT', 'FIELD_EVIDENCE', 'FIELD_PHOTO']; // document_types de sistema vigente (migraciones 0018, 0029, 0057)
+const TIPOS_DEL_CATALOGO = ['LAND_TENURE', 'DELIVERY_SUPPORT', 'FIELD_EVIDENCE', 'FIELD_PHOTO', 'ENVIRONMENTAL_SUPPORT', 'LABOR_SUPPORT', 'THIRD_PARTY_RIGHTS_SUPPORT']; // document_types de sistema vigente (migraciones 0018, 0029, 0057, 0066)
 
 describe('guía documental', () => {
   it('cada aspecto declara su fuente y solo remite a tipos que existen en el catálogo', () => {

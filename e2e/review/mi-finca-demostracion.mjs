@@ -82,6 +82,20 @@ await caso('Técnico asignado: la parcela muestra «Documentos y soportes» con 
   return [/no una lista obligatoria|no es una lista obligatoria/.test(guia) && /Tenencia o derecho de uso/.test(guia) && /Referencia en las guías/.test(guia) && /Orientación, no un dictamen de aplicabilidad/.test(guia) && enMenu === 0 && estado() === antes, 'guía con fuente; sin «Mi finca» para el rol asignado'];
 });
 
+await caso('AJ-03 catálogo desplegado: los tipos ambiental, laboral y de terceros existen con su clasificación; ningún aspecto de la guía queda «sin tipo»; solo clasifican (nada obligatorio ni aprobado)', async () => {
+  const t = (await pedir(tecnico, `/api/v1/organizations/${org.id}/document-types`)).b.types;
+  const por = Object.fromEntries(t.map((x) => [x.code, x]));
+  const ctx = await ctxCon(tecnico); const page = await ctx.newPage();
+  await page.goto(`${WEB}/organizaciones/${org.id}/parcelas/${plot.id}`);
+  await page.getByRole('heading', { name: 'Documentos y soportes' }).waitFor({ timeout: 30000 });
+  await page.getByText('Qué puedes documentar y por qué (guía orientativa)').click();
+  const guia = await page.locator('details.guia-documental').innerText();
+  await ctx.close();
+  const ok = por.ENVIRONMENTAL_SUPPORT?.classification === 'OPERATIONAL' && por.LABOR_SUPPORT?.classification === 'PERSONAL_DATA' && por.THIRD_PARTY_RIGHTS_SUPPORT?.classification === 'PERSONAL_DATA' && t.length === 7
+    && /Tipo de documento disponible: Soporte ambiental/.test(guia) && /Soporte de derechos de terceros o comunidades/.test(guia) && /Soporte laboral/.test(guia) && !/El catálogo actual no tiene un tipo/.test(guia) && estado() === antes;
+  return [ok, `${t.length} tipos: ${t.map((x) => x.code).join(', ')}`];
+});
+
 await caso('La guía no dice «certificado» ni promete aprobación: subir no aprueba (texto visible en la parcela)', async () => {
   const ctx = await ctxCon(tecnico); const page = await ctx.newPage();
   await page.goto(`${WEB}/organizaciones/${org.id}/parcelas/${plot.id}`);
