@@ -8,8 +8,10 @@ import { outcomeFromError, outcomeFromStatus, type AnalysisRequest, type Provide
 // DESHABILITADAS: `liveCalls` es un interruptor explícito de configuración, y ni seleccionar Whisp ni encontrar una
 // credencial guardada lo activan. Sin él, `analyze` devuelve `LIVE_CALLS_DISABLED` sin tocar la red.
 //
-// CONTRATO: `docs/decisiones/P0-028-WHISP-CONTRATO.md` — OpenAPI **2.3.0**, consultado el **2026-10-15**. No se
-// inventan endpoints, campos, versiones de dataset ni garantías: lo que el proveedor no declara, queda nulo.
+// CONTRATO: `docs/decisiones/P0-028-WHISP-CONTRATO-2.3.1.md` — OpenAPI **2.3.1**, consultado el **2026-10-23** (la
+// referencia 2.3.0 del 2026-10-15 se conserva como histórica). No se inventan endpoints, campos, versiones de dataset
+// ni garantías: lo que el proveedor no declara, queda nulo. Todas las respuestas comparten el sobre
+// `{ code, message, data }`: el `token`, el avance y el resultado viajan en `data`.
 //
 // INCOMPLETITUD (lo que el proveedor sí declara): «Occasionally a dataset can't be read from Earth Engine … Whisp
 // skips it and records its name in the `whisp_processing_metadata` column, under `unavailable_datasets`», y
@@ -17,8 +19,8 @@ import { outcomeFromError, outcomeFromStatus, type AnalysisRequest, type Provide
 // significan cobertura completa: ese es justamente el caso que hay que conservar, no suavizar.
 
 export const WHISP_CONTRACT = {
-  spec_version: '2.3.0',
-  consulted_at: '2026-10-15',
+  spec_version: '2.3.1',
+  consulted_at: '2026-10-23',
   source: 'https://whisp.openforis.org/api/openapi.json',
   default_base_url: 'https://whisp.openforis.org',
   default_host: 'whisp.openforis.org',
@@ -60,6 +62,24 @@ interface WhispConfig {
 type Json = Record<string, unknown>;
 const isObj = (v: unknown): v is Json => !!v && typeof v === 'object' && !Array.isArray(v);
 const asArray = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+/** `data` es el RESULTADO solo cuando es un FeatureCollection; en un 202 `data` trae `token`/`percent`/`statusUrl`. */
+const isFeatureCollection = (v: unknown): v is Json => isObj(v) && Array.isArray(v.features);
+/** Identificador del trabajo: `data.token` (contrato 2.3.1). */
+const tokenOf = (p: Json): string | null => (isObj(p.data) && typeof p.data.token === 'string' ? p.data.token : null);
+
+/**
+ * Desenlace de una respuesta de error según el contrato 2.3.1: el `code` del sobre precisa lo que el estado HTTP no dice
+ * (408 `analysis_timeout`; 400/413 `validation_*` sobre la geometría enviada). Sin `code` reconocible se usa el estado.
+ */
+function outcomeFromResponse(status: number, body: Json | null): ProviderOutcome | null {
+  if (status < 400) return null;
+  const code = body && typeof body.code === 'string' ? body.code : '';
+  if (status === 408 || code === TIMEOUT) return { kind: 'TIMEOUT', errorCode: 'PROVIDER_ANALYSIS_TIMEOUT', note: 'El proveedor declaró que su análisis venció por plazo. Sin resultado: no evaluable.' };
+  if (status === 400 || status === 413 || status === 422) {
+    if (code.startsWith('validation_')) return { kind: 'GEOMETRY_UNSUPPORTED', errorCode: `PROVIDER_${code.toUpperCase()}`.slice(0, 80), note: 'El proveedor rechazó la geometría enviada según su validación. Sin resultado: no evaluable.' };
+  }
+  return outcomeFromStatus(status);
+}
 
 export class WhispSatelliteProvider implements SatelliteProviderPort {
   readonly code = 'WHISP';
@@ -139,17 +159,17 @@ export class WhispSatelliteProvider implements SatelliteProviderPort {
 
       // 4) Envío.
       const submit = await this.call(req, '/api/submit/geojson', { method: 'POST', body, auth: true });
-      const bySubmit = outcomeFromStatus(submit.status);
-      if (bySubmit) return bySubmit;
       const first = this.parseJson(submit.body);
+      const bySubmit = outcomeFromResponse(submit.status, first);
+      if (bySubmit) return bySubmit;
       if (!first) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_RESPONSE_NOT_JSON', note: 'La respuesta del proveedor no es JSON conforme al contrato.' };
 
       let payload: Json = first;
       let raw: Buffer = submit.body;
 
       // 5) Trabajo asíncrono: 202 con `token`. Se sondea `/api/status/{token}` según el contrato.
-      if (submit.status === 202 || (typeof first.token === 'string' && !isObj(first.data))) {
-        const token = typeof first.token === 'string' ? first.token : null;
+      if (submit.status === 202 || (tokenOf(first) && !isFeatureCollection(first.data))) {
+        const token = tokenOf(first);
         if (!token) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_TOKEN_MISSING', note: 'El proveedor aceptó el trabajo sin devolver el identificador que exige su contrato.' };
         const polled = await this.poll(req, token, secrets);
         if ('kind' in polled) return polled;
@@ -158,16 +178,16 @@ export class WhispSatelliteProvider implements SatelliteProviderPort {
       }
 
       // 6) Resultado. Si el estado terminó sin traer `data`, se descarga por el endpoint publicado para eso.
-      if (!isObj(payload.data)) {
-        const token = typeof payload.token === 'string' ? payload.token : (typeof first.token === 'string' ? first.token : null);
+      if (!isFeatureCollection(payload.data)) {
+        const token = tokenOf(payload) ?? tokenOf(first);
         if (!token) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_RESULT_MISSING', note: 'El proveedor terminó el trabajo sin entregar resultado ni identificador de descarga.' };
         // La descarga pasa por la MISMA política de salida: mismo host de la lista blanca, sin seguir redirecciones.
         const dl = await this.call(req, `/api/generate-geojson/${encodeURIComponent(token)}`);
-        const byDl = outcomeFromStatus(dl.status);
-        if (byDl) return byDl;
         const parsed = this.parseJson(dl.body);
+        const byDl = outcomeFromResponse(dl.status, parsed);
+        if (byDl) return byDl;
         if (!parsed) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_DOWNLOAD_NOT_JSON', note: 'La descarga del resultado no es JSON conforme al contrato.' };
-        payload = isObj(parsed.data) ? parsed : { data: parsed };
+        payload = isFeatureCollection(parsed.data) ? parsed : { data: parsed };
         raw = dl.body;
       }
 
@@ -182,9 +202,9 @@ export class WhispSatelliteProvider implements SatelliteProviderPort {
     const sleep = this.o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
     for (let i = 0; i < this.o.maxPolls; i++) {
       const res = await this.call(req, `/api/status/${encodeURIComponent(token)}`, { auth: true });
-      const byStatus = outcomeFromStatus(res.status);
-      if (byStatus) return byStatus;
       const payload = this.parseJson(res.body);
+      const byStatus = outcomeFromResponse(res.status, payload);
+      if (byStatus) return byStatus;
       if (!payload) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_STATUS_NOT_JSON', note: 'El estado del trabajo no es JSON conforme al contrato.' };
       const code = typeof payload.code === 'string' ? payload.code : '';
       if (code === COMPLETED) return { payload, raw: res.body };
@@ -202,7 +222,7 @@ export class WhispSatelliteProvider implements SatelliteProviderPort {
    * como vinieron y lo que el proveedor no declara queda nulo.
    */
   private toResult(payload: Json, cfg: WhispConfig, raw: Buffer): ProviderOutcome {
-    const features = isObj(payload.data) ? asArray((payload.data as Json).features) : [];
+    const features = isFeatureCollection(payload.data) ? asArray(payload.data.features) : [];
     const first = features.find(isObj);
     if (!first) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_NO_FEATURES', note: 'El proveedor devolvió un resultado sin ninguna parcela analizada.' };
     const props = isObj(first.properties) ? first.properties : {};
@@ -211,25 +231,31 @@ export class WhispSatelliteProvider implements SatelliteProviderPort {
     const meta = isObj(props.whisp_processing_metadata) ? props.whisp_processing_metadata : {};
     const unavailable = asArray(meta.unavailable_datasets).filter((x): x is string => typeof x === 'string');
     const riskUnavailable = asArray(meta.risk_inputs_unavailable).filter((x): x is string => typeof x === 'string');
-    const messages = asArray(payload.processStatusMessages ?? payload.processStatusMessage).filter((x): x is string => typeof x === 'string');
+    const messages = asArray(payload.processStatusMessages ?? payload.processStatusMessage ?? (isObj(payload.data) ? (payload.data.processStatusMessages ?? payload.data.processStatusMessage) : undefined)).filter((x): x is string => typeof x === 'string');
+    // Fecha y versión que el PROVEEDOR declara en `whisp_processing_metadata` (2.3.1). Solo si son válidas; si no, nulo.
+    const declared = typeof meta.processing_timestamp_utc === 'string' ? meta.processing_timestamp_utc : null;
+    const parsedDate = declared ? new Date(declared.replace(' ', 'T').replace(/([+-]\d{2})(\d{2})$/, '$1:$2')) : null;
+    const analysisDate = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null;
+    const whispVersion = typeof meta.whisp_version === 'string' ? meta.whisp_version : null;
     const incompleto = unavailable.length > 0 || riskUnavailable.length > 0;
 
     const result: ProviderResult = {
       // El contrato no declara dataset ni versión de dataset por resultado: quedan nulos.
       dataset: null,
       datasetVersion: null,
-      // Tampoco declara fecha de análisis, resolución ni confianza. No se rellenan con el reloj ni con la FAQ.
-      analysisDate: null,
+      // La fecha de análisis es la que el proveedor declara (`processing_timestamp_utc`); nula si no la declara. Resolución y
+      // confianza no se declaran por resultado: no se rellenan con el reloj ni con la FAQ.
+      analysisDate,
       resolutionM: null,
       confidence: null,
-      method: `Whisp API ${WHISP_CONTRACT.spec_version} (contrato consultado ${WHISP_CONTRACT.consulted_at}); openforis-whisp ${cfg.openforisWhispVersion}`,
+      method: `Whisp API ${WHISP_CONTRACT.spec_version} (contrato consultado ${WHISP_CONTRACT.consulted_at}); openforis-whisp ${cfg.openforisWhispVersion}${whispVersion ? `; versión de análisis declarada en el resultado: ${whispVersion}` : ''}`,
       coverageStatus: incompleto ? 'PARTIAL' : 'UNKNOWN',
       coverageNote: incompleto
         ? `Análisis PARCIAL declarado por el proveedor: ${unavailable.length} dataset(s) no disponible(s)${unavailable.length ? ` (${unavailable.join(', ')})` : ''}${riskUnavailable.length ? `; ${riskUnavailable.length} de ellos alimentaban su propia evaluación (${riskUnavailable.join(', ')})` : ''}. El resultado no cubre lo que faltó.`
         : 'El proveedor no declara cobertura en su respuesta. La ausencia de incidencias NO equivale a cobertura completa: se conserva como desconocida.',
       limitations: [
         'Resultado de un proveedor externo: no es conclusión regulatoria ni certificación («there is no certification involved», FAQ oficial).',
-        'Los indicadores se conservan sin interpretar; qué significa cada uno es una decisión pendiente (D-07).',
+        'Los indicadores se conservan sin interpretar; qué significa cada uno es una decisión pendiente (D-07). Para cacao (cultivo perenne) la columna de riesgo del proveedor es risk_pcrop; «more_info_needed» significa evidencia insuficiente, no resultado favorable.',
         incompleto ? 'El propio proveedor declara datasets no disponibles en este análisis.' : 'El contrato no publica un campo de cobertura: no se presume completa.',
       ].join(' '),
       indicators: { ...props, ...(messages.length ? { process_status_messages: messages } : {}) },

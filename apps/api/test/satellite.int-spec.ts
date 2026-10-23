@@ -3,6 +3,8 @@ import { sql } from 'kysely';
 import { PASSWORD, describeDb, setupHarness } from './helpers';
 import { ROLE_PERMISSIONS } from '../src/authz/catalog';
 import { FixtureSatelliteProvider } from '../src/satellite/provider';
+import { WhispSatelliteProvider } from '../src/satellite/whisp';
+import { TlsFixture, json, loopbackLookup, tlsAvailable } from './tls-fixture';
 import { SatelliteRunner } from '../src/satellite/runner';
 import { PiiCipher } from '../src/crypto/pii';
 
@@ -415,5 +417,88 @@ describeDb('P0-028 satélite: contrato, desenlaces y candados', () => {
     await http().post(`${org()}/plots/${plotA}/geometry-versions`).set(as(ADMIN)).send({ expected_version: plot.row_version, survey_method: 'MANUAL_COORDINATES', geometry: nueva }).expect(201);
     const despues = (await http().get(`${org()}/satellite/analyses/${job}`).set(as(ADMIN)).expect(200)).body;
     expect(despues.applies_to_current_version).toBe(false);
+  });
+
+  // ---------------------------------------------------------------- Whisp 2.3.1 contra un servidor CONTROLADO (no es el servicio real)
+  // Acredita el recorrido encargo → corredor → progreso (trabajo asíncrono) → resultado guardado → consulta posterior con el
+  // ADAPTADOR REAL de Whisp. El servidor es del equipo y la respuesta es SINTÉTICA con la forma del contrato 2.3.1: NO acredita
+  // la integración con el servicio real de Whisp (sin clave ni autorización, sigue NO EJECUTADA).
+  (tlsAvailable ? describe : describe.skip)('Whisp 2.3.1 · servidor controlado', () => {
+    const CONFIG = { maxRequestBodySizeKb: 1024, maxPlotAreaHa: null, geometryLimitSync: 250, geometryLimitAsync: 5000, analysisTimeoutSyncSeconds: 90, analysisTimeoutAsyncSeconds: 600, openforisWhispVersion: '2.3.1-sintetico', geoidBaseUrl: null };
+    const props = { plotId: '1', Area: 1.2, Country: 'ECU', Cocoa_FDaP: 0.5, Ind_01_treecover: 'no', Ind_03_disturbance_before_2020: 'yes', risk_pcrop: 'more_info_needed',
+      whisp_processing_metadata: { whisp_version: '3.0.0a14', processing_timestamp_utc: '2026-06-11 01:59:15+0000' } };
+    let tls: TlsFixture;
+    beforeAll(() => { tls = new TlsFixture(); });
+    afterAll(() => tls?.close());
+
+    async function trabajo() {
+      const cipher = new PiiCipher(h.config.pii);
+      const uid = (await h.db.selectFrom('users').select('id').where('email', '=', ADMIN).executeTakeFirstOrThrow()).id;
+      const version = await h.db.selectFrom('plot_versions').select(['id', 'geometry_hash', 'geometry_type'])
+        .where('plot_id', '=', plotA).where('geometry_hash', 'is not', null).orderBy('version_number', 'desc').executeTakeFirstOrThrow();
+      await h.db.insertInto('satellite_credentials').values({
+        organization_id: orgA, provider_code: 'WHISP', secret_ciphertext: cipher.encrypt('clave-sintetica-de-A-0001', `satellite_credentials:${orgA}:WHISP`), created_by: uid,
+      }).onConflict((oc) => oc.columns(['organization_id', 'provider_code']).doNothing()).execute();
+      const id = randomUUID();
+      await h.db.insertInto('satellite_jobs').values({
+        id, organization_id: orgA, plot_id: plotA, plot_version_id: version.id, geometry_hash: version.geometry_hash!, geometry_type: version.geometry_type as 'POLYGON',
+        provider_code: 'WHISP', provider_kind: 'EXTERNAL_HTTP', adapter_contract_version: 'TL_SAT_ADAPTER 0.1.0', operation: 'FOREST_COVER',
+        request_fingerprint: randomUUID().replace(/-/g, '').padEnd(64, '0'), status: 'REQUESTED', requested_by: uid, operation_id: randomUUID(),
+      }).execute();
+      return { id, cipher };
+    }
+    async function correr(responder: Parameters<TlsFixture['listen']>[0]) {
+      const srv = await tls.listen(responder);
+      const previo = await h.db.selectFrom('satellite_providers').select('allowed_hosts').where('code', '=', 'WHISP').executeTakeFirstOrThrow();
+      await sql`UPDATE satellite_providers SET allowed_hosts = ${[`destino.prueba.local:${srv.port}`]} WHERE code = 'WHISP'`.execute(h.db);
+      try {
+        const { id, cipher } = await trabajo();
+        const whisp = new WhispSatelliteProvider({ liveCalls: true, baseUrl: `https://destino.prueba.local:${srv.port}`, ca: tls.ca, lookup: loopbackLookup, timeoutMs: 4000, pollMs: 1, maxPolls: 5, sleep: async () => undefined } as never);
+        await new SatelliteRunner(h.db, [whisp], { cipher, store: almacen }, { maxAttempts: 1, backoffBaseMs: 1 }).runOnce();
+        return { id, srv };
+      } finally {
+        await sql`UPDATE satellite_providers SET allowed_hosts = ${previo.allowed_hosts} WHERE code = 'WHISP'`.execute(h.db);
+      }
+    }
+
+    it('encargo asíncrono (202 → estado → resultado): se guarda con proveedor, versión geométrica, fecha DECLARADA y respuesta original, y se consulta después', async () => {
+      let consultas = 0;
+      const { id, srv } = await correr((r, res) => {
+        if (r.url === '/api/config') return json(res, 200, CONFIG);
+        if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'tk-1', statusUrl: '/api/status/tk-1', featureCount: 1 } });
+        if (r.url === '/api/status/tk-1') {
+          return ++consultas < 2 ? json(res, 202, { code: 'analysis_processing', message: 'p', data: { token: 'tk-1', percent: 40, processStatusMessage: [] } })
+            : json(res, 200, { code: 'analysis_completed', message: 'ok', data: { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: null, properties: props }] } });
+        }
+        return json(res, 404, { code: 'x' });
+      });
+      expect(consultas).toBe(2);
+      expect(srv.recibidas.find((x) => x.url === '/api/submit/geojson')!.headers['x-api-key']).toBe('clave-sintetica-de-A-0001');
+      // Consulta posterior (otra petición, otro momento): misma información.
+      for (let i = 0; i < 2; i++) {
+        const r = await http().get(`${org()}/satellite/analyses/${id}`).set(as(ADMIN)).expect(200);
+        expect(r.body).toMatchObject({ status: 'COMPLETED', outcome: 'RESULT_AVAILABLE', is_ensayo: false, provider: { code: 'WHISP', kind: 'EXTERNAL_HTTP' } });
+        expect(r.body.result.is_synthetic).toBe(false);
+        expect(r.body.result.provenance).toMatchObject({ provider_code: 'WHISP', dataset: null, resolution_m: null });
+        expect(new Date(r.body.result.provenance.analysis_date).toISOString()).toBe('2026-06-11T01:59:15.000Z');
+        expect(r.body.result.provenance.method).toContain('3.0.0a14');
+        expect(r.body.result.confidence).toBeNull();
+        expect(r.body.result.indicators).toMatchObject({ risk_pcrop: 'more_info_needed', Ind_01_treecover: 'no' });
+        expect(r.body.result.raw_evidence).toMatchObject({ stored: true });
+        expect(r.body.result).toMatchObject({ conclusion: 'NOT_EVALUATED', coverage: { status: 'UNKNOWN' } });
+        expect(JSON.stringify(r.body)).not.toContain('clave-sintetica');
+        expect(JSON.stringify(r.body)).not.toContain('-79.5');
+      }
+    });
+
+    it('un error del proveedor NO guarda resultado ni lo presenta como cero: el trabajo falla y la parcela sigue sin evaluar', async () => {
+      const { id } = await correr((r, res) => (r.url === '/api/config' ? json(res, 200, CONFIG) : json(res, 500, { code: 'analysis_error', message: 'e' })));
+      const row = await jobRow(id);
+      expect(row).toMatchObject({ status: 'FAILED', outcome: 'PROVIDER_ERROR' });
+      const resultados = await h.db.selectFrom('satellite_results').select('id').where('job_id', '=', id).execute();
+      expect(resultados).toHaveLength(0);
+      const r = await http().get(`${org()}/satellite/analyses/${id}`).set(as(ADMIN)).expect(200);
+      expect(r.body.result).toBeNull();
+    });
   });
 });

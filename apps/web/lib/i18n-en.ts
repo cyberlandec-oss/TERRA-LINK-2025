@@ -10,6 +10,7 @@ import { EN_CONCLUSION } from './i18n-en-conclusion';
 import { EN_MIUBICACION } from './i18n-en-miubicacion';
 import { EN_MIFINCA } from './i18n-en-mifinca';
 import { EN_LEGALIDAD } from './i18n-en-legalidad';
+import { EN_SATELITE } from './i18n-en-satelite';
 
 // Traducción de INTERFAZ al inglés (P1-015 / D-54; ADR-0007). La clave es el texto en español —la fuente—.
 // No es una traducción jurídica certificada. Un texto sin entrada aquí se muestra en español, nunca como clave.
@@ -294,6 +295,7 @@ Object.assign(EN, EN_CONCLUSION); // D-07.6: conclusión humana del responsable 
 Object.assign(EN, EN_MIUBICACION); // Mi ubicación en la captura de parcelas
 Object.assign(EN, EN_MIFINCA); // A-05: Mi finca y documentos en contexto
 Object.assign(EN, EN_LEGALIDAD); // Legalidad y soportes
+Object.assign(EN, EN_SATELITE); // Procedencia y valores del análisis satelital
 
 /** Mensajes con cifras: no pueden ser claves exactas, así que se traducen por patrón. */
 export const EN_PATTERNS: Array<[RegExp, string]> = [

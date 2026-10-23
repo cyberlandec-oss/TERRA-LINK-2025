@@ -1,0 +1,23 @@
+// Traducción de INTERFAZ al inglés de la procedencia y los valores del análisis satelital. Español = fuente.
+
+export const EN_SATELITE: Record<string, string> = {
+  'Origen del resultado': 'Result origin',
+  'Fixture sintética (ensayo)': 'Synthetic fixture (trial)',
+  'Consulta real al proveedor, guardada en Terra Link': 'Real provider query, saved in Terra Link',
+  'declarada por el proveedor': 'declared by the provider',
+  'No declarada por el proveedor': 'Not declared by the provider',
+  'Guardado en Terra Link': 'Saved in Terra Link',
+  'Periodo solicitado': 'Requested period',
+  'No se indicó periodo; el proveedor aplica el suyo': 'No period was given; the provider applies its own',
+  'Datasets no disponibles': 'Datasets not available',
+  'Valores devueltos por el proveedor (sin interpretar)': 'Values returned by the provider (not interpreted)',
+  'Valores devueltos por el proveedor': 'Values returned by the provider',
+  'Se muestran tal como los entregó el proveedor. Para cacao, la columna de riesgo del proveedor es risk_pcrop; «more_info_needed» significa evidencia insuficiente, no un resultado favorable. Un valor vacío es un dato no informado, no un cero.': 'They are shown as the provider delivered them. For cocoa, the provider risk column is risk_pcrop; "more_info_needed" means insufficient evidence, not a favourable result. An empty value is data not reported, not a zero.',
+  'Columna': 'Column',
+  'Valor': 'Value',
+  '¿Qué es un mapa, un ensayo, una consulta real y un resultado guardado?': 'What is a map, a trial, a real query and a saved result?',
+  'Cartografía de orientación: el mapa y el polígono de la parcela. No es un análisis de deforestación.': 'Guidance cartography: the map and the plot polygon. It is not a deforestation analysis.',
+  'Ensayo con fixture sintética: respuesta inventada para probar el recorrido. No observa la parcela.': 'Trial with a synthetic fixture: an invented response to test the flow. It does not observe the plot.',
+  'Consulta real al proveedor: la geometría exacta se envía al servicio y su respuesta se interpreta solo como datos del proveedor.': 'Real provider query: the exact geometry is sent to the service and its response is read only as provider data.',
+  'Resultado guardado: copia en Terra Link con la versión geométrica, el proveedor, la fecha y la respuesta original; se puede consultar después. Un error o un análisis no ejecutado nunca equivale a «sin deforestación».': 'Saved result: a copy in Terra Link with the geometry version, provider, date and original response; it can be consulted later. An error or a non-executed analysis never means "no deforestation".',
+};

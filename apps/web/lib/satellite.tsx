@@ -22,7 +22,7 @@ interface Result {
   confidence: string | null;
   confidence_note: string | null;
   limitations: string;
-  indicators?: { findings?: { count: number; kind: string; note: string } } | null;
+  indicators?: ({ findings?: { count: number; kind: string; note: string } } & Record<string, unknown>) | null;
   raw_evidence: { stored: boolean; sha256: string } | null;
   conclusion: string;
   conclusion_note: string;
@@ -75,6 +75,24 @@ export const SAT_OPERATION: Record<string, string> = {
 export const SAT_COVERAGE: Record<Result['coverage']['status'], string> = {
   COVERED: 'Cubierta', PARTIAL: 'Cobertura parcial', NOT_COVERED: 'Sin cobertura', UNKNOWN: 'Cobertura desconocida',
 };
+/** Valores que devolvió el proveedor, tal cual: solo escalares; nunca se convierte un dato ausente en cero. */
+export function valoresDelProveedor(ind: Record<string, unknown> | null | undefined): Array<[string, string]> {
+  if (!ind) return [];
+  const out: Array<[string, string]> = [];
+  for (const [k, v] of Object.entries(ind)) {
+    if (k === 'findings' || k === 'fixture' || k === 'ensayo' || k === 'scenario' || k === 'geometry_type' || k === 'operation') continue;
+    if (v === null || v === undefined) out.push([k, '']);
+    else if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') out.push([k, String(v)]);
+  }
+  return out;
+}
+/** Datasets que el proveedor declara no disponibles (`whisp_processing_metadata.unavailable_datasets`). */
+export function datasetsNoDisponibles(ind: Record<string, unknown> | null | undefined): string[] {
+  const m = ind?.whisp_processing_metadata;
+  const u = m && typeof m === 'object' ? (m as Record<string, unknown>).unavailable_datasets : null;
+  return Array.isArray(u) ? u.filter((x): x is string => typeof x === 'string') : [];
+}
+
 export const SAT_SCENARIO: Record<string, string> = {
   RESULT_COVERED: 'Resultado con cobertura completa',
   RESULT_FINDINGS: 'Resultado CON hallazgos',
@@ -158,17 +176,33 @@ export function SatelliteAnalysis({ orgId, plotId }: { orgId: string; plotId: st
             <dt>{t('Fuente')}</dt><dd>{j.result.provenance.provider_code} · {t('contrato')} {j.provider.adapter_contract_version}</dd>
             <dt>{t('Conjunto de datos')}</dt><dd>{j.result.provenance.dataset ?? t('No informado')}{j.result.provenance.dataset_version ? ` · ${t('versión')} ${j.result.provenance.dataset_version}` : ''}</dd>
             <dt>{t('Versión geométrica analizada')}</dt><dd><code className="hash">{j.subject.plot_version_id.slice(0, 8)}…</code> · {t('huella')} <code className="hash">{j.subject.geometry_hash.slice(0, 12)}…</code></dd>
-            <dt>{t('Fecha del análisis')}</dt><dd>{j.result.provenance.analysis_date ? dt(j.result.provenance.analysis_date) : '—'}</dd>
+            <dt>{t('Origen del resultado')}</dt><dd>{j.result.is_synthetic ? t('Fixture sintética (ensayo)') : t('Consulta real al proveedor, guardada en Terra Link')}</dd>
+            <dt>{t('Fecha del análisis')}</dt><dd>{j.result.provenance.analysis_date ? `${dt(j.result.provenance.analysis_date)} (${t('declarada por el proveedor')})` : t('No declarada por el proveedor')}</dd>
+            <dt>{t('Guardado en Terra Link')}</dt><dd>{j.finished_at ? dt(j.finished_at) : '—'}</dd>
+            <dt>{t('Periodo solicitado')}</dt><dd>{j.period.start || j.period.end ? `${j.period.start ?? '—'} → ${j.period.end ?? '—'}` : t('No se indicó periodo; el proveedor aplica el suyo')}</dd>
             <dt>{t('Resolución')}</dt><dd>{j.result.provenance.resolution_m ? `${j.result.provenance.resolution_m} m` : t('No informada')}</dd>
             <dt>{t('Método')}</dt><dd>{j.result.provenance.method ?? t('No informado')}</dd>
             <dt>{t('Cobertura')}</dt><dd>{t(SAT_COVERAGE[j.result.coverage.status])} · {t(j.result.coverage.note)}</dd>
             <dt>{t('Confianza')}</dt><dd>{j.result.confidence ?? t(j.result.confidence_note ?? '')}</dd>
             <dt>{t('Conclusión')}</dt><dd><StatusBadge tone="neutral">{t('No evaluada')}</StatusBadge> <span className="muted">{t(j.result.conclusion_note)}</span></dd>
             <dt>{t('Límites declarados')}</dt><dd>{t(j.result.limitations)}</dd>
+            {!j.result.is_synthetic && datasetsNoDisponibles(j.result.indicators).length > 0 && (<>
+              <dt>{t('Datasets no disponibles')}</dt><dd>{datasetsNoDisponibles(j.result.indicators).join(', ')}</dd>
+            </>)}
             {j.result.raw_evidence && (<>
               <dt>{t('Respuesta original')}</dt><dd>SHA-256 <code className="hash">{j.result.raw_evidence.sha256}</code></dd>
             </>)}
           </dl>
+          {!j.result.is_synthetic && valoresDelProveedor(j.result.indicators).length > 0 && (
+            <details>
+              <summary>{t('Valores devueltos por el proveedor (sin interpretar)')}</summary>
+              <p className="muted">{t('Se muestran tal como los entregó el proveedor. Para cacao, la columna de riesgo del proveedor es risk_pcrop; «more_info_needed» significa evidencia insuficiente, no un resultado favorable. Un valor vacío es un dato no informado, no un cero.')}</p>
+              <table aria-label={t('Valores devueltos por el proveedor')}>
+                <thead><tr><th scope="col">{t('Columna')}</th><th scope="col">{t('Valor')}</th></tr></thead>
+                <tbody>{valoresDelProveedor(j.result.indicators).map(([k, v]) => <tr key={k}><td><code>{k}</code></td><td>{v === '' ? t('No informado') : v}</td></tr>)}</tbody>
+              </table>
+            </details>
+          )}
         </>
       )}
       {j.status === 'FAILED' && (
@@ -239,6 +273,15 @@ export function SatelliteAnalysis({ orgId, plotId }: { orgId: string; plotId: st
             data.request_blocked_reason && data.request_blocked_reason !== data.provider_selection.note
               && <p className="muted">{t('No se puede solicitar un análisis')}: {t(data.request_blocked_reason)}</p>
           )}
+          <details>
+            <summary>{t('¿Qué es un mapa, un ensayo, una consulta real y un resultado guardado?')}</summary>
+            <ul>
+              <li>{t('Cartografía de orientación: el mapa y el polígono de la parcela. No es un análisis de deforestación.')}</li>
+              <li>{t('Ensayo con fixture sintética: respuesta inventada para probar el recorrido. No observa la parcela.')}</li>
+              <li>{t('Consulta real al proveedor: la geometría exacta se envía al servicio y su respuesta se interpreta solo como datos del proveedor.')}</li>
+              <li>{t('Resultado guardado: copia en Terra Link con la versión geométrica, el proveedor, la fecha y la respuesta original; se puede consultar después. Un error o un análisis no ejecutado nunca equivale a «sin deforestación».')}</li>
+            </ul>
+          </details>
           {enCurso && <p className="muted" role="status">{t('Hay un análisis en curso: esta tarjeta se actualiza sola.')}</p>}
 
           {data.jobs.length === 0 ? (

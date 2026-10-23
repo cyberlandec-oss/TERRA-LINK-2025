@@ -6,7 +6,7 @@ import { WHISP_CONTRACT, WhispSatelliteProvider } from './whisp';
 // P0-028 · adaptador de Whisp contra **servidores controlados del propio equipo**.
 //
 // ALCANCE: D-09 **parte A**. Ninguna de estas pruebas toca el servicio real de Whisp: hablan con un servidor HTTPS
-// levantado aquí que imita el contrato publicado (OpenAPI 2.3.0, consultado 2026-10-15). Toda la evidencia que
+// levantado aquí que imita el contrato publicado (OpenAPI 2.3.1, consultado 2026-10-23). Toda la evidencia que
 // producen es **SINTÉTICA** y está rotulada como tal. La integración contra Whisp real sigue **NO EJECUTADA**.
 
 const describeTls = tlsAvailable ? describe : describe.skip;
@@ -16,7 +16,7 @@ const GEOM = { type: 'Polygon', coordinates: [[[-79.5, -1], [-79.49, -1], [-79.4
 
 const CONFIG = {
   maxRequestBodySizeKb: 1024, maxPlotAreaHa: null, geometryLimitSync: 250, geometryLimitAsync: 5000,
-  analysisTimeoutSyncSeconds: 90, analysisTimeoutAsyncSeconds: 600, openforisWhispVersion: '2.3.0-sintetico', geoidBaseUrl: null,
+  analysisTimeoutSyncSeconds: 90, analysisTimeoutAsyncSeconds: 600, openforisWhispVersion: '2.3.1-sintetico', geoidBaseUrl: null,
 };
 const PROPS_OK = { Area: 1.77, treecover_2020: 92.1, whisp_processing_metadata: { unavailable_datasets: [], risk_inputs_unavailable: [] } };
 const PROPS_INCOMPLETO = {
@@ -93,11 +93,11 @@ describeTls('P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTIC
     expect(JSON.parse(srv.recibidas[1].body)).toMatchObject({ type: 'FeatureCollection', analysisOptions: { async: false } });
     expect(r.indicators).toMatchObject({ treecover_2020: 92.1 });
     expect(r.method).toContain(`Whisp API ${WHISP_CONTRACT.spec_version}`);
-    expect(r.method).toContain('2.3.0-sintetico');
+    expect(r.method).toContain('2.3.1-sintetico');
     // Lo que el contrato no declara queda nulo: no se rellena con el reloj ni con la FAQ.
     expect(r.dataset).toBeNull();
     expect(r.datasetVersion).toBeNull();
-    expect(r.analysisDate).toBeNull();
+    expect(r.analysisDate).toBeNull(); // PROPS_OK no declara `processing_timestamp_utc`
     expect(r.resolutionM).toBeNull();
     expect(r.confidence).toBeNull();
   });
@@ -106,11 +106,11 @@ describeTls('P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTIC
     let consultas = 0;
     ruta = (r, res) => {
       if (r.url === '/api/config') return json(res, 200, CONFIG);
-      if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', token: 'tok-1', statusUrl: '/api/status/tok-1', featureCount: 1 });
+      if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'tok-1', statusUrl: '/api/status/tok-1', featureCount: 1, processStatusMessages: ['Position 1 in queue'] } });
       if (r.url === '/api/status/tok-1') {
         consultas++;
-        if (consultas < 3) return json(res, 202, { code: 'analysis_processing', token: 'tok-1', percent: 40 });
-        return json(res, 200, { code: 'analysis_completed', token: 'tok-1', data: featureCollection(PROPS_OK) });
+        if (consultas < 3) return json(res, 202, { code: 'analysis_processing', message: 'p', data: { token: 'tok-1', percent: 40, processStatusMessage: [] } });
+        return json(res, 200, { code: 'analysis_completed', message: 'ok', data: featureCollection(PROPS_OK) });
       }
       return json(res, 404, { code: 'not_found' });
     };
@@ -123,8 +123,8 @@ describeTls('P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTIC
   it('si el estado termina sin resultado, se descarga por el endpoint publicado para eso', async () => {
     ruta = (r, res) => {
       if (r.url === '/api/config') return json(res, 200, CONFIG);
-      if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', token: 'tok-2' });
-      if (r.url === '/api/status/tok-2') return json(res, 200, { code: 'analysis_completed', token: 'tok-2' });
+      if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'tok-2' } });
+      if (r.url === '/api/status/tok-2') return json(res, 200, { code: 'analysis_completed', message: 'ok' });
       if (r.url === '/api/generate-geojson/tok-2') return json(res, 200, featureCollection(PROPS_OK));
       return json(res, 404, { code: 'not_found' });
     };
@@ -138,9 +138,9 @@ describeTls('P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTIC
       if (r.url === '/api/config') return json(res, 200, CONFIG);
       if (r.url === '/api/submit/geojson') {
         // El proveedor (o alguien que lo suplante) apunta el seguimiento a OTRO host.
-        return json(res, 202, { code: 'analysis_queued', token: 'tok-3', statusUrl: `https://prohibido.prueba.local:${ajeno.port}/api/status/tok-3` });
+        return json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'tok-3', statusUrl: `https://prohibido.prueba.local:${ajeno.port}/api/status/tok-3` } });
       }
-      if (r.url === '/api/status/tok-3') return json(res, 200, { code: 'analysis_completed', token: 'tok-3', data: featureCollection(PROPS_OK) });
+      if (r.url === '/api/status/tok-3') return json(res, 200, { code: 'analysis_completed', message: 'ok', data: featureCollection(PROPS_OK) });
       return json(res, 404, { code: 'not_found' });
     };
     const o = await adapter().analyze(req());
@@ -187,7 +187,7 @@ describeTls('P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTIC
     for (const [estado, esperado] of casos) {
       ruta = (r, res) => {
         if (r.url === '/api/config') return json(res, 200, CONFIG);
-        if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', token: 't' });
+        if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 't' } });
         if (r.url === '/api/status/t') return json(res, 200, estado);
         return json(res, 404, { code: 'not_found' });
       };
@@ -237,12 +237,46 @@ describeTls('P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTIC
   it('el sondeo está acotado: un trabajo que nunca termina vence sin resultado', async () => {
     ruta = (r, res) => {
       if (r.url === '/api/config') return json(res, 200, CONFIG);
-      if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', token: 'eterno' });
-      return json(res, 202, { code: 'analysis_processing', token: 'eterno', percent: 1 });
+      if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'eterno' } });
+      return json(res, 202, { code: 'analysis_processing', message: 'p', data: { token: 'eterno', percent: 1 } });
     };
     const o = await adapter({ maxPolls: 3 }).analyze(req());
     expect(o).toMatchObject({ kind: 'TIMEOUT', errorCode: 'PROVIDER_POLL_EXHAUSTED' });
     expect(srv.recibidas.filter((x) => x.url.startsWith('/api/status/'))).toHaveLength(3);
+  });
+
+  // ------------------------------------------------------------------ contrato 2.3.1 (sobre { code, message, data })
+
+  it('la fecha y la versión de análisis son las que el PROVEEDOR declara en whisp_processing_metadata; si no son válidas, nulo', async () => {
+    const conMeta = (meta: unknown) => { ruta = (r, res) => (r.url === '/api/config' ? json(res, 200, CONFIG) : json(res, 200, { code: 'analysis_completed', message: 'ok', data: featureCollection({ Area: 1, whisp_processing_metadata: meta }) })); };
+    conMeta({ whisp_version: '3.0.0a14', processing_timestamp_utc: '2026-06-11 01:59:15+0000' });
+    const r = resultOf(await adapter().analyze(req()));
+    expect(r.analysisDate?.toISOString()).toBe('2026-06-11T01:59:15.000Z');
+    expect(r.method).toContain('3.0.0a14');
+    conMeta({ processing_timestamp_utc: 'no es una fecha' });
+    expect(resultOf(await adapter().analyze(req())).analysisDate).toBeNull();
+  });
+
+  it('un 202 trae `data.token`, no un resultado: no se confunde su `data` con un FeatureCollection', async () => {
+    ruta = (r, res) => (r.url === '/api/config' ? json(res, 200, CONFIG) : json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'x1', statusUrl: '/api/status/x1', featureCount: 1 } }));
+    const o = await adapter({ maxPolls: 1 }).analyze(req());
+    expect(o.kind).not.toBe('RESULT');
+    expect(srv.recibidas.map((x) => x.url)).toContain('/api/status/x1');
+  });
+
+  it('408 es plazo vencido y los rechazos de validación del proveedor son geometría no soportada, con su código', async () => {
+    ruta = (r, res) => (r.url === '/api/config' ? json(res, 200, CONFIG) : json(res, 408, { code: 'analysis_timeout', message: 't' }));
+    expect(await adapter().analyze(req())).toMatchObject({ kind: 'TIMEOUT', errorCode: 'PROVIDER_ANALYSIS_TIMEOUT' });
+    ruta = (r, res) => (r.url === '/api/config' ? json(res, 200, CONFIG) : json(res, 400, { code: 'validation_plot_too_large', message: 'v' }));
+    expect(await adapter().analyze(req())).toMatchObject({ kind: 'GEOMETRY_UNSUPPORTED', errorCode: 'PROVIDER_VALIDATION_PLOT_TOO_LARGE' });
+  });
+
+  it('ni un error ni un trabajo sin terminar se traducen en un resultado sin hallazgos', async () => {
+    for (const [status, body] of [[500, { code: 'analysis_error', message: 'e' }], [404, { code: 'analysis_job_not_found', message: 'n' }]] as const) {
+      ruta = (r, res) => (r.url === '/api/config' ? json(res, 200, CONFIG) : json(res, status, body));
+      const o = await adapter().analyze(req());
+      expect(o.kind).not.toBe('RESULT');
+    }
   });
 
   // ------------------------------------------------------------------ política de salida y secretos
@@ -250,8 +284,8 @@ describeTls('P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTIC
   it('la descarga pasa por la misma política de salida: una redirección no se sigue', async () => {
     ruta = (r, res) => {
       if (r.url === '/api/config') return json(res, 200, CONFIG);
-      if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', token: 'tok-r' });
-      if (r.url === '/api/status/tok-r') return json(res, 200, { code: 'analysis_completed', token: 'tok-r' });
+      if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'tok-r' } });
+      if (r.url === '/api/status/tok-r') return json(res, 200, { code: 'analysis_completed', message: 'ok' });
       if (r.url === '/api/generate-geojson/tok-r') { res.writeHead(302, { location: `https://prohibido.prueba.local:${ajeno.port}/robado` }); return res.end(); }
       return json(res, 404, { code: 'not_found' });
     };

@@ -20,3 +20,5 @@ redirige a un formulario de identidad de FAO que **no se abrió más allá de su
 
 **No se pudo leer:** la documentación de la API de GFW (`data-api.globalforestwatch.org`, ReDoc que exige JavaScript y no se renderizó) ni el portal de datos del JRC (aplicación JavaScript): por eso **no se afirma nada** sobre cuotas, precios ni
 condiciones de GFW más allá de sus términos, ni sobre el acceso a datos del JRC más allá de su página «About the data».
+
+> Actualización 2026-10-23: la especificación publicada pasó a **2.3.1**; su copia está en `docs/sources/satelite-2026-10-23/whisp-openapi-2.3.1.json` (sha256 `29ce6009…e8f3`). Ver `docs/decisiones/P0-028-WHISP-CONTRATO-2.3.1.md`.
