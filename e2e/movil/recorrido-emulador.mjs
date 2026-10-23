@@ -46,12 +46,21 @@ const coopId = async (token) => (await api('/api/v1/organizations', { token })).
 const restart = async () => { adb('shell', 'am', 'force-stop', PKG); await sleep(1000); adb('shell', 'monkey', '-p', PKG, '-c', 'android.intent.category.LAUNCHER', '1'); await sleep(4000); };
 const tab = (name) => tap(new RegExp(`^${name}$`));
 /** «Mi ubicación» → lectura SIN guardar → acción explícita. Devuelve el texto de la pantalla con la lectura mostrada y aún sin guardar (para verificar que localizarse no guarda). */
+/** Busca el texto barriendo la pantalla hacia arriba y hacia abajo (la tarjeta puede quedar fuera de la vista tras pulsar el botón); no se desplaza solo en un sentido. */
+async function ver(re, timeout = 30000) {
+  const t0 = Date.now(); let i = 0;
+  for (;;) {
+    const f = find(re); if (f.length) return f[0];
+    if (Date.now() - t0 > timeout) throw new Error(`No apareció ${re} en ${timeout} ms`);
+    scroll(Math.floor(i / 3) % 2 === 0 ? 'up' : 'down'); i += 1; await sleep(600);
+  }
+}
 async function ubicacionMiUbicacion() {
   await tap(/^Mi ubicación$/);
-  await waitFor(/Lectura de «Mi ubicación» \(todavía no guardada\)/, { timeout: 90000, scrollTo: true }); // arranque en frío del proveedor fused
+  await ver(/Lectura de «Mi ubicación» \(todavía no guardada\)/, 90000); // arranque en frío del proveedor
   const sinGuardar = allText();
   await tap(/^(Usar esta ubicación en el borrador|Reemplazar la ubicación del borrador con esta lectura)$/);
-  await waitFor(/Ubicación guardada en el borrador/, { timeout: 30000, scrollTo: true });
+  await ver(/Ubicación guardada en el borrador/, 30000);
   return sinGuardar;
 }
 
