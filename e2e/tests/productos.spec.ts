@@ -84,6 +84,8 @@ test('edición concurrente en dos pestañas: conflicto con el borrador conservad
   await expect(page.getByText(/Otra persona modificó este producto/)).toBeVisible();
   await expect(page.getByLabel('Nombre', { exact: true })).toHaveValue('Cacao seco en grano');
   await page.getByRole('button', { name: 'Recargar versión actual' }).click();
+  // la recarga termina cuando desaparece el aviso de conflicto: guardar antes enviaría todavía la versión vieja (misma carrera que parcelas.spec; corrida 2026-10-23T02-09-54)
+  await expect(page.locator('.error[role="alert"]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Guardar cambios' }).click();
   await expect(page.getByText('Cambios guardados.')).toBeVisible();
   await expect(page.getByRole('list', { name: 'Historial del producto' })).toContainText('Edición');
