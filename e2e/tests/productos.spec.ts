@@ -226,13 +226,15 @@ test('P0-018 documentos: carga con etapas y análisis real, disponible, descarga
   expect(dl.suggestedFilename()).toBe('guia.pdf');
   await page.getByLabel('Motivo de la revisión').fill('Coincide con la guía física');
   await page.getByRole('button', { name: 'Aceptar versión' }).click();
-  await expect(page.getByText('Aceptada: Coincide con la guía física')).toBeVisible();
+  await expect(page.getByText(/Revisión humana: aceptada por .+ el .+ Motivo: Coincide con la guía física/)).toBeVisible(); // atribución: quién, cuándo y por qué
+  await expect(page.getByText(/no es una certificación de Terra Link/)).toBeVisible();
   await page.getByLabel('Archivo').setInputFiles({ name: 'guia-v2.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n% versión 2 sintética\n%%EOF\n') });
   await page.getByRole('button', { name: 'Subir versión' }).click();
   const versions = page.getByRole('list', { name: 'Versiones del documento' });
   await expect(versions).toContainText('v2 (vigente)');
   await expect(versions).toContainText('Sin revisar (las revisiones no se heredan entre versiones)');
-  await expect(versions).toContainText('Aceptada: Coincide con la guía física');
+  await expect(versions).toContainText('Revisión humana: aceptada por');   // la v1 conserva su revisión, con su responsable
+  await expect(versions).toContainText('Motivo: Coincide con la guía física');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await ctx.close();
 });

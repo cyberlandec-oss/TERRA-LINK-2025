@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useUrlFilters } from '../../../../lib/url-filters';
 import { ApiError, api } from '../../../../lib/api';
 import { useWorkspace } from '../../../../lib/workspace';
@@ -24,20 +24,24 @@ export default function PlotsPage() {
   const [applied, setApplied] = useState(filters);
   const [error, setError] = useState<ApiError | null>(null);
 
+  const seq = useRef(0);
   const load = useCallback(async (append = false, from: string | null = null, f = filters) => {
     if (!orgId || !canList) return;
     setError(null);
+    const mine = ++seq.current; // una respuesta vieja no puede pisar a una más reciente (el listado inicial y la búsqueda del formulario pueden cruzarse)
     try {
       const params = new URLSearchParams({ limit: '25', status: f.status });
       if (f.q.trim()) params.set('q', f.q.trim());
       if (f.geometry) params.set('geometry', f.geometry);
       if (from) params.set('cursor', from);
       const res = await api<{ items: Plot[]; next_cursor: string | null }>(`/api/v1/organizations/${orgId}/plots?${params}`);
+      if (mine !== seq.current) return;
       setItems((prev) => (append && prev ? [...prev, ...res.items] : res.items));
       setCursor(res.next_cursor);
       setApplied(f);
       setUrlFilters(f);
     } catch (err) {
+      if (mine !== seq.current) return;
       setError(err as ApiError);
     }
   }, [orgId, canList, filters]);
