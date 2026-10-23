@@ -81,6 +81,8 @@ test('edición con conflicto entre pestañas: el borrador se conserva y se guard
   await expect(other.locator('.error[role="alert"]')).toContainText('Otra persona modificó esta parcela');
   await expect(other.getByLabel('Parroquia (opcional)')).toHaveValue('Calceta');
   await other.getByRole('button', { name: 'Recargar versión actual' }).click();
+  // la recarga termina cuando desaparece el aviso de conflicto: guardar antes enviaría todavía la versión vieja (carrera observada en la corrida 2026-10-22T23-40-58)
+  await expect(other.locator('.error[role="alert"]')).toHaveCount(0);
   await expect(other.getByLabel('Parroquia (opcional)')).toHaveValue('Calceta');
   await other.getByRole('button', { name: 'Guardar cambios' }).click();
   await expect(other.getByText('Cambios guardados.')).toBeVisible();
