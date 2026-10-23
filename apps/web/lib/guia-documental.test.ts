@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GUIA, NOTAS_GENERALES, SITUACIONES_TRABAJO, textosGuia } from './guia-documental';
+import { ASPECTO_POR_TIPO, FECHA_FUENTES, GUIA, GUIA_REGISTROS, NOTAS_GENERALES, SITUACIONES_TRABAJO, textosGuia } from './guia-documental';
 import { estadoRevision } from './documents';
 
 // Guía documental ORIENTATIVA (A-05): no es una lista obligatoria uniforme, no promete aprobación y no inventa tipos de documento.
@@ -34,5 +34,22 @@ describe('guía documental', () => {
     expect(estadoRevision({ ...base, review: null }).label).toBe('Pendiente de revisión');
     expect(estadoRevision({ ...base, review: { decision: 'ACCEPTED', reason: 'ok', reviewed_at: '2026-10-23', reviewer_is_uploader: false } }).label).toBe('Revisado: aceptado');
     expect(estadoRevision({ ...base, review: { decision: 'REJECTED', reason: 'ilegible', reviewed_at: '2026-10-23', reviewer_is_uploader: false } }).label).toBe('Con observaciones');
+  });
+
+  it('los aspectos de registro dicen dónde se resuelven, citan fuente y no se ofrecen como documento a subir', () => {
+    expect(GUIA_REGISTROS.length).toBeGreaterThan(0);
+    for (const a of GUIA_REGISTROS) {
+      expect(a.clase).toBe('registro');
+      expect(a.donde?.etiqueta).toBeTruthy();
+      expect(a.fuente.length).toBeGreaterThan(2);
+      expect(a.tipos).toEqual([]);
+    }
+  });
+
+  it('cada tipo remite a un aspecto existente y la fecha de incorporación de las fuentes es una fecha válida', () => {
+    const ids = new Set([...Object.values(GUIA).flat(), ...GUIA_REGISTROS].map((a) => a.id));
+    for (const aspecto of Object.values(ASPECTO_POR_TIPO)) expect(ids).toContain(aspecto);
+    expect(FECHA_FUENTES).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(Number.isNaN(Date.parse(FECHA_FUENTES))).toBe(false);
   });
 });

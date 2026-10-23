@@ -126,6 +126,9 @@ export default function PerfilJuridicoPage() {
         title="Perfil jurídico (P1-005)"
         meta="Mecanismo para preparar y revisar un perfil. NO es un perfil aprobado: no acredita legalidad, no satisface el requisito del expediente y no habilita READY."
       />
+      <Alert tone="info" title="Esta pantalla es de configuración técnica y de revisión">
+        <p>Para <strong>aportar y consultar soportes</strong>, ver qué documentar y qué observaciones hay, usa <a href={`/organizaciones/${orgId}/legalidad`}>Legalidad y soportes</a>: no depende de que este perfil esté aprobado.</p>
+      </Alert>
       {error && <ErrorPanel error={error} onRetry={cargar} />}
       {!cat && !error && <Loading label="Cargando catálogo…" />}
 

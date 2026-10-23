@@ -89,6 +89,7 @@ function navFor(ws: Workspace, orgId: string | null, t: (es: string) => string):
     if (operacion.length) groups.push({ title: t('Operación'), items: operacion });
     const trazabilidad: NavItem[] = [];
     if (ws.can('traceability:read_catalog')) trazabilidad.push({ href: `${base}/trazabilidad/hitos`, label: t('Hitos (CTE)'), match: (p) => p.startsWith(`${base}/trazabilidad/hitos`) });
+    if (ws.can('document:read')) trazabilidad.push({ href: `${base}/legalidad`, label: t('Legalidad y soportes'), match: (p) => p.startsWith(`${base}/legalidad`) });
     if (ws.can('document:read')) trazabilidad.push({ href: `${base}/documentos`, label: t('Documentos'), match: (p) => p.startsWith(`${base}/documentos`) });
     if (ws.can('evidence:read')) trazabilidad.push({ href: `${base}/evidencias`, label: t('Evidencias'), match: (p) => p.startsWith(`${base}/evidencias`) });
     if (ws.can('risk:read')) trazabilidad.push({ href: `${base}/riesgo`, label: t('Riesgo'), match: (p) => p.startsWith(`${base}/riesgo`) });
@@ -100,7 +101,7 @@ function navFor(ws: Workspace, orgId: string | null, t: (es: string) => string):
     // P1-005: el catálogo de perfiles es un catálogo de sistema, como los hitos CTE. Entrar no acredita nada:
     // el perfil es parcial y su revisión jurídica sigue pendiente.
     if (ws.can('traceability:read_catalog')) trazabilidad.push({ href: `${base}/geolocalizacion`, label: t('Geolocalización: reglas'), match: (p) => p.startsWith(`${base}/geolocalizacion`) });
-    if (ws.can('traceability:read_catalog')) trazabilidad.push({ href: `${base}/perfil-juridico`, label: t('Perfil jurídico'), match: (p) => p.startsWith(`${base}/perfil-juridico`) });
+    // El perfil jurídico es configuración técnica y de revisión: queda en Administración. El trabajo documental del usuario es «Legalidad y soportes».
     // P1-006: intercambio con un registro externo. Solo para quien participa en él; la verificación del
     // canal no está aquí, es de plataforma.
     if (ws.can('exchange:use')) trazabilidad.push({ href: `${base}/intercambio`, label: t('Intercambio'), match: (p) => p.startsWith(`${base}/intercambio`) });
@@ -122,6 +123,7 @@ function navFor(ws: Workspace, orgId: string | null, t: (es: string) => string):
     if (ws.can('membership:read') || onboardingOnly) {
       admin.push({ href: `${base}/miembros`, label: onboardingOnly ? t('Incorporar administrador') : t('Miembros e invitaciones'), match: (p) => p.startsWith(`${base}/miembros`) });
     }
+    if (ws.can('traceability:read_catalog')) admin.push({ href: `${base}/perfil-juridico`, label: t('Perfil jurídico (configuración técnica)'), match: (p) => p.startsWith(`${base}/perfil-juridico`) });
     if (ws.can('import:manage')) admin.push({ href: `${base}/importaciones`, label: t('Importar datos (Excel)'), match: (p) => p.startsWith(`${base}/importaciones`) });
     if (ws.can('location:manage')) admin.push({ href: `${base}/centros`, label: t('Centros de acopio'), match: (p) => p.startsWith(`${base}/centros`) });
     // A-02: administración de concesiones externas de lectura. Estar en el menú no concede `grant:manage`; la API decide.

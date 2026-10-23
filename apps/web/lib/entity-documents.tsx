@@ -5,7 +5,7 @@ import { useCallback, useEffect, useId, useState } from 'react';
 import { ApiError, api } from './api';
 import { UploadDocument } from './document-upload';
 import { AVAILABILITY, VALIDITY, estadoRevision, type Doc, type DocType } from './documents';
-import { FUENTE_GUIA, GUIA, NOTAS_GENERALES, SITUACIONES_TRABAJO, type OwnerKind } from './guia-documental';
+import { FECHA_FUENTES, FUENTE_GUIA, GUIA, NOTAS_GENERALES, SITUACIONES_TRABAJO, type Aspecto, type OwnerKind } from './guia-documental';
 import { useI18n } from './i18n';
 import { EmptyState, ErrorPanel, StatusBadge } from './ui';
 
@@ -47,7 +47,7 @@ export function EntityDocuments({ orgId, ownerType, ownerId, ownerLabel, canUplo
   const subidos = types?.types.filter((x) => x.allowed_owner_types.includes(ownerType) && !excl.includes(x.code)) ?? [];
 
   return (
-    <section className="card" aria-labelledby={`${uid}-h`}>
+    <section className="card" id="documentos-y-soportes" aria-labelledby={`${uid}-h`}>
       <h2 id={`${uid}-h`}>{t('Documentos y soportes')}</h2>
       <p className="muted">{t('Aquí aportas y consultas los documentos de {x}. Subir un documento no lo aprueba ni acredita su autenticidad: una persona autorizada lo revisa aparte.', { x: ownerLabel })}</p>
       <GuiaDocumental owner={ownerType} tipos={subidos} />
@@ -85,45 +85,52 @@ export function EntityDocuments({ orgId, ownerType, ownerId, ownerLabel, canUplo
   );
 }
 
-/** Guía ORIENTATIVA por aspecto. No bloquea nada, no es una lista obligatoria y no se guarda lo que se elige. */
-export function GuiaDocumental({ owner, tipos }: { owner: OwnerKind; tipos: DocType[] }) {
+/** Un aspecto de la guía, con su orientación, tipo de documento disponible, procedencia y fecha. Orientación: no obligatoria, no se guarda lo que se elige. */
+export function AspectoCard({ a, tipos }: { a: Aspecto; tipos: DocType[] }) {
   const { t } = useI18n();
   const uid = useId();
   const [situacion, setSituacion] = useState('');
   const etiqueta = (code: string) => { const x = tipos.find((y) => y.code === code); return x ? t(x.label) : code; };
+  return (
+    <article className="card" aria-labelledby={`${uid}-h`}>
+      <h3 id={`${uid}-h`}>{t(a.titulo)}</h3>
+      <p><StatusBadge tone="neutral">{t('Recomendación de las guías')}</StatusBadge> {a.clase === 'registro' && <StatusBadge tone="process">{t('Se resuelve registrando información')}</StatusBadge>}</p>
+      <p>{t(a.para)}</p>
+      {a.ejemplos.length > 0 && (
+        <>
+          <p className="muted">{t('Ejemplos orientativos (no una lista obligatoria):')}</p>
+          <ul>{a.ejemplos.map((e) => <li key={e}>{t(e)}</li>)}</ul>
+        </>
+      )}
+      <p><strong>{t('Conviene aclarar')}:</strong> {t(a.aclarar)}</p>
+      {a.id === 'trabajo' && (
+        <div>
+          <label htmlFor={`${uid}-sit`}>{t('¿Cómo se trabaja la finca?')}</label>
+          <select id={`${uid}-sit`} value={situacion} onChange={(e) => setSituacion(e.target.value)}>
+            <option value="">{t('Selecciona…')}</option>
+            {SITUACIONES_TRABAJO.map((x) => <option key={x.id} value={x.id}>{t(x.etiqueta)}</option>)}
+          </select>
+          <p className="field-help">{t('Es solo orientación: no se guarda y no es una calificación jurídica.')}</p>
+          {situacion && <p role="status">{t(SITUACIONES_TRABAJO.find((x) => x.id === situacion)!.orientacion)}</p>}
+        </div>
+      )}
+      {a.tipos.some((c) => tipos.some((y) => y.code === c)) && <p className="muted">{t('Tipo de documento disponible')}: {a.tipos.filter((c) => tipos.some((y) => y.code === c)).map(etiqueta).join(', ')}.</p>}
+      {a.nota && <p className="alert review">{t(a.nota)}</p>}
+      <p className="muted">{t('Referencia en las guías')}: {a.fuente}. {t('Incorporada el {f}.', { f: FECHA_FUENTES })}</p>
+    </article>
+  );
+}
+
+/** Guía ORIENTATIVA por aspecto. No bloquea nada, no es una lista obligatoria y no se guarda lo que se elige. */
+export function GuiaDocumental({ owner, tipos }: { owner: OwnerKind; tipos: DocType[] }) {
+  const { t } = useI18n();
   return (
     <details className="guia-documental">
       <summary>{t('Qué puedes documentar y por qué (guía orientativa)')}</summary>
       <ul className="plain">
         {NOTAS_GENERALES.map((n) => <li key={n} className="muted">{t(n)}</li>)}
       </ul>
-      {GUIA[owner].map((a) => (
-        <article key={a.id} className="card" aria-labelledby={`${uid}-${a.id}`}>
-          <h3 id={`${uid}-${a.id}`}>{t(a.titulo)}</h3>
-          <p>{t(a.para)}</p>
-          {a.ejemplos.length > 0 && (
-            <>
-              <p className="muted">{t('Ejemplos orientativos (no una lista obligatoria):')}</p>
-              <ul>{a.ejemplos.map((e) => <li key={e}>{t(e)}</li>)}</ul>
-            </>
-          )}
-          <p><strong>{t('Conviene aclarar')}:</strong> {t(a.aclarar)}</p>
-          {a.id === 'trabajo' && (
-            <div>
-              <label htmlFor={`${uid}-sit`}>{t('¿Cómo se trabaja la finca?')}</label>
-              <select id={`${uid}-sit`} value={situacion} onChange={(e) => setSituacion(e.target.value)}>
-                <option value="">{t('Selecciona…')}</option>
-                {SITUACIONES_TRABAJO.map((s) => <option key={s.id} value={s.id}>{t(s.etiqueta)}</option>)}
-              </select>
-              <p className="field-help">{t('Es solo orientación: no se guarda y no es una calificación jurídica.')}</p>
-              {situacion && <p role="status">{t(SITUACIONES_TRABAJO.find((s) => s.id === situacion)!.orientacion)}</p>}
-            </div>
-          )}
-          {a.tipos.some((c) => tipos.some((y) => y.code === c)) && <p className="muted">{t('Tipo de documento disponible')}: {a.tipos.filter((c) => tipos.some((y) => y.code === c)).map(etiqueta).join(', ')}.</p>}
-          {a.nota && <p className="alert review">{t(a.nota)}</p>}
-          <p className="muted">{t('Referencia en las guías')}: {a.fuente}.</p>
-        </article>
-      ))}
+      {GUIA[owner].map((a) => <AspectoCard key={a.id} a={a} tipos={tipos} />)}
       <p className="muted">{t(FUENTE_GUIA)}</p>
     </details>
   );
