@@ -281,3 +281,11 @@ Fuente: plan de ajuste del propietario (`docs/contexto/`) y contexto funcional d
 | AJ-03 (tipos documentales) | Soportes ambiental, laboral y de derechos de terceros: tipos que solo clasifican (migración `0066`), guía integrada, recorrido positivo con productor vinculado | RF-18/19/36; P0-018; P1-005 | **DONE_LOCAL** sobre `b83026d` (validación APROBADA `2026-10-23T13-16-46-803Z`; respaldo `_respaldos/2026-10-23-tipos-documentales-0066/`); evidencia `qa/EVIDENCIA_AJ03_TIPOS_DOCUMENTALES_2026-10-23.md` |
 | AJ-04 (Legalidad y soportes) | Puerta de entrada documental: aspectos con fuente y fecha, dónde aportar, qué falta y observaciones; perfil técnico en Administración | RF-18/19/36; P0-018 | **DONE_LOCAL** sobre `75b0592` (validación APROBADA `2026-10-23T14-29-27-735Z`); evidencia `qa/EVIDENCIA_AJ04_LEGALIDAD_Y_SOPORTES_2026-10-23.md` |
 | AJ-05 (análisis de deforestación) | Adaptador Whisp alineado con 2.3.1, procedencia y valores del proveedor en la parcela, recorrido guardado/consultable con servidor controlado, ensayo real protegido | RF-28; P0-028; QA-15 | **DONE_LOCAL** del mecanismo sobre `90205a8` (validación APROBADA `2026-10-23T15-41-03-942Z`); **prueba real NO EJECUTADA** (falta clave de API y autorización del propietario); evidencia `qa/EVIDENCIA_AJ05_ANALISIS_DEFORESTACION_WHISP_2026-10-23.md` |
+
+### Estado consolidado AJ-03 / AJ-04 / AJ-05 (2026-10-23)
+| Frente | Estado | Commit / evidencia |
+| --- | --- | --- |
+| Ajuste documental (tipos y soportes) | **Terminado**, conservado | AJ-03 `b83026d` (resultados `382535a`) |
+| Interfaz jurídica | **Comprobada** (el aviso «perfil parcial» ya no es contenido principal; vive en Administración) | AJ-04 `75b0592`, resultados `6f6ae42`; `qa/EVIDENCIA_AJ04_…` |
+| Integración satelital | **Implementada y alineada con Whisp 2.3.1**, probada con servidor controlado; llamadas reales deshabilitadas | AJ-05 `90205a8`, resultados `0b767f9`; `qa/EVIDENCIA_AJ05_…` |
+| Ensayo real con Whisp | **Pendiente de insumo**: clave de API del propietario + su autorización expresa (términos aceptados por él) para una geometría artificial | `e2e/review/whisp-ensayo-real.mjs`; `decisiones/P0-028-WHISP-CONTRATO-2.3.1.md` |
