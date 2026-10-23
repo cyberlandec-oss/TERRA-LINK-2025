@@ -723,3 +723,6 @@ Candidato `29ab9bf`: `npm run validate` **APROBADA** (`validation-results/2026-1
 
 ## AJ-03 tipos documentales (2026-10-23)
 `b83026d`: `npm run validate` **APROBADA** (`validation-results/2026-10-23T13-16-46-803Z`); migración `0066` desplegada y respaldada con restauración aislada verificada; demostración 9/9. Tipos ambiental, laboral y de derechos de terceros: solo clasifican. **No acredita** certificación ni conformidad; 42/60 y 30/44 sin cambio. Detalle: `qa/EVIDENCIA_AJ03_TIPOS_DOCUMENTALES_2026-10-23.md`.
+
+## AJ-04 Legalidad y soportes (2026-10-23)
+`75b0592`: `npm run validate` **APROBADA** (`validation-results/2026-10-23T14-29-27-735Z`); desplegado, demostración 5/5 solo lectura. Sin migración. No certifica; 42/60 y 30/44 sin cambio. Detalle: `qa/EVIDENCIA_AJ04_LEGALIDAD_Y_SOPORTES_2026-10-23.md`.
