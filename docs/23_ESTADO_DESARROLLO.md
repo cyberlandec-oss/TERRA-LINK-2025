@@ -720,3 +720,6 @@ Candidato `29ab9bf`: `npm run validate` **APROBADA** (`validation-results/2026-1
 
 ## Ajuste mínimo, entrega 2 (2026-10-23)
 `53f6e81`: `npm run validate` **APROBADA** (`validation-results/2026-10-23T07-56-18-883Z`); desplegado y demostrado (8/8, sin cambios en datos). `delivery:read_own` (solo listado), Mis entregas, textos corregidos, revisión humana con su responsable, y guarda contra respuestas viejas en listados. `1cc6eff` falló en E2E (carrera de respuestas en Productores y un test desactualizado), conservada. Sin migración. **No acredita** certificación ni conformidad; 42/60 y 30/44 sin cambio. Detalle: `qa/EVIDENCIA_AJ_ENTREGA2_2026-10-23.md`.
+
+## AJ-03 tipos documentales (2026-10-23)
+`b83026d`: `npm run validate` **APROBADA** (`validation-results/2026-10-23T13-16-46-803Z`); migración `0066` desplegada y respaldada con restauración aislada verificada; demostración 9/9. Tipos ambiental, laboral y de derechos de terceros: solo clasifican. **No acredita** certificación ni conformidad; 42/60 y 30/44 sin cambio. Detalle: `qa/EVIDENCIA_AJ03_TIPOS_DOCUMENTALES_2026-10-23.md`.

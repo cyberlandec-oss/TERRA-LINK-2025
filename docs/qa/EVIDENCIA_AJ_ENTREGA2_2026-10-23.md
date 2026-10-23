@@ -31,6 +31,6 @@ Diagnóstico de (1): reproducido con una prueba que retrasa a propósito la resp
 
 ## Límites y pendientes
 - El detalle de la entrega sigue sin mostrarse al Productor (decisión de privacidad: expone nombres del personal, compuertas y notas internas); un detalle propio más rico sería otra decisión.
-- Aspectos sin tipo de documento propio (ambiente, trabajo, derechos de terceros): alta de tipos por migración, decisión pendiente.
+- Aspectos sin tipo de documento propio (ambiente, trabajo, derechos de terceros): **resuelto después** con la migración 0066 (ver EVIDENCIA_AJ03_TIPOS_DOCUMENTALES_2026-10-23.md).
 - La cuenta DEMO de productor sigue sin vínculo (configuración de cuenta pendiente; no se tocó).
 - Cuatro avisos «Cumple/Bloquea» de compuertas (embarques, simulación, traspasos) describen comprobaciones técnicas; no se reescribieron (fuera de los recorridos intervenidos).
