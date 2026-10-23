@@ -113,8 +113,9 @@ await caso('Inglés y 390 px: textos traducidos, sin códigos internos y sin des
   const cuerpo = await page.locator('main').innerText();
   const sinDesborde = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   await page.screenshot({ path: join(SALIDA, '02-mi-ubicacion-en-390.png'), fullPage: true });
+  const textoLectura = await lectura.innerText();
   await ctx.close();
-  return [/± 15 m \(reported\)/.test(await lectura.innerText()) && !/\b(BROWSER_GEOLOCATION|NOT_REPORTED|APPROXIMATE|DENIED|UNAVAILABLE)\b/.test(cuerpo) && sinDesborde && estado() === antes, 'EN, sin códigos, sin desborde'];
+  return [/± 15 m \(reported\)/.test(textoLectura) &&!/\b(BROWSER_GEOLOCATION|NOT_REPORTED|APPROXIMATE|DENIED|UNAVAILABLE)\b/.test(cuerpo) && sinDesborde && estado() === antes, 'EN, sin códigos, sin desborde'];
 });
 
 await caso('Roles sin captura: el auditor no ve «Mi ubicación» ni los métodos de captura, y la API rechaza su escritura (control)', async () => {
