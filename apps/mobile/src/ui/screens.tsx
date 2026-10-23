@@ -305,8 +305,8 @@ function Capture({ session, orgId, store, draftId, onDraft, onQueued }: { sessio
           : <Button kind="secondary" label="Mi ubicación" hint="Obtiene tu posición y la muestra; no guarda nada en el borrador" onPress={() => void locate()} disabled={busy || peeking} />)}
         {editable && !testEnv && peeking && <Text style={s.muted} accessibilityLiveRegion="polite">Obteniendo ubicación…</Text>}
         {editable && !testEnv && peek && (
-          <View accessibilityLabel="Lectura de Mi ubicación">
-            <Text style={s.p}>Lectura de «Mi ubicación» (todavía no guardada)</Text>
+          <View>
+            <Text accessibilityRole="header" style={s.p}>Lectura de «Mi ubicación» (todavía no guardada)</Text>
             <Text style={s.p}>Lat {peek.latitude.toFixed(6)} · Lon {peek.longitude.toFixed(6)}</Text>
             <Text style={s.p}>Precisión: {peek.accuracy_m === null ? 'no informada por el dispositivo' : `${Math.round(peek.accuracy_m)} m (informada)`}</Text>
             <Text style={s.muted}>Adquirida: {fmt(peek.acquired_at)} · hace {ageSeconds(peek, now)} s</Text>
