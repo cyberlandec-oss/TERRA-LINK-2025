@@ -11,6 +11,14 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+// La clave se lee del entorno o, si no está, SOLO la variable WHISP_API_KEY del archivo local `.env` (ignorado por git). Nunca se imprime.
+if (!process.env.WHISP_API_KEY) {
+  try {
+    const { readFileSync } = await import('node:fs');
+    const m = readFileSync('.env', 'utf8').match(/^WHISP_API_KEY=(.+)$/m);
+    if (m && m[1].trim()) process.env.WHISP_API_KEY = m[1].trim().replace(/^["']|["']$/g, '');
+  } catch { /* sin .env */ }
+}
 const BASE = process.env.WHISP_BASE_URL ?? 'https://whisp.openforis.org';
 // Cuadrado de ~100 m ARTIFICIAL (no corresponde a ninguna parcela ni persona); en una zona agrícola cacaotera de Ecuador para que el análisis sea representativo.
 const GEOMETRIA = { type: 'Polygon', coordinates: [[[-79.4000, -1.0000], [-79.3991, -1.0000], [-79.3991, -0.9991], [-79.4000, -0.9991], [-79.4000, -1.0000]]] };
