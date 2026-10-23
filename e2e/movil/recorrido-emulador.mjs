@@ -45,6 +45,15 @@ const proxy = async (modo) => (await fetch(`http://127.0.0.1:4002/modo?valor=${m
 const coopId = async (token) => (await api('/api/v1/organizations', { token })).data.find((o) => o.name.includes('Cooperativa')).id;
 const restart = async () => { adb('shell', 'am', 'force-stop', PKG); await sleep(1000); adb('shell', 'monkey', '-p', PKG, '-c', 'android.intent.category.LAUNCHER', '1'); await sleep(4000); };
 const tab = (name) => tap(new RegExp(`^${name}$`));
+/** «Mi ubicación» → lectura SIN guardar → acción explícita. Devuelve el texto de la pantalla con la lectura mostrada y aún sin guardar (para verificar que localizarse no guarda). */
+async function ubicacionMiUbicacion() {
+  await tap(/^Mi ubicación$/);
+  await waitFor(/Lectura de «Mi ubicación» \(todavía no guardada\)/, { timeout: 90000, scrollTo: true }); // arranque en frío del proveedor fused
+  const sinGuardar = allText();
+  await tap(/^(Usar esta ubicación en el borrador|Reemplazar la ubicación del borrador con esta lectura)$/);
+  await waitFor(/Ubicación guardada en el borrador/, { timeout: 30000, scrollTo: true });
+  return sinGuardar;
+}
 
 async function loginAs(local) {
   await waitFor(/Iniciar sesión/);
@@ -102,9 +111,8 @@ const steps = {
     await tap(/^Nueva captura$/);
     await tap(new RegExp(`^${state.plot.plot_code} ·`));
     await waitFor(/Captura · /);
-    await tap(/^Capturar ubicación$/);
-    await waitFor(/Ubicación guardada en el borrador|Lat -?[0-9]/, { timeout: 90000 }); // arranque en frío del proveedor fused
-    record('capturar-ubicacion', true, `Muestra de ubicación EMULADA en ${state.plot.plot_code}`, shot('ubicacion'));
+    const antes = await ubicacionMiUbicacion();
+    record('capturar-ubicacion', /Sin ubicación\./.test(antes) && /Precisión/.test(antes), `Mi ubicación EMULADA en ${state.plot.plot_code}: la lectura se mostró SIN guardar (el borrador seguía «Sin ubicación.») y solo se guardó con «Usar esta ubicación en el borrador»`, shot('ubicacion'));
   },
   async foto() {
     await tap(/^Tomar foto$/);
@@ -185,8 +193,7 @@ const steps = {
     await tap(new RegExp(`^${state.plot.plot_code} ·`));
     await waitFor(/Captura · /);
     adb('emu', 'geo', 'fix', '-80.1602', '-0.8480');
-    await tap(/^Capturar ubicación$/);
-    await waitFor(/Ubicación guardada en el borrador|Lat -?[0-9]/, { timeout: 90000 }); // arranque en frío del proveedor fused
+    await ubicacionMiUbicacion();
     await proxy('offline');
     await tap(/^Guardar en cola$/);
     await waitFor(/Pendientes/);

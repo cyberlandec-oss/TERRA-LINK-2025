@@ -1,9 +1,13 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, api } from './api';
 import { translate, useI18n } from './i18n';
+import { type MyLocation } from './mi-ubicacion';
 import { ErrorPanel } from './ui';
+
+const MapCapture = dynamic(() => import('./map-capture').then((m) => m.MapCapture), { ssr: false });
 
 // P0-007 Captura de ubicación desde el navegador (UX_UI §13.3, UI-07).
 // Flujo: solicitar → obtener muestra → revisar → confirmar guardado → resultado del servidor.
@@ -45,12 +49,15 @@ export function accuracyLabel(acc: number | null, t: Tr = (es, vars) => translat
   return t('± {m} m (informada)', { m: num(acc, 1) });
 }
 
-export function LocationCapture({ orgId, plotId, rowVersion, onSaved }: {
+export function LocationCapture({ orgId, plotId, rowVersion, onSaved, existing = [] }: {
   orgId: string; plotId: string; rowVersion: number; onSaved: () => Promise<void>;
+  /** Geometría vigente de la parcela (solo para mostrarla como referencia en el mapa). */
+  existing?: Array<{ lon: number; lat: number }>;
 }) {
   const { t, dt, num } = useI18n();
   const FAILURE = failure(t);
   const [state, setState] = useState<State>({ kind: 'idle' });
+  const [showMap, setShowMap] = useState(false);
   const cancelled = useRef(false);
   const supported = typeof window !== 'undefined' && 'geolocation' in navigator && window.isSecureContext;
 
@@ -84,6 +91,12 @@ export function LocationCapture({ orgId, plotId, rowVersion, onSaved }: {
       },
       { enableHighAccuracy: true, timeout: 20_000, maximumAge: 0 },
     );
+  }
+
+  /** «Mi ubicación» → «Usar como punto de referencia»: abre la MISMA revisión de muestra; no se guarda hasta «Guardar como nueva versión». */
+  function usarComoReferencia(l: MyLocation) {
+    if (state.kind !== 'idle') return;
+    setState({ kind: 'review', sample: { operation_id: crypto.randomUUID(), latitude: l.latitude, longitude: l.longitude, accuracy_m: l.accuracy_m, captured_at: l.captured_at } });
   }
 
   function cancel() {
@@ -123,6 +136,20 @@ export function LocationCapture({ orgId, plotId, rowVersion, onSaved }: {
         <button type="button" onClick={request} disabled={!supported}>{t('Capturar ubicación')}</button>
       )}
       {state.kind === 'idle' && !supported && <p className="muted">{FAILURE.UNSUPPORTED.title} {FAILURE.UNSUPPORTED.help}</p>}
+      {state.kind === 'idle' && (
+        <>
+          <div className="actions">
+            <button type="button" className="secondary" aria-expanded={showMap} onClick={() => setShowMap((v) => !v)}>{showMap ? t('Ocultar el mapa') : t('Ver el mapa con Mi ubicación')}</button>
+          </div>
+          {showMap && (
+            <MapCapture
+              readOnly mode={existing.length >= 3 ? 'POLYGON' : 'POINT'} vertices={existing}
+              initialCenter={existing.length ? existing[0] : null}
+              locate={{ label: t('Usar como punto de referencia'), onUse: usarComoReferencia, note: t('Abre la revisión de la muestra: no se guarda hasta que pulses «Guardar como nueva versión».') }}
+            />
+          )}
+        </>
+      )}
       {state.kind === 'requesting' && (
         <div className="actions">
           <p className="muted" role="status">{t('Obteniendo ubicación… Si el navegador lo pregunta, permite el acceso.')}</p>

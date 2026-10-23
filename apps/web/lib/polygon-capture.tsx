@@ -1,11 +1,15 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api } from './api';
 import { useI18n } from './i18n';
 import { accuracyLabel } from './location-capture';
 import { GeometrySketch } from './plots';
+import { type MyLocation } from './mi-ubicacion';
 import { ErrorPanel, StatusBadge } from './ui';
+
+const MapCapture = dynamic(() => import('./map-capture').then((m) => m.MapCapture), { ssr: false });
 
 // P0-008 Polígono (UX_UI §13.3). Borrador persistido EN EL SERVIDOR (no es modo offline):
 // recargar la página reabre el borrador. Cada vértice es una muestra de la ubicación del navegador
@@ -62,6 +66,7 @@ export function PolygonCapture({ orgId, plotId, plotVersion, onConfirmed }: {
   const [reviewing, setReviewing] = useState(false);
   const [keepInvalid, setKeepInvalid] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [showMap, setShowMap] = useState(false);
   const cancelled = useRef(false);
   const base = `/api/v1/organizations/${orgId}`;
   const ISSUE: Record<string, string> = { LESS_THAN_3_DISTINCT_VERTICES: t('Se necesitan al menos 3 vértices distintos.') };
@@ -111,6 +116,12 @@ export function PolygonCapture({ orgId, plotId, plotVersion, onConfirmed }: {
       },
       { enableHighAccuracy: true, timeout: 20_000, maximumAge: 0 },
     );
+  }
+
+  /** «Mi ubicación» → «Añadir vértice aquí»: abre la MISMA revisión de muestra de siempre (con su operation_id, precisión y hora); no guarda nada hasta «Guardar vértice». */
+  function sampleFromMyLocation(l: MyLocation) {
+    if (capture.kind !== 'idle' || reviewing) return;
+    setCapture({ kind: 'review', sample: { operation_id: crypto.randomUUID(), latitude: l.latitude, longitude: l.longitude, accuracy_m: l.accuracy_m, captured_at: l.captured_at } });
   }
 
   async function saveVertex(sample: Sample) {
@@ -230,6 +241,17 @@ export function PolygonCapture({ orgId, plotId, plotVersion, onConfirmed }: {
                 <button type="button" className="secondary" onClick={() => setCapture({ kind: 'idle' })} disabled={capture.kind === 'saving'}>{t('Descartar muestra')}</button>
               </div>
             </div>
+          )}
+
+          <div className="actions">
+            <button type="button" className="secondary" aria-expanded={showMap} onClick={() => setShowMap((v) => !v)}>{showMap ? t('Ocultar el mapa') : t('Ver el mapa con Mi ubicación')}</button>
+          </div>
+          {showMap && (
+            <MapCapture
+              readOnly mode="POLYGON" vertices={included.map((v) => ({ lon: v.longitude, lat: v.latitude }))}
+              initialCenter={included.length ? { lon: included[0].longitude, lat: included[0].latitude } : null}
+              locate={{ label: t('Añadir vértice aquí'), onUse: sampleFromMyLocation, note: t('Abre la revisión de la muestra: no se guarda hasta que pulses «Guardar vértice».') }}
+            />
           )}
 
           <p><strong>{t('Precisión')}:</strong> {precision}</p>

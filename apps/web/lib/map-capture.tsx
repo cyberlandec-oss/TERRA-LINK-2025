@@ -5,6 +5,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { Protocol } from 'pmtiles';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useI18n } from './i18n';
+import { MyLocationPanel } from './mi-ubicacion-panel';
+import { accuracyCircle, useMyLocation, type MyLocation } from './mi-ubicacion';
 import { Alert } from './ui';
 
 // A-01 — Dibujar la parcela SOBRE UN MAPA, con cartografía 100 % LOCAL.
@@ -16,6 +18,8 @@ import { Alert } from './ui';
 //     ni conformidad, y NO se ajusta ningún vértice a elementos del mapa (lo que se marca es lo que se guarda).
 //   · Si faltan los datos (servicio apagado, archivo sin preparar, navegador sin WebGL) se dice, y la entrada por tabla de
 //     coordenadas y el croquis sin mapa base siguen disponibles.
+//   · «Mi ubicación» (opcional): centra el mapa en la posición del dispositivo y muestra su precisión; NO guarda ni añade vértices. Incorporarla
+//     exige la acción explícita que ofrece la pantalla (`locate.use`). `readOnly` desactiva el trazado y deja solo la vista (borradores del servidor).
 //   · Teclado: el mapa es enfocable (flechas desplazan, + y − acercan); «Fijar vértice en la mira» y Enter colocan un vértice en el
 //     centro; cada vértice además se corrige en la tabla de coordenadas. La revisión del servidor y la confirmación son las de siempre.
 
@@ -31,16 +35,22 @@ const ECUADOR: LonLat = { lon: -78.5, lat: -1.5 };
 /** Metros por píxel de pantalla en el centro (teselas de 512 px). */
 export const metersPerPixel = (zoom: number, lat: number) => (78271.51696 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
 
-export function MapCapture({ mode, vertices, initialCenter, onChange }: {
-  mode: 'POINT' | 'POLYGON'; vertices: LonLat[]; initialCenter: LonLat | null; onChange: (vs: LonLat[]) => void;
+export function MapCapture({ mode, vertices, initialCenter, onChange, readOnly = false, locate }: {
+  mode: 'POINT' | 'POLYGON'; vertices: LonLat[]; initialCenter: LonLat | null; onChange?: (vs: LonLat[]) => void;
+  /** Solo vista: no se traza ni se arrastra nada (los vértices ya viven en un borrador del servidor). */
+  readOnly?: boolean;
+  /** Activa «Mi ubicación»; `label` es la acción explícita para incorporar la lectura (p. ej. «Añadir vértice aquí»). */
+  locate?: { label: string; onUse: (loc: MyLocation) => void; note?: string };
 }) {
   const { t, num } = useI18n();
   const uid = useId();
   const box = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
-  const live = useRef({ mode, vertices, onChange });
-  live.current = { mode, vertices, onChange };
+  const live = useRef({ mode, vertices, onChange, readOnly });
+  live.current = { mode, vertices, onChange, readOnly };
+  const me = useMyLocation();
+  const meMarker = useRef<maplibregl.Marker | null>(null);
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [view, setView] = useState({ lon: (initialCenter ?? ECUADOR).lon, lat: (initialCenter ?? ECUADOR).lat, zoom: initialCenter ? 15 : 6 });
   const [goto, setGoto] = useState({ lon: '', lat: '' });
@@ -81,6 +91,9 @@ export function MapCapture({ mode, vertices, initialCenter, onChange }: {
         map.addSource('captura', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         map.addLayer({ id: 'captura-relleno', type: 'fill', source: 'captura', filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': '#2b6650', 'fill-opacity': 0.22 } });
         map.addLayer({ id: 'captura-borde', type: 'line', source: 'captura', paint: { 'line-color': '#1f4d3b', 'line-width': 2.5 } });
+        map.addSource('mi-ubicacion', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        map.addLayer({ id: 'mi-ubicacion-relleno', type: 'fill', source: 'mi-ubicacion', paint: { 'fill-color': '#285d88', 'fill-opacity': 0.14 } });
+        map.addLayer({ id: 'mi-ubicacion-borde', type: 'line', source: 'mi-ubicacion', paint: { 'line-color': '#285d88', 'line-width': 1.5, 'line-dasharray': [2, 2] } });
         draw();
         if (!cancelled) setState({ kind: 'ready', meta });
       });
@@ -96,27 +109,29 @@ export function MapCapture({ mode, vertices, initialCenter, onChange }: {
     return () => {
       cancelled = true;
       markers.current.forEach((m) => m.remove()); markers.current = [];
+      meMarker.current?.remove(); meMarker.current = null;
       mapRef.current?.remove(); mapRef.current = null;
       maplibregl.removeProtocol('pmtiles');
     };
   }, []);
 
   function place(p: LonLat) {
-    const { mode: m, vertices: vs, onChange: cb } = live.current;
+    const { mode: m, vertices: vs, onChange: cb, readOnly: ro } = live.current;
+    if (ro || !cb) return;
     cb(m === 'POINT' ? [p] : [...vs, p]);
   }
 
   // ------------------------------------------------------------------ dibujo: marcadores arrastrables + polígono
   function draw() {
     const map = mapRef.current; if (!map) return;
-    const { vertices: vs, mode: m, onChange: cb } = live.current;
+    const { vertices: vs, mode: m, onChange: cb, readOnly: ro } = live.current;
     markers.current.forEach((x) => x.remove()); markers.current = [];
     vs.forEach((v, i) => {
       const el = document.createElement('div');
       el.className = 'map-vertex'; el.textContent = String(i + 1); el.setAttribute('role', 'img');
       el.setAttribute('aria-label', `${t('vértice {n}', { n: i + 1 })}: ${t('Longitud')} ${v.lon}, ${t('Latitud')} ${v.lat}`);
-      const mk = new maplibregl.Marker({ element: el, draggable: true }).setLngLat([v.lon, v.lat]).addTo(map);
-      mk.on('dragend', () => { const ll = mk.getLngLat(); const cur = live.current.vertices.slice(); cur[i] = { lon: r6(ll.lng), lat: r6(ll.lat) }; cb(cur); });
+      const mk = new maplibregl.Marker({ element: el, draggable: !ro && !!cb }).setLngLat([v.lon, v.lat]).addTo(map);
+      if (!ro && cb) mk.on('dragend', () => { const ll = mk.getLngLat(); const cur = live.current.vertices.slice(); cur[i] = { lon: r6(ll.lng), lat: r6(ll.lat) }; cb(cur); });
       markers.current.push(mk);
     });
     const src = map.getSource('captura') as maplibregl.GeoJSONSource | undefined;
@@ -129,7 +144,30 @@ export function MapCapture({ mode, vertices, initialCenter, onChange }: {
   }
   useEffect(() => { draw(); }, [vertices, mode, state.kind]);
 
-  function fixAtCenter() { const c = mapRef.current?.getCenter(); if (c) place({ lon: r6(c.lng), lat: r6(c.lat) }); }
+  // «Mi ubicación»: SOLO dibuja la lectura (marcador diferenciado + círculo de precisión) y centra el mapa. No toca vértices ni guarda nada.
+  useEffect(() => {
+    const map = mapRef.current; if (!map || state.kind !== 'ready') return;
+    const src = map.getSource('mi-ubicacion') as maplibregl.GeoJSONSource | undefined;
+    if (me.state.kind !== 'ready') { meMarker.current?.remove(); meMarker.current = null; src?.setData({ type: 'FeatureCollection', features: [] }); return; }
+    const l = me.state.location;
+    const pos: [number, number] = [r6(l.longitude), r6(l.latitude)];
+    meMarker.current?.remove();
+    const el = document.createElement('div');
+    el.className = 'map-me'; el.setAttribute('role', 'img');
+    el.setAttribute('aria-label', `${t('Mi ubicación')}: ${t('Longitud')} ${pos[0]}, ${t('Latitud')} ${pos[1]}`);
+    meMarker.current = new maplibregl.Marker({ element: el }).setLngLat(pos).addTo(map);
+    const features: GeoJSON.Feature[] = [];
+    if (l.accuracy_m !== null && l.accuracy_m > 0) features.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [accuracyCircle(pos[0], pos[1], l.accuracy_m)] } });
+    src?.setData({ type: 'FeatureCollection', features });
+    if (features.length) {
+      const ring = (features[0].geometry as GeoJSON.Polygon).coordinates[0];
+      const b = new maplibregl.LngLatBounds(ring[0] as [number, number], ring[0] as [number, number]);
+      ring.forEach((c) => b.extend(c as [number, number]));
+      map.fitBounds(b, { padding: 48, maxZoom: 18, duration: 600 });
+    } else map.flyTo({ center: pos, zoom: 17, duration: 600 });
+  }, [me.state, state.kind]);
+
+  function fixAtCenter() { if (readOnly) return; const c = mapRef.current?.getCenter(); if (c) place({ lon: r6(c.lng), lat: r6(c.lat) }); }
   function go() {
     const lon = Number(goto.lon.trim().replace(',', '.')); const lat = Number(goto.lat.trim().replace(',', '.'));
     if (!goto.lon.trim() || !goto.lat.trim() || !Number.isFinite(lon) || !Number.isFinite(lat) || Math.abs(lon) > 180 || Math.abs(lat) > 90) return;
@@ -150,12 +188,14 @@ export function MapCapture({ mode, vertices, initialCenter, onChange }: {
   return (
     <div className="map-capture">
       <p className="field-help">
-        {t('Mapa de referencia (OpenStreetMap, servido desde este mismo despliegue). Desplaza y acerca; haz clic para fijar un vértice, o centra la mira y pulsa «Fijar vértice en la mira». Con el mapa enfocado: flechas desplazan, + y − acercan, Enter fija un vértice en la mira. Puedes arrastrar un vértice para corregirlo.')}
+        {readOnly
+          ? t('Mapa de referencia (OpenStreetMap, servido desde este mismo despliegue). Desplaza y acerca; con el mapa enfocado: flechas desplazan, + y − acercan. Aquí no se traza nada: los vértices se añaden con la acción de captura.')
+          : t('Mapa de referencia (OpenStreetMap, servido desde este mismo despliegue). Desplaza y acerca; haz clic para fijar un vértice, o centra la mira y pulsa «Fijar vértice en la mira». Con el mapa enfocado: flechas desplazan, + y − acercan, Enter fija un vértice en la mira. Puedes arrastrar un vértice para corregirlo.')}
       </p>
       <div className="map-frame">
         <div ref={box} className="map-box" tabIndex={0} role="application"
           aria-label={t('Mapa para dibujar la parcela. Centro: longitud {lon}, latitud {lat}. Zoom {z}.', { lon: num(view.lon, 5), lat: num(view.lat, 5), z: num(view.zoom, 1) })}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); fixAtCenter(); } }} />
+          onKeyDown={(e) => { if (e.key === 'Enter' && !readOnly) { e.preventDefault(); fixAtCenter(); } }} />
         {state.kind === 'ready' && <div className="map-crosshair" aria-hidden="true" />}
         {state.kind === 'loading' && <p className="map-loading muted" role="status">{t('Cargando el mapa local…')}</p>}
       </div>
@@ -163,11 +203,16 @@ export function MapCapture({ mode, vertices, initialCenter, onChange }: {
         {t('Centro de la mira')}: {t('longitud')} {view.lon}, {t('latitud')} {view.lat} · {t('Zoom')} {num(view.zoom, 1)} · {t('unos {m} m por píxel', { m: num(mpp, mpp < 10 ? 1 : 0) })}
         {pointer && <> · {t('Puntero')}: {pointer.lon}, {pointer.lat}</>}
       </p>
-      <div className="actions" role="group" aria-label={t('Acciones del mapa')}>
-        <button type="button" onClick={fixAtCenter} disabled={state.kind !== 'ready'}>{t('Fijar vértice en la mira')}</button>
-        <button type="button" className="secondary inline" onClick={() => onChange(vertices.slice(0, -1))} disabled={vertices.length === 0}>{t('Deshacer último')}</button>
-        <button type="button" className="secondary inline" onClick={() => onChange([])} disabled={vertices.length === 0}>{t('Borrar todo')}</button>
-      </div>
+      {!readOnly && onChange && (
+        <div className="actions" role="group" aria-label={t('Acciones del mapa')}>
+          <button type="button" onClick={fixAtCenter} disabled={state.kind !== 'ready'}>{t('Fijar vértice en la mira')}</button>
+          <button type="button" className="secondary inline" onClick={() => onChange(vertices.slice(0, -1))} disabled={vertices.length === 0}>{t('Deshacer último')}</button>
+          <button type="button" className="secondary inline" onClick={() => onChange([])} disabled={vertices.length === 0}>{t('Borrar todo')}</button>
+        </div>
+      )}
+      {locate && state.kind === 'ready' && (
+        <MyLocationPanel state={me.state} onLocate={me.locate} use={{ label: locate.label, onUse: locate.onUse, note: locate.note }} />
+      )}
       <div className="grid-3">
         <div><label htmlFor={`${uid}-glon`}>{t('Ir a longitud')}</label><input id={`${uid}-glon`} inputMode="decimal" value={goto.lon} onChange={(e) => setGoto({ ...goto, lon: e.target.value })} placeholder="-80.16" /></div>
         <div><label htmlFor={`${uid}-glat`}>{t('Ir a latitud')}</label><input id={`${uid}-glat`} inputMode="decimal" value={goto.lat} onChange={(e) => setGoto({ ...goto, lat: e.target.value })} placeholder="-0.85" /></div>

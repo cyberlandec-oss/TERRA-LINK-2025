@@ -4,6 +4,8 @@ import dynamic from 'next/dynamic';
 import { useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { ApiError, api } from './api';
 import { useI18n } from './i18n';
+import { accuracyLabel } from './location-capture';
+import { type MyLocation } from './mi-ubicacion';
 import { Alert, ErrorPanel, StatusBadge } from './ui';
 
 // El mapa (MapLibre + cartografía local) solo existe en el navegador y se carga bajo demanda.
@@ -20,7 +22,8 @@ const MapCapture = dynamic(() => import('./map-capture').then((m) => m.MapCaptur
 //   · «Dibujar en el mapa» usa cartografía real (OpenStreetMap) servida LOCALMENTE por Terra Link (lib/map-capture.tsx); sin datos
 //     cartográficos lo declara y quedan la tabla y el croquis. El croquis no tiene mapa base: orienta, no mide. Todo con alternativa por teclado y tabla.
 
-interface Vertex { lon: string; lat: string }
+/** `loc`: este vértice se tomó de «Mi ubicación» (con SU precisión y hora). Se pierde en cuanto la persona edita o arrastra el vértice: ya no es esa lectura. */
+interface Vertex { lon: string; lat: string; loc?: { accuracy_m: number | null; captured_at: string } }
 interface Preview {
   structurally_valid: boolean; issues: Array<{ path: string; reason: string }>;
   geometry_type: 'POINT' | 'POLYGON' | 'MULTIPOLYGON' | null; technically_valid: boolean | null; validity_reason: string | null;
@@ -56,7 +59,7 @@ export function ManualCapture({ orgId, plotId, rowVersion, hasGeometry, initialC
   orgId: string; plotId: string; rowVersion: number; hasGeometry: boolean;
   initialCenter?: { lon: number; lat: number } | null; onSaved: () => Promise<void>;
 }) {
-  const { t, num } = useI18n();
+  const { t, num, dt } = useI18n();
   const uid = useId();
   const [mode, setMode] = useState<'POINT' | 'POLYGON'>('POINT');
   const [origin, setOrigin] = useState<Origin>('TABLE');
@@ -82,6 +85,23 @@ export function ManualCapture({ orgId, plotId, rowVersion, hasGeometry, initialC
   }
   function changeMode(m: 'POINT' | 'POLYGON') { setMode(m); edit(m === 'POINT' ? [{ lon: '', lat: '' }] : [{ lon: '', lat: '' }, { lon: '', lat: '' }, { lon: '', lat: '' }]); }
 
+  /** Vértices que devuelve el mapa: conservan la procedencia solo si siguen siendo EXACTAMENTE la misma coordenada tomada de «Mi ubicación». */
+  function fromMap(vs: Array<{ lon: number; lat: number }>): Vertex[] {
+    const conLoc = new Map(vertices.filter((v) => v.loc).map((v) => [`${v.lon}|${v.lat}`, v.loc!]));
+    const out = vs.map((p) => { const lon = String(p.lon); const lat = String(p.lat); const loc = conLoc.get(`${lon}|${lat}`); return loc ? { lon, lat, loc } : { lon, lat }; });
+    return out.length ? out : (mode === 'POINT' ? [{ lon: '', lat: '' }] : []);
+  }
+  const hasValue = (v: Vertex) => v.lon.trim() !== '' || v.lat.trim() !== '';
+  /** Acción EXPLÍCITA tras «Mi ubicación»: un punto reemplaza el existente (la etiqueta lo dice); un vértice ocupa la primera fila vacía o se añade al final. Nunca sobrescribe en silencio. */
+  function incorporarUbicacion(l: MyLocation) {
+    const v: Vertex = { lon: String(Math.round(l.longitude * 1e6) / 1e6), lat: String(Math.round(l.latitude * 1e6) / 1e6), loc: { accuracy_m: l.accuracy_m, captured_at: l.captured_at } };
+    if (mode === 'POINT') { edit([v]); return; }
+    const vacia = vertices.findIndex((x) => !hasValue(x));
+    edit(vacia >= 0 ? vertices.map((x, j) => (j === vacia ? v : x)) : [...vertices, v]);
+  }
+  const deMiUbicacion = vertices.map((v, i) => ({ v, i })).filter((x) => x.v.loc);
+  const locateLabel = mode === 'POINT' ? (hasValue(vertices[0] ?? { lon: '', lat: '' }) ? t('Reemplazar el punto con esta posición') : t('Usar como punto')) : t('Añadir vértice aquí');
+
   async function review() {
     setBusy(true); setError(null);
     try {
@@ -95,11 +115,13 @@ export function ManualCapture({ orgId, plotId, rowVersion, hasGeometry, initialC
     if (!preview || opLock.current) return;
     opLock.current = true; setBusy(true); setError(null);
     try {
+      const lecturas = deMiUbicacion.length
+        ? ` Vértices tomados de «Mi ubicación» del navegador (no GPS): ${deMiUbicacion.map(({ v, i }) => `#${i + 1} ${v.loc!.accuracy_m === null ? 'sin precisión' : `±${Math.round(v.loc!.accuracy_m)} m`} ${v.loc!.captured_at.slice(11, 19)}Z`).join('; ')}.` : '';
       const origen = origin === 'MAP' ? 'Dibujada en el mapa de referencia de la web (no es una medición GPS)'
         : origin === 'SKETCH' ? 'Dibujada en el croquis de la web (no es una medición GPS)' : 'Coordenadas escritas en la web (no es una medición GPS)';
       const r = await api<{ version: { version_number: number } }>(`/api/v1/organizations/${orgId}/plots/${plotId}/geometry-versions`, {
         method: 'POST',
-        body: { expected_version: rowVersion, survey_method: 'MANUAL_COORDINATES', geometry: preview.geometry, notes: origen, ...(reason.trim() ? { reason: reason.trim() } : {}) },
+        body: { expected_version: rowVersion, survey_method: 'MANUAL_COORDINATES', geometry: preview.geometry, notes: (origen + lecturas).slice(0, 500), ...(reason.trim() ? { reason: reason.trim() } : {}) },
       });
       setSaved(r.version.version_number); setPreview(null); setReason(''); setAck(false);
       setVertices(mode === 'POINT' ? [{ lon: '', lat: '' }] : [{ lon: '', lat: '' }, { lon: '', lat: '' }, { lon: '', lat: '' }]);
@@ -133,7 +155,8 @@ export function ManualCapture({ orgId, plotId, rowVersion, hasGeometry, initialC
         <MapCapture
           mode={mode} vertices={parsed.filter((p) => p.lon !== null && p.lat !== null) as Array<{ lon: number; lat: number }>}
           initialCenter={initialCenter ?? null}
-          onChange={(vs) => edit(vs.length ? vs.map((p) => ({ lon: String(p.lon), lat: String(p.lat) })) : (mode === 'POINT' ? [{ lon: '', lat: '' }] : []))}
+          onChange={(vs) => edit(fromMap(vs))}
+          locate={{ label: locateLabel, onUse: incorporarUbicacion, note: t('Es una acción explícita: localizarte no cambia las coordenadas.') }}
         />
       )}
 
@@ -150,7 +173,7 @@ export function ManualCapture({ orgId, plotId, rowVersion, hasGeometry, initialC
           <caption className="muted" style={{ textAlign: 'left', padding: '8px 16px' }}>
             {t('Cada posición es [longitud, latitud] en WGS84 (EPSG:4326): primero la longitud (este-oeste), luego la latitud (norte-sur). Para Ecuador la longitud es negativa (≈ -92 a -75) y la latitud ronda -5 a 2.')}
           </caption>
-          <thead><tr><th scope="col">#</th><th scope="col">{t('Longitud')} ({t('este-oeste')})</th><th scope="col">{t('Latitud')} ({t('norte-sur')})</th><th scope="col"><span className="visually-hidden">{t('Acciones')}</span></th></tr></thead>
+          <thead><tr><th scope="col">#</th><th scope="col">{t('Longitud')} ({t('este-oeste')})</th><th scope="col">{t('Latitud')} ({t('norte-sur')})</th><th scope="col">{t('Origen')}</th><th scope="col"><span className="visually-hidden">{t('Acciones')}</span></th></tr></thead>
           <tbody>
             {vertices.map((v, i) => {
               const bad = (s: string, max: number) => s.trim() !== '' && (parse(s) === null || Math.abs(parse(s)!) > max);
@@ -160,13 +183,14 @@ export function ManualCapture({ orgId, plotId, rowVersion, hasGeometry, initialC
                   <td>
                     <label className="visually-hidden" htmlFor={`${uid}-lon-${i}`}>{t('Longitud')} ({t('este-oeste')}) · {t('vértice {n}', { n: i + 1 })}</label>
                     <input id={`${uid}-lon-${i}`} inputMode="decimal" autoComplete="off" value={v.lon} placeholder="-80.1600" aria-invalid={bad(v.lon, 180)}
-                      onChange={(e) => edit(vertices.map((x, j) => (j === i ? { ...x, lon: e.target.value } : x)))} />
+                      onChange={(e) => edit(vertices.map((x, j) => (j === i ? { lon: e.target.value, lat: x.lat } : x)))} />
                   </td>
                   <td>
                     <label className="visually-hidden" htmlFor={`${uid}-lat-${i}`}>{t('Latitud')} ({t('norte-sur')}) · {t('vértice {n}', { n: i + 1 })}</label>
                     <input id={`${uid}-lat-${i}`} inputMode="decimal" autoComplete="off" value={v.lat} placeholder="-0.8500" aria-invalid={bad(v.lat, 90)}
-                      onChange={(e) => edit(vertices.map((x, j) => (j === i ? { ...x, lat: e.target.value } : x)))} />
+                      onChange={(e) => edit(vertices.map((x, j) => (j === i ? { lon: x.lon, lat: e.target.value } : x)))} />
                   </td>
+                  <td className="muted">{v.loc ? `${t('Mi ubicación')} · ${accuracyLabel(v.loc.accuracy_m, t, num)} · ${dt(v.loc.captured_at)}` : t('Escrito o dibujado')}</td>
                   <td>
                     {mode === 'POLYGON' && vertices.length > 3 && (
                       <button type="button" className="secondary inline" onClick={() => edit(vertices.filter((_, j) => j !== i))}>{t('Quitar')}</button>
@@ -207,6 +231,15 @@ export function ManualCapture({ orgId, plotId, rowVersion, hasGeometry, initialC
                 <dt>{t('Orden de las coordenadas')}</dt><dd>{t(preview.data.order)}</dd>
                 <dt>{t('Procedencia')}</dt><dd><StatusBadge tone="neutral">{t('Coordenadas ingresadas')}</StatusBadge> {t(preview.data.provenance.note)}</dd>
                 <dt>{t('Precisión')}</dt><dd>{t('No informada: no hay medición.')}</dd>
+                {deMiUbicacion.length > 0 && (
+                  <>
+                    <dt>{t('Vértices de Mi ubicación')}</dt>
+                    <dd>
+                      {deMiUbicacion.map(({ v, i }) => <span key={i} style={{ display: 'block' }}>{t('vértice {n}', { n: i + 1 })}: {accuracyLabel(v.loc!.accuracy_m, t, num)}</span>)}
+                      <span className="muted" style={{ display: 'block' }}>{t('Cada precisión es la de su propia lectura: no se aplica al polígono ni a los demás vértices, y no acredita una medición GPS.')}</span>
+                    </dd>
+                  </>
+                )}
                 <dt>{t('Validez técnica')}</dt><dd>{preview.data.technically_valid === null ? t('No aplica a un punto') : preview.data.technically_valid ? <StatusBadge tone="process">{t('Válida')}</StatusBadge> : <><StatusBadge tone="review">{t('No válida')}</StatusBadge> {preview.data.validity_reason}</>}</dd>
                 <dt>{t('Superficie calculada')}</dt><dd>{preview.data.area_calculated_ha ? `${num(Number(preview.data.area_calculated_ha), 4)} ha` : t('No calculada')}</dd>
                 <dt>{t('Validación GIS')}</dt><dd>{t('Pendiente (P0-010). Confirmar no valida la parcela.')}</dd>

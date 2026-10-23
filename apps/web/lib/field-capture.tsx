@@ -66,7 +66,7 @@ export function FieldCapture({ orgId, plot, onChanged }: { orgId: string; plot: 
         ))}
       </div>
       <p className="muted">{options.find((o) => o.id === method)!.help}.</p>
-      {method === 'BROWSER' && <LocationCapture orgId={orgId} plotId={plot.id} rowVersion={plot.row_version} onSaved={onChanged} />}
+      {method === 'BROWSER' && <LocationCapture orgId={orgId} plotId={plot.id} rowVersion={plot.row_version} onSaved={onChanged} existing={positions(plot.current_version?.geometry ?? null)} />}
       {method === 'MANUAL' && <ManualCapture orgId={orgId} plotId={plot.id} rowVersion={plot.row_version} hasGeometry={hasGeometry} initialCenter={center} onSaved={onChanged} />}
       {method === 'POLYGON' && <PolygonCapture orgId={orgId} plotId={plot.id} plotVersion={plot.row_version} onConfirmed={onChanged} />}
       {method === 'FILE' && <GeometryImport orgId={orgId} plotId={plot.id} plotVersion={plot.row_version} onConfirmed={onChanged} />}

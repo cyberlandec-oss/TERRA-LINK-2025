@@ -13,6 +13,7 @@ import { EncryptionRequiredError, isStorageFull, storageFullMessage } from '../c
 import type { SyncSummary } from '../core/sync';
 import type { StoredSession } from '../core/session';
 import { SERVER_URL_HELP, validateServerUrl } from '../core/server-url';
+import { FRESH_MAX_AGE_S, ageSeconds, isFresh, locationErrorMessage, qualityNotice, qualityOf, readingFrom, type Reading } from '../core/ubicacion';
 import type { DatasetPlot, DraftView, LocalStore, RecoveryReport } from '../core/store';
 import { Badge, Button, Card, Field, Notice, T, s } from './kit';
 
@@ -215,6 +216,15 @@ function Capture({ session, orgId, store, draftId, onDraft, onQueued }: { sessio
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // «Mi ubicación»: lectura SIN guardar. El borrador solo cambia con la acción explícita «Usar esta ubicación».
+  const [peek, setPeek] = useState<Reading | null>(null);
+  const [peeking, setPeeking] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!peek) return undefined;
+    const id = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(id);
+  }, [peek]);
   const gate = sessions.gate(session, orgId);
   const reload = useCallback(async () => {
     setPlots(await store.plots());
@@ -243,21 +253,29 @@ function Capture({ session, orgId, store, draftId, onDraft, onQueued }: { sessio
     const id = Crypto.randomUUID();
     await store.addPhoto(draft.id, writeCacheFile(fixtureJpeg(id), `fixture-${id}.jpg`), 'image/jpeg', new Date().toISOString());
   }, 'Foto de prueba (sintética) guardada.');
-  const captureLocation = () => act(async () => {
-    const perm = await Location.requestForegroundPermissionsAsync();
-    if (!perm.granted) throw new Error('Permiso de ubicación denegado. Puedes concederlo en los ajustes del sistema; el borrador, la nota y las fotos se conservan y puedes encolar sin ubicación.');
-    if (!(await Location.hasServicesEnabledAsync())) throw new Error('Los servicios de ubicación del dispositivo están desactivados. Actívalos y vuelve a intentarlo; el borrador se conserva.');
-    const status = await Location.getProviderStatusAsync().catch(() => null);
-    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }).catch((e: Error) => {
-      if (/unsatisfied device settings|services are disabled|location is unavailable|Location provider is unavailable/i.test(e.message)) throw new Error('No se pudo obtener la ubicación: activa la ubicación del dispositivo en modo de alta precisión y vuelve a intentarlo. El borrador se conserva.');
-      throw new Error('No se pudo obtener la ubicación del dispositivo. El borrador se conserva; vuelve a intentarlo.');
-    });
-    await store.setLocation(draft.id, {
-      latitude: loc.coords.latitude, longitude: loc.coords.longitude, accuracy_m: typeof loc.coords.accuracy === 'number' ? loc.coords.accuracy : null,
-      acquired_at: new Date(loc.timestamp).toISOString(),
-      provider_detail: `expo-location getCurrentPositionAsync(Accuracy.High); proveedor elegido por el sistema (no garantiza GPS); gpsAvailable=${status?.gpsAvailable ?? 'desconocido'}; networkAvailable=${status?.networkAvailable ?? 'desconocido'}`,
-      mocked: typeof loc.mocked === 'boolean' ? loc.mocked : null,
-    });
+  /** Pide la ubicación (primer plano, a petición de la persona) y la MUESTRA. No toca el borrador. Una sola solicitud a la vez. */
+  const locate = async () => {
+    if (peeking) return;
+    setPeeking(true); setError(null); setInfo(null);
+    try {
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (!perm.granted) throw new Error('Permiso de ubicación denegado. Puedes concederlo en los ajustes del sistema; el borrador, la nota y las fotos se conservan y puedes encolar sin ubicación.');
+      if (!(await Location.hasServicesEnabledAsync())) throw new Error('Los servicios de ubicación del dispositivo están desactivados. Actívalos y vuelve a intentarlo; el borrador se conserva.');
+      const status = await Location.getProviderStatusAsync().catch(() => null);
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }).catch((e: Error) => { throw new Error(locationErrorMessage(e.message)); });
+      setPeek(readingFrom(
+        { coords: { latitude: loc.coords.latitude, longitude: loc.coords.longitude, accuracy: loc.coords.accuracy }, timestamp: loc.timestamp, mocked: typeof loc.mocked === 'boolean' ? loc.mocked : undefined },
+        `expo-location getCurrentPositionAsync(Accuracy.High); proveedor elegido por el sistema (no garantiza GPS); gpsAvailable=${status?.gpsAvailable ?? 'desconocido'}; networkAvailable=${status?.networkAvailable ?? 'desconocido'}`,
+      ));
+      setNow(Date.now());
+    } catch (e) { setError(msg(e)); } finally { setPeeking(false); }
+  };
+  /** Acción EXPLÍCITA: guarda la lectura mostrada como la ubicación del borrador (reemplaza la anterior, y la etiqueta del botón lo dice). */
+  const useReading = () => act(async () => {
+    if (!peek) return;
+    if (!isFresh(peek)) throw new Error(`La lectura tiene más de ${FRESH_MAX_AGE_S} s: pulsa «Mi ubicación» otra vez antes de usarla. El borrador se conserva.`);
+    await store.setLocation(draft.id, { latitude: peek.latitude, longitude: peek.longitude, accuracy_m: peek.accuracy_m, acquired_at: peek.acquired_at, provider_detail: peek.provider_detail, mocked: peek.mocked });
+    setPeek(null);
   }, 'Ubicación guardada en el borrador.');
   const takePhoto = () => act(async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -284,7 +302,22 @@ function Capture({ session, orgId, store, draftId, onDraft, onQueued }: { sessio
         ) : <Text style={s.muted}>Sin ubicación.</Text>}
         {editable && (testEnv
           ? <Button kind="secondary" label="Usar ubicación de prueba (sintética)" hint="Este entorno no captura ubicación real" onPress={() => void fixtureLoc()} disabled={busy} />
-          : <Button kind="secondary" label={draft.location ? 'Volver a capturar ubicación' : 'Capturar ubicación'} onPress={() => void captureLocation()} disabled={busy} />)}
+          : <Button kind="secondary" label="Mi ubicación" hint="Obtiene tu posición y la muestra; no guarda nada en el borrador" onPress={() => void locate()} disabled={busy || peeking} />)}
+        {editable && !testEnv && peeking && <Text style={s.muted} accessibilityLiveRegion="polite">Obteniendo ubicación…</Text>}
+        {editable && !testEnv && peek && (
+          <View accessibilityLabel="Lectura de Mi ubicación">
+            <Text style={s.p}>Lectura de «Mi ubicación» (todavía no guardada)</Text>
+            <Text style={s.p}>Lat {peek.latitude.toFixed(6)} · Lon {peek.longitude.toFixed(6)}</Text>
+            <Text style={s.p}>Precisión: {peek.accuracy_m === null ? 'no informada por el dispositivo' : `${Math.round(peek.accuracy_m)} m (informada)`}</Text>
+            <Text style={s.muted}>Adquirida: {fmt(peek.acquired_at)} · hace {ageSeconds(peek, now)} s</Text>
+            <Text style={s.muted}>Procedencia: servicio de ubicación del dispositivo (no se afirma GPS){peek.mocked ? ' · el sistema la marcó como simulada' : ''}</Text>
+            {qualityNotice(qualityOf(peek.accuracy_m)) && <Notice tone="review">{qualityNotice(qualityOf(peek.accuracy_m))!}</Notice>}
+            {!isFresh(peek, now) && <Notice tone="review">La lectura tiene más de {FRESH_MAX_AGE_S} s. Pulsa «Mi ubicación» otra vez antes de usarla.</Notice>}
+            <Text style={s.muted}>Esta app no muestra mapa: la ubicación se ofrece como coordenadas y precisión. La precisión es la de esta lectura.</Text>
+            <Button label={draft.location ? 'Reemplazar la ubicación del borrador con esta lectura' : 'Usar esta ubicación en el borrador'} onPress={() => void useReading()} disabled={busy || !isFresh(peek, now)} />
+            <Button kind="secondary" label="Descartar la lectura" onPress={() => setPeek(null)} disabled={busy} />
+          </View>
+        )}
       </Card>
       <Card title="Fotos">
         {draft.photos.length === 0 ? <Text style={s.muted}>Sin fotos.</Text> : draft.photos.map((p) => (
