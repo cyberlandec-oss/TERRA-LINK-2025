@@ -135,7 +135,7 @@ describeDb('Barrido de la superficie HTTP (QA-01/QA-02)', () => {
     expect(exitosas).toBeGreaterThan(20);
   }, 300_000);
 
-  it('SIN EFECTOS: las escrituras denegadas (otra organización, plataforma y rol de solo lectura) no cambian ninguna tabla salvo la bitácora', async () => {
+  it('CONTEOS: las escrituras denegadas (otra organización, plataforma y rol de solo lectura) no alteran el número de filas de ninguna tabla salvo la bitácora (no prueba que el contenido sea idéntico)', async () => {
     const conteos = async () => {
       const tablas = await sql<{ table_name: string }>`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> 'kysely_migration' AND table_name <> 'kysely_migration_lock' ORDER BY 1`.execute(h.db);
       const out: Record<string, number> = {};
