@@ -431,7 +431,7 @@ describeDb('P0-028 satélite: contrato, desenlaces y candados', () => {
     beforeAll(() => { tls = new TlsFixture(); });
     afterAll(() => tls?.close());
 
-    async function trabajo() {
+    async function trabajo(extra: Record<string, unknown> = {}) {
       const cipher = new PiiCipher(h.config.pii);
       const uid = (await h.db.selectFrom('users').select('id').where('email', '=', ADMIN).executeTakeFirstOrThrow()).id;
       const version = await h.db.selectFrom('plot_versions').select(['id', 'geometry_hash', 'geometry_type'])
@@ -443,16 +443,16 @@ describeDb('P0-028 satélite: contrato, desenlaces y candados', () => {
       await h.db.insertInto('satellite_jobs').values({
         id, organization_id: orgA, plot_id: plotA, plot_version_id: version.id, geometry_hash: version.geometry_hash!, geometry_type: version.geometry_type as 'POLYGON',
         provider_code: 'WHISP', provider_kind: 'EXTERNAL_HTTP', adapter_contract_version: 'TL_SAT_ADAPTER 0.1.0', operation: 'FOREST_COVER',
-        request_fingerprint: randomUUID().replace(/-/g, '').padEnd(64, '0'), status: 'REQUESTED', requested_by: uid, operation_id: randomUUID(),
-      }).execute();
+        request_fingerprint: randomUUID().replace(/-/g, '').padEnd(64, '0'), status: 'REQUESTED', requested_by: uid, operation_id: randomUUID(), ...extra,
+      } as never).execute();
       return { id, cipher };
     }
-    async function correr(responder: Parameters<TlsFixture['listen']>[0]) {
+    async function correr(responder: Parameters<TlsFixture['listen']>[0], extra: Record<string, unknown> = {}) {
       const srv = await tls.listen(responder);
       const previo = await h.db.selectFrom('satellite_providers').select('allowed_hosts').where('code', '=', 'WHISP').executeTakeFirstOrThrow();
       await sql`UPDATE satellite_providers SET allowed_hosts = ${[`destino.prueba.local:${srv.port}`]} WHERE code = 'WHISP'`.execute(h.db);
       try {
-        const { id, cipher } = await trabajo();
+        const { id, cipher } = await trabajo(extra);
         const whisp = new WhispSatelliteProvider({ liveCalls: true, baseUrl: `https://destino.prueba.local:${srv.port}`, ca: tls.ca, lookup: loopbackLookup, timeoutMs: 4000, pollMs: 1, maxPolls: 5, sleep: async () => undefined } as never);
         await new SatelliteRunner(h.db, [whisp], { cipher, store: almacen }, { maxAttempts: 1, backoffBaseMs: 1 }).runOnce();
         return { id, srv };
@@ -499,6 +499,88 @@ describeDb('P0-028 satélite: contrato, desenlaces y candados', () => {
       expect(resultados).toHaveLength(0);
       const r = await http().get(`${org()}/satellite/analyses/${id}`).set(as(ADMIN)).expect(200);
       expect(r.body.result).toBeNull();
+    });
+
+    // ------------------------------------------------------------ AJ-06: avance, reanudación, cancelación y credencial por organización
+    const completo = { code: 'analysis_completed', message: 'ok', data: { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: null, properties: props }] } };
+
+    it('el avance declarado por el proveedor queda en el trabajo y se ve por la API; el identificador del trabajo del proveedor NO se expone', async () => {
+      let n = 0;
+      const { id } = await correr((r, res) => {
+        if (r.url === '/api/config') return json(res, 200, CONFIG);
+        if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'tk-prog' } });
+        if (r.url === '/api/status/tk-prog') return ++n < 3 ? json(res, 202, { code: 'analysis_processing', message: 'p', data: { token: 'tk-prog', percent: 60, processStatusMessage: ['procesando'] } }) : json(res, 200, completo);
+        return json(res, 404, { code: 'x' });
+      });
+      const row = await jobRow(id);
+      expect(row).toMatchObject({ status: 'COMPLETED', provider_job_ref: 'tk-prog', provider_progress_percent: 60, provider_progress_note: 'procesando' });
+      const v = await http().get(`${org()}/satellite/analyses/${id}`).set(as(ADMIN)).expect(200);
+      expect(v.body.progress).toMatchObject({ percent: 60, note: 'procesando' });
+      expect(v.body.provider_job_started).toBe(true);
+      expect(JSON.stringify(v.body)).not.toContain('tk-prog');
+    });
+
+    it('un reintento con el identificador guardado retoma la consulta y NO vuelve a enviar la geometría', async () => {
+      const { id, srv } = await correr((r, res) => {
+        if (r.url === '/api/config') return json(res, 200, CONFIG);
+        if (r.url === '/api/status/tk-viejo') return json(res, 200, completo);
+        return json(res, 404, { code: 'x' });
+      }, { provider_job_ref: 'tk-viejo' });
+      expect(await jobRow(id)).toMatchObject({ status: 'COMPLETED', outcome: 'RESULT_AVAILABLE' });
+      expect(srv.recibidas.map((x) => x.url)).not.toContain('/api/submit/geojson');
+    });
+
+    it('cancelar un trabajo en curso registra la petición (con su responsable) y el corredor lo cancela también en el proveedor', async () => {
+      const uid = (await h.db.selectFrom('users').select('id').where('email', '=', ADMIN).executeTakeFirstOrThrow()).id;
+      // Trabajo ya iniciado (RUNNING, arrendamiento vigente): la API solo registra la petición.
+      const vivo = await trabajo({ status: 'RUNNING', locked_by: 'otro', lease_token: randomUUID(), locked_until: new Date(Date.now() + 600_000), provider_job_ref: 'tk-vivo' });
+      const c = await http().post(`${org()}/satellite/analyses/${vivo.id}/cancel`).set(as(ADMIN)).send({ operation_id: randomUUID(), reason: 'Ya no se necesita' }).expect(201);
+      expect(c.body).toMatchObject({ status: 'RUNNING', cancel_requested: { reason: 'Ya no se necesita' } });
+      expect(await jobRow(vivo.id)).toMatchObject({ cancel_requested_by: uid });
+      // Repetirla no duplica ni falla.
+      await http().post(`${org()}/satellite/analyses/${vivo.id}/cancel`).set(as(ADMIN)).send({ operation_id: randomUUID(), reason: 'Otra vez' }).expect(201);
+      // El corredor atiende una cancelación pedida: trabajo vencido con petición de cancelar → se cancela en el proveedor.
+      const { id, srv } = await correr((r, res) => {
+        if (r.url === '/api/config') return json(res, 200, CONFIG);
+        if (r.url === '/api/status/tk-cancel/cancel') return json(res, 200, { code: 'analysis_cancelled', message: 'c' });
+        if (r.url === '/api/status/tk-cancel') return json(res, 202, { code: 'analysis_processing', message: 'p', data: { token: 'tk-cancel', percent: 5 } });
+        return json(res, 404, { code: 'x' });
+      }, { status: 'RUNNING', locked_by: 'muerto', lease_token: randomUUID(), locked_until: new Date(Date.now() - 1000), provider_job_ref: 'tk-cancel', cancel_requested_at: new Date(), cancel_requested_by: uid, cancel_reason: 'prueba' });
+      expect(await jobRow(id)).toMatchObject({ status: 'CANCELLED', outcome: 'CANCELLED' });
+      expect(srv.recibidas.some((x) => x.url === '/api/status/tk-cancel/cancel' && x.method === 'POST')).toBe(true);
+      expect((await h.db.selectFrom('satellite_results').select('id').where('job_id', '=', id).execute())).toHaveLength(0);
+    });
+
+    it('credencial por organización: la registra quien administra integraciones, se cifra con su contexto, no se devuelve y no cruza organizaciones', async () => {
+      const secreto = 'clave-sintetica-registro-0042';
+      const lista0 = await http().get(`${org()}/satellite/credentials`).set(as(ADMIN)).expect(200);
+      expect(lista0.body.providers.map((p: { provider_code: string }) => p.provider_code)).toEqual(expect.arrayContaining(['WHISP']));
+      expect(lista0.body.providers.map((p: { provider_code: string }) => p.provider_code)).not.toContain('FIXTURE_SYNTHETIC');
+      await h.db.deleteFrom('satellite_credentials').where('organization_id', '=', orgA).where('provider_code', '=', 'WHISP').execute();
+      const put = await http().put(`${org()}/satellite/credentials/WHISP`).set(as(ADMIN)).send({ secret: secreto }).expect(200);
+      expect(put.body.providers.find((p: { provider_code: string }) => p.provider_code === 'WHISP')).toMatchObject({ configured: true });
+      expect(JSON.stringify(put.body)).not.toContain(secreto);
+      const fila = await h.db.selectFrom('satellite_credentials').selectAll().where('organization_id', '=', orgA).where('provider_code', '=', 'WHISP').executeTakeFirstOrThrow();
+      expect(fila.secret_ciphertext).not.toContain(secreto);
+      const cipher = new PiiCipher(h.config.pii);
+      expect(cipher.decrypt(fila.secret_ciphertext, `satellite_credentials:${orgA}:WHISP`)).toBe(secreto);
+      expect(() => cipher.decrypt(fila.secret_ciphertext, `satellite_credentials:${orgB}:WHISP`)).toThrow();   // otra organización no la descifra
+      // Rotarla conserva una sola fila y marca la rotación.
+      await http().put(`${org()}/satellite/credentials/WHISP`).set(as(ADMIN)).send({ secret: 'otra-clave-sintetica-0043' }).expect(200);
+      expect((await h.db.selectFrom('satellite_credentials').select('rotated_at').where('organization_id', '=', orgA).execute())[0].rotated_at).not.toBeNull();
+      // Auditoría sin el valor.
+      const aud = await h.db.selectFrom('audit_logs').selectAll().where('organization_id', '=', orgA).where('entity_type', '=', 'satellite_credential').execute();
+      expect(aud.map((x) => x.action)).toEqual(expect.arrayContaining(['satellite.credential_registered', 'satellite.credential_rotated']));
+      expect(JSON.stringify(aud)).not.toContain('clave-sintetica');
+      // Permisos y límites.
+      await http().put(`${org()}/satellite/credentials/WHISP`).set(as('auditor@test.local')).send({ secret: secreto }).expect(403);
+      await http().put(`${org()}/satellite/credentials/WHISP`).set(as('calidad@test.local')).send({ secret: secreto }).expect(403);
+      await http().put(`${org()}/satellite/credentials/WHISP`).set(as('admin-b@test.local')).send({ secret: secreto }).expect(404);   // otra organización no existe aquí
+      await http().put(`${org()}/satellite/credentials/FIXTURE_SYNTHETIC`).set(as(ADMIN)).send({ secret: secreto }).expect(422);
+      await http().put(`${org()}/satellite/credentials/NO_EXISTE`).set(as(ADMIN)).send({ secret: secreto }).expect(404);
+      await http().put(`${org()}/satellite/credentials/WHISP`).set(as(ADMIN)).send({ secret: 'corta' }).expect(400);
+      const del = await http().delete(`${org()}/satellite/credentials/WHISP`).set(as(ADMIN)).expect(200);
+      expect(del.body.providers.find((p: { provider_code: string }) => p.provider_code === 'WHISP')).toMatchObject({ configured: false });
     });
   });
 });

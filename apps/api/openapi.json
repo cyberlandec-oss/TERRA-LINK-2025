@@ -12108,6 +12108,114 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/satellite/credentials": {
+      "get": {
+        "operationId": "SatelliteController_credentials",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "satellite"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/satellite/credentials/{providerCode}": {
+      "put": {
+        "operationId": "SatelliteController_setCredential",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "providerCode",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetCredentialDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "satellite"
+        ]
+      },
+      "delete": {
+        "operationId": "SatelliteController_deleteCredential",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "providerCode",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "satellite"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/satellite/analyses/{jobId}/cancel": {
       "post": {
         "operationId": "SatelliteController_cancel",
@@ -15886,6 +15994,18 @@
         "required": [
           "operation_id",
           "operation"
+        ]
+      },
+      "SetCredentialDto": {
+        "type": "object",
+        "properties": {
+          "secret": {
+            "type": "string",
+            "description": "Clave de API del proveedor. Se cifra al guardarla y nunca se devuelve."
+          }
+        },
+        "required": [
+          "secret"
         ]
       },
       "CancelAnalysisDto": {

@@ -68,6 +68,7 @@ import * as m0063 from './migrations/0063_geo_configuracion_reglas_versionadas';
 import * as m0064 from './migrations/0064_d076_conclusion_humana';
 import * as m0065 from './migrations/0065_d076_carencias_conclusion_favorable';
 import * as m0066 from './migrations/0066_tipos_documentales_ambiente_trabajo_terceros';
+import * as m0067 from './migrations/0067_satellite_progreso_reanudacion_cancelacion';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -137,6 +138,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0064_d076_conclusion_humana': m0064,
   '0065_d076_carencias_conclusion_favorable': m0065,
   '0066_tipos_documentales_ambiente_trabajo_terceros': m0066,
+  '0067_satellite_progreso_reanudacion_cancelacion': m0067,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

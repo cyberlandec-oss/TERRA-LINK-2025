@@ -74,6 +74,7 @@ const tokenOf = (p: Json): string | null => (isObj(p.data) && typeof p.data.toke
 function outcomeFromResponse(status: number, body: Json | null): ProviderOutcome | null {
   if (status < 400) return null;
   const code = body && typeof body.code === 'string' ? body.code : '';
+  if (code === NOT_FOUND) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_JOB_NOT_FOUND', note: 'El proveedor no reconoce el trabajo enviado (sus resultados son temporales).' };
   if (status === 408 || code === TIMEOUT) return { kind: 'TIMEOUT', errorCode: 'PROVIDER_ANALYSIS_TIMEOUT', note: 'El proveedor declaró que su análisis venció por plazo. Sin resultado: no evaluable.' };
   if (status === 400 || status === 413 || status === 422) {
     if (code.startsWith('validation_')) return { kind: 'GEOMETRY_UNSUPPORTED', errorCode: `PROVIDER_${code.toUpperCase()}`.slice(0, 80), note: 'El proveedor rechazó la geometría enviada según su validación. Sin resultado: no evaluable.' };
@@ -93,7 +94,7 @@ export class WhispSatelliteProvider implements SatelliteProviderPort {
       timeoutMs: options.timeoutMs ?? 90_000,
       maxBytes: options.maxBytes ?? 8 * 1024 * 1024,
       pollMs: options.pollMs ?? 3000,
-      maxPolls: options.maxPolls ?? 40,
+      maxPolls: options.maxPolls ?? 200,
       ...options,
     };
   }
@@ -148,38 +149,59 @@ export class WhispSatelliteProvider implements SatelliteProviderPort {
         return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_CONFIG_UNREADABLE', note: 'La configuración publicada por el proveedor no es legible según el contrato.' };
       }
 
-      // 3) Una geometría por trabajo: entra en el límite síncrono del proveedor (≥ 1 en todo el contrato).
-      const feature = { type: 'Feature', properties: {}, geometry: req.geometry };
-      const body = JSON.stringify({ type: 'FeatureCollection', features: [feature], analysisOptions: { async: false } });
-      const sizeKb = Buffer.byteLength(body, 'utf8') / 1024;
-      if (cfg.maxRequestBodySizeKb !== null && sizeKb > cfg.maxRequestBodySizeKb) {
-        return { kind: 'GEOMETRY_UNSUPPORTED', errorCode: 'REQUEST_TOO_LARGE_FOR_PROVIDER',
-          note: `La geometría supera el tamaño máximo que el proveedor declara (${cfg.maxRequestBodySizeKb} KB).` };
-      }
+      let token: string | null = req.resumeJobRef ?? null;
+      let payload: Json | null = null;
+      let raw: Buffer | null = null;
+      let first: Json | null = null;
 
-      // 4) Envío.
-      const submit = await this.call(req, '/api/submit/geojson', { method: 'POST', body, auth: true });
-      const first = this.parseJson(submit.body);
-      const bySubmit = outcomeFromResponse(submit.status, first);
-      if (bySubmit) return bySubmit;
-      if (!first) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_RESPONSE_NOT_JSON', note: 'La respuesta del proveedor no es JSON conforme al contrato.' };
-
-      let payload: Json = first;
-      let raw: Buffer = submit.body;
-
-      // 5) Trabajo asíncrono: 202 con `token`. Se sondea `/api/status/{token}` según el contrato.
-      if (submit.status === 202 || (tokenOf(first) && !isFeatureCollection(first.data))) {
-        const token = tokenOf(first);
-        if (!token) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_TOKEN_MISSING', note: 'El proveedor aceptó el trabajo sin devolver el identificador que exige su contrato.' };
+      // 3) Reintento de un trabajo ya enviado: se retoma su consulta SIN volver a enviar la geometría. Si el proveedor ya no lo reconoce
+      //    (sus resultados son temporales), se envía de nuevo y queda dicho en el avance.
+      if (token) {
         const polled = await this.poll(req, token, secrets);
-        if ('kind' in polled) return polled;
-        payload = polled.payload;
-        raw = polled.raw;
+        if ('kind' in polled) {
+          if (polled.kind === 'RESULT' || polled.errorCode !== 'PROVIDER_JOB_NOT_FOUND') return polled;
+          token = null;
+        } else {
+          payload = polled.payload;
+          raw = polled.raw;
+        }
       }
 
-      // 6) Resultado. Si el estado terminó sin traer `data`, se descarga por el endpoint publicado para eso.
+      if (!payload) {
+        // 4) Una geometría por trabajo. Se pide trabajo ASÍNCRONO: es el único con avance consultable, identificador reanudable y cancelación.
+        const feature = { type: 'Feature', properties: {}, geometry: req.geometry };
+        const body = JSON.stringify({ type: 'FeatureCollection', features: [feature], analysisOptions: { async: true } });
+        const sizeKb = Buffer.byteLength(body, 'utf8') / 1024;
+        if (cfg.maxRequestBodySizeKb !== null && sizeKb > cfg.maxRequestBodySizeKb) {
+          return { kind: 'GEOMETRY_UNSUPPORTED', errorCode: 'REQUEST_TOO_LARGE_FOR_PROVIDER',
+            note: `La geometría supera el tamaño máximo que el proveedor declara (${cfg.maxRequestBodySizeKb} KB).` };
+        }
+
+        // 5) Envío.
+        const submit = await this.call(req, '/api/submit/geojson', { method: 'POST', body, auth: true });
+        first = this.parseJson(submit.body);
+        const bySubmit = outcomeFromResponse(submit.status, first);
+        if (bySubmit) return bySubmit;
+        if (!first) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_RESPONSE_NOT_JSON', note: 'La respuesta del proveedor no es JSON conforme al contrato.' };
+
+        payload = first;
+        raw = submit.body;
+
+        // 6) Trabajo asíncrono: 202 con `data.token`. Se conserva el identificador y se sondea `/api/status/{token}` según el contrato.
+        if (submit.status === 202 || (tokenOf(first) && !isFeatureCollection(first.data))) {
+          token = tokenOf(first);
+          if (!token) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_TOKEN_MISSING', note: 'El proveedor aceptó el trabajo sin devolver el identificador que exige su contrato.' };
+          await req.hooks?.onSubmitted(token);
+          const polled = await this.poll(req, token, secrets);
+          if ('kind' in polled) return polled;
+          payload = polled.payload;
+          raw = polled.raw;
+        }
+      }
+
+      // 7) Resultado. Si el estado terminó sin traer `data`, se descarga por el endpoint publicado para eso.
       if (!isFeatureCollection(payload.data)) {
-        const token = tokenOf(payload) ?? tokenOf(first);
+        token = token ?? tokenOf(payload) ?? (first ? tokenOf(first) : null);
         if (!token) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_RESULT_MISSING', note: 'El proveedor terminó el trabajo sin entregar resultado ni identificador de descarga.' };
         // La descarga pasa por la MISMA política de salida: mismo host de la lista blanca, sin seguir redirecciones.
         const dl = await this.call(req, `/api/generate-geojson/${encodeURIComponent(token)}`);
@@ -191,7 +213,7 @@ export class WhispSatelliteProvider implements SatelliteProviderPort {
         raw = dl.body;
       }
 
-      return this.toResult(payload, cfg, raw);
+      return this.toResult(payload, cfg, raw!);
     } catch (err) {
       return outcomeFromError(err, secrets);
     }
@@ -200,7 +222,14 @@ export class WhispSatelliteProvider implements SatelliteProviderPort {
   /** Sondeo acotado del trabajo asíncrono, con los códigos del contrato. */
   private async poll(req: AnalysisRequest, token: string, secrets: readonly string[]): Promise<{ payload: Json; raw: Buffer } | ProviderOutcome> {
     const sleep = this.o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+    let cancelTried = 0;
     for (let i = 0; i < this.o.maxPolls; i++) {
+      // Cancelación pedida por la organización: se cancela el trabajo EN EL PROVEEDOR (POST /api/status/{token}/cancel). Si ya terminó (409), se sigue y se recoge su resultado.
+      if (cancelTried < 3 && req.hooks && (await req.hooks.cancelRequested())) {
+        cancelTried++;
+        const c = await this.call(req, `/api/status/${encodeURIComponent(token)}/cancel`, { method: 'POST', auth: true });
+        if (c.status === 200 || c.status === 404) return { kind: 'CANCELLED', errorCode: 'CANCELLED_AT_PROVIDER', note: 'La organización canceló el análisis y el proveedor confirmó la cancelación: sin resultado.' };
+      }
       const res = await this.call(req, `/api/status/${encodeURIComponent(token)}`, { auth: true });
       const payload = this.parseJson(res.body);
       const byStatus = outcomeFromResponse(res.status, payload);
@@ -212,6 +241,11 @@ export class WhispSatelliteProvider implements SatelliteProviderPort {
       if (code === ERROR) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_ANALYSIS_ERROR', note: redact('El proveedor declaró un error en el análisis.', secrets) };
       if (code === NOT_FOUND) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_JOB_NOT_FOUND', note: 'El proveedor no reconoce el trabajo enviado.' };
       if (!IN_PROGRESS.includes(code)) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_STATUS_UNKNOWN', note: 'El proveedor devolvió un estado que no está en su contrato.' };
+      // Avance DECLARADO por el proveedor (porcentaje solo si lo informó; nunca se inventa uno).
+      const d = isObj(payload.data) ? payload.data : {};
+      const percent = typeof d.percent === 'number' && d.percent >= 0 && d.percent <= 100 ? Math.round(d.percent) : null;
+      const msgs = asArray(d.processStatusMessage ?? d.processStatusMessages).filter((x): x is string => typeof x === 'string');
+      await req.hooks?.onProgress({ percent, message: msgs.length ? msgs[msgs.length - 1].slice(0, 200) : (code === 'analysis_queued' ? 'En cola en el proveedor' : null) });
       await sleep(this.o.pollMs);
     }
     return { kind: 'TIMEOUT', errorCode: 'PROVIDER_POLL_EXHAUSTED', note: 'El trabajo seguía en proceso tras el número máximo de consultas. Sin resultado: no evaluable.' };

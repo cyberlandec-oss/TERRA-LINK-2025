@@ -831,6 +831,9 @@ export interface SatelliteJobsTable {
   status: SatelliteJobStatus; outcome: SatelliteOutcome | null; attempts: Generated<number>; locked_by: string | null;
   locked_until: Timestamp | null; lease_token: string | null; next_attempt_at: ColumnType<Date, Date | string | undefined, Date | string>; last_error_code: string | null;
   requested_by: string; requested_at: Generated<Timestamp>; finished_at: Timestamp | null; operation_id: string;
+  // 0067: trabajo en el proveedor, avance declarado y cancelación pedida.
+  provider_job_ref: string | null; provider_progress_percent: number | null; provider_progress_note: string | null; provider_progress_at: Timestamp | null;
+  cancel_requested_at: Timestamp | null; cancel_requested_by: string | null; cancel_reason: string | null;
 }
 export interface SatelliteResultsTable {
   id: string; organization_id: string; job_id: string; provider_code: string; is_synthetic: boolean;

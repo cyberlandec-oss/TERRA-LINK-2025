@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Put, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsISO8601, IsOptional, IsUUID, Length } from 'class-validator';
+import { IsIn, IsISO8601, IsOptional, IsString, IsUUID, Length, MaxLength, MinLength } from 'class-validator';
 import { randomUUID } from 'crypto';
 import { sql, type Kysely, type Transaction } from 'kysely';
 import { DB } from '../db/database';
@@ -11,6 +11,7 @@ import { AuthorizationService, type TenantContext } from '../authz/authorization
 import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { EVENT_STORE, type EventStore } from '../events/events';
 import { PlotsService } from '../plots/plots';
+import { PII_CIPHER, type PiiCipher } from '../crypto/pii';
 import { ADAPTER_CONTRACT_VERSION, FIXTURE_SCENARIOS, OPERATIONS, requestFingerprint, type FixtureScenario } from './provider';
 import { liveCallsEnabled } from './runner';
 import { DEVELOPMENT_ONLY_NOTE } from './whisp';
@@ -72,6 +73,14 @@ export class CancelAnalysisDto {
   reason!: string;
 }
 
+export class SetCredentialDto {
+  @ApiProperty({ description: 'Clave de API del proveedor. Se cifra al guardarla y nunca se devuelve.' })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(512)
+  secret!: string;
+}
+
 type Db = Kysely<Database> | Transaction<Database>;
 
 /** Lectura legible de cada desenlace: ninguno es favorable (contrato §4). */
@@ -97,6 +106,7 @@ export class SatelliteService {
     private readonly authz: AuthorizationService,
     private readonly audit: AuditService,
     private readonly plots: PlotsService,
+    @Inject(PII_CIPHER) private readonly cipher: PiiCipher,
   ) {}
 
   private async ctxFor(user: AuthUser, orgId: string, perm: string) {
@@ -232,6 +242,20 @@ export class SatelliteService {
     const job = await this.db.selectFrom('satellite_jobs').selectAll().where('organization_id', '=', orgId).where('id', '=', jobId).executeTakeFirst();
     if (!job) throw notFound();
     await this.plots.load(this.db, ctx, job.plot_id, 'read');
+    // Un trabajo YA INICIADO no se detiene a la fuerza desde la petición: se registra la petición y el corredor la atiende en su siguiente consulta,
+    // cancelando también el trabajo en el proveedor. Hasta entonces el trabajo sigue «En proceso» con la cancelación pedida a la vista.
+    if (job.status === 'RUNNING') {
+      if (!job.cancel_requested_at) {
+        await this.db.transaction().execute(async (trx) => {
+          const r = await trx.updateTable('satellite_jobs')
+            .set({ cancel_requested_at: new Date(), cancel_requested_by: user.id, cancel_reason: dto.reason })
+            .where('id', '=', jobId).where('status', '=', 'RUNNING').where('cancel_requested_at', 'is', null).executeTakeFirst();
+          if (Number(r.numUpdatedRows) !== 1) return;
+          await this.audit.record(trx, { organizationId: orgId, actorUserId: user.id, action: 'satellite.cancel_requested', entityType: 'satellite_job', entityId: jobId, requestId, result: 'SUCCESS', reason: dto.reason });
+        });
+      }
+      return await this.jobView(this.db, ctx, jobId);
+    }
     if (job.status !== 'REQUESTED') throw conflict('SATELLITE_JOB_NOT_CANCELLABLE', `El trabajo está en estado ${job.status}: ya no se cancela.`);
     await this.db.transaction().execute(async (trx) => {
       const r = await trx.updateTable('satellite_jobs')
@@ -241,6 +265,56 @@ export class SatelliteService {
       await this.audit.record(trx, { organizationId: orgId, actorUserId: user.id, action: 'satellite.cancel', entityType: 'satellite_job', entityId: jobId, requestId, result: 'SUCCESS', reason: dto.reason });
     });
     return await this.jobView(this.db, ctx, jobId);
+  }
+
+  // ------------------------------------------------------------------ credencial del proveedor por organización
+  // La clave la registra quien administra las integraciones de la organización (`integration:manage`). Se CIFRA con el contexto
+  // `satellite_credentials:{org}:{proveedor}` (la de otra organización no descifra con este contexto) y NUNCA se devuelve ni se audita su valor.
+
+  private async externalProvider(code: string) {
+    const p = await this.db.selectFrom('satellite_providers').select(['code', 'kind']).where('code', '=', code).executeTakeFirst();
+    if (!p) throw notFound();
+    if (p.kind !== 'EXTERNAL_HTTP') throw new AppError(422, 'PROVIDER_WITHOUT_CREDENTIAL', 'Ese proveedor no usa credencial: no es un servicio externo.');
+    return p;
+  }
+
+  async credentials(user: AuthUser, orgId: string) {
+    await this.authz.require(user, orgId, 'integration:read', { mutation: false });
+    const providers = await this.db.selectFrom('satellite_providers').select(['code', 'name']).where('kind', '=', 'EXTERNAL_HTTP').orderBy('code').execute();
+    const rows = await this.db.selectFrom('satellite_credentials').select(['provider_code', 'created_at', 'rotated_at']).where('organization_id', '=', orgId).execute();
+    return {
+      providers: providers.map((p) => {
+        const c = rows.find((r) => r.provider_code === p.code);
+        return { provider_code: p.code, name: p.name, configured: !!c, registered_at: c?.created_at ?? null, rotated_at: c?.rotated_at ?? null };
+      }),
+      note: 'La clave se guarda cifrada y no se vuelve a mostrar. Registrarla no activa llamadas reales: eso depende además del interruptor de la plataforma y de la selección del proveedor.',
+    };
+  }
+
+  async setCredential(user: AuthUser, orgId: string, providerCode: string, dto: SetCredentialDto, requestId?: string) {
+    await this.authz.require(user, orgId, 'integration:manage', { mutation: true });
+    await this.externalProvider(providerCode);
+    const cipher = this.cipher.encrypt(dto.secret.trim(), `satellite_credentials:${orgId}:${providerCode}`);
+    await this.db.transaction().execute(async (trx) => {
+      const prior = await trx.selectFrom('satellite_credentials').select('provider_code').where('organization_id', '=', orgId).where('provider_code', '=', providerCode).executeTakeFirst();
+      if (prior) {
+        await trx.updateTable('satellite_credentials').set({ secret_ciphertext: cipher, rotated_at: new Date() }).where('organization_id', '=', orgId).where('provider_code', '=', providerCode).execute();
+      } else {
+        await trx.insertInto('satellite_credentials').values({ organization_id: orgId, provider_code: providerCode, secret_ciphertext: cipher, created_by: user.id }).execute();
+      }
+      await this.audit.record(trx, { organizationId: orgId, actorUserId: user.id, action: prior ? 'satellite.credential_rotated' : 'satellite.credential_registered', entityType: 'satellite_credential', entityId: null, requestId, result: 'SUCCESS', after: { provider_code: providerCode } });
+    });
+    return await this.credentials(user, orgId);
+  }
+
+  async deleteCredential(user: AuthUser, orgId: string, providerCode: string, requestId?: string) {
+    await this.authz.require(user, orgId, 'integration:manage', { mutation: true });
+    await this.externalProvider(providerCode);
+    await this.db.transaction().execute(async (trx) => {
+      const r = await trx.deleteFrom('satellite_credentials').where('organization_id', '=', orgId).where('provider_code', '=', providerCode).executeTakeFirst();
+      if (Number(r.numDeletedRows) === 1) await this.audit.record(trx, { organizationId: orgId, actorUserId: user.id, action: 'satellite.credential_removed', entityType: 'satellite_credential', entityId: null, requestId, result: 'SUCCESS', after: { provider_code: providerCode } });
+    });
+    return await this.credentials(user, orgId);
   }
 
   /** S1 §52 `GET /plots/{id}/satellite`: estado del análisis de una parcela, con sus límites escritos. */
@@ -318,6 +392,10 @@ export class SatelliteService {
       outcome_note: j.outcome ? OUTCOME_NOTES[j.outcome] : 'Encargo aceptado; el análisis se ejecuta fuera de esta petición (S1 §54).',
       attempts: j.attempts,
       error_code: j.last_error_code,
+      // Avance DECLARADO por el proveedor (no inventado); el identificador del trabajo en el proveedor no se expone.
+      progress: j.provider_progress_at ? { percent: j.provider_progress_percent, note: j.provider_progress_note, at: j.provider_progress_at } : null,
+      provider_job_started: j.provider_job_ref !== null,
+      cancel_requested: j.cancel_requested_at ? { at: j.cancel_requested_at, reason: j.cancel_reason } : null,
       requested_at: j.requested_at,
       finished_at: j.finished_at,
       result: result
@@ -369,6 +447,21 @@ export class SatelliteController {
   @Get('satellite/analyses/:jobId')
   job(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('jobId', ParseUUIDPipe) jobId: string) {
     return this.service.job(user, orgId, jobId);
+  }
+
+  @Get('satellite/credentials')
+  credentials(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string) {
+    return this.service.credentials(user, orgId);
+  }
+
+  @Put('satellite/credentials/:providerCode')
+  setCredential(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('providerCode') providerCode: string, @Body() dto: SetCredentialDto, @Req() req: AuthedRequest) {
+    return this.service.setCredential(user, orgId, providerCode, dto, req.requestId);
+  }
+
+  @Delete('satellite/credentials/:providerCode')
+  deleteCredential(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('providerCode') providerCode: string, @Req() req: AuthedRequest) {
+    return this.service.deleteCredential(user, orgId, providerCode, req.requestId);
   }
 
   @Post('satellite/analyses/:jobId/cancel')

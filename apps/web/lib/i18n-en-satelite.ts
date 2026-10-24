@@ -20,4 +20,10 @@ export const EN_SATELITE: Record<string, string> = {
   'Ensayo con fixture sintética: respuesta inventada para probar el recorrido. No observa la parcela.': 'Trial with a synthetic fixture: an invented response to test the flow. It does not observe the plot.',
   'Consulta real al proveedor: la geometría exacta se envía al servicio y su respuesta se interpreta solo como datos del proveedor.': 'Real provider query: the exact geometry is sent to the service and its response is read only as provider data.',
   'Resultado guardado: copia en Terra Link con la versión geométrica, el proveedor, la fecha y la respuesta original; se puede consultar después. Un error o un análisis no ejecutado nunca equivale a «sin deforestación».': 'Saved result: a copy in Terra Link with the geometry version, provider, date and original response; it can be consulted later. An error or a non-executed analysis never means "no deforestation".',
+  'Avance informado por el proveedor': 'Progress reported by the provider',
+  'sin porcentaje': 'no percentage',
+  'En cola en Terra Link: todavía no se envió al proveedor.': 'Queued in Terra Link: not sent to the provider yet.',
+  'Enviado al proveedor: todavía no informó avance.': 'Sent to the provider: no progress reported yet.',
+  'Cancelación solicitada el {f}: se confirmará cuando el proveedor la atienda.': 'Cancellation requested on {f}: it will be confirmed when the provider handles it.',
+  'Cancelar este análisis': 'Cancel this analysis',
 };

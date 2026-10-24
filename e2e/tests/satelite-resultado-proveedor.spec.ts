@@ -35,8 +35,8 @@ const resultado = {
   indicators: { Area: 1.2, risk_pcrop: 'more_info_needed', Ind_04_disturbance_after_2020: null, whisp_processing_metadata: { unavailable_datasets: ['RADD_alerts'], processing_timestamp_utc: '2026-06-11 01:59:15+0000' } },
   raw_evidence: { stored: true, sha256: 'd'.repeat(64) }, conclusion: 'NOT_EVALUATED', conclusion_note: 'NOT_EVALUATED',
 };
-const ficha = (jobs: unknown[], analysis_status: string) => ({
-  plot: { id: plotId, plot_code: 'SAT-1', current_version_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }, can_request: false, request_blocked_reason: 'No se encarga en esta prueba.',
+const ficha = (jobs: unknown[], analysis_status: string, can_request = false) => ({
+  plot: { id: plotId, plot_code: 'SAT-1', current_version_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }, can_request, request_blocked_reason: can_request ? null : 'No se encarga en esta prueba.',
   provider_kind: 'EXTERNAL_HTTP', ensayo_mode: false, fixture_scenarios: [], provider_selection: { status: 'SELECTED', provider_code: 'WHISP' }, analysis_status, jobs,
   limits: ['El resultado de un proveedor externo no es una conclusión jurídica (S1 §41).'],
 });
@@ -82,7 +82,11 @@ test('resultado real guardado: origen, fecha declarada y guardada, valores sin i
 });
 
 test('análisis en curso y análisis fallido: ni uno ni otro muestran valores ni se leen como «sin deforestación»', async ({ browser }) => {
-  const enCurso = await abrir(browser, ficha([job({ status: 'RUNNING', outcome: null, outcome_note: 'Encargo aceptado; el análisis se ejecuta fuera de esta petición (S1 §54).', finished_at: null })], 'IN_PROGRESS'));
+  const enCurso = await abrir(browser, ficha([job({ status: 'RUNNING', outcome: null, outcome_note: 'Encargo aceptado; el análisis se ejecuta fuera de esta petición (S1 §54).', finished_at: null,
+    progress: { percent: 42, note: 'procesando', at: '2026-10-23T10:00:30Z' }, provider_job_started: true })], 'IN_PROGRESS', true));
+  await expect(enCurso.page.getByText('Avance informado por el proveedor')).toBeVisible();
+  await expect(enCurso.page.getByText('42 %')).toBeVisible();
+  await expect(enCurso.page.getByRole('button', { name: 'Cancelar este análisis' })).toBeVisible();
   await expect(enCurso.page.getByText('Hay un análisis en curso: esta tarjeta se actualiza sola.')).toBeVisible();
   await expect(enCurso.page.getByText('Análisis en curso').first()).toBeVisible();
   await expect(enCurso.page.getByRole('table', { name: 'Valores devueltos por el proveedor' })).toHaveCount(0);
@@ -95,6 +99,14 @@ test('análisis en curso y análisis fallido: ni uno ni otro muestran valores ni
   await expect(card.getByRole('table')).toHaveCount(0);
   expect(await card.innerText()).not.toMatch(/sin deforestación(?! )|0 hallazgos/i);
   await fallido.ctx.close();
+});
+
+test('cancelación pedida: se muestra como solicitada (no como cancelada) hasta que el proveedor la atienda; sin avance dice que aún no informó', async ({ browser }) => {
+  const { ctx, page } = await abrir(browser, ficha([job({ status: 'RUNNING', outcome: null, finished_at: null, progress: null, provider_job_started: true, cancel_requested: { at: '2026-10-23T10:02:00Z', reason: 'x' } })], 'IN_PROGRESS', true));
+  await expect(page.getByText(/Cancelación solicitada el .*se confirmará cuando el proveedor la atienda/)).toBeVisible();
+  await expect(page.getByText('Enviado al proveedor: todavía no informó avance.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Cancelar este análisis' })).toHaveCount(0);
+  await ctx.close();
 });
 
 test('inglés: la procedencia y los valores del proveedor se traducen', async ({ browser }) => {

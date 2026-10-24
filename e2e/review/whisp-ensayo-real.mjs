@@ -22,10 +22,10 @@ if (!process.env.WHISP_API_KEY) {
 const BASE = process.env.WHISP_BASE_URL ?? 'https://whisp.openforis.org';
 // Cuadrado de ~100 m ARTIFICIAL (no corresponde a ninguna parcela ni persona); en una zona agrícola cacaotera de Ecuador para que el análisis sea representativo.
 const GEOMETRIA = { type: 'Polygon', coordinates: [[[-79.4000, -1.0000], [-79.3991, -1.0000], [-79.3991, -0.9991], [-79.4000, -0.9991], [-79.4000, -1.0000]]] };
-const cuerpo = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: GEOMETRIA }], analysisOptions: { async: false } };
+const cuerpo = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: GEOMETRIA }], analysisOptions: { async: true } };
 
 if (process.argv.includes('--simular')) {
-  console.log(`SIMULACIÓN (sin red). Destino: ${BASE}\n  GET  /api/config\n  POST /api/submit/geojson  (cabecera x-api-key)\n  [si 202] GET /api/status/{data.token} hasta analysis_completed\n  [si el resultado no viene] GET /api/generate-geojson/{data.token}\nCuerpo:\n${JSON.stringify(cuerpo, null, 1)}`);
+  console.log(`SIMULACIÓN (sin red). Destino: ${BASE}\n  GET  /api/config\n  POST /api/submit/geojson  (cabecera x-api-key)\n  [202] GET /api/status/{data.token} hasta analysis_completed (analysisOptions.async=true, como el adaptador)\n  [si el resultado no viene] GET /api/generate-geojson/{data.token}\nCuerpo:\n${JSON.stringify(cuerpo, null, 1)}`);
   process.exit(0);
 }
 const clave = process.env.WHISP_API_KEY;
@@ -51,6 +51,12 @@ for (let i = 0; token && r.json?.code !== 'analysis_completed' && i < 40; i++) {
   r = await pedir(`/api/status/${encodeURIComponent(token)}`, { auth: true });
   console.log('estado', r.status, r.json?.code, r.json?.data?.percent ?? '');
   if (r.status >= 400) break;
+}
+// Si el estado terminó sin traer el resultado, se descarga por el endpoint publicado para eso (igual que el adaptador).
+if (token && r.json?.code === 'analysis_completed' && !Array.isArray(r.json?.data?.features)) {
+  const dl = await pedir(`/api/generate-geojson/${encodeURIComponent(token)}`);
+  console.log('descarga', dl.status);
+  if (dl.status === 200 && dl.json) r = { ...dl, json: Array.isArray(dl.json.features) ? { code: 'analysis_completed', data: dl.json } : dl.json };
 }
 writeFileSync(join(sal, 'respuesta.json'), r.texto);
 const props = r.json?.data?.features?.[0]?.properties;

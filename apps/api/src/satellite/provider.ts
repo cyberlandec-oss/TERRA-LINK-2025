@@ -28,6 +28,19 @@ export interface AnalysisRequest {
   allowedHosts: readonly string[];
   /** Solo fixture: escenario a reproducir. Ignorado por cualquier adapter real. */
   fixtureScenario?: FixtureScenario | null;
+  /** Reintento de un trabajo que ya se había enviado: el identificador del trabajo en el proveedor, para retomar su consulta SIN volver a enviar la geometría. */
+  resumeJobRef?: string | null;
+  /** Enlaces con el corredor (opcionales; la fixture no los usa). Un adapter asíncrono los invoca para que el avance, el identificador y la cancelación lleguen a Terra Link. */
+  hooks?: AnalysisHooks;
+}
+
+export interface AnalysisHooks {
+  /** El proveedor aceptó el trabajo y devolvió su identificador: se conserva para poder retomarlo. */
+  onSubmitted(jobRef: string): Promise<void>;
+  /** Último avance DECLARADO por el proveedor (porcentaje solo si lo informó). También renueva el arrendamiento del corredor. */
+  onProgress(p: { percent: number | null; message: string | null }): Promise<void>;
+  /** ¿La organización pidió cancelar este trabajo? */
+  cancelRequested(): Promise<boolean>;
 }
 
 export interface ProviderResult {
@@ -50,8 +63,8 @@ export interface ProviderResult {
 export type ProviderOutcome =
   | { kind: 'RESULT'; result: ProviderResult }
   // Un adapter puede terminar en cualquier desenlace salvo los que decide Terra Link: que haya resultado, que no
-  // haya proveedor, que la geometría quedara superada o que se cancelara.
-  | { kind: Exclude<SatelliteOutcome, 'RESULT_AVAILABLE' | 'NO_PROVIDER_SELECTED' | 'SUPERSEDED_GEOMETRY' | 'CANCELLED'>; errorCode: string; note: string };
+  // haya proveedor o que la geometría quedara superada. `CANCELLED`: la organización pidió cancelar y el proveedor lo confirmó.
+  | { kind: Exclude<SatelliteOutcome, 'RESULT_AVAILABLE' | 'NO_PROVIDER_SELECTED' | 'SUPERSEDED_GEOMETRY'>; errorCode: string; note: string };
 
 export interface SatelliteProviderPort {
   readonly code: string;

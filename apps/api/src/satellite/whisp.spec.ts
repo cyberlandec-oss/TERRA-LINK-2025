@@ -90,7 +90,7 @@ describeTls('P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTIC
     const r = resultOf(o);
     expect(srv.recibidas.map((x) => x.url)).toEqual(['/api/config', '/api/submit/geojson']);
     expect(srv.recibidas[1].headers['x-api-key']).toBe(API_KEY);
-    expect(JSON.parse(srv.recibidas[1].body)).toMatchObject({ type: 'FeatureCollection', analysisOptions: { async: false } });
+    expect(JSON.parse(srv.recibidas[1].body)).toMatchObject({ type: 'FeatureCollection', analysisOptions: { async: true } });
     expect(r.indicators).toMatchObject({ treecover_2020: 92.1 });
     expect(r.method).toContain(`Whisp API ${WHISP_CONTRACT.spec_version}`);
     expect(r.method).toContain('2.3.1-sintetico');
@@ -277,6 +277,101 @@ describeTls('P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTIC
       const o = await adapter().analyze(req());
       expect(o.kind).not.toBe('RESULT');
     }
+  });
+
+  // ------------------------------------------------------------------ AJ-06: avance, reanudación y cancelación en el proveedor
+
+  const completado = (res: ServerResponse) => json(res, 200, { code: 'analysis_completed', message: 'ok', data: featureCollection(PROPS_OK) });
+  const hooksEspia = (cancelDesde = Infinity) => {
+    const eventos: Array<{ tipo: string; valor?: unknown }> = [];
+    let consultasCancel = 0;
+    return {
+      eventos,
+      hooks: {
+        onSubmitted: async (ref: string) => { eventos.push({ tipo: 'enviado', valor: ref }); },
+        onProgress: async (p: { percent: number | null; message: string | null }) => { eventos.push({ tipo: 'avance', valor: p }); },
+        cancelRequested: async () => ++consultasCancel > cancelDesde,
+      },
+    };
+  };
+
+  it('el avance DECLARADO por el proveedor y el identificador del trabajo llegan al corredor (el porcentaje solo si lo informó)', async () => {
+    let n = 0;
+    ruta = (r, res) => {
+      if (r.url === '/api/config') return json(res, 200, CONFIG);
+      if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'tk-a', featureCount: 1, processStatusMessages: ['Position 1 in queue'] } });
+      if (r.url === '/api/status/tk-a') {
+        n++;
+        if (n === 1) return json(res, 202, { code: 'analysis_processing', message: 'p', data: { token: 'tk-a', percent: 42, processStatusMessage: ['procesando'] } });
+        if (n === 2) return json(res, 202, { code: 'analysis_processing', message: 'p', data: { token: 'tk-a' } }); // sin porcentaje
+        return completado(res);
+      }
+      return json(res, 404, { code: 'not_found' });
+    };
+    const { eventos, hooks } = hooksEspia();
+    const o = await adapter().analyze(req({ hooks }));
+    expect(o.kind).toBe('RESULT');
+    expect(eventos).toEqual([
+      { tipo: 'enviado', valor: 'tk-a' },
+      { tipo: 'avance', valor: { percent: 42, message: 'procesando' } },
+      { tipo: 'avance', valor: { percent: null, message: null } },
+    ]);
+  });
+
+  it('reintento con identificador: retoma la consulta SIN volver a enviar la geometría', async () => {
+    ruta = (r, res) => {
+      if (r.url === '/api/config') return json(res, 200, CONFIG);
+      if (r.url === '/api/status/tk-r1') return completado(res);
+      return json(res, 404, { code: 'not_found' });
+    };
+    const o = await adapter().analyze(req({ resumeJobRef: 'tk-r1' }));
+    expect(o.kind).toBe('RESULT');
+    expect(srv.recibidas.map((x) => x.url)).not.toContain('/api/submit/geojson');
+    expect(srv.recibidas.some((x) => x.url === '/api/status/tk-r1' && x.headers['x-api-key'] === API_KEY)).toBe(true);
+  });
+
+  it('si el proveedor ya no reconoce el trabajo (sus resultados son temporales), se envía de nuevo y se conserva el identificador nuevo', async () => {
+    ruta = (r, res) => {
+      if (r.url === '/api/config') return json(res, 200, CONFIG);
+      if (r.url === '/api/status/viejo') return json(res, 404, { code: 'analysis_job_not_found', message: 'n' });
+      if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'nuevo' } });
+      if (r.url === '/api/status/nuevo') return completado(res);
+      return json(res, 404, { code: 'not_found' });
+    };
+    const { eventos, hooks } = hooksEspia();
+    const o = await adapter().analyze(req({ resumeJobRef: 'viejo', hooks }));
+    expect(o.kind).toBe('RESULT');
+    expect(srv.recibidas.filter((x) => x.url === '/api/submit/geojson')).toHaveLength(1);
+    expect(eventos[0]).toEqual({ tipo: 'enviado', valor: 'nuevo' });
+  });
+
+  it('cancelación pedida: se cancela EN EL PROVEEDOR (POST /api/status/{token}/cancel) y no queda resultado', async () => {
+    ruta = (r, res) => {
+      if (r.url === '/api/config') return json(res, 200, CONFIG);
+      if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'tk-c' } });
+      if (r.url === '/api/status/tk-c/cancel') return json(res, 200, { code: 'analysis_cancelled', message: 'c' });
+      if (r.url === '/api/status/tk-c') return json(res, 202, { code: 'analysis_processing', message: 'p', data: { token: 'tk-c', percent: 10 } });
+      return json(res, 404, { code: 'not_found' });
+    };
+    const { hooks } = hooksEspia(1); // la cancelación se pide tras la primera consulta
+    const o = await adapter().analyze(req({ hooks }));
+    expect(o).toMatchObject({ kind: 'CANCELLED', errorCode: 'CANCELLED_AT_PROVIDER' });
+    const cancel = srv.recibidas.find((x) => x.url === '/api/status/tk-c/cancel')!;
+    expect(cancel.method).toBe('POST');
+    expect(cancel.headers['x-api-key']).toBe(API_KEY);
+  });
+
+  it('si el trabajo ya había terminado (409 analysis_cancel_invalid), se recoge su resultado en vez de darlo por cancelado', async () => {
+    ruta = (r, res) => {
+      if (r.url === '/api/config') return json(res, 200, CONFIG);
+      if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'tk-d' } });
+      if (r.url === '/api/status/tk-d/cancel') return json(res, 409, { code: 'analysis_cancel_invalid', message: 'x' });
+      if (r.url === '/api/status/tk-d') return completado(res);
+      return json(res, 404, { code: 'not_found' });
+    };
+    const { hooks } = hooksEspia(0);
+    const o = await adapter().analyze(req({ hooks }));
+    expect(o.kind).toBe('RESULT');
   });
 
   // ------------------------------------------------------------------ política de salida y secretos

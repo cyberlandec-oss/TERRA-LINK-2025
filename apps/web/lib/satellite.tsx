@@ -40,6 +40,9 @@ interface Job {
   outcome_note: string;
   attempts: number;
   error_code: string | null;
+  progress?: { percent: number | null; note: string | null; at: string } | null;
+  provider_job_started?: boolean;
+  cancel_requested?: { at: string; reason: string | null } | null;
   requested_at: string;
   finished_at: string | null;
   result: Result | null;
@@ -154,6 +157,19 @@ export function SatelliteAnalysis({ orgId, plotId }: { orgId: string; plotId: st
     }
   };
 
+  const cancel = async (id: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/api/v1/organizations/${orgId}/satellite/analyses/${id}/cancel`, { method: 'POST', body: { operation_id: crypto.randomUUID(), reason: 'Cancelado desde la pantalla de la parcela' } });
+      await load();
+    } catch (err) {
+      setError(err as ApiError);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const jobView = (j: Job) => (
     <li key={j.id} className="subcard">
       <p>
@@ -163,6 +179,18 @@ export function SatelliteAnalysis({ orgId, plotId }: { orgId: string; plotId: st
         {!j.applies_to_current_version && <> · <StatusBadge tone="review">{t('No corresponde a la versión vigente')}</StatusBadge></>}
       </p>
       <p className="muted">{t(j.outcome_note)}</p>
+      {(j.status === 'REQUESTED' || j.status === 'RUNNING') && (
+        <div role="status">
+          <p>
+            {j.progress
+              ? <>{t('Avance informado por el proveedor')}: {j.progress.percent !== null ? <strong>{j.progress.percent} %</strong> : t('sin porcentaje')}{j.progress.note ? ` · ${j.progress.note}` : ''} <span className="muted">({dt(j.progress.at)})</span></>
+              : <span className="muted">{j.status === 'REQUESTED' ? t('En cola en Terra Link: todavía no se envió al proveedor.') : t('Enviado al proveedor: todavía no informó avance.')}</span>}
+          </p>
+          {j.cancel_requested
+            ? <p className="muted">{t('Cancelación solicitada el {f}: se confirmará cuando el proveedor la atienda.', { f: dt(j.cancel_requested.at) })}</p>
+            : data?.can_request && <button type="button" className="secondary" disabled={busy} onClick={() => void cancel(j.id)}>{t('Cancelar este análisis')}</button>}
+        </div>
+      )}
       {j.result && (
         <>
           {j.result.synthetic_warning && <Alert tone="review" title={t('Resultado de ENSAYO (fixture sintética)')}>{t(j.result.synthetic_warning)}</Alert>}

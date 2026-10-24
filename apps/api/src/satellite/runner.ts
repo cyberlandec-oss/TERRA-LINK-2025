@@ -4,7 +4,7 @@ import type { Database, SatelliteOutcome } from '../db/schema';
 import type { PiiCipher } from '../crypto/pii';
 import { EventStore } from '../events/events';
 import { sha256, type ObjectStore } from '../storage/object-store';
-import { FixtureSatelliteProvider, type AnalysisRequest, type ProviderOutcome, type SatelliteProviderPort } from './provider';
+import { FixtureSatelliteProvider, type AnalysisHooks, type AnalysisRequest, type ProviderOutcome, type SatelliteProviderPort } from './provider';
 import { WhispSatelliteProvider } from './whisp';
 
 // P0-028 · corredor de trabajos satelitales. S1 §54: «No bloquear una petición HTTP durante un análisis satelital».
@@ -60,7 +60,7 @@ export class SatelliteRunner {
   }
 
   private async claim() {
-    const res = await sql<{ id: string; organization_id: string; plot_id: string; plot_version_id: string; geometry_hash: string; geometry_type: string; provider_code: string; operation: string; period_start: string | null; period_end: string | null; attempts: number; lease_token: string }>`
+    const res = await sql<{ id: string; organization_id: string; plot_id: string; plot_version_id: string; geometry_hash: string; geometry_type: string; provider_code: string; operation: string; period_start: string | null; period_end: string | null; attempts: number; lease_token: string; provider_job_ref: string | null }>`
       UPDATE satellite_jobs j
          SET status = 'RUNNING', locked_by = ${this.runnerId}, lease_token = gen_random_uuid(),
              locked_until = now() + make_interval(secs => ${this.opts.leaseSeconds}), attempts = j.attempts + 1
@@ -72,8 +72,30 @@ export class SatelliteRunner {
           LIMIT ${this.opts.batchSize}
           FOR UPDATE SKIP LOCKED)
       RETURNING j.id, j.organization_id, j.plot_id, j.plot_version_id, j.geometry_hash, j.geometry_type, j.provider_code,
-                j.operation, j.period_start::text, j.period_end::text, j.attempts, j.lease_token`.execute(this.db);
+                j.operation, j.period_start::text, j.period_end::text, j.attempts, j.lease_token, j.provider_job_ref`.execute(this.db);
     return res.rows;
+  }
+
+  /**
+   * Enlaces del adaptador con el trabajo: conservan el identificador del proveedor y su avance, renuevan el arrendamiento (un análisis largo no debe perderlo mientras
+   * avanza) y le dicen si la organización pidió cancelar. Todo con la comprobación del arrendamiento: un corredor que lo perdió no escribe.
+   */
+  private hooksFor(j: { id: string; lease_token: string }): AnalysisHooks {
+    return {
+      onSubmitted: async (ref) => {
+        await this.db.updateTable('satellite_jobs').set({ provider_job_ref: ref }).where('id', '=', j.id).where('lease_token', '=', j.lease_token).execute();
+      },
+      onProgress: async ({ percent, message }) => {
+        const r = await this.db.updateTable('satellite_jobs')
+          .set({ provider_progress_percent: percent, provider_progress_note: message, provider_progress_at: new Date(), locked_until: new Date(Date.now() + this.opts.leaseSeconds * 1000) })
+          .where('id', '=', j.id).where('lease_token', '=', j.lease_token).executeTakeFirst();
+        if (Number(r.numUpdatedRows) !== 1) throw new Error('LEASE_LOST');
+      },
+      cancelRequested: async () => {
+        const r = await this.db.selectFrom('satellite_jobs').select('cancel_requested_at').where('id', '=', j.id).executeTakeFirst();
+        return !!r?.cancel_requested_at;
+      },
+    };
   }
 
   /** Escenario de fixture: viaja en el evento del encargo, nunca en el trabajo (solo la fixture lo usa). */
@@ -121,6 +143,7 @@ export class SatelliteRunner {
           geometry: JSON.parse(raw), geometryType: j.geometry_type as AnalysisRequest['geometryType'], geometryHash: j.geometry_hash,
           periodStart: j.period_start, periodEnd: j.period_end, credential,
           allowedHosts: prov?.allowed_hosts ?? [], fixtureScenario: await this.fixtureScenario(j.organization_id, j.id),
+          resumeJobRef: j.provider_job_ref, hooks: this.hooksFor(j),
         });
       } catch {
         // Un adapter que lanza es un fallo del proveedor; el mensaje crudo nunca se conserva.
@@ -161,7 +184,7 @@ export class SatelliteRunner {
   ): Promise<boolean> {
     return await this.db.transaction().execute(async (trx) => {
       const r = await trx.updateTable('satellite_jobs')
-        .set({ status: outcome === 'RESULT_AVAILABLE' ? 'COMPLETED' : 'FAILED', outcome, finished_at: new Date(), last_error_code: errorCode, locked_by: null, locked_until: null, lease_token: null })
+        .set({ status: outcome === 'RESULT_AVAILABLE' ? 'COMPLETED' : outcome === 'CANCELLED' ? 'CANCELLED' : 'FAILED', outcome, finished_at: new Date(), last_error_code: errorCode, locked_by: null, locked_until: null, lease_token: null })
         .where('id', '=', j.id).where('lease_token', '=', j.lease_token).executeTakeFirst();
       if (Number(r.numUpdatedRows) !== 1) return false;
       if (result) {
