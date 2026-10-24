@@ -729,3 +729,6 @@ Candidato `29ab9bf`: `npm run validate` **APROBADA** (`validation-results/2026-1
 
 ## AJ-05 Análisis de deforestación Whisp 2.3.1 (2026-10-23)
 `90205a8`: `npm run validate` **APROBADA** (`validation-results/2026-10-23T15-41-03-942Z`); desplegado; demostración 4/4 solo lectura. Adaptador corregido contra el contrato oficial 2.3.1; mecanismo demostrado con servidor controlado. **Integración real con Whisp NO EJECUTADA**: falta clave de API y autorización del propietario. Llamadas reales siguen deshabilitadas; 42/60 y 30/44 sin cambio. Detalle: `qa/EVIDENCIA_AJ05_ANALISIS_DEFORESTACION_WHISP_2026-10-23.md`.
+
+## AJ-06 Trabajo satelital asíncrono y credencial por organización (2026-10-24)
+`6239de1`: `npm run validate` **APROBADA**; migración `0067` desplegada y respaldada con restauración aislada; demostración 6/6 solo lectura. Avance, reanudación y cancelación en el proveedor probados con servidor controlado; registro cifrado de la credencial por organización. **Whisp real NO EJECUTADO.** Detalle: `qa/EVIDENCIA_AJ06_TRABAJO_ASINCRONO_Y_CREDENCIAL_2026-10-24.md`.

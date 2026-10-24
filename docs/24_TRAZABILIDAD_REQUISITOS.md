@@ -104,3 +104,5 @@ Textos desactualizados detectados: tarjeta «Mi finca… requiere vínculo» de 
 **Actualización (2026-10-23, AJ-04, `75b0592`):** CTX-05/CTX-06 → pantalla operativa «Legalidad y soportes» (orientación con fuente y fecha, dónde aportar, observaciones); el perfil jurídico técnico queda en Administración. Evidencia: `qa/EVIDENCIA_AJ04_LEGALIDAD_Y_SOPORTES_2026-10-23.md`.
 
 **Actualización (2026-10-23, AJ-05, `90205a8`):** RF-28 / P0-028 → adaptador Whisp alineado con el contrato 2.3.1 (`decisiones/P0-028-WHISP-CONTRATO-2.3.1.md`), procedencia y valores del proveedor visibles, recorrido encargo→guardado→consulta probado con servidor controlado. Integración real NO EJECUTADA. Evidencia: `qa/EVIDENCIA_AJ05_ANALISIS_DEFORESTACION_WHISP_2026-10-23.md`.
+
+**Actualización (2026-10-24, AJ-06, `6239de1`):** RF-28 / P0-028 → avance, reanudación y cancelación del trabajo asíncrono y credencial cifrada por organización; probado con servidor controlado. Integración real NO EJECUTADA. Evidencia: `qa/EVIDENCIA_AJ06_TRABAJO_ASINCRONO_Y_CREDENCIAL_2026-10-24.md`.

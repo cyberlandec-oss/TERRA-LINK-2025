@@ -57,6 +57,21 @@ await caso('Los resultados existentes son de ENSAYO (fixture) y están separados
   const reales = jobs.filter((j) => !j.is_ensayo);
   return [r.s === 200 && reales.length === 0 && r.b.analysis_status !== 'RESULT_AVAILABLE', `${jobs.length} trabajos, ${reales.length} reales, estado ${r.b.analysis_status}`];
 });
+const admin = await login('admin.cooperativa');
+await caso('AJ-06 · credencial por organización: la ruta existe, el administrador la consulta, ningún valor se devuelve y quien no administra integraciones no puede', async () => {
+  const r = await pedir(admin, `/api/v1/organizations/${org.id}/satellite/credentials`);
+  const w = r.b.providers?.find((p) => p.provider_code === 'WHISP');
+  const denegado = await pedir(auditor, `/api/v1/organizations/${org.id}/satellite/credentials`);
+  const escribe = await fetch(`${API}/api/v1/organizations/${org.id}/satellite/credentials/WHISP`, { method: 'PUT', headers: { authorization: `Bearer ${auditor}`, 'content-type': 'application/json' }, body: JSON.stringify({ secret: 'no-se-guarda-0001' }) });
+  return [r.s === 200 && w && w.configured === false && !/secret|ciphertext/i.test(JSON.stringify(r.b)) && escribe.status === 403, `GET ${r.s}; WHISP configurada=${w?.configured}; auditor PUT=${escribe.status} (GET auditor=${denegado.s})`];
+});
+await caso('AJ-06 · migración 0067 desplegada: las columnas existen y los trabajos anteriores no inventan avance, identificador ni cancelación', async () => {
+  const cols = db("select count(*) from information_schema.columns where table_name='satellite_jobs' and column_name in ('provider_job_ref','provider_progress_percent','provider_progress_note','provider_progress_at','cancel_requested_at','cancel_requested_by','cancel_reason')");
+  const vacios = db("select count(*) from satellite_jobs where provider_job_ref is null and provider_progress_percent is null and provider_progress_at is null and cancel_requested_at is null");
+  const total = db('select count(*) from satellite_jobs');
+  const version = await (await fetch(`${API}/version`)).json();
+  return [cols === '7' && vacios === total && /0067/.test(JSON.stringify(version)), `columnas=${cols}; trabajos sin avance/ref/cancelación=${vacios}/${total}; esquema ${version.migration ?? version.schema ?? ''}`];
+});
 await browser.close();
 const despues = estadoSat();
 await caso('Ningún dato satelital cambió (trabajos/resultados/credenciales)', async () => [despues === satAntes, `${satAntes} → ${despues}`]);
