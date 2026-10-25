@@ -59,20 +59,21 @@ export class SatelliteRunner {
     this.byCode = new Map(providers.map((p) => [p.code, p]));
   }
 
-  private async claim() {
-    const res = await sql<{ id: string; organization_id: string; plot_id: string; plot_version_id: string; geometry_hash: string; geometry_type: string; provider_code: string; operation: string; period_start: string | null; period_end: string | null; attempts: number; lease_token: string; provider_job_ref: string | null }>`
+  private async claim(limit = this.opts.batchSize, exclude: string[] = []) {
+    const res = await sql<{ id: string; organization_id: string; plot_id: string; plot_version_id: string; geometry_hash: string; geometry_type: string; provider_code: string; operation: string; period_start: string | null; period_end: string | null; attempts: number; lease_token: string; provider_job_ref: string | null; provider_submit_started_at: Date | null }>`
       UPDATE satellite_jobs j
          SET status = 'RUNNING', locked_by = ${this.runnerId}, lease_token = gen_random_uuid(),
              locked_until = now() + make_interval(secs => ${this.opts.leaseSeconds}), attempts = j.attempts + 1
        WHERE j.id IN (
          SELECT id FROM satellite_jobs
-          WHERE (status = 'REQUESTED' AND next_attempt_at <= now())
-             OR (status = 'RUNNING' AND locked_until < now())
+          WHERE ((status = 'REQUESTED' AND next_attempt_at <= now())
+             OR (status = 'RUNNING' AND locked_until < now()))
+            AND id <> ALL(${exclude}::uuid[])
           ORDER BY next_attempt_at
-          LIMIT ${this.opts.batchSize}
+          LIMIT ${limit}
           FOR UPDATE SKIP LOCKED)
       RETURNING j.id, j.organization_id, j.plot_id, j.plot_version_id, j.geometry_hash, j.geometry_type, j.provider_code,
-                j.operation, j.period_start::text, j.period_end::text, j.attempts, j.lease_token, j.provider_job_ref`.execute(this.db);
+                j.operation, j.period_start::text, j.period_end::text, j.attempts, j.lease_token, j.provider_job_ref, j.provider_submit_started_at`.execute(this.db);
     return res.rows;
   }
 
@@ -82,6 +83,12 @@ export class SatelliteRunner {
    */
   private hooksFor(j: { id: string; lease_token: string }): AnalysisHooks {
     return {
+      onSubmitting: async () => {
+        await this.db.updateTable('satellite_jobs').set({ provider_submit_started_at: new Date() }).where('id', '=', j.id).where('lease_token', '=', j.lease_token).execute();
+      },
+      onSubmitAnswered: async () => {
+        await this.db.updateTable('satellite_jobs').set({ provider_submit_started_at: null }).where('id', '=', j.id).where('lease_token', '=', j.lease_token).execute();
+      },
       onSubmitted: async (ref) => {
         await this.db.updateTable('satellite_jobs').set({ provider_job_ref: ref }).where('id', '=', j.id).where('lease_token', '=', j.lease_token).execute();
       },
@@ -107,9 +114,14 @@ export class SatelliteRunner {
 
   async runOnce(): Promise<RunnerResult> {
     const out: RunnerResult = { claimed: 0, completed: 0, failed: 0, retried: 0, superseded: 0 };
-    const jobs = await this.claim();
-    out.claimed = jobs.length;
-    for (const j of jobs) {
+    // Se reclama de a UNO: un trabajo reclamado que espera detrás de otro dejaría vencer su reserva y otro corredor lo tomaría mientras aún está en cola aquí.
+    // Un trabajo ya tratado en esta pasada (p. ej. devuelto a la cola para reintentar) no se vuelve a tomar en la misma: el reintento espera su espera.
+    const tratados: string[] = [];
+    for (let n = 0; n < this.opts.batchSize; n++) {
+      const [j] = await this.claim(1, tratados);
+      if (!j) break;
+      tratados.push(j.id);
+      out.claimed++;
       // Versión objetivo: si la parcela ya avanzó de versión, el trabajo no se ejecuta ni se traslada.
       const cur = await sql<{ current_version_id: string | null }>`SELECT current_version_id FROM plots WHERE organization_id = ${j.organization_id} AND id = ${j.plot_id}`.execute(this.db);
       if (cur.rows[0]?.current_version_id !== j.plot_version_id) {
@@ -119,6 +131,11 @@ export class SatelliteRunner {
       const provider = this.byCode.get(j.provider_code);
       if (!provider) {
         if (await this.finish(j, 'PROVIDER_ERROR', 'PROVIDER_ADAPTER_NOT_REGISTERED', null)) out.failed++;
+        continue;
+      }
+      // Envío incierto: se empezó a enviar al proveedor y nunca se supo su identificador. Reenviar podría duplicar el trabajo; se termina con un error explícito.
+      if (j.provider_submit_started_at && !j.provider_job_ref) {
+        if (await this.finish(j, 'PROVIDER_ERROR', 'PROVIDER_SUBMIT_UNCERTAIN', null)) out.failed++;
         continue;
       }
       const geom = await sql<{ geojson: string | null }>`
@@ -154,14 +171,15 @@ export class SatelliteRunner {
         let key: string | null = null;
         let digest: string | null = null;
         if (outcome.result.raw && this.deps.store) {
-          key = `satellite/${j.organization_id}/${j.id}.json`;
+          // El objeto lleva el arrendamiento de quien cierra: un corredor atrasado escribe OTRO objeto y no puede alterar los bytes de un resultado ya confirmado.
+          key = `satellite/${j.organization_id}/${j.id}-${j.lease_token}.json`;
           digest = sha256(outcome.result.raw);
           await this.deps.store.put(key, outcome.result.raw, 'application/json');
         }
         if (await this.finish(j, 'RESULT_AVAILABLE', null, { ...outcome.result, rawKey: key, rawSha256: digest, isSynthetic: prov?.kind === 'SYNTHETIC_FIXTURE' })) out.completed++;
         continue;
       }
-      const retryable = RETRYABLE.has(outcome.kind) && j.attempts < this.opts.maxAttempts;
+      const retryable = RETRYABLE.has(outcome.kind) && j.attempts < this.opts.maxAttempts && outcome.errorCode !== 'PROVIDER_SUBMIT_UNCERTAIN';
       if (retryable) {
         const delay = Math.min(this.opts.backoffBaseMs * 2 ** (j.attempts - 1), 15 * 60_000);
         const r = await this.db.updateTable('satellite_jobs')

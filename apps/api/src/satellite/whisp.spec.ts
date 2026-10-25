@@ -288,6 +288,8 @@ describeTls('P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTIC
     return {
       eventos,
       hooks: {
+        onSubmitting: async () => { eventos.push({ tipo: 'enviando' }); },
+        onSubmitAnswered: async () => { eventos.push({ tipo: 'respondido' }); },
         onSubmitted: async (ref: string) => { eventos.push({ tipo: 'enviado', valor: ref }); },
         onProgress: async (p: { percent: number | null; message: string | null }) => { eventos.push({ tipo: 'avance', valor: p }); },
         cancelRequested: async () => ++consultasCancel > cancelDesde,
@@ -312,6 +314,8 @@ describeTls('P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTIC
     const o = await adapter().analyze(req({ hooks }));
     expect(o.kind).toBe('RESULT');
     expect(eventos).toEqual([
+      { tipo: 'enviando' },
+      { tipo: 'respondido' },
       { tipo: 'enviado', valor: 'tk-a' },
       { tipo: 'avance', valor: { percent: 42, message: 'procesando' } },
       { tipo: 'avance', valor: { percent: null, message: null } },
@@ -342,7 +346,27 @@ describeTls('P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTIC
     const o = await adapter().analyze(req({ resumeJobRef: 'viejo', hooks }));
     expect(o.kind).toBe('RESULT');
     expect(srv.recibidas.filter((x) => x.url === '/api/submit/geojson')).toHaveLength(1);
-    expect(eventos[0]).toEqual({ tipo: 'enviado', valor: 'nuevo' });
+    expect(eventos.find((e) => e.tipo === 'enviado')).toEqual({ tipo: 'enviado', valor: 'nuevo' });
+  });
+
+  it('si el envío pierde su respuesta, el desenlace es INCIERTO: se anota que se estaba enviando, no se confirma ni se reenvía', async () => {
+    ruta = (r, res) => {
+      if (r.url === '/api/config') return json(res, 200, CONFIG);
+      res.socket?.destroy(); // el proveedor pudo recibir la geometría; la respuesta nunca llega
+    };
+    const { eventos, hooks } = hooksEspia();
+    const o = await adapter().analyze(req({ hooks }));
+    expect(o).toMatchObject({ kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_SUBMIT_UNCERTAIN' });
+    expect(eventos).toEqual([{ tipo: 'enviando' }]); // nunca «respondido» ni «enviado»
+    expect(srv.recibidas.filter((x) => x.url === '/api/submit/geojson')).toHaveLength(1);
+  });
+
+  it('un HTTP de error al enviar SÍ es una respuesta: no hay incertidumbre sobre si el proveedor lo recibió', async () => {
+    ruta = (r, res) => (r.url === '/api/config' ? json(res, 200, CONFIG) : json(res, 503, { code: 'x' }));
+    const { eventos, hooks } = hooksEspia();
+    const o = await adapter().analyze(req({ hooks }));
+    expect(o).toMatchObject({ kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_HTTP_503' });
+    expect(eventos.map((e) => e.tipo)).toEqual(['enviando', 'respondido']);
   });
 
   it('cancelación pedida: se cancela EN EL PROVEEDOR (POST /api/status/{token}/cancel) y no queda resultado', async () => {

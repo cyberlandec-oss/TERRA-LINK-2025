@@ -33,7 +33,7 @@ const resultado = {
   confidence: null, confidence_note: 'El proveedor no define confianza para este resultado; no se infiere.',
   limitations: 'Resultado de un proveedor externo: no es conclusión regulatoria.',
   indicators: { Area: 1.2, risk_pcrop: 'more_info_needed', Ind_04_disturbance_after_2020: null, whisp_processing_metadata: { unavailable_datasets: ['RADD_alerts'], processing_timestamp_utc: '2026-06-11 01:59:15+0000' } },
-  raw_evidence: { stored: true, sha256: 'd'.repeat(64) }, conclusion: 'NOT_EVALUATED', conclusion_note: 'NOT_EVALUATED',
+  raw_evidence: { stored: true, sha256: 'd'.repeat(64), can_download: true }, conclusion: 'NOT_EVALUATED', conclusion_note: 'NOT_EVALUATED',
 };
 const ficha = (jobs: unknown[], analysis_status: string, can_request = false) => ({
   plot: { id: plotId, plot_code: 'SAT-1', current_version_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }, can_request, request_blocked_reason: can_request ? null : 'No se encarga en esta prueba.',
@@ -75,6 +75,7 @@ test('resultado real guardado: origen, fecha declarada y guardada, valores sin i
   await expect(tabla.getByRole('row', { name: /risk_pcrop/ })).toContainText('more_info_needed');
   await expect(tabla.getByRole('row', { name: /Ind_04_disturbance_after_2020/ })).toContainText('No informado');   // ausente ≠ 0 ≠ «no»
   await expect(tabla.getByRole('row', { name: /Ind_04_disturbance_after_2020/ })).not.toContainText(/\b0\b|\bno\b/);
+  await expect(card.getByRole('button', { name: 'Descargar respuesta original (JSON)' })).toBeVisible();
   await expect(card.getByText('No evaluada')).toBeVisible();
   const texto = await card.innerText();
   expect(texto).not.toMatch(/deforestación confirmada|sin deforestación acreditada|cumple/i);
@@ -99,6 +100,25 @@ test('análisis en curso y análisis fallido: ni uno ni otro muestran valores ni
   await expect(card.getByRole('table')).toHaveCount(0);
   expect(await card.innerText()).not.toMatch(/sin deforestación(?! )|0 hallazgos/i);
   await fallido.ctx.close();
+});
+
+test('envío incierto: se dice que no se sabe si el proveedor recibió la geometría y que no se reenvía sola; sin descarga ni valores', async ({ browser }) => {
+  const { ctx, page } = await abrir(browser, ficha([job({ status: 'FAILED', outcome: 'PROVIDER_ERROR', error_code: 'PROVIDER_SUBMIT_UNCERTAIN', outcome_note: 'El proveedor falló o respondió fuera de contrato: no evaluable.' })], 'NOT_EVALUATED', true));
+  const card = page.locator('section[aria-labelledby="sat-title"]');
+  await expect(card).toContainText('No se sabe si el proveedor recibió la geometría');
+  await expect(card).toContainText('No se reenvía sola');
+  await expect(card.getByRole('button', { name: /Descargar respuesta original/ })).toHaveCount(0);
+  await expect(card.getByRole('table')).toHaveCount(0);
+  await ctx.close();
+});
+
+test('operaciones: solo se ofrecen las que el proveedor declara', async ({ browser }) => {
+  const datos = { ...ficha([], 'NOT_EVALUATED', true), supported_operations: ['FOREST_COVER'] };
+  const { ctx, page } = await abrir(browser, datos);
+  const card = page.locator('section[aria-labelledby="sat-title"]');
+  await expect(card.getByRole('button', { name: /^Solicitar: Cobertura forestal/ })).toBeVisible();
+  await expect(card.getByRole('button', { name: /Análisis histórico|Alertas de cambio/ })).toHaveCount(0);
+  await ctx.close();
 });
 
 test('cancelación pedida: se muestra como solicitada (no como cancelada) hasta que el proveedor la atienda; sin avance dice que aún no informó', async ({ browser }) => {

@@ -12216,6 +12216,42 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/satellite/analyses/{jobId}/original": {
+      "get": {
+        "operationId": "SatelliteController_original",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "jobId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "satellite"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/satellite/analyses/{jobId}/cancel": {
       "post": {
         "operationId": "SatelliteController_cancel",

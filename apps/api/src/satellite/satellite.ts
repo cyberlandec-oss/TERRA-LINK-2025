@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Put, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Put, Req, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsISO8601, IsOptional, IsString, IsUUID, Length, MaxLength, MinLength } from 'class-validator';
 import { randomUUID } from 'crypto';
@@ -12,6 +13,7 @@ import { CurrentUser, type AuthUser, type AuthedRequest } from '../auth/auth';
 import { EVENT_STORE, type EventStore } from '../events/events';
 import { PlotsService } from '../plots/plots';
 import { PII_CIPHER, type PiiCipher } from '../crypto/pii';
+import { OBJECT_STORE, sha256, type ObjectStore } from '../storage/object-store';
 import { ADAPTER_CONTRACT_VERSION, FIXTURE_SCENARIOS, OPERATIONS, requestFingerprint, type FixtureScenario } from './provider';
 import { liveCallsEnabled } from './runner';
 import { DEVELOPMENT_ONLY_NOTE } from './whisp';
@@ -81,6 +83,14 @@ export class SetCredentialDto {
   secret!: string;
 }
 
+/** Whisp no recibe fechas: pedir un periodo se rechaza en vez de presentarlo como un filtro que no se aplicó. */
+export function periodRejection(providerCode: string, periodStart?: string | null, periodEnd?: string | null): AppError | null {
+  if (providerCode === 'WHISP' && (periodStart || periodEnd)) {
+    return new AppError(422, 'PERIOD_NOT_SUPPORTED_BY_PROVIDER', 'Whisp no admite un periodo de análisis: aplica su propia metodología y fecha de corte. Encarga el análisis sin periodo.');
+  }
+  return null;
+}
+
 type Db = Kysely<Database> | Transaction<Database>;
 
 /** Lectura legible de cada desenlace: ninguno es favorable (contrato §4). */
@@ -107,6 +117,7 @@ export class SatelliteService {
     private readonly audit: AuditService,
     private readonly plots: PlotsService,
     @Inject(PII_CIPHER) private readonly cipher: PiiCipher,
+    @Inject(OBJECT_STORE) private readonly store: ObjectStore,
   ) {}
 
   private async ctxFor(user: AuthUser, orgId: string, perm: string) {
@@ -190,6 +201,9 @@ export class SatelliteService {
     if (!provider.supported_operations.includes(dto.operation)) {
       throw new AppError(422, 'SATELLITE_OPERATION_NOT_SUPPORTED', `El proveedor ${provider.code} no declara soportar la operación ${dto.operation}.`);
     }
+    // El periodo es contexto local: Whisp no recibe fechas (su análisis tiene su propia metodología y corte). Aceptarlo en silencio lo presentaría como un filtro que no se aplicó.
+    const periodo = periodRejection(provider.code, dto.period_start, dto.period_end);
+    if (periodo) throw periodo;
     if (dto.fixture_scenario && provider.kind !== 'SYNTHETIC_FIXTURE') {
       throw new AppError(422, 'FIXTURE_SCENARIO_NOT_APPLICABLE', 'El escenario de fixture solo aplica a la fixture sintética.');
     }
@@ -317,6 +331,27 @@ export class SatelliteService {
     return await this.credentials(user, orgId);
   }
 
+  /**
+   * Respuesta ORIGINAL del proveedor, tal como se guardó. Contiene la geometría enviada, así que exige el mismo permiso que clasifica las coordenadas
+   * (`plot:read_geometry`) además de leer análisis y alcanzar la parcela. Se verifica su huella antes de entregarla: si no coincide, no se entrega.
+   */
+  async original(user: AuthUser, orgId: string, jobId: string, requestId?: string) {
+    const ctx = await this.ctxFor(user, orgId, SATELLITE_READ);
+    const job = await this.db.selectFrom('satellite_jobs').select(['id', 'plot_id']).where('organization_id', '=', orgId).where('id', '=', jobId).executeTakeFirst();
+    if (!job) throw notFound();
+    await this.plots.load(this.db, ctx, job.plot_id, 'read');
+    if (!this.plots.has(ctx, 'plot:read_geometry')) throw forbidden('PERMISSION_DENIED', 'La respuesta original contiene la geometría enviada: requiere acceso a coordenadas (plot:read_geometry).');
+    const r = await this.db.selectFrom('satellite_results').select(['raw_object_key', 'raw_sha256', 'is_synthetic']).where('organization_id', '=', orgId).where('job_id', '=', jobId).executeTakeFirst();
+    if (!r || !r.raw_object_key || !r.raw_sha256) throw notFound();
+    const bytes = await this.store.get(r.raw_object_key);
+    if (sha256(bytes) !== r.raw_sha256) {
+      await this.audit.record(this.db, { organizationId: orgId, actorUserId: user.id, action: 'satellite.original_download', entityType: 'satellite_job', entityId: jobId, requestId, result: 'FAILED', reason: 'INTEGRITY_MISMATCH' });
+      throw new AppError(500, 'ORIGINAL_INTEGRITY_FAILED', 'La respuesta original guardada no coincide con su huella: no se entrega.');
+    }
+    await this.audit.record(this.db, { organizationId: orgId, actorUserId: user.id, action: 'satellite.original_download', entityType: 'satellite_job', entityId: jobId, requestId, result: 'SUCCESS' });
+    return { bytes, sha256: r.raw_sha256, isSynthetic: r.is_synthetic, name: `analisis-${jobId}${r.is_synthetic ? '-ENSAYO' : ''}.json` };
+  }
+
   /** S1 §52 `GET /plots/{id}/satellite`: estado del análisis de una parcela, con sus límites escritos. */
   async forPlot(user: AuthUser, orgId: string, plotId: string) {
     const ctx = await this.ctxFor(user, orgId, SATELLITE_READ);
@@ -345,6 +380,8 @@ export class SatelliteService {
       request_blocked_reason: blocked,
       // El selector de escenarios solo existe con la fixture (ENSAYO); con un proveedor real no hay nada que elegir.
       provider_kind: provider?.kind ?? null,
+      // Solo las operaciones que el proveedor efectivo declara: la pantalla no ofrece botones que el servidor va a rechazar.
+      supported_operations: provider ? provider.supported_operations : [],
       ensayo_mode: provider?.kind === 'SYNTHETIC_FIXTURE',
       fixture_scenarios: provider?.kind === 'SYNTHETIC_FIXTURE' ? [...FIXTURE_SCENARIOS] : [],
       provider_selection: selected
@@ -414,7 +451,7 @@ export class SatelliteService {
             // La respuesta original se ACREDITA por su huella, no por su ruta de almacenamiento. Ningún otro módulo
             // devuelve `object_key` (los documentos exponen su SHA-256 y su versión, no la clave), y publicarla
             // revelaría la estructura interna del almacén privado.
-            raw_evidence: result.raw_object_key ? { stored: true, sha256: result.raw_sha256 } : null,
+            raw_evidence: result.raw_object_key ? { stored: true, sha256: result.raw_sha256, can_download: this.plots.has(ctx, 'plot:read_geometry') } : null,
             conclusion: result.conclusion,
             conclusion_note: 'NOT_EVALUATED: el resultado de un proveedor externo no se convierte en conclusión regulatoria (S1 §41).',
           }
@@ -462,6 +499,17 @@ export class SatelliteController {
   @Delete('satellite/credentials/:providerCode')
   deleteCredential(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('providerCode') providerCode: string, @Req() req: AuthedRequest) {
     return this.service.deleteCredential(user, orgId, providerCode, req.requestId);
+  }
+
+  @Get('satellite/analyses/:jobId/original')
+  async original(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('jobId', ParseUUIDPipe) jobId: string, @Req() req: AuthedRequest, @Res() res: Response) {
+    const o = await this.service.original(user, orgId, jobId, req.requestId);
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${o.name}"`);
+    res.setHeader('X-Content-SHA256', o.sha256);
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.send(o.bytes);
   }
 
   @Post('satellite/analyses/:jobId/cancel')

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError, api } from './api';
+import { ApiError, api, apiDownload } from './api';
 import { useI18n } from './i18n';
 import { Alert, EmptyState, ErrorPanel, StatusBadge, type Tone } from './ui';
 
@@ -23,7 +23,7 @@ interface Result {
   confidence_note: string | null;
   limitations: string;
   indicators?: ({ findings?: { count: number; kind: string; note: string } } & Record<string, unknown>) | null;
-  raw_evidence: { stored: boolean; sha256: string } | null;
+  raw_evidence: { stored: boolean; sha256: string; can_download?: boolean } | null;
   conclusion: string;
   conclusion_note: string;
 }
@@ -52,6 +52,7 @@ interface PlotSatellite {
   request_blocked_reason: string | null;
   ensayo_mode?: boolean;
   fixture_scenarios?: string[];
+  supported_operations?: string[];
   provider_selection: { status: 'SELECTED' | 'SELECTED_FOR_DEVELOPMENT' | 'NOT_SELECTED'; provider_code?: string; decision?: string; note?: string };
   analysis_status: 'RESULT_AVAILABLE' | 'IN_PROGRESS' | 'NOT_EVALUATED';
   jobs: Job[];
@@ -157,6 +158,18 @@ export function SatelliteAnalysis({ orgId, plotId }: { orgId: string; plotId: st
     }
   };
 
+  const descargar = async (id: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiDownload(`/api/v1/organizations/${orgId}/satellite/analyses/${id}/original`, `analisis-${id}.json`);
+    } catch (err) {
+      setError(err as ApiError);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const cancel = async (id: string) => {
     setBusy(true);
     setError(null);
@@ -218,7 +231,13 @@ export function SatelliteAnalysis({ orgId, plotId }: { orgId: string; plotId: st
               <dt>{t('Datasets no disponibles')}</dt><dd>{datasetsNoDisponibles(j.result.indicators).join(', ')}</dd>
             </>)}
             {j.result.raw_evidence && (<>
-              <dt>{t('Respuesta original')}</dt><dd>SHA-256 <code className="hash">{j.result.raw_evidence.sha256}</code></dd>
+              <dt>{t('Respuesta original')}</dt>
+              <dd>
+                SHA-256 <code className="hash">{j.result.raw_evidence.sha256}</code>
+                {j.result.raw_evidence.can_download && (
+                  <> <button type="button" className="secondary" disabled={busy} onClick={() => void descargar(j.id)}>{t('Descargar respuesta original (JSON)')}</button></>
+                )}
+              </dd>
             </>)}
           </dl>
           {!j.result.is_synthetic && valoresDelProveedor(j.result.indicators).length > 0 && (
@@ -237,6 +256,9 @@ export function SatelliteAnalysis({ orgId, plotId }: { orgId: string; plotId: st
         <div className="error" role="alert">
           <p className="alert-title">{t('El análisis no produjo resultado.')}</p>
           <p>{t('Un error no es un resultado favorable ni desfavorable: la parcela sigue sin evaluar.')} {j.error_code && <>{t('Código del fallo')}: <code>{j.error_code}</code> · {t('intentos')}: {j.attempts}</>}</p>
+          {j.error_code === 'PROVIDER_SUBMIT_UNCERTAIN' && (
+            <p>{t('No se sabe si el proveedor recibió la geometría: se perdió su respuesta al enviarla. No se reenvía sola para no duplicar el análisis; si lo necesitas, encarga uno nuevo.')}</p>
+          )}
           {data?.can_request && (
             <button type="button" className="secondary" disabled={busy} onClick={() => void request(j.operation)}>
               {data.ensayo_mode ? t('Reintentar con el escenario elegido') : t('Reintentar el análisis')}
@@ -290,7 +312,7 @@ export function SatelliteAnalysis({ orgId, plotId }: { orgId: string; plotId: st
                   </select>
                 </div>
               )}
-              {Object.entries(SAT_OPERATION).map(([code, label]) => (
+              {Object.entries(SAT_OPERATION).filter(([code]) => !data.supported_operations || data.supported_operations.length === 0 || data.supported_operations.includes(code)).map(([code, label]) => (
                 <button key={code} type="button" className="secondary" disabled={busy} onClick={() => void request(code)}>
                   {t('Solicitar')}: {t(label)}
                 </button>

@@ -177,8 +177,18 @@ export class WhispSatelliteProvider implements SatelliteProviderPort {
             note: `La geometría supera el tamaño máximo que el proveedor declara (${cfg.maxRequestBodySizeKb} KB).` };
         }
 
-        // 5) Envío.
-        const submit = await this.call(req, '/api/submit/geojson', { method: 'POST', body, auth: true });
+        // 5) Envío. Si se pierde la respuesta (plazo, corte) NO se sabe si el proveedor aceptó el trabajo: el desenlace es INCIERTO y no se reenvía solo
+        //    (un reenvío podría duplicar el trabajo y el cupo). Un destino bloqueado por la defensa de salida SÍ es seguro: no salió nada.
+        await req.hooks?.onSubmitting();
+        let submit: Awaited<ReturnType<typeof requestExternal>>;
+        try {
+          submit = await this.call(req, '/api/submit/geojson', { method: 'POST', body, auth: true });
+        } catch (err) {
+          if (err instanceof EgressBlocked) throw err;
+          return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_SUBMIT_UNCERTAIN',
+            note: 'Se perdió la respuesta del proveedor al enviar el análisis: no se sabe si lo recibió. No se reenvía automáticamente; encarga uno nuevo si lo necesitas.' };
+        }
+        await req.hooks?.onSubmitAnswered();
         first = this.parseJson(submit.body);
         const bySubmit = outcomeFromResponse(submit.status, first);
         if (bySubmit) return bySubmit;

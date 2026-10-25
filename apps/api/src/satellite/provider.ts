@@ -35,6 +35,10 @@ export interface AnalysisRequest {
 }
 
 export interface AnalysisHooks {
+  /** Justo ANTES de enviar la geometría al proveedor: si el envío pierde su respuesta, el desenlace queda INCIERTO y no se reenvía solo. */
+  onSubmitting(): Promise<void>;
+  /** El proveedor RESPONDIÓ al envío (aceptó o rechazó): ya no hay incertidumbre sobre si recibió la geometría. */
+  onSubmitAnswered(): Promise<void>;
   /** El proveedor aceptó el trabajo y devolvió su identificador: se conserva para poder retomarlo. */
   onSubmitted(jobRef: string): Promise<void>;
   /** Último avance DECLARADO por el proveedor (porcentaje solo si lo informó). También renueva el arrendamiento del corredor. */

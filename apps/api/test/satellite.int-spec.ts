@@ -447,14 +447,14 @@ describeDb('P0-028 satélite: contrato, desenlaces y candados', () => {
       } as never).execute();
       return { id, cipher };
     }
-    async function correr(responder: Parameters<TlsFixture['listen']>[0], extra: Record<string, unknown> = {}) {
+    async function correr(responder: Parameters<TlsFixture['listen']>[0], extra: Record<string, unknown> = {}, opt: { maxAttempts?: number; store?: unknown } = {}) {
       const srv = await tls.listen(responder);
       const previo = await h.db.selectFrom('satellite_providers').select('allowed_hosts').where('code', '=', 'WHISP').executeTakeFirstOrThrow();
       await sql`UPDATE satellite_providers SET allowed_hosts = ${[`destino.prueba.local:${srv.port}`]} WHERE code = 'WHISP'`.execute(h.db);
       try {
         const { id, cipher } = await trabajo(extra);
         const whisp = new WhispSatelliteProvider({ liveCalls: true, baseUrl: `https://destino.prueba.local:${srv.port}`, ca: tls.ca, lookup: loopbackLookup, timeoutMs: 4000, pollMs: 1, maxPolls: 5, sleep: async () => undefined } as never);
-        await new SatelliteRunner(h.db, [whisp], { cipher, store: almacen }, { maxAttempts: 1, backoffBaseMs: 1 }).runOnce();
+        await new SatelliteRunner(h.db, [whisp], { cipher, store: (opt.store ?? almacen) as never }, { maxAttempts: opt.maxAttempts ?? 1, backoffBaseMs: 1 }).runOnce();
         return { id, srv };
       } finally {
         await sql`UPDATE satellite_providers SET allowed_hosts = ${previo.allowed_hosts} WHERE code = 'WHISP'`.execute(h.db);
@@ -581,6 +581,112 @@ describeDb('P0-028 satélite: contrato, desenlaces y candados', () => {
       await http().put(`${org()}/satellite/credentials/WHISP`).set(as(ADMIN)).send({ secret: 'corta' }).expect(400);
       const del = await http().delete(`${org()}/satellite/credentials/WHISP`).set(as(ADMIN)).expect(200);
       expect(del.body.providers.find((p: { provider_code: string }) => p.provider_code === 'WHISP')).toMatchObject({ configured: false });
+    });
+
+    // ------------------------------------------------------------ AJ-07: envío incierto, reserva, original inmutable y descarga autorizada
+    it('envío incierto: si se perdió la respuesta del POST no se reenvía ni se reintenta; termina con un error explícito', async () => {
+      const { id, srv } = await correr((r, res) => {
+        if (r.url === '/api/config') return json(res, 200, CONFIG);
+        res.socket?.destroy();
+      }, {}, { maxAttempts: 4 });
+      expect(await jobRow(id)).toMatchObject({ status: 'FAILED', outcome: 'PROVIDER_ERROR', last_error_code: 'PROVIDER_SUBMIT_UNCERTAIN' });
+      expect(srv.recibidas.filter((x) => x.url === '/api/submit/geojson')).toHaveLength(1);
+      expect((await h.db.selectFrom('satellite_results').select('id').where('job_id', '=', id).execute())).toHaveLength(0);
+    });
+
+    it('un trabajo cuyo envío quedó sin respuesta y sin identificador (p. ej. reinicio del corredor) NO se vuelve a enviar', async () => {
+      const { id, srv } = await correr((r, res) => (r.url === '/api/config' ? json(res, 200, CONFIG) : json(res, 500, { code: 'no_deberia_llamarse' })),
+        { provider_submit_started_at: new Date(Date.now() - 60_000) });
+      expect(await jobRow(id)).toMatchObject({ status: 'FAILED', last_error_code: 'PROVIDER_SUBMIT_UNCERTAIN' });
+      expect(srv.recibidas).toHaveLength(0);   // ni siquiera se consultó: no salió nada
+    });
+
+    it('un HTTP de error al enviar NO deja el envío incierto: el reintento sí puede enviar de nuevo', async () => {
+      let n = 0;
+      const { id } = await correr((r, res) => {
+        if (r.url === '/api/config') return json(res, 200, CONFIG);
+        if (r.url === '/api/submit/geojson') return ++n === 1 ? json(res, 503, { code: 'x' }) : json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'tk-ok' } });
+        if (r.url === '/api/status/tk-ok') return json(res, 200, completo);
+        return json(res, 404, { code: 'x' });
+      }, {}, { maxAttempts: 1 });
+      // Primer intento: 503 conocido → FAILED (maxAttempts 1). Con reintentos disponibles volvería a REQUESTED sin quedar «incierto».
+      const row = await jobRow(id);
+      expect(row.provider_submit_started_at).toBeNull();
+      expect(row).toMatchObject({ status: 'FAILED', outcome: 'PROVIDER_ERROR' });
+    });
+
+    it('la reserva se toma de a un trabajo: el que espera detrás de otro sigue sin reservar mientras el primero se procesa', async () => {
+      const a = await trabajo();
+      const b = await trabajo();
+      const visto: Array<{ id: string; lease: string | null }> = [];
+      const espia = { code: 'WHISP', kind: 'EXTERNAL_HTTP' as const,
+        analyze: async () => {
+          const otros = await h.db.selectFrom('satellite_jobs').select(['id', 'lease_token']).where('id', 'in', [a.id, b.id]).where('status', '=', 'REQUESTED').execute();
+          visto.push(...otros.map((o) => ({ id: o.id, lease: o.lease_token })));
+          return { kind: 'NO_COVERAGE' as const, errorCode: 'ESPIA', note: 'x' };
+        } };
+      await sql`UPDATE satellite_jobs SET status = 'CANCELLED', outcome = 'CANCELLED', finished_at = now() WHERE status = 'REQUESTED' AND id NOT IN (${a.id}, ${b.id})`.execute(h.db);
+      const r = await new SatelliteRunner(h.db, [espia], { cipher: a.cipher }, { maxAttempts: 1, backoffBaseMs: 1, batchSize: 5 }).runOnce();
+      expect(r.claimed).toBe(2);
+      // Durante el primer análisis, el otro trabajo seguía REQUESTED y sin arrendamiento.
+      expect(visto.length).toBeGreaterThan(0);
+      expect(visto.every((v) => v.lease === null)).toBe(true);
+    });
+
+    it('un corredor atrasado no altera los bytes de un resultado ya confirmado: cada cierre escribe su propio objeto y el resultado cita el del cierre autorizado', async () => {
+      const { id, cipher } = await trabajo();
+      const objetos = new Map<string, Buffer>();
+      const store = { put: async (k: string, b: Buffer) => { objetos.set(k, b); }, get: async (k: string) => objetos.get(k)!, exists: async (k: string) => objetos.has(k), delete: async () => undefined, list: async () => [] } as never;
+      let llamada = 0;
+      const espia = { code: 'WHISP', kind: 'EXTERNAL_HTTP' as const,
+        analyze: async () => {
+          llamada++;
+          if (llamada === 1) {
+            // El corredor A pierde su reserva (otro la toma) y aun así termina y devuelve su resultado, tarde.
+            await sql`UPDATE satellite_jobs SET lease_token = gen_random_uuid(), locked_until = now() - interval '1 second' WHERE id = ${id}`.execute(h.db);
+          }
+          return { kind: 'RESULT' as const, result: { dataset: null, datasetVersion: null, analysisDate: null, resolutionM: null, method: 'espia', coverageStatus: 'UNKNOWN' as const, coverageNote: 'cobertura no declarada por el espía', confidence: null, limitations: 'Resultado sintético de un espía de prueba.', indicators: { corredor: llamada }, raw: Buffer.from(`{"corredor":${llamada}}`) } };
+        } };
+      await new SatelliteRunner(h.db, [espia], { cipher, store }, { maxAttempts: 1, backoffBaseMs: 1 }).runOnce();   // A: pierde la reserva → no cierra
+      expect(await jobRow(id)).toMatchObject({ status: 'RUNNING' });
+      const claveA = [...objetos.keys()][0];
+      await new SatelliteRunner(h.db, [espia], { cipher, store }, { maxAttempts: 1, backoffBaseMs: 1 }).runOnce();   // B: retoma y cierra
+      const res = await h.db.selectFrom('satellite_results').select(['raw_object_key', 'raw_sha256']).where('job_id', '=', id).executeTakeFirstOrThrow();
+      expect(res.raw_object_key).not.toBe(claveA);
+      expect(objetos.get(claveA)!.toString()).toBe('{"corredor":1}');           // los bytes del atrasado no se tocaron
+      expect(objetos.get(res.raw_object_key!)!.toString()).toBe('{"corredor":2}');
+      const { createHash } = await import('crypto');
+      expect(createHash('sha256').update(objetos.get(res.raw_object_key!)!).digest('hex')).toBe(res.raw_sha256);
+    });
+
+    it('la respuesta original se descarga solo con acceso a coordenadas, con su huella verificada, auditada y sin cruzar organizaciones', async () => {
+      const { S3ObjectStore } = await import('../src/storage/object-store');
+      const real = new S3ObjectStore(h.config.objectStore);
+      const { id } = await correr((r, res) => {
+        if (r.url === '/api/config') return json(res, 200, CONFIG);
+        if (r.url === '/api/submit/geojson') return json(res, 200, completo);
+        return json(res, 404, { code: 'x' });
+      }, {}, { store: real });
+      const ok = await http().get(`${org()}/satellite/analyses/${id}/original`).set(as(ADMIN)).expect(200);
+      expect(ok.headers['x-content-sha256']).toMatch(/^[0-9a-f]{64}$/);
+      expect(ok.headers['cache-control']).toBe('no-store');
+      expect(JSON.stringify(ok.body)).toContain('risk_pcrop');
+      const vista = await http().get(`${org()}/satellite/analyses/${id}`).set(as(ADMIN)).expect(200);
+      expect(vista.body.result.raw_evidence).toMatchObject({ stored: true, can_download: true, sha256: ok.headers['x-content-sha256'] });
+      const aud = await h.db.selectFrom('audit_logs').select('action').where('organization_id', '=', orgA).where('entity_id', '=', id).where('action', '=', 'satellite.original_download').execute();
+      expect(aud.length).toBeGreaterThan(0);
+      await http().get(`/api/v1/organizations/${orgB}/satellite/analyses/${id}/original`).set(as('admin-b@test.local')).expect(404);   // otra organización
+      await http().get(`${org()}/satellite/analyses/${id}/original`).set(as('calidad@test.local')).expect(403);                    // sin satellite:read
+      // Una huella que no coincide NO se entrega (se altera el objeto y luego se restaura).
+      const fila = await h.db.selectFrom('satellite_results').select('raw_object_key').where('job_id', '=', id).executeTakeFirstOrThrow();
+      const original = await real.get(fila.raw_object_key!);
+      await real.put(fila.raw_object_key!, Buffer.from('{"alterado":true}'), 'application/json');
+      try {
+        const mal = await http().get(`${org()}/satellite/analyses/${id}/original`).set(as(ADMIN)).expect(500);
+        expect(mal.body.error.code).toBe('ORIGINAL_INTEGRITY_FAILED');
+      } finally {
+        await real.put(fila.raw_object_key!, original, 'application/json');
+      }
     });
   });
 });

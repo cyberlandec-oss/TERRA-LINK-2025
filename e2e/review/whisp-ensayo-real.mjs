@@ -41,25 +41,65 @@ const pedir = async (ruta, init = {}) => {
 };
 const sal = join('validation-results', `whisp-ensayo-real-${new Date().toISOString().replace(/[:.]/g, '-')}`);
 mkdirSync(sal, { recursive: true });
+const etapas = [];
+const POLL_MS = Number(process.env.WHISP_POLL_MS ?? 3000);
+const MAX_POLLS = Number(process.env.WHISP_MAX_POLLS ?? 200);
+const anotar = (etapa, r, extra = {}) => { etapas.push({ etapa, http: r?.status ?? null, code: r?.json?.code ?? null, ...extra }); console.log(etapa, r?.status ?? '', r?.json?.code ?? '', extra.percent ?? ''); };
+class Fin extends Error { constructor(codigo) { super('fin'); this.codigo = codigo; } }
+// No se usa process.exit(): en Windows, salir con conexiones HTTP abiertas aborta el proceso (0xC0000409). Se termina por excepción y se deja salir al proceso.
+const terminar = (codigo, motivo) => {
+  writeFileSync(join(sal, 'etapas.json'), `${JSON.stringify({ base: BASE, motivo, etapas }, null, 2)}\n`);
+  if (motivo) console.error(`TERMINA SIN RESULTADO: ${motivo}. Un fallo o un trabajo incompleto NO es «sin deforestación».`);
+  throw new Fin(codigo);
+};
+
+try {
+// 1) Configuración y límites ANTES de enviar nada: si no son utilizables, no sale la geometría.
 const cfg = await pedir('/api/config');
-console.log('config', cfg.status, cfg.json && { geometryLimitSync: cfg.json.geometryLimitSync, openforisWhispVersion: cfg.json.openforisWhispVersion });
+anotar('config', cfg);
+if (cfg.status !== 200 || typeof cfg.json?.geometryLimitSync !== 'number') terminar(1, 'la configuración publicada por el proveedor no es utilizable; no se envió ninguna geometría');
+const kb = Buffer.byteLength(JSON.stringify(cuerpo), 'utf8') / 1024;
+if (typeof cfg.json.maxRequestBodySizeKb === 'number' && kb > cfg.json.maxRequestBodySizeKb) terminar(1, 'la solicitud supera el tamaño máximo que declara el proveedor; no se envió');
+
+// 2) Envío.
 let r = await pedir('/api/submit/geojson', { method: 'POST', body: JSON.stringify(cuerpo), auth: true });
-console.log('submit', r.status, r.json?.code);
-const token = r.json?.data?.token;
-for (let i = 0; token && r.json?.code !== 'analysis_completed' && i < 40; i++) {
-  await new Promise((ok) => setTimeout(ok, 3000));
-  r = await pedir(`/api/status/${encodeURIComponent(token)}`, { auth: true });
-  console.log('estado', r.status, r.json?.code, r.json?.data?.percent ?? '');
-  if (r.status >= 400) break;
+anotar('submit', r);
+if (r.status >= 400) terminar(1, `el proveedor rechazó el envío (HTTP ${r.status}, ${r.json?.code ?? 'sin código'})`);
+const token = r.json?.data?.token ?? null;
+
+// 3) Seguimiento hasta un estado TERMINAL. Terminales: completado, error, plazo, cancelado, trabajo desconocido o cualquier HTTP de error.
+const TERMINALES_SIN_RESULTADO = new Set(['analysis_error', 'analysis_timeout', 'analysis_cancelled', 'analysis_job_not_found']);
+const PROGRESO = new Set(['analysis_queued', 'analysis_processing']);
+if (token && r.json?.code !== 'analysis_completed') {
+  let terminado = false;
+  for (let i = 0; i < MAX_POLLS && !terminado; i++) {
+    await new Promise((ok) => setTimeout(ok, POLL_MS));
+    r = await pedir(`/api/status/${encodeURIComponent(token)}`, { auth: true });
+    anotar('estado', r, { percent: r.json?.data?.percent ?? null });
+    const code = r.json?.code ?? '';
+    if (r.status >= 400 || TERMINALES_SIN_RESULTADO.has(code) || code.startsWith('validation_')) terminar(1, `el proveedor terminó sin resultado (HTTP ${r.status}, ${code || 'sin código'})`);
+    if (code === 'analysis_completed') terminado = true;
+    else if (!PROGRESO.has(code)) terminar(1, `estado fuera del contrato (${code || 'sin código'})`);
+  }
+  if (!terminado) terminar(1, 'el trabajo seguía en proceso tras el máximo de consultas');
 }
-// Si el estado terminó sin traer el resultado, se descarga por el endpoint publicado para eso (igual que el adaptador).
-if (token && r.json?.code === 'analysis_completed' && !Array.isArray(r.json?.data?.features)) {
+
+// 4) Si el estado terminó sin traer el resultado, se descarga por el endpoint publicado para eso (igual que el adaptador).
+const esFC = (v) => v && typeof v === 'object' && Array.isArray(v.features);
+if (token && !esFC(r.json?.data)) {
   const dl = await pedir(`/api/generate-geojson/${encodeURIComponent(token)}`);
-  console.log('descarga', dl.status);
-  if (dl.status === 200 && dl.json) r = { ...dl, json: Array.isArray(dl.json.features) ? { code: 'analysis_completed', data: dl.json } : dl.json };
+  anotar('descarga', dl);
+  if (dl.status !== 200 || !dl.json) terminar(1, `la descarga alternativa falló (HTTP ${dl.status})`);
+  r = { ...dl, json: esFC(dl.json?.data) ? dl.json : { code: 'analysis_completed', data: dl.json } };
 }
+
+// 5) Validación por contrato: FeatureCollection con una parcela analizada y sus propiedades. La mera presencia de `properties` no basta.
 writeFileSync(join(sal, 'respuesta.json'), r.texto);
-const props = r.json?.data?.features?.[0]?.properties;
+const props = esFC(r.json?.data) && r.json.data.features.length >= 1 && typeof r.json.data.features[0]?.properties === 'object' ? r.json.data.features[0].properties : null;
 console.log(`respuesta guardada en ${sal}/respuesta.json (sha256 ${createHash('sha256').update(r.texto).digest('hex').slice(0, 16)}…)`);
-console.log(props ? { risk_pcrop: props.risk_pcrop ?? '(no informado)', metadata: props.whisp_processing_metadata ?? '(no informada)' } : 'SIN RESULTADO: un fallo o un trabajo incompleto NO es «sin deforestación».');
-process.exit(props ? 0 : 1);
+if (!props) terminar(1, 'la respuesta no es un resultado conforme al contrato (sin FeatureCollection con una parcela analizada)');
+console.log({ risk_pcrop: props.risk_pcrop ?? '(no informado)', metadata: props.whisp_processing_metadata ?? '(no informada)' });
+terminar(0, null);
+} catch (e) {
+  if (e instanceof Fin) process.exitCode = e.codigo; else throw e;
+}

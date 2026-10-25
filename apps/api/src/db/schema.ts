@@ -834,6 +834,8 @@ export interface SatelliteJobsTable {
   // 0067: trabajo en el proveedor, avance declarado y cancelación pedida.
   provider_job_ref: string | null; provider_progress_percent: number | null; provider_progress_note: string | null; provider_progress_at: Timestamp | null;
   cancel_requested_at: Timestamp | null; cancel_requested_by: string | null; cancel_reason: string | null;
+  // 0068: instante en que se empezó a enviar al proveedor (envío incierto si no hay `provider_job_ref`).
+  provider_submit_started_at: Timestamp | null;
 }
 export interface SatelliteResultsTable {
   id: string; organization_id: string; job_id: string; provider_code: string; is_synthetic: boolean;

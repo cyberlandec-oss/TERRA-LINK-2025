@@ -26,4 +26,6 @@ export const EN_SATELITE: Record<string, string> = {
   'Enviado al proveedor: todavía no informó avance.': 'Sent to the provider: no progress reported yet.',
   'Cancelación solicitada el {f}: se confirmará cuando el proveedor la atienda.': 'Cancellation requested on {f}: it will be confirmed when the provider handles it.',
   'Cancelar este análisis': 'Cancel this analysis',
+  'Descargar respuesta original (JSON)': 'Download original response (JSON)',
+  'No se sabe si el proveedor recibió la geometría: se perdió su respuesta al enviarla. No se reenvía sola para no duplicar el análisis; si lo necesitas, encarga uno nuevo.': 'It is not known whether the provider received the geometry: its answer was lost when sending it. It is not resent automatically to avoid duplicating the analysis; if you need it, request a new one.',
 };
