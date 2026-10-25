@@ -210,13 +210,13 @@ describeTls('P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTIC
       res.writeHead(200, { 'content-type': 'text/html' });
       res.end('<html>no soy el contrato</html>');
     };
-    expect((await adapter().analyze(req()))).toMatchObject({ errorCode: 'PROVIDER_RESPONSE_NOT_JSON' });
+    expect((await adapter().analyze(req()))).toMatchObject({ errorCode: 'PROVIDER_SUBMIT_UNCERTAIN' });
 
     ruta = (r, res) => (r.url === '/api/config' ? json(res, 200, CONFIG) : json(res, 200, { code: 'analysis_completed', data: { type: 'FeatureCollection', features: [] } }));
     expect((await adapter().analyze(req()))).toMatchObject({ errorCode: 'PROVIDER_NO_FEATURES' });
 
     ruta = (r, res) => (r.url === '/api/config' ? json(res, 200, CONFIG) : json(res, 202, { code: 'analysis_queued' }));
-    expect((await adapter().analyze(req()))).toMatchObject({ errorCode: 'PROVIDER_TOKEN_MISSING' });
+    expect((await adapter().analyze(req()))).toMatchObject({ errorCode: 'PROVIDER_SUBMIT_UNCERTAIN' });
   });
 
   it('si no se pueden leer los límites publicados, no se envía la geometría', async () => {

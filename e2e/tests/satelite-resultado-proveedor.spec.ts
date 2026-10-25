@@ -112,6 +112,15 @@ test('envío incierto: se dice que no se sabe si el proveedor recibió la geomet
   await ctx.close();
 });
 
+test('cancelación no confirmada: se dice que el proveedor no encuentra el trabajo, que no hay resultado y que no se envió otro análisis', async ({ browser }) => {
+  const { ctx, page } = await abrir(browser, ficha([job({ status: 'FAILED', outcome: 'PROVIDER_ERROR', error_code: 'PROVIDER_CANCEL_NOT_CONFIRMED', cancel_requested: { at: '2026-10-23T10:02:00Z', reason: 'x' } })], 'NOT_EVALUATED', true));
+  const card = page.locator('section[aria-labelledby="sat-title"]');
+  await expect(card).toContainText('la cancelación no está confirmada y no hay resultado');
+  await expect(card).not.toContainText('Cancelado');
+  await expect(card.getByRole('table')).toHaveCount(0);
+  await ctx.close();
+});
+
 test('operaciones: solo se ofrecen las que el proveedor declara', async ({ browser }) => {
   const datos = { ...ficha([], 'NOT_EVALUATED', true), supported_operations: ['FOREST_COVER'] };
   const { ctx, page } = await abrir(browser, datos);

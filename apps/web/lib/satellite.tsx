@@ -256,6 +256,9 @@ export function SatelliteAnalysis({ orgId, plotId }: { orgId: string; plotId: st
         <div className="error" role="alert">
           <p className="alert-title">{t('El análisis no produjo resultado.')}</p>
           <p>{t('Un error no es un resultado favorable ni desfavorable: la parcela sigue sin evaluar.')} {j.error_code && <>{t('Código del fallo')}: <code>{j.error_code}</code> · {t('intentos')}: {j.attempts}</>}</p>
+          {j.error_code === 'PROVIDER_CANCEL_NOT_CONFIRMED' && (
+            <p>{t('Pediste cancelar, pero el proveedor no encuentra el trabajo: la cancelación no está confirmada y no hay resultado. No se envió otro análisis.')}</p>
+          )}
           {j.error_code === 'PROVIDER_SUBMIT_UNCERTAIN' && (
             <p>{t('No se sabe si el proveedor recibió la geometría: se perdió su respuesta al enviarla. No se reenvía sola para no duplicar el análisis; si lo necesitas, encarga uno nuevo.')}</p>
           )}
