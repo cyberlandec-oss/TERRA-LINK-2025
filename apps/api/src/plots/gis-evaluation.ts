@@ -143,14 +143,14 @@ export class GisEvaluationService {
   private async readCtx(user: AuthUser, orgId: string) {
     const ctx = await this.authz.tenantContext(user, orgId);
     if (!ctx) throw notFound();
-    if (!this.plots.has(ctx, 'plot:read') && !this.plots.has(ctx, 'plot:read_assigned')) throw forbidden();
+    if (!this.plots.has(ctx, 'plot:read') && !this.plots.has(ctx, 'plot:read_assigned') && !this.plots.has(ctx, 'plot:read_own')) throw forbidden();
     return ctx;
   }
 
   /** Filtro del alcance efectivo de comparación (doc 09: no revelar recursos fuera del alcance). */
   private scopeFilter(scopeMembership: string | null) {
     return scopeMembership
-      ? sql`AND EXISTS (SELECT 1 FROM producers pr WHERE pr.id = p.producer_id AND pr.organization_id = p.organization_id AND pr.assigned_membership_id = ${scopeMembership})`
+      ? sql`AND EXISTS (SELECT 1 FROM producers pr WHERE pr.id = p.producer_id AND pr.organization_id = p.organization_id AND (pr.assigned_membership_id = ${scopeMembership} OR pr.self_membership_id = ${scopeMembership}))`
       : sql``;
   }
 
@@ -346,7 +346,18 @@ export class GisEvaluationService {
     const plot = await db.selectFrom('plots').select(['current_version_id']).where('organization_id', '=', row.organization_id).where('id', '=', row.plot_id).executeTakeFirstOrThrow();
     const version = await db.selectFrom('plot_versions').select(['version_number']).where('id', '=', row.plot_version_id).executeTakeFirstOrThrow();
     const stale: string[] = [];
-    if (plot.current_version_id !== row.plot_version_id) stale.push('GEOMETRY_CHANGED');
+    if (plot.current_version_id !== row.plot_version_id) {
+      // Versión nueva: si su geometría es la misma (p. ej. solo cambió la superficie declarada, que esta evaluación no usa),
+      // se informa con precisión; la evaluación sigue ligada a su versión y NO se hereda para la vigente.
+      // Solo cuenta como «misma geometría» si la vigente COPIA la misma captura evaluada (superficie declarada); volver a
+      // capturar coordenadas idénticas es una captura nueva (GEOMETRY_CHANGED).
+      const vs = await db.selectFrom('plot_versions').select(['id', 'geometry_origin_version_id']).where('organization_id', '=', row.organization_id)
+        .where('id', 'in', [row.plot_version_id, plot.current_version_id].filter((x): x is string => !!x)).execute();
+      const evaluated = vs.find((x) => x.id === row.plot_version_id);
+      const current = vs.find((x) => x.id === plot.current_version_id);
+      const capture = evaluated ? (evaluated.geometry_origin_version_id ?? evaluated.id) : null;
+      stale.push(current?.geometry_origin_version_id && current.geometry_origin_version_id === capture ? 'PLOT_VERSION_CHANGED_SAME_GEOMETRY' : 'GEOMETRY_CHANGED');
+    }
     if (row.rule_version !== GIS_RULE.version || row.rule_id !== GIS_RULE.id) stale.push('RULES_CHANGED');
     if (comparisonsVisible) {
       const set = await this.comparedSet(db, row.organization_id, row.plot_id, scopeMembership);

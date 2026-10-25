@@ -22,6 +22,8 @@ async function open(browser: Browser, viewport?: { width: number; height: number
   const page = await ctx.newPage();
   await page.goto(plotUrl);
   await expect(page.getByRole('heading', { name: 'GJ-01' })).toBeVisible();
+  // A-01: los métodos de captura se eligen primero (la ficha ya no muestra todos a la vez).
+  await page.getByRole('button', { name: 'Importar GeoJSON' }).click();
   return { ctx, page };
 }
 
@@ -137,6 +139,8 @@ test('evaluación GIS técnica: estado con alcance técnico, precisión no dispo
   await expect(section).toContainText('TL_GIS_TECH · versión 1.0.1');
   await expect(section).toContainText('Precisión de captura no disponible');
   await expect(section).toContainText('No evaluado: el perfil de destino requiere definición (D-05)');
+  // Desde D-05.A el perfil se evalúa aparte: la evaluación técnica lo dice y remite a la otra sección.
+  await expect(section).toContainText('se evalúa con una regla propia y versionada aparte');
   await expect(section.getByRole('table', { name: 'Comprobaciones técnicas' })).toContainText('Validez técnica');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   // una versión nueva deja la evaluación anterior como historial desactualizado
@@ -146,5 +150,39 @@ test('evaluación GIS técnica: estado con alcance técnico, precisión no dispo
   await expect(page.getByText(/Geometría importada como versión \d+/)).toBeVisible();
   await page.reload();
   await expect(page.getByRole('region', { name: 'Evaluación GIS (técnica)' })).toContainText('Evaluación desactualizada');
+  await ctx.close();
+});
+
+test('D-05.A perfil de destino: dictámenes separados, fuente fechada y límites a la vista; teclado y 390 px', async ({ browser }) => {
+  const { ctx, page } = await open(browser, { width: 390, height: 844 });
+  // Los DOS dictámenes están en la misma pantalla, cada uno en su sección: pueden discrepar.
+  const tecnica = page.getByRole('region', { name: 'Evaluación GIS (técnica)' });
+  const perfil = page.getByRole('region', { name: 'Perfil técnico de destino' });
+  await expect(tecnica).toBeVisible();
+  await expect(perfil).toBeVisible();
+  await expect(perfil).toContainText('pueden discrepar');
+
+  await perfil.getByRole('button', { name: /Evaluar el perfil|Volver a evaluar el perfil/ }).focus();
+  await page.keyboard.press('Enter');
+  await expect(perfil).toContainText('Cumple el perfil técnico');
+  // Cumplir el perfil NO se presenta como conformidad.
+  await expect(perfil).toContainText('no es conformidad EUDR');
+  // Los identificadores de la fuente, separados: servicio, documento y fecha de página.
+  await expect(perfil).toContainText('EUDR_GEO_V1');
+  await expect(perfil).toContainText('V3');
+  await expect(perfil).toContainText('v1.2');
+  await expect(perfil).toContainText('2026-08-17');
+  // Y el grado de comprobación: documentado, no probado contra el servicio real.
+  await expect(perfil).toContainText(/NO se ha probado contra el servicio real/);
+  // Cada comprobación declara quién la exige.
+  const tabla = perfil.getByRole('table', { name: 'Comprobaciones del perfil de destino' });
+  await expect(tabla).toContainText('Umbral de 4 ha');
+  await expect(tabla).toContainText('Truncamiento a 6 decimales');
+  await expect(tabla).toContainText('Sistema de destino');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+
+  // El contrato de decimales separa valor, formato, resolución y exactitud: seis decimales no son precisión.
+  await perfil.getByRole('group').filter({ hasText: 'Qué significan los decimales' }).first().click();
+  await expect(perfil).toContainText(/NO es prueba de precisión física|no son prueba de precisión/i);
   await ctx.close();
 });

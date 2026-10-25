@@ -58,6 +58,7 @@ Resumen/cantidad/estado; origen/parcelas/productores; proceso/inputs/outputs/mer
 1. Asociación: importar productores → resolver errores → capturar parcela → validar → activar operación.
 2. Campo: descargar asignación → capturar offline → guardar foto/GPS → sync → resolver conflicto → revisar en web.
 3. Acopio: buscar entrega/proveedor → pesar → clasificar → confirmar → generar lote/evento → consultar saldo.
+   - **Diferencia vigente (P0-012, instrucción de diseño MVP 2026-10-10, D-33):** buscar entrega → pesar → revisar → confirmar recepción física; la calidad se evalúa durante la recepción o después del pesaje y es un estado separado («Pendiente de evaluación» sin dato). Generar lote y consultar saldo llegan con P0-016/P0-017. El orden original se conserva arriba como referencia.
 4. Proceso: seleccionar inputs disponibles → registrar transformación/merma → cerrar una vez → ver outputs y grafo.
 5. EUDR: revisar evaluación → ver causa/soporte → asignar mitigación → aportar → verificar → reevaluar → preparar paquete.
 6. Exportación: reservar lote → revisar preflight → resolver faltantes → despachar → compartir información autorizada.

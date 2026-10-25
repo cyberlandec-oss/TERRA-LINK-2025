@@ -14,6 +14,13 @@ export async function createApp(config: AppConfig, db: Kysely<Database>): Promis
   app.enableCors({ origin: config.webOrigin, credentials: false, exposedHeaders: ['Content-Disposition', 'X-Content-SHA256'] });
   app.useBodyParser('json', { limit: '1mb' });
   app.set('trust proxy', config.trustProxy);
+  // Endurecimiento básico de cabeceras (QA de seguridad): sin huella del framework y sin que el navegador adivine tipos de contenido ni filtre el origen al seguir enlaces.
+  app.getHttpAdapter().getInstance().disable('x-powered-by');
+  app.use((_req: unknown, res: { setHeader(n: string, v: string): void }, next: () => void) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    next();
+  });
   return app;
 }
 

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { ApiError, recoveryHint } from './api';
+import { useI18n } from './i18n';
 
 // Componentes compartidos (docs/UX_UI.md §8–§9). Presentación únicamente: la autorización la decide la API.
 
@@ -25,8 +26,9 @@ export function PageHeader({ title, meta, actions }: { title: ReactNode; meta?: 
 }
 
 export function Breadcrumb({ items }: { items: Array<{ label: string; href?: string }> }) {
+  const { t } = useI18n();
   return (
-    <nav className="tl-breadcrumb" aria-label="Ruta de navegación">
+    <nav className="tl-breadcrumb" aria-label={t('Ruta de navegación')}>
       <ol>
         {items.map((it, i) => (
           <li key={i}>{it.href && i < items.length - 1 ? <Link href={it.href}>{it.label}</Link> : <span aria-current={i === items.length - 1 ? 'page' : undefined}>{it.label}</span>}</li>
@@ -70,22 +72,23 @@ export function Alert({ tone, title, children }: { tone: 'info' | 'review' | 'bl
  * 429/503 espera, red caída. Nunca convierte un 403 en «sin datos».
  */
 export function ErrorPanel({ error, onRetry, onReload }: { error: ApiError; onRetry?: () => void; onReload?: () => void }) {
+  const { t } = useI18n();
   const status = error.status;
   const title =
-    status === 403 ? 'No tienes permiso para realizar esta acción.'
-      : status === 404 ? 'El recurso no está disponible.'
-        : status === 409 ? 'Hay un conflicto con el estado actual.'
-          : status === 0 ? 'Sin conexión con el servidor.'
-            : status === 429 || status === 503 ? 'Servicio temporalmente no disponible.'
-              : 'No pudimos completar la operación.';
+    status === 403 ? t('No tienes permiso para realizar esta acción.')
+      : status === 404 ? t('El recurso no está disponible.')
+        : status === 409 ? t('Hay un conflicto con el estado actual.')
+          : status === 0 ? t('Sin conexión con el servidor.')
+            : status === 429 || status === 503 ? t('Servicio temporalmente no disponible.')
+              : t('No pudimos completar la operación.');
   return (
     <div className="error" role="alert">
       <p className="alert-title">{title}</p>
-      <p>{error.message}</p>
-      <p className="muted">{recoveryHint(error)}</p>
+      <p>{t(error.message)}</p>
+      <p className="muted">{t(recoveryHint(error))}</p>
       <div className="actions">
-        {onReload && status === 409 && <button type="button" onClick={onReload}>Recargar versión actual</button>}
-        {onRetry && status !== 403 && status !== 404 && <button type="button" className="secondary" onClick={onRetry}>Reintentar</button>}
+        {onReload && status === 409 && <button type="button" onClick={onReload}>{t('Recargar versión actual')}</button>}
+        {onRetry && status !== 403 && status !== 404 && <button type="button" className="secondary" onClick={onRetry}>{t('Reintentar')}</button>}
       </div>
     </div>
   );

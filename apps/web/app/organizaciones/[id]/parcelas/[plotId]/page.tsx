@@ -5,16 +5,21 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ApiError, api } from '../../../../../lib/api';
 import { useWorkspace } from '../../../../../lib/workspace';
+import { useI18n } from '../../../../../lib/i18n';
+import { FieldCapture } from '../../../../../lib/field-capture';
 import { Alert, Breadcrumb, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../../lib/ui';
-import { LocationCapture, accuracyLabel } from '../../../../../lib/location-capture';
-import { PolygonCapture } from '../../../../../lib/polygon-capture';
-import { GeometryImport } from '../../../../../lib/geometry-import';
+import { accuracyLabel } from '../../../../../lib/location-capture';
 import { VersionDownloads } from '../../../../../lib/geometry-downloads';
 import { GisEvaluation } from '../../../../../lib/gis-evaluation';
+import { GeoProfileEvaluation } from '../../../../../lib/geo-profile';
+import { SatelliteAnalysis } from '../../../../../lib/satellite';
+import { EntityDocuments } from '../../../../../lib/entity-documents';
+import { FieldEvidence } from '../../../../../lib/field-evidence';
+import { EventHistory } from '../../../../../lib/event-history';
 import { GEOMETRY_STATUS, GEOMETRY_TYPE_LABEL, GeometrySketch, METHOD_LABEL, ha, positions, type Plot, type PlotVersion } from '../../../../../lib/plots';
 
 interface HistoryRow { version: number; change_type: string; changed_fields: string[]; reason: string | null; changed_at: string; actor: string }
-const CHANGE_LABEL: Record<string, string> = { CREATE: 'Registro', UPDATE: 'Edición', GEOMETRY_VERSION: 'Nueva versión geométrica', ARCHIVE: 'Baja', ACTIVATE: 'Reactivación' };
+const CHANGE_LABEL: Record<string, string> = { CREATE: 'Registro', UPDATE: 'Edición', GEOMETRY_VERSION: 'Nueva versión geométrica', DECLARED_AREA: 'Superficie declarada actualizada (geometría conservada)', ARCHIVE: 'Baja', ACTIVATE: 'Reactivación' };
 const FIELD_LABEL: Record<string, string> = { name: 'nombre', crop: 'cultivo', variety: 'variedad', land_use: 'uso del suelo', province: 'provincia', canton: 'cantón', parish: 'parroquia', status: 'estado', current_version_id: 'versión geométrica actual' };
 const EDITABLE = ['name', 'crop', 'variety', 'land_use', 'province', 'canton', 'parish'] as const;
 
@@ -24,7 +29,9 @@ export default function PlotDetailPage() {
   const { plotId } = useParams<{ plotId: string }>();
   const fromProducer = useSearchParams().get('productor');
   const ws = useWorkspace();
+  const { t, dt, num, locale } = useI18n();
   const orgId = ws.activeOrg?.id ?? '';
+  const region = locale === 'en' ? 'en-US' : 'es-EC';
   const [plot, setPlot] = useState<Plot | null>(null);
   const [versions, setVersions] = useState<PlotVersion[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
@@ -54,100 +61,107 @@ export default function PlotDetailPage() {
   if (!ws.activeOrg) return null;
   const producerHref = plot ? `/organizaciones/${orgId}/productores/${plot.producer.id}` : '';
   const crumbs = fromProducer && plot
-    ? [{ label: ws.activeOrg.name, href: `/organizaciones/${orgId}` }, { label: 'Productores', href: `/organizaciones/${orgId}/productores` },
-       { label: plot.producer.producer_code ?? 'Productor', href: producerHref }, { label: plot.plot_code }]
-    : [{ label: ws.activeOrg.name, href: `/organizaciones/${orgId}` }, { label: 'Parcelas', href: `/organizaciones/${orgId}/parcelas` }, { label: plot?.plot_code ?? 'Parcela' }];
+    ? [{ label: ws.activeOrg.name, href: `/organizaciones/${orgId}` }, { label: t('Productores'), href: `/organizaciones/${orgId}/productores` },
+       { label: plot.producer.producer_code ?? t('Productor'), href: producerHref }, { label: plot.plot_code }]
+    : [{ label: ws.activeOrg.name, href: `/organizaciones/${orgId}` }, { label: t('Parcelas'), href: `/organizaciones/${orgId}/parcelas` }, { label: plot?.plot_code ?? t('Parcela') }];
   const current = plot?.current_version ?? null;
 
   return (
     <>
       <Breadcrumb items={crumbs} />
       {error && <ErrorPanel error={error} onRetry={load} />}
-      {!plot && !error && <Loading label="Cargando parcela…" />}
+      {!plot && !error && <Loading label={t('Cargando parcela…')} />}
       {plot && (
         <>
           <PageHeader
             title={`${plot.plot_code}${plot.name ? ` · ${plot.name}` : ''}`}
             meta={<>
-              <StatusBadge tone={plot.status === 'ACTIVE' ? 'valid' : 'blocked'}>{plot.status === 'ACTIVE' ? 'Activa' : 'De baja'}</StatusBadge>
-              <StatusBadge tone={GEOMETRY_STATUS[plot.geometry_status].tone}>{GEOMETRY_STATUS[plot.geometry_status].label}</StatusBadge>
-              <span>Productor: <Link href={producerHref}>{plot.producer.producer_code} · {plot.producer.display_name}</Link></span>
-              <span>versión {plot.row_version}</span>
+              <StatusBadge tone={plot.status === 'ACTIVE' ? 'valid' : 'blocked'}>{plot.status === 'ACTIVE' ? t('Activa') : t('De baja')}</StatusBadge>
+              <StatusBadge tone={GEOMETRY_STATUS[plot.geometry_status].tone}>{t(GEOMETRY_STATUS[plot.geometry_status].label)}</StatusBadge>
+              <span>{t('Productor')}: <Link href={producerHref}>{plot.producer.producer_code} · {plot.producer.display_name}</Link></span>
+              <span>{t('versión')} {plot.row_version}</span>
             </>}
           />
-          {plot.status === 'INACTIVE' && <Alert tone="review" title={`Parcela de baja: ${plot.deletion_reason ?? ''}.`}><p>Sus versiones geométricas e historial se conservan.</p></Alert>}
+          {plot.status === 'INACTIVE' && <Alert tone="review" title={`${t('Parcela de baja')}: ${plot.deletion_reason ?? ''}.`}><p>{t('Sus versiones geométricas e historial se conservan.')}</p></Alert>}
 
           {plot.can_update ? <EditPlot orgId={orgId} plot={plot} onSaved={load} /> : (
             <section className="card">
-              <h2>Datos de la parcela</h2>
+              <h2>{t('Datos de la parcela')}</h2>
               <dl className="props">
-                <dt>Cultivo</dt><dd>{plot.crop}{plot.variety ? ` · ${plot.variety}` : ''}</dd>
-                <dt>Uso del suelo</dt><dd>{plot.land_use ?? 'Sin registrar'}</dd>
-                <dt>Provincia / cantón / parroquia</dt><dd>{[plot.province, plot.canton, plot.parish].map((v) => v ?? '—').join(' / ')}</dd>
+                <dt>{t('Cultivo')}</dt><dd>{plot.crop}{plot.variety ? ` · ${plot.variety}` : ''}</dd>
+                <dt>{t('Uso del suelo')}</dt><dd>{plot.land_use ?? t('Sin registrar')}</dd>
+                <dt>{t('Provincia / cantón / parroquia')}</dt><dd>{[plot.province, plot.canton, plot.parish].map((v) => v ?? '—').join(' / ')}</dd>
               </dl>
             </section>
           )}
 
           <section className="card" aria-labelledby="geo-title">
-            <h2 id="geo-title">Ubicación y superficie</h2>
+            <h2 id="geo-title">{t('Ubicación y superficie')}</h2>
             {!current ? (
-              <EmptyState title="Geometría pendiente.">
-                <p className="muted">Esta parcela aún no tiene ubicación ni superficie registradas. Puedes capturar un punto o un polígono con la ubicación del navegador.</p>
+              <EmptyState title={t('Geometría pendiente.')}>
+                <p className="muted">{t('Esta parcela aún no tiene ubicación ni superficie registradas. Puedes capturar un punto o un polígono con la ubicación del navegador.')}</p>
               </EmptyState>
             ) : (
               <>
                 <dl className="props">
-                  <dt>Versión actual</dt><dd>v{current.version_number} · {METHOD_LABEL[current.survey_method] ?? current.survey_method}</dd>
-                  <dt>Tipo de geometría</dt><dd>{current.geometry_type ? GEOMETRY_TYPE_LABEL[current.geometry_type] : 'Sin geometría (solo superficie declarada)'}</dd>
-                  <dt>Superficie declarada</dt><dd>{ha(current.area_declared_ha) ?? 'Sin registrar'}</dd>
-                  <dt>Superficie calculada</dt><dd>{ha(current.area_calculated_ha) ?? (current.geometry_type === 'POINT' ? 'No aplica: un punto no tiene superficie' : current.geometry_type ? 'No calculada (geometría no válida para cálculo; se revisará en la validación GIS)' : 'Sin geometría')}</dd>
+                  <dt>{t('Versión actual')}</dt><dd>v{current.version_number} · {t(METHOD_LABEL[current.survey_method] ?? current.survey_method)}{current.change_kind === 'DECLARED_AREA_UPDATE' && ` · ${t('superficie declarada actualizada; geometría capturada en v{n}', { n: current.geometry_origin_version_number ?? 0 })}`}</dd>
+                  <dt>{t('Tipo de geometría')}</dt><dd>{current.geometry_type ? t(GEOMETRY_TYPE_LABEL[current.geometry_type]) : t('Sin geometría (solo superficie declarada)')}</dd>
+                  <dt>{t('Superficie declarada')}</dt><dd>{ha(current.area_declared_ha, region) ?? t('Sin registrar')}</dd>
+                  <dt>{t('Superficie calculada')}</dt><dd>{ha(current.area_calculated_ha, region) ?? (current.geometry_type === 'POINT' ? t('No aplica: un punto no tiene superficie') : current.geometry_type ? t('No calculada (geometría no válida para cálculo; se revisará en la validación GIS)') : t('Sin geometría'))}</dd>
                   {current.sample && (<>
-                    <dt>Captura</dt><dd>Ubicación del navegador · adquirida {new Date(current.sample.captured_at).toLocaleString('es-EC')} · recibida {new Date(current.sample.received_at).toLocaleString('es-EC')}</dd>
-                    <dt>Precisión horizontal</dt><dd>{accuracyLabel(current.sample.horizontal_accuracy_m)}</dd>
+                    <dt>{t('Captura')}</dt><dd>{t('Ubicación del navegador')} · {t('adquirida')} {dt(current.sample.captured_at)} · {t('recibida')} {dt(current.sample.received_at)}</dd>
+                    <dt>{t('Precisión horizontal')}</dt><dd>{accuracyLabel(current.sample.horizontal_accuracy_m, t, num)}</dd>
                   </>)}
                   {current.source_import_sha256 && (<>
-                    <dt>Archivo original</dt><dd>GeoJSON importado · SHA-256 <code className="hash">{current.source_import_sha256}</code></dd>
+                    <dt>{t('Archivo original')}</dt><dd>{t('GeoJSON importado')} · SHA-256 <code className="hash">{current.source_import_sha256}</code></dd>
                   </>)}
                   {current.technically_valid === false && (<>
-                    <dt>Validez técnica</dt><dd><StatusBadge tone="review">No válida</StatusBadge> <span className="muted">Conservada para revisión; sin superficie calculada.</span></dd>
+                    <dt>{t('Validez técnica')}</dt><dd><StatusBadge tone="review">{t('No válida')}</StatusBadge> <span className="muted">{t('Conservada para revisión; sin superficie calculada.')}</span></dd>
                   </>)}
-                  <dt>Validación GIS</dt><dd><StatusBadge tone="neutral">No validada</StatusBadge> <span className="muted">Solo comprobaciones estructurales ({current.validation_rule_version}). La validación GIS es P0-010.</span></dd>
+                  <dt>{t('Validación GIS')}</dt><dd><StatusBadge tone="neutral">{t('No validada')}</StatusBadge> <span className="muted">{t('Solo comprobaciones estructurales ({v}). La validación GIS es P0-010.', { v: current.validation_rule_version })}</span></dd>
                 </dl>
                 {current.geometry_type && !current.geometry_visible && (
-                  <p className="muted">Tu rol no tiene acceso a las coordenadas exactas de esta parcela.</p>
+                  <p className="muted">{t('Tu rol no tiene acceso a las coordenadas exactas de esta parcela.')}</p>
                 )}
                 {current.geometry && (
                   <div className="grid-2">
-                    <GeometrySketch geometry={current.geometry} label={`Esquema de ${plot.plot_code}, versión ${current.version_number}`} />
+                    <GeometrySketch geometry={current.geometry} label={t('Esquema de {c}, versión {v}', { c: plot.plot_code, v: current.version_number })} />
                     <CoordinatesTable version={current} />
                   </div>
                 )}
               </>
             )}
-            {plot.can_capture_location && <LocationCapture orgId={orgId} plotId={plot.id} rowVersion={plot.row_version} onSaved={load} />}
-            {plot.can_capture_location && <PolygonCapture orgId={orgId} plotId={plot.id} plotVersion={plot.row_version} onConfirmed={load} />}
-            {plot.can_capture_location && <GeometryImport orgId={orgId} plotId={plot.id} plotVersion={plot.row_version} onConfirmed={load} />}
+            {plot.can_capture_location && <FieldCapture orgId={orgId} plot={plot} onChanged={load} />}
             {plot.can_update && <DeclaredAreaForm orgId={orgId} plot={plot} onSaved={load} />}
           </section>
 
           <GisEvaluation orgId={orgId} plotId={plot.id} canEvaluate={!!plot.can_evaluate_gis} hasVersion={!!plot.current_version} />
+          {/* Dos dictámenes, a la vista y por separado: el técnico de arriba y el de perfil de destino. Pueden discrepar. */}
+          <GeoProfileEvaluation orgId={orgId} plotId={plot.id} canEvaluate={!!plot.can_evaluate_gis} hasVersion={!!plot.current_version} />
+
+          <SatelliteAnalysis orgId={orgId} plotId={plot.id} />
+
+          <FieldEvidence orgId={orgId} plotId={plot.id} canUpload={!!plot.can_update && ws.can('document:upload')} />
+
+          {/* A-05: documentos en contexto (tenencia, soportes) con su guía orientativa; las fotos y actas del recorrido siguen en su sección. */}
+          <EntityDocuments orgId={orgId} ownerType="plot" ownerId={plot.id} ownerLabel={plot.plot_code} canUpload={!!plot.can_update && ws.can('document:upload')} excludeTypes={['FIELD_EVIDENCE', 'FIELD_PHOTO']} />
 
           <section className="card" aria-labelledby="versions-title">
-            <h2 id="versions-title">Versiones geométricas</h2>
-            <p className="muted">Cada versión es inmutable: un cambio crea una versión nueva y la anterior se conserva para los registros que la usaron.</p>
-            {versions.length === 0 ? <p className="muted">Sin versiones.</p> : (
+            <h2 id="versions-title">{t('Versiones geométricas')}</h2>
+            <p className="muted">{t('Cada versión es inmutable: un cambio crea una versión nueva y la anterior se conserva para los registros que la usaron.')}</p>
+            {versions.length === 0 ? <p className="muted">{t('Sin versiones.')}</p> : (
               <div className="table-wrap">
-                <table aria-label="Versiones geométricas">
-                  <thead><tr><th scope="col">Versión</th><th scope="col">Método</th><th scope="col">Tipo</th><th scope="col">Declarada</th><th scope="col">Calculada</th><th scope="col">Registrada</th>{plot.geometry_access && <th scope="col">Descargas</th>}</tr></thead>
+                <table aria-label={t('Versiones geométricas')}>
+                  <thead><tr><th scope="col">{t('Versión')}</th><th scope="col">{t('Método')}</th><th scope="col">{t('Tipo')}</th><th scope="col">{t('Declarada')}</th><th scope="col">{t('Calculada')}</th><th scope="col">{t('Registrada')}</th>{plot.geometry_access && <th scope="col">{t('Descargas')}</th>}</tr></thead>
                   <tbody>
                     {versions.map((v) => (
                       <tr key={v.id}>
-                        <td>v{v.version_number} {v.is_current && <StatusBadge tone="process">Actual</StatusBadge>}</td>
-                        <td>{METHOD_LABEL[v.survey_method] ?? v.survey_method}</td>
-                        <td>{v.geometry_type ? GEOMETRY_TYPE_LABEL[v.geometry_type] : '—'}</td>
-                        <td>{ha(v.area_declared_ha) ?? '—'}</td>
-                        <td>{ha(v.area_calculated_ha) ?? '—'}</td>
-                        <td>{new Date(v.created_at).toLocaleString('es-EC')}</td>
+                        <td>v{v.version_number} {v.is_current && <StatusBadge tone="process">{t('Actual')}</StatusBadge>}</td>
+                        <td>{v.change_kind === 'DECLARED_AREA_UPDATE' ? t('Superficie declarada (geometría de v{n})', { n: v.geometry_origin_version_number ?? 0 }) : t(METHOD_LABEL[v.survey_method] ?? v.survey_method)}</td>
+                        <td>{v.geometry_type ? t(GEOMETRY_TYPE_LABEL[v.geometry_type]) : '—'}</td>
+                        <td>{ha(v.area_declared_ha, region) ?? '—'}</td>
+                        <td>{ha(v.area_calculated_ha, region) ?? '—'}</td>
+                        <td>{dt(v.created_at)}</td>
                         {plot.geometry_access && <td><VersionDownloads orgId={orgId} plotId={plot.id} version={v} /></td>}
                       </tr>
                     ))}
@@ -159,14 +173,16 @@ export default function PlotDetailPage() {
 
           {plot.can_archive && <StatusPlot orgId={orgId} plot={plot} onSaved={load} />}
 
+          <EventHistory orgId={orgId} kind="plots" id={plot.id} />
+
           <section className="card">
-            <h2>Historial</h2>
-            <ul className="plain" aria-label="Historial de la parcela">
+            <h2>{t('Historial')}</h2>
+            <ul className="plain" aria-label={t('Historial de la parcela')}>
               {history.map((h) => (
                 <li key={h.version}>
-                  <strong>v{h.version} · {CHANGE_LABEL[h.change_type] ?? h.change_type}</strong>{' '}
-                  <span className="muted">· {h.actor === 'PLATFORM' ? 'Administración de plataforma' : h.actor} · {new Date(h.changed_at).toLocaleString('es-EC')}
-                    {h.changed_fields.length > 0 && ` · ${h.changed_fields.map((f) => FIELD_LABEL[f] ?? f).join(', ')}`}{h.reason && ` · motivo: ${h.reason}`}</span>
+                  <strong>v{h.version} · {t(CHANGE_LABEL[h.change_type] ?? h.change_type)}</strong>{' '}
+                  <span className="muted">· {h.actor === 'PLATFORM' ? t('Administración de plataforma') : h.actor} · {dt(h.changed_at)}
+                    {h.changed_fields.length > 0 && ` · ${h.changed_fields.map((f) => t(FIELD_LABEL[f] ?? f)).join(', ')}`}{h.reason && ` · ${t('motivo')}: ${h.reason}`}</span>
                 </li>
               ))}
             </ul>
@@ -178,24 +194,26 @@ export default function PlotDetailPage() {
 }
 
 function CoordinatesTable({ version }: { version: PlotVersion }) {
+  const { t } = useI18n();
   const pts = positions(version.geometry);
   const shown = pts.slice(0, 50);
   return (
     <div className="table-wrap">
-      <table aria-label="Coordenadas (WGS84)">
-        <caption className="muted" style={{ textAlign: 'left', padding: '8px 16px' }}>Coordenadas WGS84 (EPSG:4326). Los decimales no indican precisión del GPS.</caption>
-        <thead><tr>{version.geometry_type !== 'POINT' && <th scope="col">Anillo</th>}<th scope="col">Latitud</th><th scope="col">Longitud</th></tr></thead>
+      <table aria-label={t('Coordenadas (WGS84)')}>
+        <caption className="muted" style={{ textAlign: 'left', padding: '8px 16px' }}>{t('Coordenadas WGS84 (EPSG:4326). Los decimales no indican precisión del GPS.')}</caption>
+        <thead><tr>{version.geometry_type !== 'POINT' && <th scope="col">{t('Anillo')}</th>}<th scope="col">{t('Latitud')} ({t('norte-sur')})</th><th scope="col">{t('Longitud')} ({t('este-oeste')})</th></tr></thead>
         <tbody>
           {shown.map((p, i) => <tr key={i}>{version.geometry_type !== 'POINT' && <td>{p.ring}</td>}<td>{p.lat}</td><td>{p.lon}</td></tr>)}
         </tbody>
       </table>
-      {pts.length > shown.length && <p className="muted" style={{ padding: '8px 16px' }}>Se muestran {shown.length} de {pts.length} posiciones.</p>}
+      {pts.length > shown.length && <p className="muted" style={{ padding: '8px 16px' }}>{t('Se muestran {a} de {b} posiciones.', { a: shown.length, b: pts.length })}</p>}
     </div>
   );
 }
 
 /** Edición con control de versión: ante conflicto se conserva el borrador y se puede recargar. */
 function EditPlot({ orgId, plot, onSaved }: { orgId: string; plot: Plot; onSaved: () => Promise<void> }) {
+  const { t } = useI18n();
   const initial = Object.fromEntries(EDITABLE.map((k) => [k, (plot[k] as string | null) ?? '']));
   const [fields, setFields] = useState<Record<string, string>>(initial);
   const [base, setBase] = useState(initial);
@@ -228,39 +246,40 @@ function EditPlot({ orgId, plot, onSaved }: { orgId: string; plot: Plot; onSaved
 
   const input = (key: (typeof EDITABLE)[number], label: string, required = false) => (
     <div>
-      <label htmlFor={`pl-${key}`}>{label}{!required && <span className="muted"> (opcional)</span>}</label>
+      <label htmlFor={`pl-${key}`}>{label}{!required && <span className="muted"> ({t('opcional')})</span>}</label>
       <input id={`pl-${key}`} required={required} value={fields[key]} onChange={(e) => setFields({ ...fields, [key]: e.target.value })} />
     </div>
   );
 
   return (
     <section className="card form">
-      <h2>Datos de la parcela</h2>
+      <h2>{t('Datos de la parcela')}</h2>
       <form onSubmit={submit}>
         <div className="grid-2">
-          {input('name', 'Nombre')}
-          {input('crop', 'Cultivo', true)}
-          {input('variety', 'Variedad')}
-          {input('land_use', 'Uso del suelo')}
-          {input('province', 'Provincia')}
-          {input('canton', 'Cantón')}
-          {input('parish', 'Parroquia')}
+          {input('name', t('Nombre'))}
+          {input('crop', t('Cultivo'), true)}
+          {input('variety', t('Variedad'))}
+          {input('land_use', t('Uso del suelo'))}
+          {input('province', t('Provincia'))}
+          {input('canton', t('Cantón'))}
+          {input('parish', t('Parroquia'))}
         </div>
-        {saved && <p className="alert valid" role="status">Cambios guardados.</p>}
+        {saved && <p className="alert valid" role="status">{t('Cambios guardados.')}</p>}
         {error && (
           <>
             <ErrorPanel error={error} onReload={reloadKeepingDraft} />
-            {error.status === 409 && <p className="muted">Tus cambios siguen en el formulario: recarga la versión actual y vuelve a guardar.</p>}
+            {error.status === 409 && <p className="muted">{t('Tus cambios siguen en el formulario: recarga la versión actual y vuelve a guardar.')}</p>}
           </>
         )}
-        <button type="submit" disabled={busy} aria-busy={busy}>{busy ? 'Guardando…' : 'Guardar cambios'}</button>
+        <button type="submit" disabled={busy} aria-busy={busy}>{busy ? t('Guardando…') : t('Guardar cambios')}</button>
       </form>
     </section>
   );
 }
 
-/** Registrar superficie declarada: crea una versión nueva (método DECLARED, sin geometría). */
+/** Superficie declarada: versión nueva que CONSERVA la geometría vigente (mismo caso de uso que la importación). */
 function DeclaredAreaForm({ orgId, plot, onSaved }: { orgId: string; plot: Plot; onSaved: () => Promise<void> }) {
+  const { t } = useI18n();
   const [area, setArea] = useState('');
   const [error, setError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
@@ -269,8 +288,8 @@ function DeclaredAreaForm({ orgId, plot, onSaved }: { orgId: string; plot: Plot;
     setBusy(true);
     setError(null);
     try {
-      await api(`/api/v1/organizations/${orgId}/plots/${plot.id}/geometry-versions`, {
-        method: 'POST', body: { expected_version: plot.row_version, survey_method: 'DECLARED', area_declared_ha: Number(area.replace(',', '.')) },
+      await api(`/api/v1/organizations/${orgId}/plots/${plot.id}/declared-area`, {
+        method: 'POST', body: { expected_version: plot.row_version, area_declared_ha: Number(area.replace(',', '.')) },
       });
       setArea('');
       await onSaved();
@@ -282,17 +301,18 @@ function DeclaredAreaForm({ orgId, plot, onSaved }: { orgId: string; plot: Plot;
   }
   return (
     <form onSubmit={submit} className="form" aria-labelledby="declarada-title">
-      <h3 id="declarada-title">Registrar superficie declarada</h3>
-      <p className="field-help">Crea una versión nueva sin geometría; no reemplaza la ubicación registrada en versiones anteriores.</p>
-      <label htmlFor="area">Superficie declarada (ha)</label>
+      <h3 id="declarada-title">{t('Actualizar superficie declarada')}</h3>
+      <p className="field-help">{t('Crea una versión nueva con la superficie declarada. Si la parcela tiene ubicación o polígono, se conservan tal cual (no es una captura nueva). La superficie calculada no cambia y la versión queda sin validar: la evaluación GIS anterior no se hereda.')}</p>
+      <label htmlFor="area">{t('Superficie declarada (ha)')}</label>
       <input id="area" inputMode="decimal" required pattern="[0-9]+([.,][0-9]{1,4})?" value={area} onChange={(e) => setArea(e.target.value)} />
       {error && <ErrorPanel error={error} onReload={onSaved} />}
-      <button type="submit" className="secondary" disabled={busy} aria-busy={busy}>{busy ? 'Guardando…' : 'Registrar superficie'}</button>
+      <button type="submit" className="secondary" disabled={busy} aria-busy={busy}>{busy ? t('Guardando…') : t('Registrar superficie')}</button>
     </form>
   );
 }
 
 function StatusPlot({ orgId, plot, onSaved }: { orgId: string; plot: Plot; onSaved: () => Promise<void> }) {
+  const { t } = useI18n();
   const [reason, setReason] = useState('');
   const [error, setError] = useState<ApiError | null>(null);
   const archiving = plot.status === 'ACTIVE';
@@ -309,13 +329,13 @@ function StatusPlot({ orgId, plot, onSaved }: { orgId: string; plot: Plot; onSav
   }
   return (
     <section className="card form">
-      <h2>{archiving ? 'Dar de baja la parcela' : 'Reactivar parcela'}</h2>
-      <p className="muted">{archiving ? `La baja de «${plot.plot_code}» es lógica: la parcela, sus versiones e historial se conservan.` : 'Vuelve a quedar disponible para operar.'}</p>
+      <h2>{archiving ? t('Dar de baja la parcela') : t('Reactivar parcela')}</h2>
+      <p className="muted">{archiving ? t('La baja de «{c}» es lógica: la parcela, sus versiones e historial se conservan.', { c: plot.plot_code }) : t('Vuelve a quedar disponible para operar.')}</p>
       <form onSubmit={submit}>
-        <label htmlFor="pl-reason">Motivo (queda en el historial)</label>
+        <label htmlFor="pl-reason">{t('Motivo (queda en el historial)')}</label>
         <input id="pl-reason" required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} />
         {error && <ErrorPanel error={error} onReload={onSaved} />}
-        <button type="submit" className={archiving ? 'danger' : ''}>{archiving ? 'Dar de baja' : 'Reactivar'}</button>
+        <button type="submit" className={archiving ? 'danger' : ''}>{archiving ? t('Dar de baja') : t('Reactivar')}</button>
       </form>
     </section>
   );

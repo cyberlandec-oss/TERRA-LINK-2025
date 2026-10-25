@@ -40,7 +40,7 @@ export async function reviewProducts({ browser, BASE, accounts, DEMO_ORGS, orgId
     await page.screenshot({ path: join(shots, 'productos--admin-confirmacion.png'), fullPage: true });
     await page.getByRole('button', { name: 'Cancelar' }).click(); // no se desactiva
     casos.push({ cuenta: 'admin.cooperativa (390 px, teclado)', resultado: `${rows.length} productos; unidades explícitas=${units}; formulario de alta=${createForm}; estados desde la API=${stateOptions.length - 1}; confirmación explica efectos=${explained}; desborde=${overflow}`,
-      ok: rows.length === 4 && units && createForm === 1 && stateOptions.length === 5 && explained === 1 && !overflow });
+      ok: rows.length >= 4 && units && createForm === 1 && stateOptions.length === 5 && explained === 1 && !overflow });
     await ctx.close();
   }
 

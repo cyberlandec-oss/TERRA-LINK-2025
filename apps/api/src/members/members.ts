@@ -9,13 +9,11 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
-  Query,
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, ArrayMinSize, IsArray, IsEmail, IsIn, IsISO8601, IsInt, IsOptional, IsString, Length, Matches, Max, MaxLength, Min, MinLength,
+  ArrayMaxSize, ArrayMinSize, IsArray, IsEmail, IsIn, IsOptional, IsString, Length, Matches, MaxLength, MinLength,
 } from 'class-validator';
 import { createHash, randomBytes } from 'crypto';
 import { sql, type Kysely, type Transaction } from 'kysely';
@@ -24,6 +22,7 @@ import { DB } from '../db/database';
 import type { Database } from '../db/schema';
 import { AppError, conflict, forbidden, notFound, unauthenticated } from '../common/errors';
 import { AuditService } from '../audit/audit.service';
+import { PlatformElevationService } from '../authz/platform-elevation';
 import { AuthorizationService } from '../authz/authorization.service';
 import { ORGANIZATION_ROLES, assignableRoles, canGrantRole, type Permission } from '../authz/catalog';
 import { CurrentUser, Public, issueAccessToken, type AuthUser, type AuthedRequest } from '../auth/auth';
@@ -65,11 +64,6 @@ class ChangeRolesDto {
   @ApiProperty() @IsString() @Length(3, 500) reason!: string;
 }
 
-class AuditQuery {
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
-  @IsOptional() @IsISO8601() before?: string;
-}
-
 class ReasonDto {
   @ApiProperty() @IsString() @Length(3, 500) reason!: string;
 }
@@ -83,6 +77,7 @@ export class MembersService {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly authz: AuthorizationService,
     private readonly audit: AuditService,
+    private readonly elevation: PlatformElevationService,
   ) {}
 
   /**
@@ -341,8 +336,26 @@ export class MembersService {
     return { id: current.id, reactivated: true };
   }
 
-  async listMembers(user: AuthUser, orgId: string) {
-    if ((await this.actor(user, orgId, 'membership:read', false)).onboarding) this.elevationRequired();
+  async listMembers(user: AuthUser, orgId: string, requestId?: string) {
+    if ((await this.actor(user, orgId, 'membership:read', false)).onboarding) {
+      // D-04: sin elevación aprobada y vigente, sigue bloqueado. Con ella, SOLO lectura y **sin datos
+      // personales**: el perfil adoptado excluye la identidad protegida, así que la plataforma ve la forma de
+      // la organización —cuántas membresías, con qué roles y en qué estado—, no quiénes son.
+      const elev = await this.elevation.vigente(user, orgId, 'members:read');
+      if (!elev) this.elevationRequired();
+      await this.elevation.registrarUso(user, orgId, elev.id, 'listado de miembros sin datos personales', requestId);
+      const filas = await this.db
+        .selectFrom('memberships as m')
+        .select([
+          'm.id as membership_id', 'm.status', 'm.status_reason',
+          sql<string[]>`coalesce((select array_agg(ra.role_code order by ra.role_code) from role_assignments ra
+            where ra.membership_id = m.id and ra.organization_id = m.organization_id), '{}')`.as('roles'),
+        ])
+        .where('m.organization_id', '=', orgId)
+        .orderBy('m.id')
+        .execute();
+      return filas.map((f) => ({ ...f, redacted: true, note: 'Elevación de plataforma: sin nombres ni correos. No es acceso de miembro.' }));
+    }
     return this.db
       .selectFrom('memberships as m')
       .innerJoin('users as u', 'u.id', 'm.user_id')
@@ -440,23 +453,6 @@ export class MembersService {
     });
   }
 
-  /**
-   * Bitácora de la organización (audit:read). Solo filas de ESA organización; la identidad de actores
-   * que no son miembros de ella (p. ej. personal de plataforma) se muestra como PLATFORM.
-   */
-  async auditLogs(user: AuthUser, orgId: string, limit: number, before?: string) {
-    await this.authz.require(user, orgId, 'audit:read', { mutation: false });
-    let q = this.db
-      .selectFrom('audit_logs as a')
-      .leftJoin('memberships as m', (j) => j.onRef('m.user_id', '=', 'a.actor_user_id').onRef('m.organization_id', '=', 'a.organization_id'))
-      .leftJoin('users as u', 'u.id', 'm.user_id')
-      .select(['a.id', 'a.action', 'a.entity_type', 'a.entity_id', 'a.result', 'a.reason', 'a.before', 'a.after', 'a.occurred_at', 'a.request_id', 'u.email as actor_email'])
-      .where('a.organization_id', '=', orgId);
-    if (before) q = q.where('a.occurred_at', '<', new Date(before));
-    const rows = await q.orderBy('a.occurred_at', 'desc').orderBy('a.id', 'desc').limit(limit).execute();
-    return rows.map(({ actor_email, ...r }) => ({ ...r, actor: actor_email ?? 'PLATFORM' }));
-  }
-
   /** SUPER_ADMIN: desactiva/reactiva la cuenta global e invalida todas sus sesiones (token_version + 1). */
   async changeUser(user: AuthUser, userId: string, target: 'ACTIVE' | 'INACTIVE', reason: string, requestId?: string) {
     this.authz.requirePlatform(user, 'user:deactivate');
@@ -492,8 +488,8 @@ export class MembersController {
   }
 
   @Get('members')
-  members(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string) {
-    return this.service.listMembers(user, orgId);
+  members(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Req() req: AuthedRequest) {
+    return this.service.listMembers(user, orgId, req.requestId);
   }
 
   @Post('members/:membershipId/deactivate')
@@ -520,11 +516,6 @@ export class MembersController {
     @Param('membershipId', ParseUUIDPipe) membershipId: string, @Body() dto: ChangeRolesDto, @Req() req: AuthedRequest,
   ) {
     return this.service.changeRoles(user, orgId, membershipId, dto.roles, dto.reason, req.requestId);
-  }
-
-  @Get('audit-logs')
-  auditLogs(@CurrentUser() user: AuthUser, @Param('orgId', ParseUUIDPipe) orgId: string, @Query() q: AuditQuery) {
-    return this.service.auditLogs(user, orgId, q.limit ?? 50, q.before);
   }
 
   @Get('invitations')

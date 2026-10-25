@@ -89,6 +89,13 @@ a:hover { color: var(--tl-forest); }
 /* Acceso (login / invitación): sin sidebar. */
 .tl-access { min-height: 100vh; display: grid; place-items: center; padding: var(--tl-space-4); }
 .tl-access-card { width: 100%; max-width: 440px; }
+/* Portal del destinatario de una concesión (P1-001): vive fuera del espacio de trabajo y, a diferencia de la
+   tarjeta de ingreso, contiene tablas. `min-width: 0` deja que el hijo encoja dentro de la rejilla; sin eso el
+   ancho mínimo de la tabla estira el contenedor y la página desborda a 390 px. */
+.tl-portal { min-height: 100vh; padding: var(--tl-space-4); display: grid; justify-items: center; }
+.tl-portal-card { width: 100%; max-width: 960px; min-width: 0; }
+.tl-portal-card .table-wrap { max-width: 100%; overflow-x: auto; }
+
 .tl-access-brand { font-size: 28px; font-weight: 700; letter-spacing: 0.06em; color: var(--tl-forest); margin-bottom: var(--tl-space-4); text-align: center; }
 
 /* ---------- Página ---------- */
@@ -104,6 +111,11 @@ a:hover { color: var(--tl-forest); }
 .muted { color: var(--tl-text-secondary); font-size: 14px; }
 .form { max-width: 760px; }
 .card form h3, .card .form h3 { margin-top: var(--tl-space-5); }
+/* P0-012 entregas: recepción como bloque dentro de la tarjeta; formularios en línea. */
+.subcard { border: 1px solid var(--tl-border-subtle); border-radius: var(--tl-radius-md); padding: var(--tl-space-4); margin-top: var(--tl-space-4); }
+.inline-form { display: flex; flex-wrap: wrap; gap: var(--tl-space-2); align-items: end; margin-top: var(--tl-space-2); }
+.inline-form input { flex: 1 1 12rem; min-width: 0; }
+.gate + .gate { margin-top: var(--tl-space-4); }
 dl.props { display: grid; grid-template-columns: max-content 1fr; gap: var(--tl-space-2) var(--tl-space-4); margin: 0; }
 dl.props dt { color: var(--tl-text-secondary); font-size: 14px; }
 dl.props dd { margin: 0; }
@@ -116,6 +128,7 @@ input, select, textarea {
   background: var(--tl-surface); border: 1px solid var(--tl-border-control); border-radius: var(--tl-radius-sm);
 }
 input[type="checkbox"] { width: 20px; min-height: 20px; height: 20px; accent-color: var(--tl-operation); }
+.checkbox-row input[type="radio"] { width: 20px; min-height: 20px; height: 20px; flex: none; accent-color: var(--tl-operation); }
 input:disabled, select:disabled { background: var(--tl-surface-subtle); color: var(--tl-text-secondary); }
 input[aria-invalid="true"] { border-color: var(--tl-blocked); }
 fieldset { border: 0; padding: 0; margin: 0; }
@@ -162,11 +175,13 @@ button.inline, .button.inline { margin-top: 0; }
 .badge.process { background: var(--tl-process-bg); color: var(--tl-process); }
 
 /* ---------- Tablas y listas ---------- */
-.table-wrap { overflow-x: auto; border: 1px solid var(--tl-border-subtle); border-radius: var(--tl-radius-md); background: var(--tl-surface); }
+.table-wrap { position: relative; overflow-x: auto; border: 1px solid var(--tl-border-subtle); border-radius: var(--tl-radius-md); background: var(--tl-surface); }
 table { width: 100%; border-collapse: collapse; font-size: 15px; }
 th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--tl-border-subtle); vertical-align: top; }
 th { background: var(--tl-surface-subtle); font-size: 14px; font-weight: 600; color: var(--tl-text); }
 tr:last-child td { border-bottom: 0; }
+/* Identificadores y rutas largas (códigos CTE, rutas de documento) no deben forzar desplazamiento horizontal. */
+code { overflow-wrap: anywhere; }
 ul.plain { list-style: none; padding: 0; margin: 0; }
 ul.plain > li { padding: var(--tl-space-3) 0; border-bottom: 1px solid var(--tl-border-subtle); }
 ul.plain > li:last-child { border-bottom: 0; }
@@ -200,3 +215,61 @@ ul.plain > li:last-child { border-bottom: 0; }
 .hash { overflow-wrap: anywhere; font-size: 0.85em; }
 .downloads { display: flex; flex-wrap: wrap; gap: var(--tl-space-2); align-items: center; }
 button.small { padding: 4px 10px; font-size: 0.875rem; }
+.event-list .event { padding: var(--tl-space-2) 0; border-bottom: 1px solid var(--tl-border, #e3e7e5); }
+.event-list .event.correction { border-left: 3px solid var(--tl-review, #b7791f); padding-left: var(--tl-space-2); }
+.work-item { padding: var(--tl-space-3) 0; border-top: 1px solid var(--tl-border-subtle); }
+.work-item h3 { margin: 0 0 var(--tl-space-1); }
+
+/* P1-013: texto extraído de un documento. Monoespaciado, desplazable y acotado: es material de lectura,
+   no un dato confirmado, y no debe dominar la pantalla. */
+.code-block {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 18rem;
+  overflow: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface-2, #f6f7f8);
+}
+
+/* P1-015 / D-54 — idioma, acceso federado y formularios del coste. Solo tokens existentes. */
+.lang-switch select { width: auto; min-width: 8rem; }
+.lang-row { display: flex; justify-content: flex-end; margin-bottom: var(--tl-space-3, 12px); }
+.sso-block { margin-top: var(--tl-space-4, 16px); display: grid; gap: var(--tl-space-2, 8px); text-align: center; }
+.sso-block button { width: 100%; }
+form.stack { display: grid; gap: var(--tl-space-2, 8px); max-width: 32rem; margin-top: var(--tl-space-4, 16px); }
+form.stack fieldset { border: 1px solid var(--tl-border, #c9d8cf); padding: 8px 12px; }
+form.stack fieldset label { display: flex; gap: 8px; align-items: center; }
+form.stack fieldset input[type='radio'] { width: auto; }
+@media (max-width: 480px) { .lang-switch select { min-width: 0; width: 100%; } }
+
+/* A-01 — captura de campo: método, croquis y rejilla de campos. Tokens únicos; sin otra fuente de estilos. */
+.field-capture { display: grid; gap: var(--tl-space-3); margin-top: var(--tl-space-3); }
+.field-capture [aria-pressed='true'] { outline: 2px solid var(--tl-forest); outline-offset: 2px; }
+.croquis svg { display: block; max-width: 100%; height: auto; border-radius: 6px; }
+.croquis svg:focus-visible { outline: 3px solid var(--tl-forest); outline-offset: 2px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--tl-space-2); align-items: end; margin-top: var(--tl-space-2); }
+@media (max-width: 480px) {
+  .grid-3 { grid-template-columns: minmax(0, 1fr); }
+  .field-capture .actions button, .croquis .actions button { min-height: 44px; }
+  .field-capture .actions { flex-wrap: wrap; }
+}
+.steps { list-style: none; display: flex; flex-wrap: wrap; gap: var(--tl-space-2); padding: 0; margin: var(--tl-space-3) 0; }
+.steps li { padding: 4px 12px; border: 1px solid var(--tl-border, #c9d8cf); border-radius: 999px; font-size: 14px; }
+.steps li[aria-current='step'] { border-color: var(--tl-forest); font-weight: 600; background: var(--tl-surface-subtle); }
+
+/* A-01 — mapa de captura (MapLibre, cartografía local) */
+.map-frame { position: relative; }
+.map-box { width: 100%; height: 420px; border: 1px solid var(--tl-border, #c9d8cf); border-radius: 6px; overflow: hidden; background: var(--tl-surface-subtle); }
+.map-box:focus-visible { outline: 3px solid var(--tl-forest); outline-offset: 2px; }
+.map-crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; pointer-events: none; z-index: 2;
+  background: linear-gradient(#1f4d3b, #1f4d3b) center / 100% 2px no-repeat, linear-gradient(#1f4d3b, #1f4d3b) center / 2px 100% no-repeat; filter: drop-shadow(0 0 2px #fff); }
+.map-loading { position: absolute; left: 12px; top: 12px; margin: 0; z-index: 3; background: rgba(255, 255, 255, 0.85); padding: 2px 8px; border-radius: 4px; }
+.map-me { width: 18px; height: 18px; border-radius: 50%; background: var(--tl-process); border: 3px solid #fff; box-shadow: 0 0 0 2px var(--tl-process), 0 1px 4px rgba(0, 0, 0, 0.35); }
+.my-location-reading { margin-top: var(--tl-space-2); }
+.map-vertex { width: 24px; height: 24px; border-radius: 50%; background: #1f4d3b; color: #fff; border: 2px solid #fff; font: 700 12px/20px system-ui, sans-serif; text-align: center; cursor: grab; }
+@media (max-width: 480px) { .map-box { height: 340px; } }

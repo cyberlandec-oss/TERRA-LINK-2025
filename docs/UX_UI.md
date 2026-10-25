@@ -71,7 +71,7 @@ Los valores nuevos de espaciado, breakpoints, colores auxiliares y distribución
 
 Esta especificación cubre backoffice web y diseño móvil de campo. El portal comprador es una extensión P1 según F1. Sirve para implementar historias progresivamente, no para habilitar todo el menú antes de disponer de datos y operaciones reales.
 
-Se trabaja exclusivamente sobre `C:\Users\mario\TERRA LINK 2025` y `cyberlandec-oss/TERRA-LINK-2025`. La base técnica reportada es NestJS/Next.js/React y aplicación móvil Expo planificada; las versiones y rutas concretas se consultan en el repositorio. No importar decisiones, roles, resultados de pruebas o componentes del proyecto `cacao`.
+Se trabaja exclusivamente sobre `D:\PROYECTOS CYBER LAND\TERRA LINK EUDR 2026\TERRA LINK 2025` (antes en `C:\Users\mario\TERRA LINK 2025`) y `cyberlandec-oss/TERRA-LINK-2025`. La base técnica reportada es NestJS/Next.js/React y aplicación móvil Expo planificada; las versiones y rutas concretas se consultan en el repositorio. No importar decisiones, roles, resultados de pruebas o componentes del proyecto `cacao`.
 
 La plataforma se ejecuta y verifica localmente con los servicios del proyecto. GitHub puede conservar el código; GitHub Actions no es una dependencia UX ni una condición de esta especificación. Este documento no modifica por sí solo la definición global de DONE: la decisión de validar esta etapa en local debe reflejarse también en las instrucciones y el backlog del repositorio.
 
@@ -446,7 +446,7 @@ Los códigos de F1 y F2 son exactamente los siguientes 12. Estas fichas definen 
 
 ### 7.13 PRODUCER
 
-- **Objetivo/portada:** «Mi finca»: parcelas, entregas, documentos y pendientes propios.
+- **Objetivo/portada:** «Mi finca»: parcelas, entregas, documentos y pendientes propios. **Implementada (2026-10-23, AJ-02/AJ-03)** en `/organizaciones/{id}/mi-finca`: productor, parcelas con su ubicación, pendientes derivados de lo registrado, «Documentos y soportes» con guía orientativa y «Mis entregas» (solo listado, `delivery:read_own`). Estados distintos: sin permiso, cuenta sin vínculo («Tu cuenta todavía no está vinculada a un productor»), vinculada sin parcelas y error. Vocabulario: «archivo recibido; comprobaciones técnicas completadas», «pendiente de revisión», «revisión humana: aceptada/rechazada por {persona}»; nunca «certificado» ni «validado» sin decir quién, qué y cuándo.
 - **Navegación:** pocos destinos, lenguaje claro y móvil primero.
 - **Consulta/captura:** sus datos autorizados; captura propia depende del alcance del portal y RBAC.
 - **Acciones:** consultar, completar o solicitar corrección cuando el backend lo permita.
@@ -822,6 +822,20 @@ Eventos operativos y auditoría son conceptos distintos: los primeros describen 
 
 Seleccionar alcance, filtros y formato soportado; previsualizar cuando sea posible; generar y descargar con estado real. Incluir organización, período, unidades, versión/fecha y autor autorizado. Respetar permisos de campos tanto en pantalla como en exportación.
 
+**Vocabulario de estados de un indicador (P0-030).** Un valor ausente no es un cero, y no todas las ausencias son iguales. La pantalla distingue cinco, con texto además de color:
+
+| Estado | En pantalla | Cuándo |
+|---|---|---|
+| `OK` | El valor | Calculado desde la base. **Un 0 es un cero observado** y se muestra como número, no como aviso. |
+| `NO_DENOMINATOR` | «Sin denominador» | El denominador es cero: el cociente no existe. Ni 0 % ni 100 %. |
+| `UNKNOWN` | «Desconocido» | El universo se conoce, pero la condición no ha sido evaluada en ningún sujeto. |
+| `CRITERION_UNDEFINED` | «Criterio sin definir» | El criterio carece de definición aprobada (p. ej. D-05) y aún no puede evaluarse. |
+| `RESTRICTED` | «Sin permiso» | El rol no tiene el permiso de ese dominio; no se muestra valor, conteo ni desglose. |
+
+Junto al estado se publica lo **observado**: los conteos que sí se pueden hacer aunque el indicador principal no sea un número (parcelas sin evaluar, sujetos sin severidad, expedientes bloqueados). Nunca se usan para rellenar el valor principal.
+
+En los reportes por entidad, un sujeto sin evaluar **aparece en la tabla** rotulado como tal; no se omite. Las cantidades se muestran y se totalizan **por unidad**. Una descarga declara si es la instantánea mostrada o un recálculo con nueva fecha.
+
 ### 20.3 Importación Excel, P0-026
 
 | Paso | Comportamiento |
@@ -1086,3 +1100,7 @@ Actualizar versión, fecha, fuente afectada, motivo y responsable cuando cambien
 | 1.0 de trabajo | 09/10/2026 | Especificación inicial basada en M1/F1/F2/F3 y alcance local de TERRA-LINK-2025. |
 
 **Regla de entrega:** la pantalla debe permitir completar una tarea real con datos, autorización, feedback y evidencia coherentes. Una maqueta o un componente visual no acredita el flujo de negocio completo.
+
+### 13.x Mapa de captura de campo (A-01, 2026-10-20)
+Mapa enfocable con teclado (flechas desplazan, + y − acercan, Enter fija un vértice en la mira), botón «Fijar vértice en la mira», vértices arrastrables, coordenadas de la mira y del puntero a la vista y tabla de
+coordenadas siempre presente; 390 px sin desborde; atribución de OpenStreetMap visible; estado explícito si falta la cartografía. Español e inglés.

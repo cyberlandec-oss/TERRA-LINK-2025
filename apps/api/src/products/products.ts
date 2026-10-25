@@ -18,9 +18,11 @@ import { EVENT_STORE, type EventStore } from '../events/events';
 // definida en el contrato). Cambiar de estado (p. ej. fermentar) es un proceso con evento y rendimiento,
 // nunca una edición del catálogo.
 
-type ProductRow = Selectable<ProductsTable>;
+export type ProductRow = Selectable<ProductsTable>;
 type Db = Kysely<Database> | Transaction<Database>;
-const IMMUTABLE = ['code', 'product_state', 'unit'] as const;
+export const IMMUTABLE = ['code', 'product_state', 'unit'] as const;
+/** Procedencia de un cambio hecho por otro caso de uso (P0-026 Importación): va en motivo, evento y auditoría. */
+export interface ChangeSource { reason: string; source: Record<string, unknown> }
 
 class ProductFieldsDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @Length(1, 120) name?: string;
@@ -35,7 +37,7 @@ class CreateProductDto extends ProductFieldsDto {
   @ApiProperty({ description: 'Código de measurement_units' }) @IsString() @MaxLength(16) unit!: string;
 }
 
-class UpdateProductDto extends ProductFieldsDto {
+export class UpdateProductDto extends ProductFieldsDto {
   @ApiProperty() @IsInt() @Min(1) expected_version!: number;
   // Se aceptan para explicar el rechazo: son inmutables.
   @ApiPropertyOptional() @IsOptional() @IsString() code?: string;
@@ -111,7 +113,8 @@ export class ProductsService {
     return { code: p.code, name: p.name, product_state: p.product_state, unit: p.unit, scientific_name: p.scientific_name, variety: p.variety, status: p.status };
   }
 
-  private async record(trx: Transaction<Database>, p: ProductRow, change: 'CREATED' | 'UPDATED' | 'DEACTIVATED' | 'ACTIVATED', fields: string[], userId: string, reason: string | null, requestId?: string) {
+  private async record(trx: Transaction<Database>, p: ProductRow, change: 'CREATED' | 'UPDATED' | 'DEACTIVATED' | 'ACTIVATED', fields: string[], userId: string, reason: string | null, requestId?: string, source?: Record<string, unknown>) {
+    const src = source ? { source } : {};
     await trx.insertInto('product_versions').values({
       product_id: p.id, organization_id: p.organization_id, version: String(p.row_version), change_type: change,
       changed_fields: fields, snapshot: JSON.stringify(this.snapshot(p)), reason, changed_by: userId,
@@ -120,11 +123,11 @@ export class ProductsService {
     await this.events.append(trx, {
       organizationId: p.organization_id, eventType, schemaVersion: 1, aggregateType: 'PRODUCT', aggregateId: p.id,
       aggregateVersion: Number(p.row_version), actorId: userId, correlationId: requestId,
-      payload: { product_id: p.id, code: p.code, product_state: p.product_state, unit: p.unit, status: p.status, changed_fields: fields },
+      payload: { product_id: p.id, code: p.code, product_state: p.product_state, unit: p.unit, status: p.status, changed_fields: fields, ...src },
     });
     await this.audit.record(trx, {
       organizationId: p.organization_id, actorUserId: userId, action: `product.${change.toLowerCase()}`, entityType: 'product', entityId: p.id,
-      requestId, result: 'SUCCESS', after: { ...this.snapshot(p), changed_fields: fields, ...(reason ? { reason } : {}) },
+      requestId, result: 'SUCCESS', after: { ...this.snapshot(p), changed_fields: fields, ...(reason ? { reason } : {}), ...src },
     });
   }
 
@@ -190,14 +193,7 @@ export class ProductsService {
     await this.ctx(user, orgId, true);
     try {
       return await this.db.transaction().execute(async (trx) => {
-        await this.checkCatalog(trx, dto.product_state, dto.unit);
-        const p = await trx.insertInto('products').values({
-          id: randomUUID(), organization_id: orgId, code: dto.code, name: dto.name.trim(), product_state: dto.product_state, unit: dto.unit,
-          scientific_name: dto.scientific_name?.trim() || null, variety: dto.variety?.trim() || null, status: 'ACTIVE', status_reason: null,
-          created_by: user.id, updated_by: user.id,
-        } as never).returningAll().executeTakeFirstOrThrow();
-        await this.record(trx, p, 'CREATED', ['code', 'name', 'product_state', 'unit', 'scientific_name', 'variety'], user.id, null, requestId);
-        return this.view(trx, p);
+        return this.view(trx, await this.createInTx(trx, orgId, user, dto, requestId));
       });
     } catch (e) {
       if ((e as { constraint?: string }).constraint === 'products_code_uq') throw conflict('PRODUCT_CODE_TAKEN', 'Ya existe un producto con ese código en tu organización.');
@@ -205,9 +201,31 @@ export class ProductsService {
     }
   }
 
+  /**
+   * Alta dentro de una transacción del llamador (también P0-026 Importación). El llamador ya autorizó product:manage.
+   * Mismos efectos que create(): catálogo de estado y unidad, versión CREATED, evento y auditoría.
+   */
+  async createInTx(trx: Transaction<Database>, orgId: string, user: AuthUser, dto: { code: string; name: string; product_state: string; unit: string; scientific_name?: string | null; variety?: string | null }, requestId?: string, from?: ChangeSource) {
+    await this.checkCatalog(trx, dto.product_state, dto.unit);
+    const p = await trx.insertInto('products').values({
+      id: randomUUID(), organization_id: orgId, code: dto.code, name: dto.name.trim(), product_state: dto.product_state, unit: dto.unit,
+      scientific_name: dto.scientific_name?.trim() || null, variety: dto.variety?.trim() || null, status: 'ACTIVE', status_reason: null,
+      created_by: user.id, updated_by: user.id,
+    } as never).returningAll().executeTakeFirstOrThrow();
+    await this.record(trx, p, 'CREATED', ['code', 'name', 'product_state', 'unit', 'scientific_name', 'variety'], user.id, from?.reason ?? null, requestId, from?.source);
+    return p;
+  }
+
   async update(user: AuthUser, orgId: string, id: string, dto: UpdateProductDto, requestId?: string) {
     await this.ctx(user, orgId, true);
-    return this.db.transaction().execute(async (trx) => {
+    return this.db.transaction().execute(async (trx) => this.view(trx, await this.updateInTx(trx, orgId, user, id, dto, requestId)));
+  }
+
+  /**
+   * Edición dentro de una transacción del llamador (también P0-026 Importación). El llamador ya autorizó product:manage.
+   * Mismos controles que update(): inmutables, inactivo, versión esperada; sin cambios no crea versión ni evento.
+   */
+  async updateInTx(trx: Transaction<Database>, orgId: string, user: AuthUser, id: string, dto: UpdateProductDto, requestId?: string, from?: ChangeSource) {
       const cur = await this.load(trx, orgId, id, true);
       const changedImmutable = IMMUTABLE.filter((f) => dto[f] !== undefined && dto[f] !== cur[f]);
       if (changedImmutable.length) {
@@ -222,12 +240,28 @@ export class ProductsService {
         variety: dto.variety !== undefined ? (dto.variety?.trim() || null) : cur.variety,
       };
       const fields = (Object.keys(next) as Array<keyof typeof next>).filter((k) => next[k] !== cur[k]);
-      if (fields.length === 0) return this.view(trx, cur);
+      if (fields.length === 0) return cur;
       const p = await trx.updateTable('products').set({ ...next, row_version: sql`row_version + 1`, updated_at: new Date(), updated_by: user.id } as never)
         .where('id', '=', id).where('organization_id', '=', orgId).returningAll().executeTakeFirstOrThrow();
-      await this.record(trx, p, 'UPDATED', fields, user.id, null, requestId);
-      return this.view(trx, p);
-    });
+      await this.record(trx, p, 'UPDATED', fields, user.id, from?.reason ?? null, requestId, from?.source);
+      return p;
+  }
+
+  /** P0-026: productos de la organización por código (vista previa y confirmación de una importación). */
+  async byCodes(db: Db, orgId: string, codes: string[], lock = false) {
+    if (codes.length === 0) return new Map<string, ProductRow>();
+    let q = db.selectFrom('products').selectAll().where('organization_id', '=', orgId).where('code', 'in', codes);
+    if (lock) q = q.orderBy('id').forUpdate();
+    return new Map((await q.execute()).map((r) => [r.code, r]));
+  }
+
+  /** P0-026: catálogos de sistema vigentes (estados/presentaciones y unidades). */
+  async catalogs(db: Db) {
+    const [states, units] = await Promise.all([
+      db.selectFrom('product_states').select('code').execute(),
+      db.selectFrom('measurement_units').select('code').execute(),
+    ]);
+    return { states: new Set(states.map((s) => s.code)), units: new Set(units.map((u) => u.code)) };
   }
 
   async changeStatus(user: AuthUser, orgId: string, id: string, target: 'ACTIVE' | 'INACTIVE', dto: StatusDto, requestId?: string) {

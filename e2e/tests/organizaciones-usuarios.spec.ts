@@ -128,8 +128,8 @@ test('cambiar roles muestra u oculta acciones según el permiso efectivo, sin vo
   await expect(techPage.getByRole('heading', { name: 'Asociación E2E' })).toBeVisible();
   await expect(techPage.getByRole('button', { name: 'Guardar cambios' })).toHaveCount(0);
   await techPage.getByRole('link', { name: 'Auditoría' }).click();
-  await expect(techPage.getByRole('heading', { name: 'Actividad reciente' })).toBeVisible();
-  await expect(techPage.getByRole('list', { name: 'Actividad' })).toContainText('Roles modificados');
+  await expect(techPage.getByRole('heading', { name: 'Registros' })).toBeVisible();
+  await expect(techPage.getByRole('table', { name: 'Registros de auditoría' })).toContainText('Roles modificados');
 });
 
 test('suspensión bloquea cambios con aviso; reactivación los restablece', async () => {

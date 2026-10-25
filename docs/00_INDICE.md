@@ -27,9 +27,24 @@
 | [20_COMANDOS_Y_ENTORNO.md](20_COMANDOS_Y_ENTORNO.md) | Inspección y comandos por verificar | Inicio/ejecución |
 | [21_GUIA_CLAUDE_CODE.md](21_GUIA_CLAUDE_CODE.md) | Sesiones, comandos, mantenimiento | Trabajo con Claude |
 | [22_DECISIONES_Y_PENDIENTES.md](22_DECISIONES_Y_PENDIENTES.md) | Diferencias y decisiones abiertas | Resolver ambigüedades |
-| [23_ESTADO_DESARROLLO.md](23_ESTADO_DESARROLLO.md) | Registro inicial sin implementación acreditada | Continuidad |
+| [23_ESTADO_DESARROLLO.md](23_ESTADO_DESARROLLO.md) | Estado real por historia, cobertura y próxima acción (vigente) | Continuidad |
 | [24_TRAZABILIDAD_REQUISITOS.md](24_TRAZABILIDAD_REQUISITOS.md) | Fuente → requisito → historia → prueba | Auditoría de alcance |
 | [25_PROMPTS_DE_TRABAJO.md](25_PROMPTS_DE_TRABAJO.md) | Instrucciones listas para pegar | Primer uso |
+| [contexto/](contexto/) | Contexto funcional de Ecuador y plan de ajuste mínimo (recomendaciones del propietario, no requisitos originales); su contraste está en la tabla CTX de `24` | Orientación de producto |
+
+## Continuidad
+
+- **[sesiones/REANUDAR_2026-10-20.md](sesiones/REANUDAR_2026-10-20.md): documento VIGENTE para retomar el trabajo**
+  —arranque del entorno, las dos medidas de avance, estado por historia, trampas conocidas, respaldos, siguiente
+  paso y restricciones—.
+  Los `REANUDAR_` anteriores (2026-10-11, 2026-10-14, 2026-10-15, 2026-10-16 y 2026-10-19) son **históricos** y no deben usarse para
+  reanudar: el del 2026-10-15 da `CREDENCIALES.csv` como archivo vigente y las claves PII sin rotar.
+
+## Operación
+
+- [MANUAL_OPERACION.md](MANUAL_OPERACION.md): manual por rol y guion de capacitación de las funciones existentes, con
+  sus bloqueos vigentes. **Documentación preparada, no capacitación impartida.**
+- [UX_UI.md](UX_UI.md): identidad visual, tokens, componentes, estados y experiencia por rol.
 
 ## Decisiones y plantillas
 

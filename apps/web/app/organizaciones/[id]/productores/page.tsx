@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent, useRef } from 'react';
+import { useUrlFilters } from '../../../../lib/url-filters';
 import { ApiError, api } from '../../../../lib/api';
 import { useWorkspace } from '../../../../lib/workspace';
 import { Breadcrumb, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../lib/ui';
@@ -41,31 +42,41 @@ export default function ProducersPage() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
   const [applied, setApplied] = useState({ q: '', status: '' });
+  // Filtros aplicados en la URL: se conservan al volver desde la ficha (P0-027).
+  const [urlFilters, setUrlFilters, ready] = useUrlFilters({ q: '', status: '' });
   const [error, setError] = useState<ApiError | null>(null);
-  const canList = ws.can('producer:read') || ws.can('producer:read_assigned');
+  const canList = ws.can('producer:read') || ws.can('producer:read_assigned') || ws.can('producer:read_own');
 
+  const seq = useRef(0);
   const load = useCallback(async (append = false, from: string | null = null, override?: { q: string; status: string }) => {
     if (!orgId || !canList) return;
     const f = override ?? { q: q.trim(), status };
     setError(null);
+    const mine = ++seq.current; // una respuesta vieja no puede pisar a una más reciente (el listado inicial y la búsqueda del formulario pueden cruzarse)
     try {
       const params = new URLSearchParams({ limit: '25' });
       if (f.q) params.set('q', f.q);
       if (f.status) params.set('status', f.status);
       if (from) params.set('cursor', from);
       const res = await api<{ items: Producer[]; next_cursor: string | null }>(`/api/v1/organizations/${orgId}/producers?${params}`);
+      if (mine !== seq.current) return;
       setItems((prev) => (append && prev ? [...prev, ...res.items] : res.items));
       setCursor(res.next_cursor);
       setApplied(f);
+      setUrlFilters(f);
     } catch (err) {
+      if (mine !== seq.current) return;
       setError(err as ApiError);
     }
   }, [orgId, canList, q, status]);
 
   useEffect(() => {
-    void load();
-    // Solo al entrar; la búsqueda se lanza con el formulario.
-  }, [orgId]);
+    if (!ready) return;
+    setQ(urlFilters.q);
+    setStatus(urlFilters.status);
+    void load(false, null, urlFilters);
+    // Solo al entrar (con los filtros de la URL); la búsqueda se lanza con el formulario.
+  }, [orgId, ready]);
 
   if (!ws.activeOrg) return null;
   if (!canList) {

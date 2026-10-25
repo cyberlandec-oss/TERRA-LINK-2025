@@ -1,25 +1,156 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ApiError, ROLE_LABELS, api, type Organization } from '../../../lib/api';
 import { useWorkspace } from '../../../lib/workspace';
 import { Alert, Breadcrumb, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../lib/ui';
 
-// Experiencias por rol aún sin módulo (docs/UX_UI.md §7, §25). Se muestran en una superficie separada y
-// rotulada; nunca como entradas de menú ni con datos inventados.
+// Capacidades que SIGUEN sin implementarse para ciertos roles (docs/UX_UI.md §7; revisado 2026-10-12, P0-027). Se muestran
+// en una superficie separada y rotulada; nunca como entradas de menú ni con datos. Lo ya implementado no aparece aquí.
 const PENDING_BY_ROLE: Record<string, Array<{ capability: string; story: string }>> = {
-  MANAGER: [{ capability: 'Centro de operaciones (entregas, recepciones, lotes y excepciones)', story: 'P0-012, P0-016 y cola de trabajo (UI-04)' }],
-  FIELD_TECHNICIAN: [{ capability: 'Parcelas y captura GPS/polígono', story: 'P0-006 a P0-008' }, { capability: 'Trabajo offline y sincronización', story: 'P0-023/P0-024' }],
-  RECEPTION_OPERATOR: [{ capability: 'Nueva recepción y pesaje', story: 'P0-012' }],
-  QUALITY_OPERATOR: [{ capability: 'Cola de calidad y resultados de muestras', story: 'Backlog por confirmar (UX-D12)' }],
-  TRACEABILITY_MANAGER: [{ capability: 'Lotes, procesamiento y explorador de trazabilidad', story: 'P0-013 a P0-017' }],
-  EUDR_MANAGER: [{ capability: 'Evidencias, riesgo, mitigación y expedientes', story: 'P0-018 a P0-022' }],
-  EXPORT_MANAGER: [{ capability: 'Preparación de embarques', story: 'P0-029' }],
-  AUDITOR: [{ capability: 'Explorador de auditoría con comparación de versiones', story: 'P0-025' }],
-  BUYER: [{ capability: 'Portal comprador', story: 'P1-001; requiere contrato de concesiones entre organizaciones (UX-D09)' }],
-  PRODUCER: [{ capability: '«Mi finca»: parcelas, entregas y documentos propios', story: 'Requiere vínculo cuenta–productor (UX-D08)' }],
+  FIELD_TECHNICIAN: [{ capability: 'Trabajo de campo sin conexión', story: 'App móvil (P0-023/P0-024): el ensayo en teléfono físico sigue pendiente; la web no guarda datos sin conexión' }],
+  EXPORT_MANAGER: [{ capability: 'Despacho de embarques', story: 'Preparar y reservar ya es posible; despachar sigue bloqueado hasta definir las condiciones de paquete y fecha de despacho (D-34)' }],
+  BUYER: [{ capability: 'Portal comprador', story: 'P1-001; requiere contrato de concesiones entre organizaciones (UX-D09). Sin concesión no hay acceso implícito' }],
 };
+const PLATFORM_PENDING = { capability: 'Acceso a datos operativos de una organización', story: 'Requiere elevación auditada (D-04, pendiente). La administración de plataforma no da acceso implícito' };
+
+interface FilaTrabajo {
+  code: string; title: string; queue: 'MINE' | 'SUPERVISION';
+  entity: { type: string; id: string; code: string; href: string };
+  reason: string; impact: string;
+  assignee: { membership_id: string; name: string } | null; assignee_note: string;
+  due_date: string | null; due_state: 'OVERDUE' | 'DUE_SOON' | 'SCHEDULED' | 'NONE';
+  priority: 'ALTA' | 'MEDIA' | 'BAJA'; priority_rule: string;
+  status: string; evidence_required: string | null;
+  action: string; action_href: string;
+}
+interface ColaTrabajo {
+  queues: { mine: number; supervision: number };
+  filters: { queue: string | null; assignee: string | null; status: string | null };
+  rows: FilaTrabajo[]; total: number; shown: number; truncated: boolean;
+  tasks: Array<{ code: string; count: number }>;
+  note: string; priority_note: string;
+}
+
+const TONO_PRIORIDAD: Record<string, 'blocked' | 'review' | 'neutral'> = { ALTA: 'blocked', MEDIA: 'review', BAJA: 'neutral' };
+const ESTADOS: Array<[string, string]> = [
+  ['DRAFT', 'Borrador'], ['REGISTERED', 'Registrada'], ['PENDING', 'Pendiente'],
+  ['ACTIVE', 'Activa'], ['OPEN', 'Abierta'], ['SUBMITTED', 'Entregada'],
+];
+const PLAZO: Record<string, string> = { OVERDUE: 'Vencido', DUE_SOON: 'Próximo', SCHEDULED: 'Con plazo', NONE: 'Sin plazo en el dominio' };
+
+/**
+ * Mi trabajo (RF-34, P1-003; docs/14 §My Work; UX_UI §11; QA-14).
+ *
+ * Dos colas separadas y filtros REALES: lo que se elige aquí viaja al backend, que es quien filtra y quien
+ * autoriza. Los filtros viven en la URL, así que abrir una tarea y volver conserva la vista.
+ * Aquí NO se completa nada: cada fila desaparece cuando su caso de uso del dominio la resuelve.
+ */
+function MyWork({ orgId }: { orgId: string }) {
+  const router = useRouter();
+  const params = useSearchParams();
+  const queue = params.get('cola') ?? '';
+  const assignee = params.get('responsable') ?? '';
+  const status = params.get('estado') ?? '';
+  const hayFiltros = Boolean(queue || assignee || status);
+
+  const [data, setData] = useState<ColaTrabajo | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
+
+  const load = useCallback(async () => {
+    setError(null);
+    const q = new URLSearchParams();
+    if (queue) q.set('queue', queue);
+    if (assignee) q.set('assignee', assignee);
+    if (status) q.set('status', status);
+    const cadena = q.toString();
+    try { setData(await api<ColaTrabajo>(`/api/v1/organizations/${orgId}/my-work${cadena ? `?${cadena}` : ''}`)); }
+    catch (err) { setError(err as ApiError); }
+  }, [orgId, queue, assignee, status]);
+  useEffect(() => { setData(null); void load(); }, [load]);
+
+  /** El filtro vive en la URL: volver de una tarea devuelve la misma vista filtrada. */
+  const cambiar = (clave: string, valor: string) => {
+    const q = new URLSearchParams(params.toString());
+    if (valor) q.set(clave, valor); else q.delete(clave);
+    const cadena = q.toString();
+    router.replace(`/organizaciones/${orgId}${cadena ? `?${cadena}` : ''}`, { scroll: false });
+  };
+
+  const seccion = (titulo: string, cola: 'MINE' | 'SUPERVISION', vacio: string) => {
+    const filas = (data?.rows ?? []).filter((r) => r.queue === cola);
+    return (
+      <section aria-labelledby={`cola-${cola}`}>
+        <h3 id={`cola-${cola}`}>{titulo} <StatusBadge tone="neutral">{filas.length}</StatusBadge></h3>
+        {filas.length === 0 ? <p className="muted">{vacio}</p> : (
+          <div className="table-wrap"><table aria-label={titulo}>
+            <thead><tr>
+              <th scope="col">Prioridad</th><th scope="col">Tarea</th><th scope="col">Entidad</th>
+              <th scope="col">Responsable</th><th scope="col">Plazo</th><th scope="col">Estado</th><th scope="col">Acción</th>
+            </tr></thead>
+            <tbody>{filas.map((r) => (
+              <tr key={`${r.code}-${r.entity.id}`}>
+                <td><StatusBadge tone={TONO_PRIORIDAD[r.priority]}>{r.priority}</StatusBadge>
+                  <div className="muted">{r.priority_rule}</div></td>
+                <td>{r.title}<div className="muted">{r.reason}</div><div className="muted">{r.impact}</div>
+                  {r.evidence_required && <div className="muted">Evidencia requerida: {r.evidence_required}</div>}</td>
+                <td><Link href={r.entity.href}>{r.entity.code}</Link></td>
+                <td>{r.assignee?.name ?? 'Sin responsable'}<div className="muted">{r.assignee_note}</div></td>
+                <td>{r.due_date ?? '—'}<div className="muted">{PLAZO[r.due_state]}</div></td>
+                <td>{r.status}</td>
+                <td><Link href={r.action_href}>{r.action}</Link></td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        )}
+      </section>
+    );
+  };
+
+  return (
+    <section className="card" aria-labelledby="mi-trabajo">
+      <h2 id="mi-trabajo">Mi trabajo</h2>
+      {error ? <ErrorPanel error={error} onRetry={load} />
+        : !data ? <Loading label="Cargando tus pendientes…" />
+          : (
+            <>
+              <p className="muted">{data.note}</p>
+              <fieldset aria-label="Filtros de la cola">
+                <label htmlFor="f-cola">Cola</label>
+                <select id="f-cola" value={queue} onChange={(e) => cambiar('cola', e.target.value)}>
+                  <option value="">Todas</option><option value="MINE">Personal</option><option value="SUPERVISION">Supervisión</option>
+                </select>
+                <label htmlFor="f-resp">Responsable</label>
+                <select id="f-resp" value={assignee} onChange={(e) => cambiar('responsable', e.target.value)}>
+                  <option value="">Cualquiera</option><option value="ME">Yo</option><option value="UNASSIGNED">Sin responsable</option>
+                </select>
+                <label htmlFor="f-estado">Estado</label>
+                <select id="f-estado" value={status} onChange={(e) => cambiar('estado', e.target.value)}>
+                  <option value="">Cualquiera</option>
+                  {ESTADOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+                {hayFiltros && <button type="button" onClick={() => router.replace(`/organizaciones/${orgId}`, { scroll: false })}>Quitar filtros</button>}
+              </fieldset>
+              <p className="muted">
+                Personal: {data.queues.mine} · Supervisión: {data.queues.supervision}. El filtro lo aplica el servidor;
+                no amplía lo que puedes ver. {data.priority_note}
+              </p>
+              {data.total === 0 ? (
+                <p>{hayFiltros ? 'Ningún pendiente coincide con estos filtros.' : 'No tienes pendientes en esta organización.'}</p>
+              ) : (
+                <>
+                  {queue !== 'SUPERVISION' && seccion('Cola personal', 'MINE', 'No hay tareas asignadas a ti.')}
+                  {queue !== 'MINE' && seccion('Supervisión', 'SUPERVISION', 'No hay trabajo del equipo pendiente de supervisión.')}
+                </>
+              )}
+              {data.truncated && <p className="muted">Se muestran {data.shown} de {data.total} tareas que coinciden. Los recuentos de arriba son los reales; afina los filtros para ver el resto.</p>}
+            </>
+          )}
+    </section>
+  );
+}
 
 export default function OrganizationHomePage() {
   const ws = useWorkspace();
@@ -46,7 +177,8 @@ export default function OrganizationHomePage() {
     return <ErrorPanel error={new ApiError(404, { code: 'NOT_FOUND', message: 'El recurso no existe o no está disponible para ti.', request_id: null })} />;
   }
   const roles = ws.activePerms?.roles ?? [];
-  const pending = roles.flatMap((r) => (PENDING_BY_ROLE[r] ?? []).map((p) => ({ ...p, role: r })));
+  const pending = [...roles.flatMap((r) => (PENDING_BY_ROLE[r] ?? []).map((p) => ({ ...p, role: r }))),
+    ...(ws.isPlatformAdmin && !ws.activePerms ? [{ ...PLATFORM_PENDING, role: 'SUPER_ADMIN' }] : [])];
 
   return (
     <>
@@ -57,6 +189,7 @@ export default function OrganizationHomePage() {
           <Alert tone="info" title="Tu rol todavía no tiene pantallas disponibles en esta etapa.">
             <p>Tu cuenta y tu membresía están activas. Las funciones previstas para tu rol se habilitarán cuando existan sus operaciones y contratos.</p>
           </Alert>
+          {ws.activePerms && <MyWork orgId={ws.activeOrg.id} />}
         </>
       ) : error ? (
         <ErrorPanel error={error} onRetry={load} />
@@ -71,6 +204,7 @@ export default function OrganizationHomePage() {
               <span>{org.organization_type} · {org.country} · versión {org.row_version}</span>
             </>}
           />
+          {ws.activePerms && <MyWork orgId={org.id} />}
           {org.status === 'SUSPENDED' && (
             <Alert tone="review" title={`Organización suspendida: ${org.status_reason ?? ''}`}>
               <p>El historial sigue disponible para consulta; no se admiten nuevas operaciones.</p>
@@ -88,8 +222,8 @@ export default function OrganizationHomePage() {
       )}
       {pending.length > 0 && (
         <section className="card" aria-labelledby="pendientes-rol">
-          <h2 id="pendientes-rol">Próximas capacidades para tu rol</h2>
-          <p className="muted">Aún no disponibles: se listan para orientar la revisión, no son accesos.</p>
+          <h2 id="pendientes-rol">Capacidades aún no disponibles para tu rol</h2>
+          <p className="muted">Se listan para orientar, no son accesos ni se muestran como operativas.</p>
           <ul className="plain">
             {pending.map((p, i) => (
               <li key={i}>

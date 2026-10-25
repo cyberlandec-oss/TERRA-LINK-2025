@@ -19,3 +19,9 @@ Criterio de esta etapa: validación local (`npm run validate`, docs/20). Actions
 DONE_LOCAL exige criterios de la historia + evidencia local; no acredita producción ni conformidad.
 Las pruebas usan solo bases `*_test`/`*_e2e`; nunca la base de desarrollo ni borrado de volúmenes.
 Un fallo intermitente se conserva y se analiza su causa antes de declararlo resuelto.
+
+Entregas funcionales completas (2026-10-17): pruebas dirigidas durante la implementación y **una sola**
+`npm run validate` al cerrar el candidato, con el código congelado. Toda comprobación verifica sus
+precondiciones —estado HTTP, estructura, campos presentes— y acompaña cada denegación con un **control
+autorizado**: ni «OK» por respuesta vacía, ni por ruta inexistente, ni por referencia `undefined`
+(`e2e/review/comprobacion.mjs`).

@@ -37,6 +37,31 @@ Este paquete define el producto objetivo; no acredita implementación, conformid
 5. Actualiza estado, decisiones y reporte de evidencia. No cierres una historia solo porque el código compila.
 6. Entrega cambios, pruebas ejecutadas, limitaciones y siguiente paso; distingue «no ejecutado» de «aprobado».
 
+## Organización por entregas funcionales completas (2026-10-17)
+Agrupa decisiones, implementación y pruebas de **un mismo resultado funcional verificable**; no conviertas cada
+ajuste en una entrega con validación y despliegue propios, ni acumules funcionalidades independientes. Límite
+natural: mismo caso de uso, contrato y dependencias.
+1. Antes de programar, identifica resultado esperado, criterios originales cubiertos, decisiones ya adoptadas,
+   decisiones pendientes que **realmente** bloquean y comprobaciones de aceptación. No pidas de nuevo
+   aprobación de lo ya adoptado; cuando falten decisiones, preséntalas **juntas** con opciones, recomendación y
+   consecuencia, y sigue mientras tanto con el trabajo independiente ya autorizado.
+2. Durante la implementación ejecuta **pruebas dirigidas** —casos nuevos y regresiones afectadas— con typecheck
+   y lint según lo cambiado. Reutiliza arneses y utilidades existentes; no construyas sistemas paralelos.
+3. Cierre del candidato: genera artefactos versionados (incluida OpenAPI), revisa el diff excluyendo secretos,
+   credenciales, respaldos, APK y archivos ajenos, confirma, y ejecuta **`npm run validate` completa una sola
+   vez sobre ese SHA**, con el código congelado. Si falla, conserva registros, diagnostica y corrige: la
+   corrección es un candidato nuevo. No repitas hasta obtener verde ni subas timeouts.
+4. Tras aprobar: reconstruye **una vez** los servicios afectados, comprueba el comportamiento cambiado (un 200
+   no sustituye esa comprobación), aplica el respaldo cuando haya migración, cambio criptográfico o
+   intervención sobre datos, y consolida evidencia, trazabilidad, estado y continuidad en **un commit de
+   resultados**.
+5. El cierre indica qué cambió, SHA validado y resultado, comportamiento comprobado en despliegue, criterios
+   demostrados y pendientes, y la siguiente entrega recomendada. Los cambios solo documentales posteriores no
+   repiten la validación funcional.
+
+Esto **no** reduce alcance ni controles: el backlog y los criterios originales siguen igual, y se mantiene la
+distinción entre implementación, demostración local, aceptación externa y preparación para producción.
+
 ## Criterio de aceptación de esta etapa: desarrollo y validación local
 - Terra Link se desarrolla, levanta y verifica en el equipo local. GitHub Actions **no es obligatorio** en esta etapa; no hay que resolver facturación ni cambiar de cuenta.
 - Git/GitHub siguen siendo versionado y respaldo (commits y push a la rama de trabajo).
@@ -52,12 +77,17 @@ Monorepo npm (`apps/api` NestJS + Kysely, `apps/web` Next.js). Comandos verifica
 - `npm run dev:api` (4000, Swagger `/api/docs`) · `npm run dev:web` (3000)
 - `docker compose --profile app up -d --build --wait` (API y web en contenedores; `rm -sf api web migrate` para detenerlos)
 - Datos DEMO para revisión: `npm run seed:demo -w apps/api` (credenciales en `CREDENCIALES.csv`, ignorado por git) · revisión por rol: `node e2e/review/revision-por-rol.mjs`
+- Acceso federado de ensayo (deshabilitado por defecto): `docker compose --profile sso up -d keycloak` + variables `SSO_*` en `.env` · demostración: `node e2e/review/p1015-demostracion.mjs` (docs/20)
 - Worker del outbox: `npm run worker -w apps/api` (o servicio `worker` del perfil `app`)
 - `npm run test:e2e` (Playwright; requiere `npm run build -w apps/api` e `infra:up`; usa base `terra_link_e2e` y puertos 4100/3100)
 No ejecutes migraciones sobre producción, reinicios destructivos, borrado de volúmenes ni envíos regulatorios como parte de una tarea local.
 Trabaja en una rama de tarea; conserva cambios ajenos y solicita el dato o autorización faltante solo si bloquea una acción concreta.
 
+## Protocolo de trabajo continuo (adoptado 2026-10-22)
+Completa entregas enteras sin esperar «continúa» entre etapas (implementar → comprobar → validar una vez → desplegar en local → demostrar → respaldar si hay migración → documentar → siguiente tarea). Detalle, autorizaciones permanentes, límites, ciclo de diagnóstico y cuándo preguntar: **`docs/operacion/PROTOCOLO_TRABAJO_CONTINUO.md`**. Complementa —no sustituye— las reglas de este archivo; ante conflicto prevalecen CLAUDE.md y `.claude/rules/`. Las tareas bloqueadas por terceros se registran con su bloqueo concreto en `docs/sesiones/REANUDAR_2026-10-20.md` y se avanza con otra independiente.
+
 ## Documentación por tarea
 Dominio/datos: documentos 04–06. Autorización: 07. Eventos/API: 08–09.
 GIS/offline: 10–11. Evidencia/riesgo/DD: 12–13. UI: **`docs/UX_UI.md`** (identidad visual, tokens, componentes, estados, experiencia por rol; consultar antes de modificar cada pantalla) y 14 (workflows por rol). Integraciones: 15.
 QA/operación: 16–17. Plan: 18–19. Inicio en Claude: 21. Decisiones abiertas: 22.
+Contexto funcional de Ecuador (guías EUDR del cacao, **recomendaciones y no requisitos originales**): `docs/contexto/CONTEXTO_FUNCIONAL_EUDR_ECUADOR_2026-10-22.md`; su contraste con el código está en la tabla CTX de `docs/24`. Plan de ajuste mínimo del propietario (cambios proporcionales; orienta, no certifica): `docs/contexto/PLAN_AJUSTE_MINIMO_DOCUMENTACION_Y_PRODUCTO_2026-10-23.md`.

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent, useRef } from 'react';
 import { ApiError, api } from '../../../../lib/api';
 import { useWorkspace } from '../../../../lib/workspace';
 import { Breadcrumb, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../lib/ui';
@@ -20,20 +20,24 @@ export default function ProductsPage() {
   const [applied, setApplied] = useState(filters);
   const [error, setError] = useState<ApiError | null>(null);
 
+  const seq = useRef(0);
   const load = useCallback(async (append = false, from: string | null = null, f = filters) => {
     if (!orgId || !canRead) return;
     setError(null);
+    const mine = ++seq.current; // una respuesta vieja no puede pisar a una más reciente (el listado inicial y la búsqueda del formulario pueden cruzarse)
     try {
       const params = new URLSearchParams({ limit: '50', status: f.status });
       if (f.q.trim()) params.set('q', f.q.trim());
       if (f.product_state) params.set('product_state', f.product_state);
       if (from) params.set('cursor', from);
       const res = await api<{ items: Product[]; next_cursor: string | null; can_manage: boolean }>(`/api/v1/organizations/${orgId}/products?${params}`);
+      if (mine !== seq.current) return;
       setItems((prev) => (append && prev ? [...prev, ...res.items] : res.items));
       setCursor(res.next_cursor);
       setCanManage(res.can_manage);
       setApplied(f);
     } catch (err) {
+      if (mine !== seq.current) return;
       setError(err as ApiError);
     }
   }, [orgId, canRead, filters]);

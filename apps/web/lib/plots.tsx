@@ -1,5 +1,7 @@
 'use client';
 
+import { useI18n } from './i18n';
+
 // Tipos y presentación compartida de parcelas (UI-06, docs/UX_UI.md §13).
 
 export interface PlotVersion {
@@ -15,6 +17,9 @@ export interface PlotVersion {
   validation_status: string;
   validation_rule_version: string;
   previous_version_id: string | null;
+  /** DECLARED_AREA_UPDATE: copia la geometría de la versión capturada (no es una captura nueva). */
+  change_kind?: 'GEOMETRY_CAPTURE' | 'DECLARED_AREA' | 'DECLARED_AREA_UPDATE';
+  geometry_origin_version_number?: number | null;
   notes: string | null;
   created_at: string;
   is_current?: boolean;
@@ -61,6 +66,7 @@ export const METHOD_LABEL: Record<string, string> = {
   DECLARED: 'Superficie declarada',
   MANUAL_COORDINATES: 'Coordenadas ingresadas',
   BROWSER_GEOLOCATION: 'Ubicación del navegador',
+  DEVICE_LOCATION_SERVICE: 'Servicio de ubicación del dispositivo móvil (no se afirma GPS)',
   GPS_POINT: 'Punto GPS',
   GPS_POLYGON: 'Polígono GPS',
   FILE_IMPORT: 'Importación de archivo',
@@ -68,8 +74,9 @@ export const METHOD_LABEL: Record<string, string> = {
 
 export const GEOMETRY_TYPE_LABEL: Record<string, string> = { POINT: 'Punto', POLYGON: 'Polígono', MULTIPOLYGON: 'Multipolígono' };
 
-export const ha = (v: string | null | undefined) =>
-  v == null ? null : `${Number(v).toLocaleString('es-EC', { maximumFractionDigits: 4 })} ha`;
+/** Hectáreas con los separadores del idioma. Sin idioma explícito usa el español (fuente). */
+export const ha = (v: string | null | undefined, region = 'es-EC') =>
+  v == null ? null : `${Number(v).toLocaleString(region, { maximumFractionDigits: 4 })} ha`;
 
 /** Posiciones [lon, lat] de una geometría GeoJSON (para la tabla y el esquema). */
 export function positions(g: PlotVersion['geometry']): Array<{ ring: number; lon: number; lat: number }> {
@@ -90,6 +97,7 @@ export function positions(g: PlotVersion['geometry']): Array<{ ring: number; lon
  * orienta la forma, no sirve para medir. Siempre acompañada de la tabla de coordenadas.
  */
 export function GeometrySketch({ geometry, label }: { geometry: PlotVersion['geometry']; label: string }) {
+  const { t } = useI18n();
   const pts = positions(geometry);
   if (!geometry || pts.length === 0) return null;
   const size = 220;
@@ -110,7 +118,7 @@ export function GeometrySketch({ geometry, label }: { geometry: PlotVersion['geo
           ? <circle cx={px(pts[0].lon)} cy={py(pts[0].lat)} r="7" fill="var(--tl-forest)" stroke="#fff" strokeWidth="2" />
           : [...rings.values()].map((r, i) => <polygon key={i} points={r.join(' ')} fill="rgba(43,102,80,0.18)" stroke="var(--tl-forest)" strokeWidth="2" />)}
       </svg>
-      <figcaption className="muted">Vista esquemática sin mapa base: orienta la forma, no sirve para medir.</figcaption>
+      <figcaption className="muted">{t('Vista esquemática sin mapa base: orienta la forma, no sirve para medir.')}</figcaption>
     </figure>
   );
 }
