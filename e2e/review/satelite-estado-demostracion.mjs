@@ -70,7 +70,15 @@ await caso('AJ-06 · migración 0067 desplegada: las columnas existen y los trab
   const vacios = db("select count(*) from satellite_jobs where provider_job_ref is null and provider_progress_percent is null and provider_progress_at is null and cancel_requested_at is null");
   const total = db('select count(*) from satellite_jobs');
   const version = await (await fetch(`${API}/version`)).json();
-  return [cols === '7' && vacios === total && /0067/.test(JSON.stringify(version)), `columnas=${cols}; trabajos sin avance/ref/cancelación=${vacios}/${total}; esquema ${version.migration ?? version.schema ?? ''}`];
+  return [cols === '7' && vacios === total && /0067|0068/.test(JSON.stringify(version)), `columnas=${cols}; trabajos sin avance/ref/cancelación=${vacios}/${total}; esquema ${version.schema?.applied ?? ''}`];
+});
+await caso('AJ-07 · migración 0068 y descarga de la respuesta original publicadas; los trabajos anteriores no quedan «inciertos»', async () => {
+  const col = db("select count(*) from information_schema.columns where table_name='satellite_jobs' and column_name='provider_submit_started_at'");
+  const inciertos = db('select count(*) from satellite_jobs where provider_submit_started_at is not null');
+  const spec = await (await fetch(`${API}/api/docs-json`)).json();
+  const ruta = Object.keys(spec.paths ?? {}).find((p) => p.endsWith('/satellite/analyses/{jobId}/original'));
+  const sinPermiso = await pedir(auditor, `/api/v1/organizations/${org.id}/satellite/analyses/00000000-0000-4000-8000-000000000000/original`);
+  return [col === '1' && inciertos === '0' && !!ruta && sinPermiso.s === 404, `columna=${col}; inciertos=${inciertos}; ruta=${ruta ? 'publicada' : 'ausente'}; trabajo inexistente→${sinPermiso.s}`];
 });
 await browser.close();
 const despues = estadoSat();

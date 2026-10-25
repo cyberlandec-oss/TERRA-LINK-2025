@@ -732,3 +732,6 @@ Candidato `29ab9bf`: `npm run validate` **APROBADA** (`validation-results/2026-1
 
 ## AJ-06 Trabajo satelital asíncrono y credencial por organización (2026-10-24)
 `6239de1`: `npm run validate` **APROBADA**; migración `0067` desplegada y respaldada con restauración aislada; demostración 6/6 solo lectura. Avance, reanudación y cancelación en el proveedor probados con servidor controlado; registro cifrado de la credencial por organización. **Whisp real NO EJECUTADO.** Detalle: `qa/EVIDENCIA_AJ06_TRABAJO_ASINCRONO_Y_CREDENCIAL_2026-10-24.md`.
+
+## AJ-07 Whisp: envío incierto, original y descarga (2026-10-25)
+`210d8f5`: `npm run validate` **APROBADA** desde copia limpia en SSD con base de pruebas en memoria (cuatro ejecuciones previas FALLIDAS por la latencia del disco USB del proyecto y de Docker; conservadas en `validation-results/`). Migración `0068` desplegada y respaldada con restauración aislada; demostración 7/7 solo lectura. **Whisp real NO EJECUTADO.** Pendiente: entrega 2 (riesgo/expediente). Detalle: `qa/EVIDENCIA_AJ07_ENVIO_INCIERTO_ORIGINAL_Y_DESCARGA_2026-10-25.md`.
