@@ -1,11 +1,15 @@
 // P0-020: tipos y etiquetas de evaluaciones técnicas de riesgo. Sin puntuaciones; las etiquetas no cambian el dato.
 
 export interface RiskFactor { code: string; category: string; result: 'HIT' | 'NOT_HIT' | 'NOT_EVALUABLE'; effect: string; explanation: string; limit: string; source: string; depends_on: string | null; reason: string; references: string[] }
+export interface SatelliteRef { plot_code: string | null; provider_code: string; is_synthetic: boolean; coverage_status: 'COVERED' | 'PARTIAL' | 'NOT_COVERED' | 'UNKNOWN'; analysis_date: string | null; method: string | null; raw_sha256: string | null }
+export const SAT_REF_COVERAGE: Record<SatelliteRef['coverage_status'], string> = { COVERED: 'cobertura declarada completa', PARTIAL: 'cobertura parcial', NOT_COVERED: 'sin cobertura', UNKNOWN: 'cobertura no declarada' };
 export interface RiskEvaluation {
   id: string; subject: { type: string; id: string; code: string }; evaluation_number: number; is_latest: boolean;
   freshness: { status: 'CURRENT' | 'STALE'; reason: string | null };
   rules: { version: string; approval_status: string; note: string };
   snapshot: { hash: string };
+  /** Análisis satelitales como insumo: los que entraron en esta evaluación y los que hay ahora (referencias; sin interpretación). */
+  satellite_inputs?: { in_evaluation: SatelliteRef[]; now: SatelliteRef[]; changed_since_evaluation: boolean; note: string };
   technical_findings: RiskFactor[]; data_quality: RiskFactor[]; factors: RiskFactor[];
   categories: Array<{ category: string; rules: number; status: string; note: string | null }>;
   technical_result: { status: string; label: string };
