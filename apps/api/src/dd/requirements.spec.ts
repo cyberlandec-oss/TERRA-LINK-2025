@@ -1,4 +1,4 @@
-import { buildPackage, evaluateRequirements, readinessOf, sha256, summary, type DdContent, type GeoConfigContent } from './requirements';
+import { buildPackage, deforestationRequirement, evaluateRequirements, readinessOf, sha256, summary, type DdContent, type GeoConfigContent } from './requirements';
 
 // Configuración de geolocalización SINTÉTICA, revisada, aplicable y con todas las reglas activas: solo para ejercitar el requisito.
 const GEO_OK: GeoConfigContent = {
@@ -306,5 +306,55 @@ describe('GEOLOCATION_PROFILE: configuración versionada adoptada, revisada, apl
   it('MET no habilita READY y el hash del contenido cambia con la revisión (obsolescencia de instantáneas)', () => {
     expect(readinessOf(evaluateRequirements({ ...con({}), profiles: { ...con({}).profiles, satellite_provider: null } }))).not.toBe('READY');
     expect(sha256(con({}))).not.toBe(sha256(con({ review: { id: 'r2', decision: 'OBJECTED' } })));
+  });
+
+  // AJ-08 (H8): «análisis recibido» ≠ «criterio satisfecho». Solo real + del proveedor seleccionado + cobertura declarada COVERED + una vez por versión de parcela.
+  describe('DEFORESTATION_ANALYSIS (AJ-08)', () => {
+    const plot = SYNTHETIC.plots[0];
+    const an = (over: Record<string, unknown> = {}) => ({ plot_code: plot.plot_code, plot_version_id: plot.version_id ?? 'v1', provider_code: 'WHISP', is_synthetic: false, coverage_status: 'UNKNOWN' as const, analysis_date: null, method: 'm', raw_sha256: 'a'.repeat(64), result_id: 'r1', ...over });
+    const conSat = (sa: DdContent['profiles']['satellite_analysis'], prov: string | null = null) => ({ ...SYNTHETIC, profiles: { ...SYNTHETIC.profiles, satellite_provider: prov, ...(sa ? { satellite_analysis: sa } : {}) } }) as DdContent;
+    it('sin proveedor ni análisis: NOT_EVALUABLE, como antes (el contenido no cambia)', () => {
+      expect(deforestationRequirement(conSat(undefined)).status).toBe('NOT_EVALUABLE');
+    });
+    it('proveedor seleccionado sin análisis de la versión vigente: PENDING y dice cuál falta', () => {
+      const r = deforestationRequirement(conSat({ selected_provider: 'WHISP', analyses: [] }));
+      expect(r.status).toBe('PENDING');
+      expect(r.detail).toContain('no tiene análisis real de WHISP');
+      expect(r.references).toContain(plot.plot_code);
+    });
+    it('sintético: se recibe pero NO cuenta (ni con proveedor seleccionado ni con cobertura COVERED)', () => {
+      const r = deforestationRequirement(conSat({ selected_provider: 'WHISP', analyses: [an({ provider_code: 'FIXTURE_SYNTHETIC', is_synthetic: true, coverage_status: 'COVERED' })] }));
+      expect(r.status).toBe('PENDING');
+      expect(r.detail).toContain('sintético');
+    });
+    it('real pero de OTRO proveedor: no corresponde al seleccionado', () => {
+      const r = deforestationRequirement(conSat({ selected_provider: 'WHISP', analyses: [an({ provider_code: 'GFW', coverage_status: 'COVERED' })] }));
+      expect(r.status).toBe('PENDING');
+      expect(r.detail).toContain('otro proveedor (GFW)');
+    });
+    it('real del proveedor seleccionado pero con cobertura NO declarada completa (UNKNOWN o PARTIAL): recibido ≠ suficiente', () => {
+      for (const cov of ['UNKNOWN', 'PARTIAL', 'NOT_COVERED'] as const) {
+        const r = deforestationRequirement(conSat({ selected_provider: 'WHISP', analyses: [an({ coverage_status: cov })] }));
+        expect(r.status).toBe('PENDING');
+        expect(r.detail).toContain(`cobertura ${cov}`);
+      }
+    });
+    it('sin proveedor seleccionado ningún análisis se toma como requisito, ni siquiera uno real con cobertura', () => {
+      const r = deforestationRequirement(conSat({ selected_provider: null, analyses: [an({ coverage_status: 'COVERED' })] }));
+      expect(r.status).toBe('PENDING');
+      expect(r.detail).toContain('no hay proveedor satelital seleccionado');
+    });
+    it('nunca MET por el solo hecho de recibir un análisis: MET sale solo del perfil verificado en el servidor', () => {
+      expect(deforestationRequirement(conSat({ selected_provider: 'WHISP', analyses: [an({ coverage_status: 'COVERED' })] })).status).toBe('PENDING'); // sin satellite_provider verificado no hay MET
+      const met = deforestationRequirement(conSat({ selected_provider: 'WHISP', analyses: [an({ coverage_status: 'COVERED' })] }, 'Proveedor WHISP: cobertura'));
+      expect(met.status).toBe('MET');
+      // Con el análisis solo RECIBIDO (sin perfil verificado) el expediente no puede quedar READY.
+      expect(readinessOf(evaluateRequirements(conSat({ selected_provider: 'WHISP', analyses: [an({ coverage_status: 'UNKNOWN' })] })))).not.toBe('READY');
+    });
+    it('el contenido solo cambia si hay proveedor o análisis (hashes anteriores intactos) y cambia al llegar un resultado', () => {
+      const base = conSat(undefined);
+      expect(sha256(base)).toBe(sha256(conSat(undefined)));
+      expect(sha256(conSat({ selected_provider: null, analyses: [an()] }))).not.toBe(sha256(base));
+    });
   });
 });
