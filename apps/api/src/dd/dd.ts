@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Req, Res } from '@nestjs/common';
+import { satelliteInputs } from '../satellite/inputs';
 import { coberturaDeSujetos, perfilDeOrganizacion } from '../legal/legal-profile';
 import { geoConfigContent } from '../geo/geo-config';
 import { conclusionEfectiva } from '../risk/risk-conclusion';
@@ -147,13 +148,21 @@ export class DdService {
       if (!selected) return null;
       const versionIds = plots.map((p) => p.version_id).filter((v): v is string => !!v);
       if (!versionIds.length || versionIds.length !== plots.length) return null;
+      // El resultado debe ser DEL PROVEEDOR seleccionado (antes se aceptaba el de cualquier proveedor), real y con cobertura declarada COVERED.
       const covered = (await sql<{ plot_version_id: string }>`
         SELECT DISTINCT j.plot_version_id FROM satellite_jobs j JOIN satellite_results r ON r.job_id = j.id
          WHERE j.organization_id = ${orgId} AND j.plot_version_id = ANY(${versionIds}::uuid[])
-           AND j.outcome = 'RESULT_AVAILABLE' AND r.is_synthetic = false AND r.coverage_status = 'COVERED'`.execute(db)).rows.map((r) => r.plot_version_id);
+           AND j.outcome = 'RESULT_AVAILABLE' AND r.provider_code = ${selected.code} AND r.is_synthetic = false AND r.coverage_status = 'COVERED'`.execute(db)).rows.map((r) => r.plot_version_id);
       if (!versionIds.every((v) => covered.includes(v))) return null;
       return `Proveedor ${selected.code}: resultado con cobertura para todas las versiones de parcela de origen. Insumo con sus límites; no es conclusión regulatoria.`;
     })();
+    // AJ-08 (H8): qué se RECIBIÓ del proveedor para cada versión de parcela de origen, separado de si basta para el criterio. La clave solo existe si hay proveedor
+    // seleccionado o algún resultado: sin ellos el contenido y su hash quedan como antes.
+    const selectedProvider = (await db.selectFrom('satellite_providers').select(['code']).where('selection_status', '=', 'SELECTED').executeTakeFirst())?.code ?? null;
+    const satInputs = await satelliteInputs(db as never, orgId, plots.map((p) => p.version_id).filter((v): v is string => !!v));
+    const satelliteAnalysis = selectedProvider || satInputs.length
+      ? { selected_provider: selectedProvider, analyses: satInputs.map((x) => ({ ...x, plot_code: plots.find((p) => p.version_id === x.plot_version_id)?.plot_code ?? null })) }
+      : null;
     // D-34.A.1: vínculo previo al despacho. Solo reservas ACTIVAS de la misma organización, con su embarque,
     // ítem, lote y cantidad. Entra en el contenido, así que cambiarlo desactualiza la instantánea.
     const shipmentLinks = (await sql<{ shipment_id: string; shipment_code: string; shipment_status: string; item_id: string; reservation_id: string; lot_id: string; quantity: string; unit: string; location_id: string }>`
@@ -180,7 +189,7 @@ export class DdService {
       // P1-005: el perfil adoptado **y la cobertura del sujeto**. Las dos cosas, porque el catálogo por sí
       // solo no dice si ESTE lote tiene resueltas sus obligaciones. Hoy el perfil es parcial y sin revisión
       // jurídica, así que LEGAL_PROFILE queda PENDING y READY sigue bloqueado.
-      profiles: { legal_profile: legalProfile, geolocation_profile: geolocationProfile, satellite_provider: satelliteProfile },
+      profiles: { legal_profile: legalProfile, geolocation_profile: geolocationProfile, satellite_provider: satelliteProfile, ...(satelliteAnalysis ? { satellite_analysis: satelliteAnalysis } : {}) },
     };
   }
 

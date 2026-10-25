@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
+import { satelliteInputs } from '../satellite/inputs';
 import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator';
 import { createHash, randomUUID } from 'crypto';
@@ -144,7 +145,12 @@ export class RiskService {
     const ledgerDiffs = rec.differences.filter((d) => lotIds.has(d.id) || recIds.has(d.id)).map((d) => ({ kind: d.kind, id: d.id }));
     const mitigations = (await sql<{ id: string; factor_code: string; status: string; row_version: string }>`
       SELECT id, factor_code, status, row_version::text FROM mitigation_actions WHERE organization_id = ${orgId} AND subject_id = ${lotId} ORDER BY created_at, id`.execute(db)).rows;
-    return { lot: { id: lot.id, code: lot.lot_code, origin_status: lot.origin_status }, lots, receptions, origins, supports, corrections, ledger_differences: ledgerDiffs, mitigations };
+    // AJ-08 (H7): los análisis satelitales de las versiones VIGENTES de las parcelas de origen entran en la instantánea, con su referencia (proveedor, resultado,
+    // huella de la geometría, cobertura y fecha declaradas, método y huella del original). La clave solo existe si hay algún resultado: así las evaluaciones y los
+    // hashes anteriores NO cambian por esta ampliación, y un resultado nuevo sí deja desactualizada la evaluación que no lo incluía.
+    const sat = await satelliteInputs(db as never, orgId, [...new Set(origins.map((o) => o.current_version_id).filter((v): v is string => !!v))]);
+    const satellite = sat.map((x) => ({ ...x, plot_code: origins.find((o) => o.current_version_id === x.plot_version_id)?.plot_code ?? null }));
+    return { lot: { id: lot.id, code: lot.lot_code, origin_status: lot.origin_status }, lots, receptions, origins, supports, corrections, ledger_differences: ledgerDiffs, mitigations, ...(satellite.length ? { satellite } : {}) };
   }
 
   private evaluateRules(rules: Awaited<ReturnType<RiskService['currentRuleSet']>>['rules'], s: Awaited<ReturnType<RiskService['snapshot']>>): Factor[] {
@@ -447,7 +453,8 @@ export class RiskService {
       WHERE e.organization_id = ${ctx.organizationId} AND e.id = ${id}`.execute(db)).rows[0];
     if (!e) throw notFound();
     const latest = (await sql<{ id: string }>`SELECT id FROM risk_evaluations WHERE organization_id = ${ctx.organizationId} AND subject_id = ${e.subject_id} ORDER BY evaluation_number DESC LIMIT 1`.execute(db)).rows[0];
-    const current = createHash('sha256').update(canonical(await this.snapshot(db, ctx.organizationId, e.subject_id))).digest('hex');
+    const currentSnapshot = await this.snapshot(db, ctx.organizationId, e.subject_id);
+    const current = createHash('sha256').update(canonical(currentSnapshot)).digest('hex');
     const rs = await this.currentRuleSet(db, ctx.organizationId);
     // D-07.4 — Desactualización por cambios en los datos o en las REGLAS APLICADAS. Publicar una versión que esta
     // organización no ha adoptado NO desactualiza sus evaluaciones: ella eligió su catálogo. Lo que sí se hace es
@@ -466,7 +473,7 @@ export class RiskService {
         reason: stale
           ? (rs.version !== e.rule_set_version
             ? `Esta evaluación usó las reglas ${e.rule_set_version} y a esta organización le aplican ahora las ${rs.version}: reevalúa (esta evaluación no se modifica).`
-            : 'Cambiaron datos o evidencias del grafo de origen desde esta evaluación: reevalúa (esta evaluación no se modifica).')
+            : 'Cambiaron datos, evidencias o análisis satelitales del grafo de origen desde esta evaluación: reevalúa (esta evaluación no se modifica).')
           : null,
         // Informativo, no desactualiza: una versión publicada que la organización no ha adoptado no le cambia las
         // reglas a su espalda.
@@ -490,6 +497,14 @@ export class RiskService {
           : 'la APROBACIÓN BAJO PERFIL JURÍDICO (D-07.5, pendiente: regulatory_profile = null) sería la que permitiría concluir. Sin pesos ni umbrales: D-07.3 no aplica.'),
       },
       parameters: e.parameters, snapshot: { hash: e.snapshot_hash, data: e.snapshot },
+      // Análisis satelitales: los que ENTRARON en esta evaluación y los que hay ahora. Un resultado posterior no cambia esta evaluación; la deja desactualizada.
+      // Son referencias de insumo: no hay interpretación, pesos ni conclusión.
+      satellite_inputs: {
+        in_evaluation: (e.snapshot as { satellite?: unknown[] }).satellite ?? [],
+        now: (currentSnapshot as { satellite?: unknown[] }).satellite ?? [],
+        changed_since_evaluation: canonical((e.snapshot as { satellite?: unknown[] }).satellite ?? []) !== canonical((currentSnapshot as { satellite?: unknown[] }).satellite ?? []),
+        note: 'Un análisis satelital es un insumo con límites declarados por el proveedor: no es una conclusión de deforestación ni de cumplimiento. Los sintéticos (ensayo) no cuentan como análisis real.',
+      },
       technical_findings: findings, data_quality: notEvaluable,
       factors: e.factors, categories: e.categories,
       technical_result: { status: e.technical_result, label: RESULT_LABEL[e.technical_result] },

@@ -62,6 +62,14 @@ export interface DdContent {
      */
     geolocation_profile: null | GeoConfigContent;
     satellite_provider: string | null;
+    /**
+     * AJ-08: lo RECIBIDO del proveedor por versión de parcela de origen (proveedor, sintético o real, cobertura declarada, fecha, método y huella), aparte de si basta
+     * para el criterio. Solo existe si hay proveedor seleccionado o algún análisis. Recibir un análisis NO satisface el requisito.
+     */
+    satellite_analysis?: {
+      selected_provider: string | null;
+      analyses: Array<{ plot_code: string | null; plot_version_id: string; provider_code: string; is_synthetic: boolean; coverage_status: 'COVERED' | 'PARTIAL' | 'NOT_COVERED' | 'UNKNOWN'; analysis_date: string | null; method: string | null; raw_sha256: string | null; result_id: string }>;
+    };
   };
 }
 
@@ -178,7 +186,7 @@ export function evaluateRequirements(c: DdContent): Requirement[] {
         : r('GEOMETRY_TECHNICAL', 'Geometría vigente técnicamente válida', 'MET', 'Sin invalidez técnica (TL_GIS_TECH). No es análisis de deforestación.', 'docs/13 GEOMETRY_INVALID', c.plots.map((p) => p.plot_code)));
   }
   out.push(r('GEOLOCATION_PROFILE', 'Perfil de geolocalización aplicable', ...geolocationRequirement(c.profiles.geolocation_profile)));
-  out.push(r('DEFORESTATION_ANALYSIS', 'Análisis de deforestación con cobertura', c.profiles.satellite_provider ? 'MET' : 'NOT_EVALUABLE', c.profiles.satellite_provider ?? 'Sin proveedor satelital (P0-028): no evaluado. Sin alertas no prueba ausencia de deforestación.', 'docs/13 SATELLITE_COVERAGE_UNKNOWN'));
+  out.push(deforestationRequirement(c));
   // 3) Calidad (operativa; no es requisito regulatorio ni aprobación).
   if (!c.quality.length) out.push(r('QUALITY_DECIDED', 'Calidad decidida en las recepciones', 'NOT_EVALUABLE', 'Sin recepciones en el grafo.', 'D-33 MVP (calidad pendiente)'));
   else {
@@ -391,4 +399,42 @@ export function buildPackage(p: {
   };
   const body = JSON.stringify(JSON.parse(canonical(pkg)), null, 2);
   return { pkg, body, hash: sha256(body), redactions };
+}
+
+/**
+ * DEFORESTATION_ANALYSIS (AJ-08). Tres cosas distintas: (1) análisis RECIBIDO, (2) entradas suficientes para el criterio (proveedor seleccionado, resultado real del MISMO
+ * proveedor y cobertura declarada COVERED en cada versión de parcela de origen) y (3) resultado de deforestación, que este requisito NUNCA da. Solo (2) lo satisface.
+ * Mientras falte algo queda PENDING con la carencia dicha; sin proveedor ni análisis, NOT_EVALUABLE como antes.
+ */
+export function deforestationRequirement(c: DdContent): Requirement {
+  const code = 'DEFORESTATION_ANALYSIS';
+  const r = (code: string, label: string, status: ReqStatus, detail: string, source: string, references: string[] = []): Requirement => ({ code, label, status, detail, source, references });
+  const label = 'Análisis de deforestación con cobertura';
+  const source = 'docs/13 SATELLITE_COVERAGE_UNKNOWN';
+  if (c.profiles.satellite_provider) return r(code, label, 'MET', c.profiles.satellite_provider, source);
+  const sa = c.profiles.satellite_analysis;
+  if (!sa) return r(code, label, 'NOT_EVALUABLE', 'Sin proveedor satelital (P0-028): no evaluado. Sin alertas no prueba ausencia de deforestación.', source);
+  const motivos: string[] = [];
+  const pendientes = new Set<string>();
+  if (!sa.selected_provider) motivos.push('no hay proveedor satelital seleccionado (D-09), así que ningún análisis se toma como requisito');
+  const reales = sa.analyses.filter((a) => !a.is_synthetic);
+  const sinteticos = sa.analyses.filter((a) => a.is_synthetic);
+  if (sinteticos.length) motivos.push(`${sinteticos.length} análisis sintético(s) de ensayo no cuentan como análisis real`);
+  const delProveedor = sa.selected_provider ? reales.filter((a) => a.provider_code === sa.selected_provider) : [];
+  const ajenos = sa.selected_provider ? reales.filter((a) => a.provider_code !== sa.selected_provider) : reales;
+  if (ajenos.length) motivos.push(`${ajenos.length} análisis de otro proveedor (${[...new Set(ajenos.map((a) => a.provider_code))].join(', ')}) no corresponden al proveedor seleccionado`);
+  for (const a of delProveedor) {
+    if (a.coverage_status !== 'COVERED') {
+      motivos.push(`análisis recibido de ${a.provider_code} para ${a.plot_code ?? 'una parcela'} con cobertura ${a.coverage_status}: recibirlo no acredita cobertura suficiente (el proveedor no la declara completa)`);
+      if (a.plot_code) pendientes.add(a.plot_code);
+    }
+  }
+  if (sa.selected_provider) {
+    for (const p of c.plots) {
+      if (!p.version_id) { pendientes.add(p.plot_code); motivos.push(`${p.plot_code} no tiene versión geométrica vigente`); continue; }
+      if (!delProveedor.some((a) => a.plot_version_id === p.version_id)) { pendientes.add(p.plot_code); motivos.push(`${p.plot_code} no tiene análisis real de ${sa.selected_provider} para su versión vigente`); }
+    }
+  }
+  const unicos = [...new Set(motivos)];
+  return r(code, label, 'PENDING', `Análisis recibido, criterio NO satisfecho: ${unicos.join('; ')}. Un análisis disponible no significa ausencia de deforestación ni conformidad.`, source, [...pendientes]);
 }
