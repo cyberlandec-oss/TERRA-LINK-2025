@@ -315,8 +315,7 @@ describeTls('P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTIC
     expect(o.kind).toBe('RESULT');
     expect(eventos).toEqual([
       { tipo: 'enviando' },
-      { tipo: 'respondido' },
-      { tipo: 'enviado', valor: 'tk-a' },
+      { tipo: 'enviado', valor: 'tk-a' },   // el identificador y el fin de la incertidumbre van juntos (una sola escritura)
       { tipo: 'avance', valor: { percent: 42, message: 'procesando' } },
       { tipo: 'avance', valor: { percent: null, message: null } },
     ]);
@@ -367,6 +366,63 @@ describeTls('P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTIC
     const o = await adapter().analyze(req({ hooks }));
     expect(o).toMatchObject({ kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_HTTP_503' });
     expect(eventos.map((e) => e.tipo)).toEqual(['enviando', 'respondido']);
+  });
+
+  it('un 202 SIN identificador deja el envío INCIERTO: el proveedor pudo crear el trabajo, así que no es un error reintentable y la marca se conserva', async () => {
+    ruta = (r, res) => (r.url === '/api/config' ? json(res, 200, CONFIG) : json(res, 202, { code: 'analysis_queued', message: 'q', data: { featureCount: 1 } }));
+    const { eventos, hooks } = hooksEspia();
+    const o = await adapter().analyze(req({ hooks }));
+    expect(o).toMatchObject({ kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_SUBMIT_UNCERTAIN' });
+    expect(eventos).toEqual([{ tipo: 'enviando' }]);   // nunca «respondido»
+  });
+
+  it('si NO se puede guardar el identificador, la marca de envío no se limpia (el siguiente intento no reenvía)', async () => {
+    ruta = (r, res) => {
+      if (r.url === '/api/config') return json(res, 200, CONFIG);
+      if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'tk-f' } });
+      return json(res, 404, { code: 'x' });
+    };
+    const { eventos, hooks } = hooksEspia();
+    const roto = { ...hooks, onSubmitted: async () => { throw new Error('fallo al guardar'); } };
+    const o = await adapter().analyze(req({ hooks: roto }));
+    expect(o.kind).toBe('PROVIDER_ERROR');
+    expect(eventos.map((e) => e.tipo)).toEqual(['enviando']);       // ni «respondido» ni «enviado»
+    expect(srv.recibidas.filter((x) => x.url === '/api/submit/geojson')).toHaveLength(1);
+  });
+
+  it('una respuesta síncrona con resultado cierra la incertidumbre sin identificador', async () => {
+    ruta = (r, res) => (r.url === '/api/config' ? json(res, 200, CONFIG) : completado(res));
+    const { eventos, hooks } = hooksEspia();
+    const o = await adapter().analyze(req({ hooks }));
+    expect(o.kind).toBe('RESULT');
+    expect(eventos.map((e) => e.tipo)).toEqual(['enviando', 'respondido']);
+  });
+
+  it('un 404 al cancelar NO confirma la cancelación: se declara no confirmada, sin resultado y sin inventar uno favorable', async () => {
+    ruta = (r, res) => {
+      if (r.url === '/api/config') return json(res, 200, CONFIG);
+      if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'tk-n' } });
+      if (r.url === '/api/status/tk-n/cancel') return json(res, 404, { code: 'analysis_job_not_found', message: 'n' });
+      return json(res, 202, { code: 'analysis_processing', message: 'p', data: { token: 'tk-n' } });
+    };
+    const { hooks } = hooksEspia(0);
+    const o = await adapter().analyze(req({ hooks }));
+    expect(o).toMatchObject({ kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_CANCEL_NOT_CONFIRMED' });
+    expect(o.kind).not.toBe('CANCELLED');
+  });
+
+  it('con una cancelación pedida y un trabajo que el proveedor ya no reconoce, NO se envía otro análisis', async () => {
+    ruta = (r, res) => {
+      if (r.url === '/api/config') return json(res, 200, CONFIG);
+      if (r.url === '/api/status/tk-v') return json(res, 404, { code: 'analysis_job_not_found', message: 'n' });
+      return json(res, 500, { code: 'no_deberia_llamarse' });
+    };
+    const base = hooksEspia();
+    const hooks = { ...base.hooks, cancelRequested: async () => true };
+    // La cancelación se atiende antes de consultar; el proveedor responde 404 también a ella.
+    const o = await adapter().analyze(req({ resumeJobRef: 'tk-v', hooks }));
+    expect(o).toMatchObject({ kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_CANCEL_NOT_CONFIRMED' });
+    expect(srv.recibidas.map((x) => x.url)).not.toContain('/api/submit/geojson');
   });
 
   it('cancelación pedida: se cancela EN EL PROVEEDOR (POST /api/status/{token}/cancel) y no queda resultado', async () => {

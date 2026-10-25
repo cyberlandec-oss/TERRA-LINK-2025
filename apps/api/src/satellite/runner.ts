@@ -19,6 +19,8 @@ import { WhispSatelliteProvider } from './whisp';
 // Reintentos: solo lo que puede ser transitorio (TIMEOUT, RATE_LIMITED, PROVIDER_ERROR). `NO_COVERAGE` es una
 // respuesta del proveedor y `EGRESS_BLOCKED` es un incidente de seguridad: ambos terminan en el acto.
 
+// Desenlaces que NO se reintentan aunque su clase lo permita: reintentar podría duplicar el análisis o reenviar algo que la organización canceló.
+const NON_RETRYABLE_CODES: ReadonlySet<string> = new Set(['PROVIDER_SUBMIT_UNCERTAIN', 'PROVIDER_CANCEL_NOT_CONFIRMED']);
 const RETRYABLE: ReadonlySet<SatelliteOutcome> = new Set<SatelliteOutcome>(['TIMEOUT', 'RATE_LIMITED', 'PROVIDER_ERROR']);
 
 export interface RunnerOptions {
@@ -83,14 +85,19 @@ export class SatelliteRunner {
    */
   private hooksFor(j: { id: string; lease_token: string }): AnalysisHooks {
     return {
+      // Antes de enviar se comprueba que el corredor CONSERVA su reserva: si la perdió, no sale nada.
       onSubmitting: async () => {
-        await this.db.updateTable('satellite_jobs').set({ provider_submit_started_at: new Date() }).where('id', '=', j.id).where('lease_token', '=', j.lease_token).execute();
+        const r = await this.db.updateTable('satellite_jobs').set({ provider_submit_started_at: new Date() }).where('id', '=', j.id).where('lease_token', '=', j.lease_token).executeTakeFirst();
+        if (Number(r.numUpdatedRows) !== 1) throw new Error('LEASE_LOST');
       },
       onSubmitAnswered: async () => {
-        await this.db.updateTable('satellite_jobs').set({ provider_submit_started_at: null }).where('id', '=', j.id).where('lease_token', '=', j.lease_token).execute();
+        const r = await this.db.updateTable('satellite_jobs').set({ provider_submit_started_at: null }).where('id', '=', j.id).where('lease_token', '=', j.lease_token).executeTakeFirst();
+        if (Number(r.numUpdatedRows) !== 1) throw new Error('LEASE_LOST');
       },
+      // Identificador y fin de la incertidumbre en UNA sola escritura: o quedan los dos o no queda ninguno (la marca se conserva).
       onSubmitted: async (ref) => {
-        await this.db.updateTable('satellite_jobs').set({ provider_job_ref: ref }).where('id', '=', j.id).where('lease_token', '=', j.lease_token).execute();
+        const r = await this.db.updateTable('satellite_jobs').set({ provider_job_ref: ref, provider_submit_started_at: null }).where('id', '=', j.id).where('lease_token', '=', j.lease_token).executeTakeFirst();
+        if (Number(r.numUpdatedRows) !== 1) throw new Error('LEASE_LOST');
       },
       onProgress: async ({ percent, message }) => {
         const r = await this.db.updateTable('satellite_jobs')
@@ -179,7 +186,7 @@ export class SatelliteRunner {
         if (await this.finish(j, 'RESULT_AVAILABLE', null, { ...outcome.result, rawKey: key, rawSha256: digest, isSynthetic: prov?.kind === 'SYNTHETIC_FIXTURE' })) out.completed++;
         continue;
       }
-      const retryable = RETRYABLE.has(outcome.kind) && j.attempts < this.opts.maxAttempts && outcome.errorCode !== 'PROVIDER_SUBMIT_UNCERTAIN';
+      const retryable = RETRYABLE.has(outcome.kind) && j.attempts < this.opts.maxAttempts && !NON_RETRYABLE_CODES.has(outcome.errorCode);
       if (retryable) {
         const delay = Math.min(this.opts.backoffBaseMs * 2 ** (j.attempts - 1), 15 * 60_000);
         const r = await this.db.updateTable('satellite_jobs')

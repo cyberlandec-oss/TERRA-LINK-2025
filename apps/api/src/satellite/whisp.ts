@@ -160,6 +160,10 @@ export class WhispSatelliteProvider implements SatelliteProviderPort {
         const polled = await this.poll(req, token, secrets);
         if ('kind' in polled) {
           if (polled.kind === 'RESULT' || polled.errorCode !== 'PROVIDER_JOB_NOT_FOUND') return polled;
+          // El proveedor ya no reconoce el trabajo. Si la organización había pedido cancelarlo, NO se envía otro: la cancelación no se pudo confirmar.
+          if (req.hooks && (await req.hooks.cancelRequested())) {
+            return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_CANCEL_NOT_CONFIRMED', note: 'La organización pidió cancelar, pero el proveedor ya no encuentra el trabajo: la cancelación no está confirmada y no hay resultado. No se envió otro análisis.' };
+          }
           token = null;
         } else {
           payload = polled.payload;
@@ -188,11 +192,16 @@ export class WhispSatelliteProvider implements SatelliteProviderPort {
           return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_SUBMIT_UNCERTAIN',
             note: 'Se perdió la respuesta del proveedor al enviar el análisis: no se sabe si lo recibió. No se reenvía automáticamente; encarga uno nuevo si lo necesitas.' };
         }
-        await req.hooks?.onSubmitAnswered();
         first = this.parseJson(submit.body);
+        // Un HTTP de error es un RECHAZO definitivo: el proveedor no recibió trabajo, y solo entonces se limpia la marca de «enviando».
         const bySubmit = outcomeFromResponse(submit.status, first);
-        if (bySubmit) return bySubmit;
-        if (!first) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_RESPONSE_NOT_JSON', note: 'La respuesta del proveedor no es JSON conforme al contrato.' };
+        if (bySubmit) {
+          await req.hooks?.onSubmitAnswered();
+          return bySubmit;
+        }
+        // Una respuesta 2xx que no se puede interpretar NO prueba que no se aceptara: la marca se conserva (envío incierto).
+        if (!first) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_SUBMIT_UNCERTAIN',
+            note: 'No se pudo confirmar que el proveedor aceptara o rechazara el análisis (respuesta perdida o sin identificador): no se sabe si lo recibió. No se reenvía automáticamente; encarga uno nuevo si lo necesitas.' };
 
         payload = first;
         raw = submit.body;
@@ -200,12 +209,20 @@ export class WhispSatelliteProvider implements SatelliteProviderPort {
         // 6) Trabajo asíncrono: 202 con `data.token`. Se conserva el identificador y se sondea `/api/status/{token}` según el contrato.
         if (submit.status === 202 || (tokenOf(first) && !isFeatureCollection(first.data))) {
           token = tokenOf(first);
-          if (!token) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_TOKEN_MISSING', note: 'El proveedor aceptó el trabajo sin devolver el identificador que exige su contrato.' };
+          // Aceptó sin devolver identificador: pudo crear el trabajo. Es incierto, no un error reintentable.
+          if (!token) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_SUBMIT_UNCERTAIN',
+            note: 'No se pudo confirmar que el proveedor aceptara o rechazara el análisis (respuesta perdida o sin identificador): no se sabe si lo recibió. No se reenvía automáticamente; encarga uno nuevo si lo necesitas.' };
+          // Guarda el identificador Y limpia la marca en UNA escritura atómica: si falla, la marca queda y el siguiente intento no reenvía.
           await req.hooks?.onSubmitted(token);
           const polled = await this.poll(req, token, secrets);
           if ('kind' in polled) return polled;
           payload = polled.payload;
           raw = polled.raw;
+        } else if (isFeatureCollection(first.data)) {
+          await req.hooks?.onSubmitAnswered();   // respuesta síncrona con resultado: no hay identificador que conservar
+        } else {
+          return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_SUBMIT_UNCERTAIN',
+            note: 'No se pudo confirmar que el proveedor aceptara o rechazara el análisis (respuesta perdida o sin identificador): no se sabe si lo recibió. No se reenvía automáticamente; encarga uno nuevo si lo necesitas.' };
         }
       }
 
@@ -238,7 +255,9 @@ export class WhispSatelliteProvider implements SatelliteProviderPort {
       if (cancelTried < 3 && req.hooks && (await req.hooks.cancelRequested())) {
         cancelTried++;
         const c = await this.call(req, `/api/status/${encodeURIComponent(token)}/cancel`, { method: 'POST', auth: true });
-        if (c.status === 200 || c.status === 404) return { kind: 'CANCELLED', errorCode: 'CANCELLED_AT_PROVIDER', note: 'La organización canceló el análisis y el proveedor confirmó la cancelación: sin resultado.' };
+        if (c.status === 200) return { kind: 'CANCELLED', errorCode: 'CANCELLED_AT_PROVIDER', note: 'La organización canceló el análisis y el proveedor confirmó la cancelación: sin resultado.' };
+        // 404: el proveedor no encuentra el trabajo. No prueba que se cancelara (pudo expirar o terminar): NO se declara cancelado.
+        if (c.status === 404) return { kind: 'PROVIDER_ERROR', errorCode: 'PROVIDER_CANCEL_NOT_CONFIRMED', note: 'La organización pidió cancelar, pero el proveedor no encuentra el trabajo: la cancelación no está confirmada y no hay resultado.' };
       }
       const res = await this.call(req, `/api/status/${encodeURIComponent(token)}`, { auth: true });
       const payload = this.parseJson(res.body);

@@ -688,5 +688,53 @@ describeDb('P0-028 satélite: contrato, desenlaces y candados', () => {
         await real.put(fila.raw_object_key!, original, 'application/json');
       }
     });
+
+    // ------------------------------------------------------------ AJ-07b: el identificador y el fin de la incertidumbre son una sola escritura
+    it('si falla la escritura del identificador, el reintento NO reenvía: queda incierto aunque el proveedor aceptó', async () => {
+      await sql`CREATE OR REPLACE FUNCTION tl_test_sin_ref() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.provider_job_ref IS NOT NULL AND OLD.provider_job_ref IS NULL THEN RAISE EXCEPTION 'fallo simulado al guardar el identificador'; END IF; RETURN NEW; END $$`.execute(h.db);
+      await sql`CREATE TRIGGER tl_test_sin_ref BEFORE UPDATE ON satellite_jobs FOR EACH ROW EXECUTE FUNCTION tl_test_sin_ref()`.execute(h.db);
+      try {
+        const { id, srv } = await correr((r, res) => {
+          if (r.url === '/api/config') return json(res, 200, CONFIG);
+          if (r.url === '/api/submit/geojson') return json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'tk-perdido' } });
+          return json(res, 202, { code: 'analysis_processing', message: 'p', data: { token: 'tk-perdido' } });
+        }, {}, { maxAttempts: 4 });
+        // El primer intento terminó con el trabajo aceptado por el proveedor y sin identificador guardado; se fuerza un segundo pasaje del corredor.
+        await sql`UPDATE satellite_jobs SET next_attempt_at = now() WHERE id = ${id} AND status = 'REQUESTED'`.execute(h.db);
+        const row1 = await jobRow(id);
+        expect(row1.provider_job_ref).toBeNull();
+        expect(row1.provider_submit_started_at).not.toBeNull();            // la marca se conserva
+        expect(srv.recibidas.filter((x) => x.url === '/api/submit/geojson')).toHaveLength(1);
+        const cipher = new PiiCipher(h.config.pii);
+        const whisp = new WhispSatelliteProvider({ liveCalls: true, baseUrl: `https://destino.prueba.local:${srv.port}`, ca: tls.ca, lookup: loopbackLookup, timeoutMs: 4000, pollMs: 1, maxPolls: 3, sleep: async () => undefined } as never);
+        await new SatelliteRunner(h.db, [whisp], { cipher, store: almacen }, { maxAttempts: 4, backoffBaseMs: 1 }).runOnce();
+        const row2 = await jobRow(id);
+        expect(srv.recibidas.filter((x) => x.url === '/api/submit/geojson')).toHaveLength(1);   // NO hubo un segundo envío
+        expect(row2).toMatchObject({ status: 'FAILED', last_error_code: 'PROVIDER_SUBMIT_UNCERTAIN' });
+      } finally {
+        await sql`DROP TRIGGER IF EXISTS tl_test_sin_ref ON satellite_jobs`.execute(h.db);
+        await sql`DROP FUNCTION IF EXISTS tl_test_sin_ref()`.execute(h.db);
+      }
+    });
+
+    it('un corredor que perdió su reserva antes de enviar no envía nada', async () => {
+      const t = await trabajo();
+      const srv2 = await tls.listen((r, res) => (r.url === '/api/config' ? json(res, 200, CONFIG) : json(res, 202, { code: 'analysis_queued', message: 'q', data: { token: 'no-debe' } })));
+      const previo = await h.db.selectFrom('satellite_providers').select('allowed_hosts').where('code', '=', 'WHISP').executeTakeFirstOrThrow();
+      await sql`UPDATE satellite_providers SET allowed_hosts = ${[`destino.prueba.local:${srv2.port}`]} WHERE code = 'WHISP'`.execute(h.db);
+      try {
+        const whisp = new WhispSatelliteProvider({ liveCalls: true, baseUrl: `https://destino.prueba.local:${srv2.port}`, ca: tls.ca, lookup: loopbackLookup, timeoutMs: 4000, pollMs: 1, maxPolls: 3, sleep: async () => undefined } as never);
+        // Otro corredor toma la reserva justo después de la consulta de límites y antes del envío.
+        const robado = { ...whisp, code: 'WHISP', kind: 'EXTERNAL_HTTP' as const,
+          analyze: async (rq: Parameters<typeof whisp.analyze>[0]) => {
+            await sql`UPDATE satellite_jobs SET lease_token = gen_random_uuid() WHERE id = ${t.id}`.execute(h.db);
+            return await whisp.analyze(rq);
+          } };
+        await new SatelliteRunner(h.db, [robado as never], { cipher: t.cipher, store: almacen }, { maxAttempts: 1, backoffBaseMs: 1 }).runOnce();
+        expect(srv2.recibidas.filter((x) => x.url === '/api/submit/geojson')).toHaveLength(0);
+      } finally {
+        await sql`UPDATE satellite_providers SET allowed_hosts = ${previo.allowed_hosts} WHERE code = 'WHISP'`.execute(h.db);
+      }
+    });
   });
 });
