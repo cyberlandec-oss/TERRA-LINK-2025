@@ -31,6 +31,13 @@ if (existsSync(envFile)) {
   }
 }
 
+// La validación es HERMÉTICA frente a la configuración local de ejecución real: los interruptores y credenciales del `.env` privado (análisis satelital, ensayo local, EUDR-IS) NO deben
+// llegar a las pruebas. Las pruebas que los necesitan los fijan ellas mismas con transporte controlado. (2026-11-01: SATELLITE_LIVE_CALLS=enabled en el .env hizo fallar una prueba que
+// espera el interruptor apagado.)
+const INTERRUPTORES_DE_EJECUCION_REAL = ['SATELLITE_LIVE_CALLS', 'SATELLITE_TRIAL_PLOT_IDS', 'EUDR_IS_LIVE_CALLS', 'EUDR_IS_PRODUCTION_SUBMISSIONS',
+  'EUDR_IS_ACCEPTANCE_USERNAME', 'EUDR_IS_ACCEPTANCE_AUTH_KEY', 'EUDR_IS_ACCEPTANCE_CLIENT_ID', 'EUDR_IS_PRODUCTION_USERNAME', 'EUDR_IS_PRODUCTION_AUTH_KEY', 'EUDR_IS_PRODUCTION_CLIENT_ID'];
+for (const k of INTERRUPTORES_DE_EJECUCION_REAL) delete env[k];
+
 function dbName(url) {
   try {
     return new URL(url).pathname.slice(1);
