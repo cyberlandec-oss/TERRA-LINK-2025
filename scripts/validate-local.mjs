@@ -36,7 +36,8 @@ if (existsSync(envFile)) {
 // espera el interruptor apagado.)
 const INTERRUPTORES_DE_EJECUCION_REAL = ['SATELLITE_LIVE_CALLS', 'SATELLITE_TRIAL_PLOT_IDS', 'EUDR_IS_LIVE_CALLS', 'EUDR_IS_PRODUCTION_SUBMISSIONS',
   'EUDR_IS_ACCEPTANCE_USERNAME', 'EUDR_IS_ACCEPTANCE_AUTH_KEY', 'EUDR_IS_ACCEPTANCE_CLIENT_ID', 'EUDR_IS_PRODUCTION_USERNAME', 'EUDR_IS_PRODUCTION_AUTH_KEY', 'EUDR_IS_PRODUCTION_CLIENT_ID'];
-for (const k of INTERRUPTORES_DE_EJECUCION_REAL) delete env[k];
+// Se fijan VACÍAS (no se borran): los cargadores de Jest (apps/api/test/load-env.js) y de Playwright (e2e/env.ts) solo rellenan lo que está sin definir, y volverían a leerlas del .env.
+for (const k of INTERRUPTORES_DE_EJECUCION_REAL) env[k] = '';
 
 function dbName(url) {
   try {
