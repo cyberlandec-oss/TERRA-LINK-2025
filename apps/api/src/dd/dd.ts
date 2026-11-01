@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Inject, Injectable, Param, ParseUUIDPipe, Post, Req, Res } from '@nestjs/common';
-import { satelliteInputs } from '../satellite/inputs';
+import { coveredByOperationalProvider, satelliteInputs } from '../satellite/inputs';
 import { coberturaDeSujetos, perfilDeOrganizacion } from '../legal/legal-profile';
 import { geoConfigContent } from '../geo/geo-config';
 import { conclusionEfectiva } from '../risk/risk-conclusion';
@@ -175,9 +175,7 @@ export class DdService {
       if (!versionIds.length || versionIds.length !== plots.length) return null;
       // El resultado aplicable es el MÁS RECIENTE del proveedor seleccionado, real (no sintético), por versión de parcela: el mismo que muestra la instantánea.
       // Un resultado anterior COVERED no sostiene el requisito si el vigente declara otra cobertura. Debe declarar COVERED.
-      const covered = (await satelliteInputs(db as never, orgId, versionIds))
-        .filter((a) => a.provider_code === selected.code && !a.is_synthetic && a.coverage_status === 'COVERED')
-        .map((a) => a.plot_version_id);
+      const covered = coveredByOperationalProvider(await satelliteInputs(db as never, orgId, versionIds), selected.code);
       if (!versionIds.every((v) => covered.includes(v))) return null;
       return `Proveedor ${selected.code}: resultado con cobertura para todas las versiones de parcela de origen. Insumo con sus límites; no es conclusión regulatoria.`;
     })();

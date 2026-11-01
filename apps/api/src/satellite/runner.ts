@@ -62,7 +62,7 @@ export class SatelliteRunner {
   }
 
   private async claim(limit = this.opts.batchSize, exclude: string[] = []) {
-    const res = await sql<{ id: string; organization_id: string; requesting_organization_id: string; authorization_id: string | null; plot_id: string; plot_version_id: string; geometry_hash: string; geometry_type: string; provider_code: string; operation: string; period_start: string | null; period_end: string | null; attempts: number; lease_token: string; provider_job_ref: string | null; provider_submit_started_at: Date | null }>`
+    const res = await sql<{ id: string; organization_id: string; requesting_organization_id: string; authorization_id: string | null; plot_id: string; plot_version_id: string; geometry_hash: string; geometry_type: string; provider_code: string; operation: string; period_start: string | null; period_end: string | null; attempts: number; lease_token: string; provider_job_ref: string | null; provider_submit_started_at: Date | null; scope: string }>`
       UPDATE satellite_jobs j
          SET status = 'RUNNING', locked_by = ${this.runnerId}, lease_token = gen_random_uuid(),
              locked_until = now() + make_interval(secs => ${this.opts.leaseSeconds}), attempts = j.attempts + 1
@@ -75,7 +75,7 @@ export class SatelliteRunner {
           LIMIT ${limit}
           FOR UPDATE SKIP LOCKED)
       RETURNING j.id, j.organization_id, j.requesting_organization_id, j.authorization_id, j.plot_id, j.plot_version_id, j.geometry_hash, j.geometry_type, j.provider_code,
-                j.operation, j.period_start::text, j.period_end::text, j.attempts, j.lease_token, j.provider_job_ref, j.provider_submit_started_at`.execute(this.db);
+                j.operation, j.period_start::text, j.period_end::text, j.attempts, j.lease_token, j.provider_job_ref, j.provider_submit_started_at, j.scope`.execute(this.db);
     return res.rows;
   }
 
@@ -171,7 +171,12 @@ export class SatelliteRunner {
         if (await this.finish(j, 'GEOMETRY_UNSUPPORTED', 'GEOMETRY_MISSING', null)) out.failed++;
         continue;
       }
-      const prov = await this.db.selectFrom('satellite_providers').select(['allowed_hosts', 'kind']).where('code', '=', j.provider_code).executeTakeFirst();
+      const prov = await this.db.selectFrom('satellite_providers').select(['allowed_hosts', 'kind', 'selection_status']).where('code', '=', j.provider_code).executeTakeFirst();
+      // Un trabajo de ENSAYO LOCAL se revalida ahora, no solo al encargar: interruptor, lista válida, parcela+huella y rótulo. Por la API no se crea otro tipo de trabajo con un proveedor no seleccionado.
+      if (prov?.kind === 'EXTERNAL_HTTP' && j.scope === 'LOCAL_TRIAL' && !(await trialAllowed(this.db, j.organization_id, j.plot_id, j.geometry_hash))) {
+        if (await this.finish(j, 'PROVIDER_ERROR', 'TRIAL_SCOPE_NOT_ALLOWED', null)) out.failed++;
+        continue;
+      }
       let credential: string | null = null;
       if (prov?.kind === 'EXTERNAL_HTTP' && this.deps.cipher) {
         const row = await this.db.selectFrom('satellite_credentials').select('secret_ciphertext')
@@ -286,3 +291,31 @@ export function registeredProviders(env: NodeJS.ProcessEnv = process.env): Satel
 
 /** Interruptor explícito de llamadas reales. Seleccionar un proveedor o tener credencial NO lo activa. */
 export const liveCallsEnabled = (env: NodeJS.ProcessEnv = process.env) => env.SATELLITE_LIVE_CALLS === 'enabled';
+
+/**
+ * ENSAYO LOCAL ACOTADO (2026-11-01). Permite analizar con el adaptador en desarrollo (D-09 parte A) SOLO una geometría artificial concreta, sin registrar la decisión de uso real (parte B),
+ * sin automatismos y sin extender ninguna autorización. Se exigen CUATRO condiciones a la vez: `SATELLITE_LIVE_CALLS=enabled`; que `SATELLITE_TRIAL_PLOT_IDS` sea una lista VÁLIDA
+ * (`<id de la parcela>:<huella sha256 de la geometría autorizada>`, separadas por comas; una sola entrada mal formada invalida TODA la lista); que la parcela y la huella de la versión
+ * a analizar figuren en ella; y que el código de la parcela lleve el rótulo `ENSAYO-` (una etiqueta, que no sustituye la huella). Si la geometría cambia, la huella ya no coincide y la
+ * autorización deja de valer. Se revalida al ejecutar. El trabajo queda con `scope = LOCAL_TRIAL`, que el expediente excluye por lo que ES, aunque el proveedor pase a SELECTED.
+ */
+export const TRIAL_PLOT_CODE_PREFIX = 'ENSAYO-';
+export type TrialEntry = { plotId: string; geometryHash: string };
+export function parseTrialList(env: NodeJS.ProcessEnv = process.env): TrialEntry[] | 'INVALID' {
+  const raw = (env.SATELLITE_TRIAL_PLOT_IDS ?? '').trim();
+  if (!raw) return [];
+  const out: TrialEntry[] = [];
+  for (const parte of raw.split(',')) {
+    const m = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):([0-9a-f]{64})$/i.exec(parte.trim());
+    if (!m) return 'INVALID';
+    out.push({ plotId: m[1].toLowerCase(), geometryHash: m[2].toLowerCase() });
+  }
+  return out;
+}
+export async function trialAllowed(db: Kysely<Database>, organizationId: string, plotId: string, geometryHash: string | null | undefined, env: NodeJS.ProcessEnv = process.env): Promise<boolean> {
+  if (!geometryHash || !liveCallsEnabled(env)) return false;
+  const lista = parseTrialList(env);
+  if (lista === 'INVALID' || !lista.some((e) => e.plotId === plotId.toLowerCase() && e.geometryHash === geometryHash.toLowerCase())) return false;
+  const p = await db.selectFrom('plots').select('plot_code').where('organization_id', '=', organizationId).where('id', '=', plotId).executeTakeFirst();
+  return !!p && p.plot_code.startsWith(TRIAL_PLOT_CODE_PREFIX);
+}

@@ -70,7 +70,7 @@ export interface DdContent {
      */
     satellite_analysis?: {
       selected_provider: string | null;
-      analyses: Array<{ plot_code: string | null; plot_version_id: string; provider_code: string; is_synthetic: boolean; operation?: string; coverage_status: 'COVERED' | 'PARTIAL' | 'NOT_COVERED' | 'UNKNOWN'; coverage_note?: string | null; limitations?: string | null; analysis_date: string | null; method: string | null; raw_sha256: string | null; result_id: string }>;
+      analyses: Array<{ plot_code: string | null; plot_version_id: string; provider_code: string; is_synthetic: boolean; scope?: 'LOCAL_TRIAL'; operation?: string; coverage_status: 'COVERED' | 'PARTIAL' | 'NOT_COVERED' | 'UNKNOWN'; coverage_note?: string | null; limitations?: string | null; analysis_date: string | null; method: string | null; raw_sha256: string | null; result_id: string }>;
     };
   };
 }
@@ -419,7 +419,9 @@ export function deforestationRequirement(c: DdContent): Requirement {
   const motivos: string[] = [];
   const pendientes = new Set<string>();
   if (!sa.selected_provider) motivos.push('no hay proveedor satelital seleccionado (D-09), así que ningún análisis se toma como requisito');
-  const reales = sa.analyses.filter((a) => !a.is_synthetic);
+  const ensayoLocal = sa.analyses.filter((a) => a.scope === 'LOCAL_TRIAL');
+  if (ensayoLocal.length) motivos.push(`${ensayoLocal.length} análisis de ENSAYO LOCAL (proveedor real con geometría artificial) no cuentan como uso operativo`);
+  const reales = sa.analyses.filter((a) => !a.is_synthetic && a.scope !== 'LOCAL_TRIAL');
   const sinteticos = sa.analyses.filter((a) => a.is_synthetic);
   if (sinteticos.length) motivos.push(`${sinteticos.length} análisis sintético(s) de ensayo no cuentan como análisis real`);
   const delProveedor = sa.selected_provider ? reales.filter((a) => a.provider_code === sa.selected_provider) : [];

@@ -333,3 +333,7 @@ export const DEVELOPMENT_ONLY_NOTE =
   'Whisp está seleccionado solo como ADAPTADOR DE DESARROLLO (D-09 parte A). Llamar al servicio real y enviar geometrías exige la parte B, que sigue pendiente.';
 
 export { EgressBlocked };
+
+/** Nota del ensayo local acotado (geometría artificial listada con su huella; ver runner.ts). */
+export const TRIAL_NOTE =
+  'Ensayo local acotado: esta geometría artificial está autorizada expresamente para un análisis manual con el proveedor real. El resultado queda marcado como ensayo, NO satisface la parte B de D-09 ni ningún requisito del expediente.';

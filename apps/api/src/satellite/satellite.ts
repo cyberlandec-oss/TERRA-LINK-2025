@@ -15,8 +15,8 @@ import { PlotsService } from '../plots/plots';
 import { PII_CIPHER, type PiiCipher } from '../crypto/pii';
 import { OBJECT_STORE, sha256, type ObjectStore } from '../storage/object-store';
 import { ADAPTER_CONTRACT_VERSION, FIXTURE_SCENARIOS, OPERATIONS, requestFingerprint, type FixtureScenario } from './provider';
-import { liveCallsEnabled } from './runner';
-import { DEVELOPMENT_ONLY_NOTE } from './whisp';
+import { liveCallsEnabled, trialAllowed } from './runner';
+import { DEVELOPMENT_ONLY_NOTE, TRIAL_NOTE } from './whisp';
 
 // P0-028 Primer proveedor satelital (RF-28, QA-15). Contrato: docs/decisiones/P0-028-SATELITE.md.
 //
@@ -194,7 +194,14 @@ export class SatelliteService {
    * - `SELECTED_FOR_DEVELOPMENT` (parte A) → el adaptador existe, pero su uso real no está autorizado;
    * - ninguno → D-09 sin decidir. La fixture sintética solo entra con su propio interruptor.
    */
-  private async effectiveProvider(db: Db) {
+  /** Huella de la geometría de la versión que se analizaría (la indicada o la vigente) o undefined si no tiene. */
+  private async geometryHashOf(db: Db, orgId: string, plotId: string, versionId?: string | null): Promise<string | undefined> {
+    const id = versionId ?? (await db.selectFrom('plots').select('current_version_id').where('organization_id', '=', orgId).where('id', '=', plotId).executeTakeFirst())?.current_version_id;
+    if (!id) return undefined;
+    return (await db.selectFrom('plot_versions').select('geometry_hash').where('organization_id', '=', orgId).where('plot_id', '=', plotId).where('id', '=', id).executeTakeFirst())?.geometry_hash ?? undefined;
+  }
+
+  private async effectiveProvider(db: Db, scope?: { organizationId: string; plotId: string; geometryHash?: string }) {
     const selected = await db.selectFrom('satellite_providers').selectAll().where('selection_status', '=', 'SELECTED').executeTakeFirst();
     if (selected) {
       return liveCallsEnabled()
@@ -206,6 +213,8 @@ export class SatelliteService {
       if (fixture) return { provider: fixture, blocked: null as string | null };
     }
     const dev = await db.selectFrom('satellite_providers').selectAll().where('selection_status', '=', 'SELECTED_FOR_DEVELOPMENT').executeTakeFirst();
+    // Ensayo local acotado: el adaptador en desarrollo solo para la geometría artificial listada con su huella (ver runner.ts). No es la decisión D-09 parte B.
+    if (dev && scope && dev.code === 'WHISP' && (await trialAllowed(db, scope.organizationId, scope.plotId, scope.geometryHash))) return { provider: dev, blocked: null as string | null, trial: true };
     if (dev) return { provider: undefined, blocked: dev.code === 'WHISP' ? DEVELOPMENT_ONLY_NOTE : `${dev.code} está seleccionado solo como adaptador de desarrollo (D-09 parte A).` };
     return { provider: undefined, blocked: null as string | null };
   }
@@ -233,7 +242,8 @@ export class SatelliteService {
       return { replayed: true, job: await this.jobView(this.db, orgId, prior.id, canDownloadRaw) };
     }
 
-    const { provider, blocked } = await this.effectiveProvider(this.db);
+    const { provider, blocked, ...extra } = await this.effectiveProvider(this.db, { organizationId: orgId, plotId, geometryHash: await this.geometryHashOf(this.db, orgId, plotId, dto.plot_version_id ?? plot.current_version_id) });
+    const trial = 'trial' in extra && extra.trial === true;
     if (!provider) {
       const code = blocked ? 'SATELLITE_REQUESTS_NOT_AUTHORIZED' : 'SATELLITE_PROVIDER_NOT_SELECTED';
       await this.audit.record(this.db, { organizationId: orgId, actorUserId: user.id, action: 'satellite.request', entityType: 'plot', entityId: plotId, requestId, result: 'FAILED', reason: code });
@@ -273,7 +283,7 @@ export class SatelliteService {
         provider_kind: provider.kind, adapter_contract_version: ADAPTER_CONTRACT_VERSION, operation: dto.operation,
         period_start: dto.period_start ?? null, period_end: dto.period_end ?? null, request_fingerprint: fingerprint,
         status: 'REQUESTED', outcome: null, requested_by: user.id, operation_id: dto.operation_id,
-        requesting_organization_id: requestingOrgId, authorization_id: authorizationId,
+        requesting_organization_id: requestingOrgId, authorization_id: authorizationId, scope: trial ? 'LOCAL_TRIAL' : 'OPERATIONAL',
       }).execute();
       // El escenario de fixture no se persiste en el trabajo: viaja al corredor por el evento, y solo la fixture lo usa.
       await this.events.append(trx, {
@@ -581,7 +591,7 @@ export class SatelliteService {
       .orderBy('requested_at', 'desc').limit(50).execute();
     const views = [];
     for (const j of jobs) views.push(await this.jobView(this.db, a.organization_id, j.id, a.can_download));
-    const { provider, blocked } = await this.effectiveProvider(this.db);
+    const { provider, blocked } = await this.effectiveProvider(this.db, { organizationId: a.organization_id, plotId: a.plot_id, geometryHash: await this.geometryHashOf(this.db, a.organization_id, a.plot_id) });
     const reason = !ctx.permissions.includes(SATELLITE_REQUEST as never) ? 'Tu rol no encarga análisis satelitales.'
       : ctx.organizationStatus !== 'ACTIVE' ? 'La organización está suspendida; no admite nuevas operaciones.'
       : !provider ? (blocked ?? 'No hay proveedor satelital seleccionado (D-09).') : null;
@@ -636,7 +646,7 @@ export class SatelliteService {
     const plot = await this.plots.load(this.db, ctx, plotId, 'read');
     const jobs = await this.db.selectFrom('satellite_jobs').selectAll()
       .where('organization_id', '=', orgId).where('plot_id', '=', plotId).orderBy('requested_at', 'desc').limit(50).execute();
-    const { provider, blocked: providerBlocked } = await this.effectiveProvider(this.db);
+    const { provider, blocked: providerBlocked, ...efectivo } = await this.effectiveProvider(this.db, { organizationId: orgId, plotId, geometryHash: await this.geometryHashOf(this.db, orgId, plotId) });
     // La pantalla informa del estado REAL del registro, no solo de si se puede encargar: un adaptador seleccionado
     // para desarrollo no es «ningún proveedor seleccionado», y decirlo así sería engañoso en los dos sentidos.
     const development = await this.db.selectFrom('satellite_providers').select(['code', 'decision_reference'])
@@ -646,6 +656,7 @@ export class SatelliteService {
     const applicable = views.find((v) => v.outcome === 'RESULT_AVAILABLE' && v.applies_to_current_version && !v.result?.is_synthetic) ?? null;
     // La pantalla no ofrece un botón que el servidor va a rechazar: dice por qué no se puede encargar.
     const selected = provider?.selection_status === 'SELECTED';
+    const trial = 'trial' in efectivo && efectivo.trial === true; // solo llega aquí por el ensayo local acotado
     const blocked = !ctx.permissions.includes(SATELLITE_REQUEST as never) ? 'Tu rol no encarga análisis satelitales.'
       : !this.plots.has(ctx, 'plot:read_geometry') ? 'Encargar un análisis envía la geometría exacta fuera del equipo: requiere acceso a coordenadas.'
       : ctx.organizationStatus !== 'ACTIVE' ? 'La organización está suspendida; no admite nuevas operaciones.'
@@ -664,7 +675,9 @@ export class SatelliteService {
       fixture_scenarios: provider?.kind === 'SYNTHETIC_FIXTURE' ? [...FIXTURE_SCENARIOS] : [],
       provider_selection: selected
         ? { status: 'SELECTED', provider_code: provider!.code }
-        : development
+        : trial
+          ? { status: 'SELECTED_FOR_DEVELOPMENT', provider_code: provider!.code, decision: 'D-09 parte A', trial_scope: true, note: TRIAL_NOTE }
+          : development
           ? { status: 'SELECTED_FOR_DEVELOPMENT', provider_code: development.code, decision: 'D-09 parte A', note: providerBlocked ?? DEVELOPMENT_ONLY_NOTE }
           : { status: 'NOT_SELECTED', decision: 'D-09', note: providerBlocked ?? OUTCOME_NOTES.NO_PROVIDER_SELECTED },
       analysis_status: applicable ? 'RESULT_AVAILABLE' : views.some((v) => v.status === 'REQUESTED' || v.status === 'RUNNING') ? 'IN_PROGRESS' : 'NOT_EVALUATED',
@@ -706,6 +719,9 @@ export class SatelliteService {
       provider: { code: j.provider_code, kind: j.provider_kind, adapter_contract_version: j.adapter_contract_version },
       // ENSAYO: lo produjo la fixture sintética. Se identifica y se separa de lo operativo (no acredita nada).
       is_ensayo: j.provider_kind === 'SYNTHETIC_FIXTURE',
+      // 0079: proveedor REAL con geometría ARTIFICIAL de ensayo (no cuenta para el expediente) frente a uso operativo; la respuesta sintética de una fixture es is_ensayo.
+      analysis_scope: j.scope,
+      is_local_trial: j.scope === 'LOCAL_TRIAL',
       operation: j.operation,
       period: { start: j.period_start, end: j.period_end },
       request_fingerprint: j.request_fingerprint,

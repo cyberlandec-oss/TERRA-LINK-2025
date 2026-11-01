@@ -844,6 +844,8 @@ export interface SatelliteJobsTable {
   cancel_requested_at: Timestamp | null; cancel_requested_by: string | null; cancel_reason: string | null;
   // 0068: instante en que se empezó a enviar al proveedor (envío incierto si no hay `provider_job_ref`).
   provider_submit_started_at: Timestamp | null;
+  // 0079: alcance persistente del trabajo (uso operativo o ensayo local acotado con geometría artificial).
+  scope: Generated<'OPERATIONAL' | 'LOCAL_TRIAL'>;
   // 0072: organización que solicita (su credencial se usa) y autorización de la propietaria cuando es otra.
   requesting_organization_id: ColumnType<string, string | undefined, string>; authorization_id: string | null;
 }
