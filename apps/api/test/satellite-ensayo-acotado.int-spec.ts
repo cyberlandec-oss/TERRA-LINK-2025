@@ -5,6 +5,7 @@ import { SatelliteRunner, parseTrialList } from '../src/satellite/runner';
 import { WhispSatelliteProvider } from '../src/satellite/whisp';
 import { coveredByOperationalProvider, satelliteInputs } from '../src/satellite/inputs';
 import { deforestationRequirement, type DdContent } from '../src/dd/requirements';
+import { migrateTo, migrateToLatest } from '../src/db/database';
 
 // Ensayo local ACOTADO del análisis satelital (2026-11-01). PostgreSQL real, datos sintéticos, SIN llamadas a terceros (el proveedor real se vigila con un espía de red).
 // Fija: (1) el adaptador en desarrollo (D-09 parte A) solo analiza una geometría artificial concreta cuando se cumplen las CUATRO condiciones — interruptor, lista válida, parcela+huella
@@ -184,5 +185,32 @@ describeDb('satélite: ensayo local acotado a una geometría artificial listada'
       expect(coveredByOperationalProvider(sinMarca, 'WHISP')).toEqual([job.plot_version_id]);
       expect(coveredByOperationalProvider(entradas.map((x) => ({ ...x, is_synthetic: true })), 'WHISP')).toEqual([]);
     } finally { await restaurar(); }
+  });
+
+  it('migración sobre datos reales: un trabajo REAL ya completado sobre una parcela ENSAYO- se marca LOCAL_TRIAL, el de otra parcela queda OPERATIONAL y el guardián de trabajos terminados sigue activo', async () => {
+    // Se parte de un trabajo de proveedor externo, COMPLETADO, sobre una parcela ENSAYO- (como el ensayo real del 2026-10-30) y de otro sobre una parcela sin el rótulo.
+    const usuario = (await sql<{ id: string }>`SELECT id FROM users LIMIT 1`.execute(h.db)).rows[0].id;
+    const mkJob = async (plot: string, org: string) => {
+      const v = await h.db.selectFrom('plot_versions as v').innerJoin('plots as p', 'p.current_version_id', 'v.id').select(['v.id as vid', 'v.geometry_hash', 'v.geometry_type']).where('p.id', '=', plot).executeTakeFirstOrThrow();
+      const id = randomUUID();
+      await h.db.insertInto('satellite_jobs').values({
+        id, organization_id: org, plot_id: plot, plot_version_id: v.vid, geometry_hash: v.geometry_hash!, geometry_type: v.geometry_type as 'POLYGON', provider_code: 'WHISP', provider_kind: 'EXTERNAL_HTTP',
+        adapter_contract_version: '1', operation: 'FOREST_COVER', request_fingerprint: randomUUID().replace(/-/g, '').padEnd(64, '0'), status: 'REQUESTED', outcome: null, requested_by: usuario,
+        operation_id: randomUUID(), requesting_organization_id: org,
+      } as never).execute();
+      await sql`UPDATE satellite_jobs SET status = 'RUNNING' WHERE id = ${id}`.execute(h.db);
+      await sql`UPDATE satellite_jobs SET status = 'COMPLETED', outcome = 'RESULT_AVAILABLE', finished_at = now() WHERE id = ${id}`.execute(h.db);
+      return id;
+    };
+    const conRotulo = await mkJob(tOk, orgO);
+    const sinRotulo = await mkJob(tSinRotulo, orgO);
+    await migrateTo(h.db, '0078_eudr_is_presentaciones');
+    expect((await sql`SELECT 1 FROM information_schema.columns WHERE table_name = 'satellite_jobs' AND column_name = 'scope'`.execute(h.db)).rows).toHaveLength(0);
+    await migrateToLatest(h.db);
+    const alcance = async (id: string) => (await h.db.selectFrom('satellite_jobs').select('scope').where('id', '=', id).executeTakeFirstOrThrow()).scope;
+    expect(await alcance(conRotulo)).toBe('LOCAL_TRIAL');
+    expect(await alcance(sinRotulo)).toBe('OPERATIONAL');
+    await expect(sql`UPDATE satellite_jobs SET status = 'REQUESTED' WHERE id = ${conRotulo}`.execute(h.db)).rejects.toThrow(/no vuelve a cambiar de estado/);
+    await expect(sql`UPDATE satellite_jobs SET scope = 'OPERATIONAL' WHERE id = ${conRotulo}`.execute(h.db)).rejects.toThrow();
   });
 });

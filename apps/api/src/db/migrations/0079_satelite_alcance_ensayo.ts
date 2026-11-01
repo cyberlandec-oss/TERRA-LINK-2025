@@ -14,11 +14,13 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       RETURN NEW;
     END $$`.execute(db);
   // Los trabajos de un proveedor EXTERNO sobre una parcela rotulada ENSAYO- hechos antes de existir esta columna fueron análisis reales con geometría artificial de ensayo.
-  // Se marcan antes de crear el guardián (el guardián solo impide cambios posteriores).
+  // Se marcan antes de crear el guardián de alcance. Un trabajo terminado no admite reescrituras (satellite_jobs_no_rewrite): ese guardián se desactiva SOLO durante este relleno, igual que en 0072.
+  await sql`ALTER TABLE satellite_jobs DISABLE TRIGGER satellite_jobs_no_rewrite`.execute(db);
   await sql`
     UPDATE satellite_jobs j SET scope = 'LOCAL_TRIAL'
      WHERE j.provider_kind = 'EXTERNAL_HTTP'
        AND EXISTS (SELECT 1 FROM plots p WHERE p.organization_id = j.organization_id AND p.id = j.plot_id AND p.plot_code LIKE 'ENSAYO-%')`.execute(db);
+  await sql`ALTER TABLE satellite_jobs ENABLE TRIGGER satellite_jobs_no_rewrite`.execute(db);
   await sql`CREATE TRIGGER satellite_jobs_scope_guard BEFORE UPDATE ON satellite_jobs FOR EACH ROW EXECUTE FUNCTION satellite_jobs_scope_inmutable()`.execute(db);
 }
 
