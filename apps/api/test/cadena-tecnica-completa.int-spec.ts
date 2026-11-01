@@ -54,6 +54,7 @@ describeDb('cadena técnica completa: de los soportes al acceso del destinatario
     buyerId = (await http().post(`${base(orgA)}/buyers`).set(as(EXP)).send({ operation_id: randomUUID(), code: 'IMP-CT', name: 'Importador Sintético', country: 'NL' }).expect(201)).body.buyer.id;
     plot = (await http().post(`${base(orgA)}/plots`).set(as(ADMIN)).send({ producer_id: producer, plot_code: 'CT-PAR', crop: 'Cacao' }).expect(201)).body.id;
     await http().post(`${base(orgA)}/plots/${plot}/geometry-versions`).set(as(ADMIN)).send({ expected_version: 1, survey_method: 'MANUAL_COORDINATES', geometry: { type: 'Point', coordinates: [-80.1601, -0.8479] }, area_declared_ha: 2 }).expect(201);
+    await http().post(`${base(orgA)}/plots/${plot}/production-country`).set(as(ADMIN)).send({ operation_id: randomUUID(), expected_declaration_number: 0, country: 'EC' }).expect(200);
     await http().post(`${base(orgA)}/plots/${plot}/geo-profile/evaluations`).set(as(ADMIN)).send({ operation_id: randomUUID() }).expect(201);
     versionId = (await h.db.selectFrom('plots').select('current_version_id').where('id', '=', plot).executeTakeFirstOrThrow()).current_version_id!;
 
@@ -196,6 +197,132 @@ describeDb('cadena técnica completa: de los soportes al acceso del destinatario
     void otroId;
     await http().post(`${base(orgA)}/access-grants/${g.id}/revoke`).set(as(ADMIN)).send({ operation_id: randomUUID(), reason: 'Fin de la comprobación' }).expect(201);
     expect((await http().get(`/api/v1/granted/${g.id}/documents`).set(as(COMPRADOR))).status).toBe(404); // revocada
+  });
+
+  it('P1-007 tramo 2: presentación de ENSAYO a EUDR-IS con transporte controlado — preparar, enviar, respuesta perdida, conciliar sin reenviar, reenvío explícito y consulta', async () => {
+    process.env.EUDR_IS_LIVE_CALLS = 'enabled';
+    const E = `${base(orgA)}/eudr-is`;
+    const UUID_OK = '071874bd-8c62-4cac-8eb6-b2fbe003410c';
+    const dto = (op = randomUUID()) => ({ operation_id: op, environment: 'ACCEPTANCE', operator_role: 'OPERATOR', activity_type: 'IMPORT', country_of_activity: 'NL', border_cross_country: 'NL', hs_heading: '1801', description: 'Cacao en grano (ENSAYO)', geolocation_confidential: false });
+    // Permisos y compuertas: sin dd:submit 403; PRODUCTION no autorizada; datos que Terra Link no completa → 422 con el campo.
+    await http().post(`${E}/snapshots/${ready.id}/submissions`).set(as(EXP)).send(dto()).expect(403);
+    await http().put(`${E}/credentials/ACCEPTANCE`).set(as(ADMIN)).send({ username: 'usuario-sintetico-dds', authentication_key: 'clave-sintetica-dds-1', web_service_client_id: 'cliente-sintetico-dds' }).expect(200);
+    expect((await http().post(`${E}/snapshots/${ready.id}/submissions`).set(as(EUDR)).send({ ...dto(), environment: 'PRODUCTION' }).expect(409)).body.error.code).toBe('PRODUCTION_SUBMISSION_NOT_AUTHORIZED');
+    const incompleta = await http().post(`${E}/snapshots/${ready.id}/submissions`).set(as(EUDR)).send({ ...dto(), activity_type: 'IMPORT', hs_heading: '1' });
+    expect(incompleta.status).toBe(400); // el HS no es de 2 a 10 dígitos: validación del contrato, sin efectos
+    expect(await h.db.selectFrom('eudr_is_submissions').select('id').where('organization_id', '=', orgA).execute()).toHaveLength(0);
+
+    // Preparar (ACCEPTANCE usa V4): referencia interna derivada del expediente y de la instantánea; idempotente por operation_id.
+    const op = randomUUID();
+    const p = (await http().post(`${E}/snapshots/${ready.id}/submissions`).set(as(EUDR)).send(dto(op)).expect(201)).body;
+    expect(p).toMatchObject({ state: 'PREPARED', environment: 'ACCEPTANCE', service_version: 'V4', official_submission: 'NOT_SUBMITTED', next: 'SEND' });
+    expect(p.internal_reference).toMatch(/^TL-DD-\d{4}-\d+-S\d+$/);
+    expect(p.declared).toMatchObject({ commodity: { hs_heading: '1801' }, producers_count: 1 });
+    expect(JSON.stringify(p)).not.toContain('coordinates'); // la vista no devuelve geometrías
+    expect((await http().post(`${E}/snapshots/${ready.id}/submissions`).set(as(EUDR)).send(dto(op)).expect(201)).body.id).toBe(p.id);
+    // La misma referencia interna en el mismo entorno no se duplica con otro operation_id.
+    expect((await http().post(`${E}/snapshots/${ready.id}/submissions`).set(as(EUDR)).send(dto()).expect(409)).body.error.code).toBe('SUBMISSION_ALREADY_PREPARED');
+
+    const enviados: Array<{ url: string; body: string }> = [];
+    const responder = (fn: (n: number) => Response) => jest.spyOn(globalThis, 'fetch').mockImplementation((async (url: unknown, init?: { body?: string }) => {
+      enviados.push({ url: String(url), body: String(init?.body ?? '') });
+      return fn(enviados.length);
+    }) as typeof fetch);
+    const ok = (uuid: string) => new Response(`<S:Envelope xmlns:S="x"><S:Body><n:SubmitDdsResponse xmlns:n="y"><n:uuid>${uuid}</n:uuid></n:SubmitDdsResponse></S:Body></S:Envelope>`, { status: 200 });
+
+    // 1) Respuesta PERDIDA (corte): el resultado es incierto; NO se reenvía solo; enviar otra vez se rechaza.
+    responder(() => { throw new Error('ECONNRESET'); });
+    const s1 = (await http().post(`${E}/submissions/${p.id}/send`).set(as(EUDR)).send({}).expect(201)).body;
+    expect(s1.state).toBe('NEEDS_RECONCILIATION');
+    expect(s1.official_submission).toBe('NOT_SUBMITTED');
+    expect(enviados).toHaveLength(1);
+    expect(enviados[0].url).toBe('https://acceptance.eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRDueDiligenceStatementServiceV4');
+    expect(enviados[0].body).toContain('<dds:SubmitDdsRequest>');
+    expect(enviados[0].body).toContain(p.internal_reference);
+    expect(enviados[0].body).not.toContain('clave-sintetica-dds-1');
+    expect((await http().post(`${E}/submissions/${p.id}/send`).set(as(EUDR)).send({}).expect(409)).body.error.code).toBe('RECONCILE_FIRST');
+    expect(enviados).toHaveLength(1); // ningún segundo POST
+
+    // 2) Conciliar por referencia interna: el sistema NO la tiene → «no recibida»; reenviar exige confirmación expresa.
+    jest.restoreAllMocks();
+    responder(() => new Response('<S:Envelope xmlns:S="x"><S:Body><S:Fault><faultcode>S:Server</faultcode><faultstring>nf</faultstring><detail><n:NotFoundException xmlns:n="y"/></detail></S:Fault></S:Body></S:Envelope>', { status: 500 }));
+    const c1 = (await http().post(`${E}/submissions/${p.id}/reconcile`).set(as(EUDR)).expect(201)).body;
+    expect(c1.state).toBe('CONFIRMED_NOT_RECEIVED');
+    expect(enviados[enviados.length - 1].body).toContain('<dds:GetDdsByInternalReferenceRequest>');
+    expect((await http().post(`${E}/submissions/${p.id}/send`).set(as(EUDR)).send({}).expect(409)).body.error.code).toBe('CONFIRM_NOT_RECEIVED_REQUIRED');
+    const antes = enviados.length;
+    jest.restoreAllMocks();
+    responder(() => ok(UUID_OK));
+    const s2 = (await http().post(`${E}/submissions/${p.id}/send`).set(as(EUDR)).send({ confirm_not_received: true }).expect(201)).body;
+    expect(enviados.length).toBe(antes + 1);
+    expect(s2).toMatchObject({ state: 'SUBMITTED', official_submission: 'SUBMITTED_TO_EUDR_IS', eudr_is: { uuid: UUID_OK } });
+    expect(s2.events.map((e: { kind: string }) => e.kind)).toEqual(expect.arrayContaining(['ATTEMPT_UNCERTAIN', 'RECONCILED_NOT_FOUND', 'RESEND_AUTHORIZED', 'ATTEMPT_ACCEPTED']));
+    expect((await http().post(`${E}/submissions/${p.id}/send`).set(as(EUDR)).send({ confirm_not_received: true }).expect(409)).body.error.code).toBe('SUBMISSION_ALREADY_SUBMITTED');
+
+    // 3) Consulta del estado: el número de referencia y de verificación son los que devuelve el sistema.
+    jest.restoreAllMocks();
+    responder(() => new Response(`<S:Envelope xmlns:S="x"><S:Body><n:GetDdsResponse xmlns:n="y"><n:ddsOverviewList><n:uuid>${UUID_OK}</n:uuid><n:internalReferenceNumber>${p.internal_reference}</n:internalReferenceNumber><n:referenceNumber>26ECABCDEF1234</n:referenceNumber><n:verificationNumber>VERIF123</n:verificationNumber><n:status>AVAILABLE</n:status></n:ddsOverviewList></n:GetDdsResponse></S:Body></S:Envelope>`, { status: 200 }));
+    const st = (await http().post(`${E}/submissions/${p.id}/status`).set(as(EUDR)).expect(201)).body;
+    expect(st.eudr_is).toMatchObject({ uuid: UUID_OK, reference_number: '26ECABCDEF1234', verification_number: 'VERIF123', remote_status: 'AVAILABLE' });
+
+    // 4) Rastros inmutables y aislamiento entre organizaciones.
+    await expect(sql`UPDATE eudr_is_submission_events SET detail = 'x' WHERE submission_id = ${p.id}`.execute(h.db)).rejects.toThrow(/solo se agregan/);
+    await expect(sql`DELETE FROM eudr_is_submissions WHERE id = ${p.id}`.execute(h.db)).rejects.toThrow(/solo se agregan/);
+    await http().get(`/api/v1/organizations/${orgB}/eudr-is/submissions/${p.id}`).set(as(ADMIN_B)).expect(404);
+    jest.restoreAllMocks();
+    delete process.env.EUDR_IS_LIVE_CALLS;
+  });
+
+  it('P1-007 tramo 2: PRODUCTION (V3, solo con la bandera de la plataforma) — credenciales rechazadas no consumen la presentación, el rechazo de negocio es definitivo y dos envíos simultáneos llaman una sola vez', async () => {
+    process.env.EUDR_IS_LIVE_CALLS = 'enabled';
+    const E = `${base(orgA)}/eudr-is`;
+    const dto = { operation_id: randomUUID(), environment: 'PRODUCTION', operator_role: 'OPERATOR', activity_type: 'IMPORT', country_of_activity: 'NL', border_cross_country: 'NL', hs_heading: '1801', description: 'Cacao en grano (ENSAYO)', geolocation_confidential: false };
+    // Sin la bandera, PRODUCTION no se prepara; con ella (solo en esta base desechable) se usa V3, la única versión publicada allí.
+    expect((await http().post(`${E}/snapshots/${ready.id}/submissions`).set(as(EUDR)).send(dto).expect(409)).body.error.code).toBe('PRODUCTION_SUBMISSION_NOT_AUTHORIZED');
+    process.env.EUDR_IS_PRODUCTION_SUBMISSIONS = 'enabled';
+    await http().put(`${E}/credentials/PRODUCTION`).set(as(ADMIN)).send({ username: 'usuario-sintetico-prod', authentication_key: 'clave-sintetica-prod-1', web_service_client_id: 'cliente-sintetico-prod' }).expect(200);
+    const p = (await http().post(`${E}/snapshots/${ready.id}/submissions`).set(as(EUDR)).send(dto).expect(201)).body;
+    expect(p).toMatchObject({ environment: 'PRODUCTION', service_version: 'V3' });
+
+    const enviados: Array<{ url: string; body: string }> = [];
+    const responder = (fn: (n: number) => Response | Promise<Response>) => jest.spyOn(globalThis, 'fetch').mockImplementation((async (url: unknown, init?: { body?: string }) => {
+      enviados.push({ url: String(url), body: String(init?.body ?? '') });
+      return fn(enviados.length);
+    }) as typeof fetch);
+    const fallo = (detalle: string, texto = 'x') => new Response(`<S:Envelope xmlns:S="x"><S:Body><S:Fault><faultcode>S:Server</faultcode><faultstring>${texto}</faultstring><detail>${detalle}</detail></S:Fault></S:Body></S:Envelope>`, { status: 500 });
+
+    // Credenciales rechazadas: NO se procesó → se puede reintentar (estado «listo para enviar»).
+    responder(() => fallo('', 'Authentication failed: UsernameToken'));
+    const a = (await http().post(`${E}/submissions/${p.id}/send`).set(as(EUDR)).send({}).expect(201)).body;
+    expect(a.state).toBe('READY_TO_SEND');
+    expect(enviados[0].url).toBe('https://eudr.webcloud.ec.europa.eu/tracesnt/ws/EUDRDueDiligenceStatementServiceV3');
+    expect(enviados[0].body).toContain('due-diligence-statement/v3');
+
+    // Dos envíos simultáneos: la reserva por fila deja pasar uno solo; el otro recibe un conflicto y no llama.
+    jest.restoreAllMocks();
+    let liberar: () => void = () => undefined;
+    const compuerta = new Promise<void>((r) => { liberar = r; });
+    enviados.length = 0;
+    responder(async () => { await compuerta; return fallo('<n:BusinessRulesValidationException xmlns:n="y"><Error><ID>E1</ID><Message>Codigo HS no admitido</Message><Field>hsHeading</Field></Error></n:BusinessRulesValidationException>'); });
+    const r1 = http().post(`${E}/submissions/${p.id}/send`).set(as(EUDR)).send({}).then((r) => r);
+    await new Promise((r) => setTimeout(r, 400));
+    const r2 = await http().post(`${E}/submissions/${p.id}/send`).set(as(EUDR)).send({});
+    expect(r2.status).toBe(409);
+    expect(r2.body.error.code).toBe('RECONCILE_FIRST'); // el intento en curso figura como incierto: no se lanza otro
+    liberar();
+    const rr1 = await r1;
+    expect(rr1.status).toBe(201);
+    expect(enviados).toHaveLength(1);
+    // Rechazo de negocio: definitivo para esa presentación, con los errores del sistema; no se reenvía.
+    expect(rr1.body.state).toBe('REJECTED');
+    expect(rr1.body.events.find((e: { kind: string }) => e.kind === 'ATTEMPT_REJECTED').errors).toEqual([{ id: 'E1', field: 'hsHeading', message: 'Codigo HS no admitido' }]);
+    expect((await http().post(`${E}/submissions/${p.id}/send`).set(as(EUDR)).send({}).expect(409)).body.error.code).toBe('SUBMISSION_REJECTED');
+    expect(enviados).toHaveLength(1);
+    // Sin interruptor global no sale nada.
+    delete process.env.EUDR_IS_LIVE_CALLS;
+    expect((await http().post(`${E}/submissions/${p.id}/reconcile`).set(as(EUDR)).expect(409)).body.error.code).toBe('EUDR_IS_LIVE_CALLS_DISABLED');
+    jest.restoreAllMocks();
+    delete process.env.EUDR_IS_PRODUCTION_SUBMISSIONS;
   });
 
   it('un cambio relevante desactualiza la instantánea y bloquea un paquete nuevo; el paquete y la instantánea anteriores se conservan', async () => {

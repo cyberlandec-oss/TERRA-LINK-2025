@@ -13054,6 +13054,240 @@
         ]
       }
     },
+    "/api/v1/organizations/{orgId}/eudr-is/snapshots/{snapshotId}/submissions": {
+      "get": {
+        "operationId": "EudrIsSubmissionsController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "snapshotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "eudr-is"
+        ]
+      },
+      "post": {
+        "operationId": "EudrIsSubmissionsController_prepare",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "snapshotId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareSubmissionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "eudr-is"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/eudr-is/submissions/{id}": {
+      "get": {
+        "operationId": "EudrIsSubmissionsController_detail",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "eudr-is"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/eudr-is/submissions/{id}/send": {
+      "post": {
+        "operationId": "EudrIsSubmissionsController_send",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendSubmissionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "eudr-is"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/eudr-is/submissions/{id}/reconcile": {
+      "post": {
+        "operationId": "EudrIsSubmissionsController_reconcile",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "eudr-is"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/eudr-is/submissions/{id}/status": {
+      "post": {
+        "operationId": "EudrIsSubmissionsController_status",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "eudr-is"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/reports/indicators": {
       "get": {
         "operationId": "ReportsController_indicators",
@@ -16919,6 +17153,90 @@
           "authentication_key",
           "web_service_client_id"
         ]
+      },
+      "PrepareSubmissionDto": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "ACCEPTANCE",
+              "PRODUCTION"
+            ]
+          },
+          "operator_role": {
+            "type": "string",
+            "enum": [
+              "OPERATOR",
+              "REPRESENTATIVE_OPERATOR"
+            ],
+            "description": "Quién presenta en TRACES: el operador o su representante autorizado. No se deduce del rol de Terra Link."
+          },
+          "activity_type": {
+            "type": "string",
+            "enum": [
+              "IMPORT",
+              "EXPORT",
+              "DOMESTIC"
+            ]
+          },
+          "country_of_activity": {
+            "type": "string",
+            "description": "Estado miembro de la UE donde ocurre la actividad (ISO 3166-1 alfa-2)."
+          },
+          "border_cross_country": {
+            "type": "string",
+            "description": "País de entrada (IMPORT) o salida (EXPORT) en la frontera aduanera."
+          },
+          "represented_operator_name": {
+            "type": "string"
+          },
+          "represented_operator_reference_type": {
+            "type": "string"
+          },
+          "represented_operator_reference_value": {
+            "type": "string"
+          },
+          "hs_heading": {
+            "type": "string",
+            "description": "Código HS de 2 a 10 dígitos. No se deduce del producto."
+          },
+          "description": {
+            "type": "string",
+            "description": "Descripción comercial (hasta 150 caracteres)."
+          },
+          "net_weight_kg": {
+            "type": "string",
+            "description": "Masa neta en kg. Si se omite se usa la suma de las reservas del embarque (en KG) de la instantánea."
+          },
+          "geolocation_confidential": {
+            "type": "boolean"
+          },
+          "comment": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "environment",
+          "operator_role",
+          "activity_type",
+          "hs_heading",
+          "description",
+          "geolocation_confidential"
+        ]
+      },
+      "SendSubmissionDto": {
+        "type": "object",
+        "properties": {
+          "confirm_not_received": {
+            "type": "boolean",
+            "description": "Solo tras conciliar y confirmar que EUDR-IS NO recibió la declaración: autoriza el reenvío explícito."
+          }
+        }
       }
     }
   }

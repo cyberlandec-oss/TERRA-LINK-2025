@@ -97,7 +97,7 @@ export class EudrIsService {
     return this.status(user, orgId);
   }
 
-  private async load(orgId: string, env: Environment): Promise<ServiceCredentials | null> {
+  async load(orgId: string, env: Environment): Promise<ServiceCredentials | null> {
     const r = await this.db.selectFrom('eudr_is_credentials').select(['username_ciphertext', 'auth_key_ciphertext', 'client_id_ciphertext']).where('organization_id', '=', orgId).where('environment', '=', env).executeTakeFirst();
     if (!r) return null;
     return {

@@ -857,6 +857,16 @@ export interface EudrIsEchoChecksTable {
   http_status: number | null; detail: string | null; requested_by: string | null; checked_at: ColumnType<Date, Date | undefined, never>;
 }
 
+export interface EudrIsSubmissionsTable {
+  id: string; organization_id: string; snapshot_id: string; environment: 'ACCEPTANCE' | 'PRODUCTION'; service_version: 'V3' | 'V4'; internal_reference: string;
+  declared: unknown; declared_hash: string; operation_id: string; created_by: string; created_at: ColumnType<Date, Date | undefined, never>;
+}
+export type EudrIsSubmissionEventKind = 'ATTEMPT_ACCEPTED' | 'ATTEMPT_REJECTED' | 'ATTEMPT_NOT_PROCESSED' | 'ATTEMPT_UNCERTAIN' | 'STATUS_CHECKED' | 'RECONCILED_FOUND' | 'RECONCILED_NOT_FOUND' | 'RECONCILIATION_UNCERTAIN' | 'RESEND_AUTHORIZED';
+export interface EudrIsSubmissionEventsTable {
+  id: string; seq: ColumnType<string, never, never>; organization_id: string; submission_id: string; kind: EudrIsSubmissionEventKind; eudr_uuid: string | null; reference_number: string | null; verification_number: string | null;
+  remote_status: string | null; http_status: number | null; detail: string | null; errors: unknown | null; actor_user_id: string | null; created_at: ColumnType<Date, Date | undefined, never>;
+}
+
 export interface ReportCoverageDeclarationsTable {
   id: string; organization_id: string; status: 'INCOMPLETE' | 'COMPLETE'; event_date: string | null; note: string; reference: string | null; declared_by: string;
   declared_at: ColumnType<Date, Date | undefined, never>;
@@ -1107,6 +1117,8 @@ export interface Database {
   report_coverage_declarations: ReportCoverageDeclarationsTable;
   eudr_is_credentials: EudrIsCredentialsTable;
   eudr_is_echo_checks: EudrIsEchoChecksTable;
+  eudr_is_submissions: EudrIsSubmissionsTable;
+  eudr_is_submission_events: EudrIsSubmissionEventsTable;
   satellite_results: SatelliteResultsTable;
   satellite_credentials: SatelliteCredentialsTable;
 }
