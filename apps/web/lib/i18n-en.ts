@@ -227,6 +227,8 @@ export const EN: Record<string, string> = {
   'Saltar al contenido': 'Skip to content',
   'Navegación principal': 'Main navigation',
   'Cerrar menú': 'Close menu',
+  'Expandir menú': 'Expand menu',
+  'Plegar menú': 'Collapse menu',
   'Trazabilidad de cacao': 'Cocoa traceability',
   'Menú': 'Menu',
   'Organización activa': 'Active organization',
