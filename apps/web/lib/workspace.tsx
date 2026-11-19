@@ -300,10 +300,10 @@ function Shell({ orgId, children }: { orgId: string | null; children: ReactNode 
       <a className="skip-link" href="#contenido">{t('Saltar al contenido')}</a>
       <aside id="tl-navigation" ref={menuPanelRef} className="tl-sidebar" aria-label={t('Navegación principal')}>
         {/* Identificación textual: no hay activos oficiales del logotipo en el proyecto (UX-D01). */}
-        <button type="button" className="secondary inline tl-menu-close" onClick={() => setMenuOpen(false)}>{t('Cerrar menú')}</button>
+        <button type="button" className="secondary inline tl-menu-close" aria-label="Cerrar panel de navegación" onClick={() => setMenuOpen(false)}>{t('Cerrar menú')}</button>
         <div className="tl-sidebar-topline">
           <Link href="/organizaciones" className="tl-brand"><span className="tl-brand-mark" aria-hidden="true">TL</span><span className="tl-brand-copy">TERRA LINK<small>{t('Trazabilidad de cacao')}</small></span></Link>
-          <button type="button" className="tl-sidebar-toggle" aria-label={menuCompact ? t('Expandir menú') : t('Plegar menú')} title={menuCompact ? t('Expandir menú') : t('Plegar menú')} onClick={toggleCompact}>{menuCompact ? '›' : '‹'}</button>
+          <button type="button" className="tl-sidebar-toggle" aria-label={menuCompact ? 'Expandir navegación' : 'Plegar navegación'} title={menuCompact ? t('Expandir menú') : t('Plegar menú')} onClick={toggleCompact}>{menuCompact ? '›' : '‹'}</button>
         </div>
         <nav className="tl-nav">
           {groups.map((g) => (
