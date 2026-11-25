@@ -1,0 +1,424 @@
+[
+  {
+    "archivo": "GeoJSON/lote 1.geojson",
+    "codigo_parcela": "TLTEST-GEOJSON-01",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "input",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 664
+  },
+  {
+    "archivo": "GeoJSON/lote 2.geojson",
+    "codigo_parcela": "TLTEST-GEOJSON-02",
+    "sintetico": true,
+    "tipo": "MultiPolygon",
+    "capa": "input",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 1227
+  },
+  {
+    "archivo": "GeoJSON/lote 3.geojson",
+    "codigo_parcela": "TLTEST-GEOJSON-03",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "input",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 1113
+  },
+  {
+    "archivo": "JSON/lote 1.json",
+    "codigo_parcela": "TLTEST-JSON-01",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "input",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 664
+  },
+  {
+    "archivo": "JSON/lote 2.json",
+    "codigo_parcela": "TLTEST-JSON-02",
+    "sintetico": true,
+    "tipo": "MultiPolygon",
+    "capa": "input",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 1227
+  },
+  {
+    "archivo": "JSON/lote 3.json",
+    "codigo_parcela": "TLTEST-JSON-03",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "input",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 1113
+  },
+  {
+    "archivo": "GeoPackage/lote 1.gpkg",
+    "codigo_parcela": "TLTEST-GPKG-01",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "parcelas",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 98304
+  },
+  {
+    "archivo": "GeoPackage/lote 2.gpkg",
+    "codigo_parcela": "TLTEST-GPKG-02",
+    "sintetico": true,
+    "tipo": "MultiPolygon",
+    "capa": "parcelas",
+    "crs": "EPSG:32717",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 98304
+  },
+  {
+    "archivo": "GeoPackage/lote 3.gpkg",
+    "codigo_parcela": "TLTEST-GPKG-03",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "parcelas",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 98304
+  },
+  {
+    "archivo": "Shapefile-ZIP/lote 1.zip",
+    "codigo_parcela": "TLTEST-ZIP-01",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "parcelas",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 855
+  },
+  {
+    "archivo": "Shapefile-ZIP/lote 2.zip",
+    "codigo_parcela": "TLTEST-ZIP-02",
+    "sintetico": true,
+    "tipo": "MultiPolygon",
+    "capa": "parcelas",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 875
+  },
+  {
+    "archivo": "Shapefile-ZIP/lote 3.zip",
+    "codigo_parcela": "TLTEST-ZIP-03",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "parcelas",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 890
+  },
+  {
+    "archivo": "KML/lote 1.kml",
+    "codigo_parcela": "TLTEST-KML-01",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "Layer #0",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "Name"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 600
+  },
+  {
+    "archivo": "KML/lote 2.kml",
+    "codigo_parcela": "TLTEST-KML-02",
+    "sintetico": true,
+    "tipo": "MultiPolygon",
+    "capa": "Layer #0",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "Name"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 881
+  },
+  {
+    "archivo": "KML/lote 3.kml",
+    "codigo_parcela": "TLTEST-KML-03",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "Layer #0",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "Name"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 831
+  },
+  {
+    "archivo": "KMZ/lote 1.kmz",
+    "codigo_parcela": "TLTEST-KMZ-01",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "Layer #0",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "Name"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 421
+  },
+  {
+    "archivo": "KMZ/lote 2.kmz",
+    "codigo_parcela": "TLTEST-KMZ-02",
+    "sintetico": true,
+    "tipo": "MultiPolygon",
+    "capa": "Layer #0",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "Name"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 457
+  },
+  {
+    "archivo": "KMZ/lote 3.kmz",
+    "codigo_parcela": "TLTEST-KMZ-03",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "Layer #0",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "Name"
+      }
+    },
+    "lector": "APROBADO",
+    "bytes": 449
+  },
+  {
+    "archivo": "CSV/lote 1.csv",
+    "codigo_parcela": "TLTEST-CSV-01",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "parcelas",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop",
+        "geometry": "geometry"
+      },
+      "source_crs": "EPSG:4326"
+    },
+    "lector": "APROBADO",
+    "bytes": 133
+  },
+  {
+    "archivo": "CSV/lote 2.csv",
+    "codigo_parcela": "TLTEST-CSV-02",
+    "sintetico": true,
+    "tipo": "MultiPolygon",
+    "capa": "parcelas",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "VERTICES",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop",
+        "x": "x",
+        "y": "y",
+        "order": "order",
+        "part": "part",
+        "ring": "ring"
+      },
+      "source_crs": "EPSG:4326"
+    },
+    "lector": "APROBADO",
+    "bytes": 489
+  },
+  {
+    "archivo": "CSV/lote 3.csv",
+    "codigo_parcela": "TLTEST-CSV-03",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "parcelas",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop",
+        "geometry": "geometry"
+      },
+      "source_crs": "EPSG:4326"
+    },
+    "lector": "APROBADO",
+    "bytes": 220
+  },
+  {
+    "archivo": "XLSX/lote 1.xlsx",
+    "codigo_parcela": "TLTEST-XLSX-01",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "parcelas",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop",
+        "geometry": "geometry"
+      },
+      "source_crs": "EPSG:4326"
+    },
+    "lector": "APROBADO",
+    "bytes": 3307
+  },
+  {
+    "archivo": "XLSX/lote 2.xlsx",
+    "codigo_parcela": "TLTEST-XLSX-02",
+    "sintetico": true,
+    "tipo": "MultiPolygon",
+    "capa": "parcelas",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "VERTICES",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop",
+        "x": "x",
+        "y": "y",
+        "order": "order",
+        "part": "part",
+        "ring": "ring"
+      },
+      "source_crs": "EPSG:4326"
+    },
+    "lector": "APROBADO",
+    "bytes": 3595
+  },
+  {
+    "archivo": "XLSX/lote 3.xlsx",
+    "codigo_parcela": "TLTEST-XLSX-03",
+    "sintetico": true,
+    "tipo": "Polygon",
+    "capa": "parcelas",
+    "crs": "EPSG:4326",
+    "opciones": {
+      "mode": "GEOMETRY",
+      "columns": {
+        "plot_code": "plot_code",
+        "crop": "crop",
+        "geometry": "geometry"
+      },
+      "source_crs": "EPSG:4326"
+    },
+    "lector": "APROBADO",
+    "bytes": 3327
+  }
+]

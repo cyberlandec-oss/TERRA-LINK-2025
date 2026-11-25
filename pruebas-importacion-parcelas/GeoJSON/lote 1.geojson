@@ -1,0 +1,39 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "plot_code": "TLTEST-GEOJSON-01",
+        "crop": "Cacao"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -80.15,
+              -1.244
+            ],
+            [
+              -80.149,
+              -1.244
+            ],
+            [
+              -80.149,
+              -1.243
+            ],
+            [
+              -80.15,
+              -1.243
+            ],
+            [
+              -80.15,
+              -1.244
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}
