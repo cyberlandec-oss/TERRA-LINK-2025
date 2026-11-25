@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ApiError, ROLE_LABELS, api, session, type Me, type Organization } from './api';
 import { Loading, ErrorPanel, StatusBadge } from './ui';
 import { LanguageSwitcher, useI18n } from './i18n';
@@ -45,6 +45,22 @@ export function useWorkspace(): Workspace {
 
 interface NavItem { href: string; label: string; match: (p: string) => boolean }
 
+function NavIcon({ label }: { label: string }) {
+  const name = label.toLocaleLowerCase();
+  const path = name.includes('parcela') || name.includes('geolocal') || name.includes('mapa')
+    ? 'M12 2 19 5v6c0 5-3.2 8.4-7 11-3.8-2.6-7-6-7-11V5l7-3Zm0 5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Zm-4 9h8'
+    : name.includes('productor') || name.includes('miembro') || name.includes('usuario')
+      ? 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0M19 8v5m-2.5-2.5h5'
+      : name.includes('entrega') || name.includes('lote') || name.includes('producto') || name.includes('embarque')
+        ? 'M4 7h16v12H4zM7 7V5h10v2M8 12h8m-8 4h5'
+        : name.includes('riesgo') || name.includes('auditor') || name.includes('legal') || name.includes('evidencia') || name.includes('document')
+          ? 'M6 3h9l3 3v15H6zM15 3v4h4M9 12h6m-6 4h6'
+          : name.includes('cuenta') || name.includes('organiza') || name.includes('plataforma')
+            ? 'M4 5h16v14H4zM8 9h8M8 13h5'
+            : 'M12 3 20 9l-8 6-8-6 8-6Zm-8 9 8 6 8-6M4 17l8 6 8-6';
+  return <svg className="tl-nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d={path} /></svg>;
+}
+
 function navFor(ws: Workspace, orgId: string | null, t: (es: string) => string): Array<{ title: string; items: NavItem[] }> {
   const groups: Array<{ title: string; items: NavItem[] }> = [];
   if (orgId) {
@@ -67,6 +83,9 @@ function navFor(ws: Workspace, orgId: string | null, t: (es: string) => string):
     }
     if (ws.can('plot:read') || ws.can('plot:read_assigned') || ws.can('plot:read_own')) {
       origen.push({ href: `${base}/parcelas`, label: t('Parcelas'), match: (p) => p.startsWith(`${base}/parcelas`) });
+    }
+    if (ws.can('plot:read_geometry') && (ws.can('plot:create') || ws.can('plot:create_assigned') || ws.can('plot:create_own') || ws.can('plot:update') || ws.can('plot:update_assigned') || ws.can('plot:update_own'))) {
+      origen.push({ href: `${base}/importar-parcelas`, label: t('Importar parcelas'), match: (p) => p.startsWith(`${base}/importar-parcelas`) });
     }
     // A-01: captura guiada de la ubicación de la parcela desde la web, para quien puede modificar parcelas en su alcance.
     if ((ws.can('plot:update') || ws.can('plot:update_assigned') || ws.can('plot:update_own')) && ws.can('plot:read_geometry')) {
@@ -216,10 +235,26 @@ function Shell({ orgId, children }: { orgId: string | null; children: ReactNode 
   const router = useRouter();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuCompact, setMenuCompact] = useState(false);
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
+  const menuPanelRef = useRef<HTMLElement>(null);
+  const menuWasOpenRef = useRef(false);
   const groups = navFor(ws, orgId, t);
   const switchable = ws.isPlatformAdmin ? ws.allOrgs ?? [] : ws.myOrgs;
 
   useEffect(() => setMenuOpen(false), [pathname]);
+
+  useEffect(() => {
+    try { setMenuCompact(window.localStorage.getItem('tl-sidebar-compact') === 'true'); } catch { /* almacenamiento no disponible */ }
+  }, []);
+
+  function toggleCompact() {
+    setMenuCompact((current) => {
+      const next = !current;
+      try { window.localStorage.setItem('tl-sidebar-compact', String(next)); } catch { /* almacenamiento no disponible */ }
+      return next;
+    });
+  }
 
   // Cierra ESTA sesión en el servidor (las demás de la cuenta siguen) y, si se entró por el proveedor federado,
   // cierra también la sesión allí. Si el servidor no responde, la sesión local se descarta igualmente.
@@ -240,29 +275,56 @@ function Shell({ orgId, children }: { orgId: string | null; children: ReactNode 
     return () => window.removeEventListener('keydown', onKey);
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!menuOpen) {
+      if (menuWasOpenRef.current) menuToggleRef.current?.focus();
+      menuWasOpenRef.current = false;
+      return;
+    }
+    menuWasOpenRef.current = true;
+    const panel = menuPanelRef.current;
+    const first = panel?.querySelector<HTMLElement>('button, a, select, input, [tabindex]:not([tabindex="-1"])');
+    first?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || !panel) return;
+      const focusable = Array.from(panel.querySelectorAll<HTMLElement>('button, a, select, input, [tabindex]:not([tabindex="-1"])'));
+      if (!focusable.length) return;
+      const firstFocusable = focusable[0];
+      const lastFocusable = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === firstFocusable) { event.preventDefault(); lastFocusable.focus(); }
+      else if (!event.shiftKey && document.activeElement === lastFocusable) { event.preventDefault(); firstFocusable.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
+
   return (
-    <div className="tl-app" data-menu={menuOpen ? 'open' : 'closed'}>
+    <div className="tl-app" data-menu={menuOpen ? 'open' : 'closed'} data-sidebar={menuCompact ? 'compact' : 'expanded'}>
       <a className="skip-link" href="#contenido">{t('Saltar al contenido')}</a>
-      <aside className="tl-sidebar" aria-label={t('Navegación principal')}>
+      <aside id="tl-navigation" ref={menuPanelRef} className="tl-sidebar" aria-label={t('Navegación principal')}>
         {/* Identificación textual: no hay activos oficiales del logotipo en el proyecto (UX-D01). */}
         <button type="button" className="secondary inline tl-menu-close" onClick={() => setMenuOpen(false)}>{t('Cerrar menú')}</button>
-        <Link href="/organizaciones" className="tl-brand">TERRA LINK<small>{t('Trazabilidad de cacao')}</small></Link>
+        <div className="tl-sidebar-topline">
+          <Link href="/organizaciones" className="tl-brand"><span className="tl-brand-mark" aria-hidden="true">TL</span><span className="tl-brand-copy">TERRA LINK<small>{t('Trazabilidad de cacao')}</small></span></Link>
+          <button type="button" className="tl-sidebar-toggle" aria-label={menuCompact ? t('Expandir menú') : t('Plegar menú')} title={menuCompact ? t('Expandir menú') : t('Plegar menú')} onClick={toggleCompact}>{menuCompact ? '›' : '‹'}</button>
+        </div>
         <nav className="tl-nav">
           {groups.map((g) => (
             <div key={g.title}>
               <p className="tl-nav-title">{g.title}</p>
               <ul className="tl-nav-group">
                 {g.items.map((it) => (
-                  <li key={it.href}><Link href={it.href} aria-current={it.match(pathname) ? 'page' : undefined}>{it.label}</Link></li>
+                  <li key={it.href}><Link href={it.href} title={it.label} aria-label={it.label} aria-current={it.match(pathname) ? 'page' : undefined}><NavIcon label={it.label} /><span className="tl-nav-label">{it.label}</span></Link></li>
                 ))}
               </ul>
             </div>
           ))}
         </nav>
       </aside>
+      <button type="button" className="tl-menu-overlay" aria-label={t('Cerrar menú')} onClick={() => setMenuOpen(false)} />
       <div className="tl-main">
         <header className="tl-header">
-          <button type="button" className="secondary inline tl-menu-toggle" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
+          <button ref={menuToggleRef} type="button" className="secondary inline tl-menu-toggle" aria-controls="tl-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
             {menuOpen ? t('Cerrar menú') : t('Menú')}
           </button>
           <div className="tl-header-org">

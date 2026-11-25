@@ -1,6 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ApiError, api, apiDownload, apiUpload, session } from '../../../../lib/api';
 import { useWorkspace } from '../../../../lib/workspace';
@@ -110,6 +111,7 @@ export default function ImportsPage() {
     <>
       <Breadcrumb items={[{ label: ws.activeOrg?.name ?? 'Organización', href: `/organizaciones/${orgId}` }, { label: 'Importar datos (Excel)' }]} />
       <PageHeader title="Importar datos desde Excel" meta="Migra registros existentes. Nada se guarda hasta que confirmes, y los datos importados quedan como heredados y no validados." />
+      {ws.can('plot:read_geometry') && <p><Link href={`/organizaciones/${orgId}/importar-parcelas`}>Importar parcelas con geometría (GeoJSON, GeoPackage, ZIP, KML/KMZ, CSV o Excel)</Link></p>}
       {options && (
         <section className="card" aria-labelledby="que-importar">
           <h2 id="que-importar">¿Qué quieres importar?</h2>

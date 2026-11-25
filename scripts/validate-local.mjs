@@ -96,7 +96,7 @@ const dirty = await new Promise((r) => {
 });
 
 const steps = [
-  ['servicios', 'docker', ['compose', 'up', '-d', '--wait', 'postgres', 'redis', 'object-storage', 'scanner']],
+  ['servicios', 'docker', ['compose', 'up', '-d', '--build', '--wait', 'postgres', 'redis', 'object-storage', 'scanner', 'plot-import-reader', 'plot-import-gateway']],
   ['typecheck', 'npm', ['run', 'typecheck']],
   ['lint', 'npm', ['run', 'lint']],
   ['build', 'npm', ['run', 'build']],

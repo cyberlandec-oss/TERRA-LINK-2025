@@ -4,6 +4,12 @@ Base: S1 §§50–54. Todas las rutas aquí son propuestas para un proyecto nuev
 
 ## Convenciones
 
+### Importar parcelas multiformato (2026-11-24)
+
+`/api/v1/organizations/{orgId}/plot-imports`: `POST` multipart (`file`, `operation_id`) identifica y conserva el original cifrado; `GET /{id}` devuelve estado y capas/hojas; `POST /{id}/preview` recibe `options` (`layer`, `mode=POINT|GEOMETRY|VERTICES`, `source_crs`, `delimiter`, `columns`) y valores comunes explícitos `default_crop`/`default_producer_code`; `POST /{id}/confirm` recibe `operation_id`, `plan_hash`, `reason`, `confirm_geometry_changes`; `GET /{id}/original` descarga los bytes originales tras comprobar integridad y permisos actuales. Las cargas pertenecen a su creador dentro del tenant. El acceso requiere crear o editar parcelas y leer geometría; no concede `import:manage` ni amplía roles. Para alcance propio el productor se resuelve desde la membresía vinculada. Si el código asociado por columna o valor común difiere de la ficha propia, la fila devuelve `PRODUCER_NOT_AVAILABLE` y no se confirma; omitirlo permite la resolución automática de la ficha propia.
+
+Vista previa con `CREATE|UPDATE|UNCHANGED|ERROR`, geometría WGS84, área geodésica (null para punto), origen por fila, errores y advertencias. Un CRS desconocido impide confirmar. Capa múltiple requiere elección. El archivo no crea productores ni reasigna parcelas existentes. Confirmación atómica; cambio concurrente invalida `plan_hash`; cambio geométrico existente exige confirmación expresa y crea versión nueva. Original, metadatos y plan se conservan cifrados en PostgreSQL; la geometría confirmada se guarda en PostGIS con referencia al archivo y filas. No se envía el archivo a un conversor externo. Límites: 20 MiB, 5.000 registros por capa, tipos Point/Polygon/MultiPolygon. GPX y otros formatos fuera de la primera entrega.
+
 REST `/api/v1`; autenticación del repositorio; tenant derivado de membresía y contexto validado. Listas paginadas con límites y orden estable; filtros whitelist. ISO 8601 UTC; decimales string/unidad. Mutaciones críticas requieren clave idempotente. Update usa `expected_version` o ETag documentado; rechazo 409/412 consistente según convención elegida. No enviar relaciones cruzadas sin validar.
 
 | Grupo | Rutas propuestas | Permiso conceptual |

@@ -174,6 +174,8 @@ Depende P0-003/015. Como auditor, necesito reconstruir quién cambió qué.
 Aceptación: creación/corrección/aprobación/rechazo/descarga/export/permisos/risks, metadata/versiones y redacción; lectura/export por alcance. RF-25; QA-13.
 
 ### P0-026 — Excel import
+
+Ampliación solicitada 2026-11-24 — **EN IMPLEMENTACIÓN**: «Importar parcelas» GeoJSON/GeoPackage/Shapefile ZIP/KML-KMZ/CSV-XLSX con geometrías, CRS y mapeo, preservando el cierre histórico de la plantilla Excel sin geometría. Alcance y aceptación: [decisión multiformato](decisiones/IMPORTACION-PARCELAS-MULTIFORMATO.md). No es DONE_LOCAL hasta validar la ampliación.
 Depende P0-004/005/006/011/012 según plantilla. Como asociación, necesito migrar registros.
 Aceptación: plantilla/mapeo/preview/errores por fila/commit controlado; IDs no cruzan tenant; reimport no duplica ni borra campos fuera de mapping; legacy/missing explícitos. RF-26; QA-03.
 Estado (2026-10-12): **DONE_LOCAL**. Las cinco plantillas de S1 §62 implementadas y verificadas localmente: productores, productos, parcelas (sin geometría), entregas (solo borradores, identidad por código o referencia de importación) y lotes (asignación de recepciones confirmadas vía ledger). Criterios contrastados en `docs/decisiones/P0-026-IMPORTACION-EXCEL.md`. Limitación registrada: solo archivos sintéticos y datos DEMO; sin Excel real de una asociación.
