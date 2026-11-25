@@ -69,6 +69,9 @@ function navFor(ws: Workspace, orgId: string | null, t: (es: string) => string):
       origen.push({ href: `${base}/parcelas`, label: t('Parcelas'), match: (p) => p.startsWith(`${base}/parcelas`) });
     }
     // A-01: captura guiada de la ubicación de la parcela desde la web, para quien puede modificar parcelas en su alcance.
+    if (ws.can('plot:read_geometry') && (ws.can('plot:create') || ws.can('plot:create_assigned') || ws.can('plot:create_own') || ws.can('plot:update') || ws.can('plot:update_assigned') || ws.can('plot:update_own'))) {
+      origen.push({ href: `${base}/importar-parcelas`, label: t('Importar parcelas'), match: (p) => p.startsWith(`${base}/importar-parcelas`) });
+    }
     if ((ws.can('plot:update') || ws.can('plot:update_assigned') || ws.can('plot:update_own')) && ws.can('plot:read_geometry')) {
       origen.push({ href: `${base}/captura`, label: t('Captura de campo'), match: (p) => p.startsWith(`${base}/captura`) });
     }

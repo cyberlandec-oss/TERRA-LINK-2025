@@ -41,6 +41,7 @@ import { EudrIsController, EudrIsService } from './eudr-is/eudr-is';
 import { EudrIsSubmissionsController, EudrIsSubmissionsService } from './eudr-is/eudr-is-submissions';
 import { SyncController, SyncService } from './sync/sync';
 import { ImportsController, ImportsService } from './imports/imports';
+import { PlotFileImportsController, PlotFileImportsService } from './plot-imports/plot-imports';
 import { MyWorkController, MyWorkService } from './work/my-work';
 import { OnboardingController, OnboardingService } from './onboarding/onboarding';
 import { ExchangeController, ExchangeService } from './exchange/exchange';
@@ -209,7 +210,7 @@ export class AppModule implements NestModule {
   static forRoot(config: AppConfig, db: Kysely<Database>): DynamicModule {
     return {
       module: AppModule,
-      controllers: [
+      controllers: [PlotFileImportsController,
         HealthController, VersionController, ObservabilityController, OperationsAlertsController, OperationsOrgAlertsController,
         RiskConclusionController, GeoConfigPlatformController, GeoConfigOrgController, RiskProfileLinkController, LegalProfileReviewController, LegalProfileController, LegalAssessmentsController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
         MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PlotProductionCountryController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, GeoProfileController, ProductsController, CteController, KdeController, PublicReferencesController, AccessGrantsController, GrantedController, PlatformElevationController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, OnboardingController, ExchangeController, SimulationController, CostController, HistoryController, EconomicsController, AnalyticsController, ExtractionController, LimitsController, PlatformCostController, SsoController, WebhookController, ShipmentsController, CustodyTransfersController, SatelliteController, EudrIsController, EudrIsSubmissionsController, ReportsController, EntityReportsController,
@@ -277,6 +278,7 @@ export class AppModule implements NestModule {
         EudrIsSubmissionsService,
         SyncService,
         ImportsService,
+        PlotFileImportsService,
         MyWorkService,
         OnboardingService,
         ExchangeService,

@@ -576,6 +576,36 @@ export class PlotsService {
     };
   }
 
+  /** Importación multiformato: misma transacción que el alta/edición, estructura y topología validadas, procedencia inmutable. */
+  async importGeometryInTx(trx: Transaction<Database>, ctx: TenantContext, user: AuthUser, id: string, geometry: Record<string, unknown>, source: { batch_id: string; row_numbers: number[] }, reason: string, requestId?: string) {
+    if (!this.geometryAllowed(ctx)) throw forbidden();
+    const plot = await this.load(trx, ctx, id, 'update', true);
+    if (plot.status !== 'ACTIVE') throw conflict('PLOT_INACTIVE', 'La parcela está dada de baja.');
+    const issues = structuralIssues(geometry);
+    if (issues.length) throw new AppError(422, 'GEOMETRY_STRUCTURE_INVALID', 'Corrige la estructura de la geometría antes de guardar.');
+    const valid = await sql<{ valid: boolean }>`SELECT (ST_IsValidDetail(ST_SetSRID(ST_GeomFromGeoJSON(${JSON.stringify(geometry)}),4326))).valid AS valid`.execute(trx);
+    if (!valid.rows[0].valid) throw new AppError(422, 'GEOMETRY_INVALID', 'Corrige la geometría inválida antes de importar.');
+    const versionId = randomUUID();
+    const type = geometryTypeCode(geometry as unknown as SupportedGeometry);
+    await sql`WITH g AS (SELECT ST_SetSRID(ST_GeomFromGeoJSON(${JSON.stringify(geometry)}),4326) AS geom)
+      INSERT INTO plot_versions (id,organization_id,plot_id,version_number,geometry,geometry_type,geometry_hash,area_declared_ha,area_calculated_ha,
+        survey_method,accuracy_m,validation_status,validation_rule_version,previous_version_id,notes,created_by,source_file_import_id,source_file_row_numbers)
+      SELECT ${versionId},${ctx.organizationId},${id},(SELECT coalesce(max(version_number),0)+1 FROM plot_versions WHERE organization_id=${ctx.organizationId} AND plot_id=${id}),g.geom,${type},
+        encode(sha256(ST_AsBinary(g.geom)),'hex'),(SELECT area_declared_ha FROM plot_versions WHERE organization_id=${ctx.organizationId} AND id=${plot.current_version_id}),
+        CASE WHEN ${type} IN ('POLYGON','MULTIPOLYGON') THEN round((ST_Area(g.geom::geography)/10000)::numeric,6) ELSE NULL END,
+        'FILE_IMPORT',NULL,'NOT_VALIDATED',${STRUCTURAL_RULE},${plot.current_version_id},NULL,${user.id},${source.batch_id},${JSON.stringify(source.row_numbers)}::jsonb FROM g`.execute(trx);
+    const after = await trx.updateTable('plots').set({ current_version_id: versionId, row_version: sql`row_version + 1`, updated_by: user.id, updated_at: new Date() })
+      .where('organization_id', '=', ctx.organizationId).where('id', '=', id).returningAll().executeTakeFirstOrThrow();
+    const recorded = await sql<{version_number: number; geometry_hash: string}>`SELECT version_number,geometry_hash FROM plot_versions WHERE organization_id=${ctx.organizationId} AND id=${versionId}`.execute(trx);
+    await this.recordHistory(trx, after, 'GEOMETRY_VERSION', ['current_version_id'], user.id, reason);
+    await this.events.append(trx, { organizationId: ctx.organizationId, eventType: 'PlotGeometryVersionCreated', schemaVersion: 1, aggregateType: 'PLOT', aggregateId: id,
+      aggregateVersion: Number(after.row_version), actorId: user.id, correlationId: requestId,
+      payload: { plot_version_id: versionId, version_number: recorded.rows[0].version_number, geometry_hash: recorded.rows[0].geometry_hash, previous_version_id: plot.current_version_id, survey_method: 'FILE_IMPORT', geometry_type: type, source } });
+    await this.audit.record(trx, { organizationId: ctx.organizationId, actorUserId: user.id, action: 'plot.geometry_version', entityType: 'plot', entityId: id, requestId,
+      result: 'SUCCESS', reason, after: { plot_version_id: versionId, survey_method: 'FILE_IMPORT', source } });
+    return versionId;
+  }
+
   /** Crea una versión geométrica nueva (inmutable) y la marca como actual. La anterior no cambia. */
   async createVersion(user: AuthUser, orgId: string, id: string, dto: CreateVersionDto, requestId?: string) {
     const ctx = await this.authz.tenantContext(user, orgId);

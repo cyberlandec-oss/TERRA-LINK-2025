@@ -135,7 +135,7 @@ test('390 px: ninguna pantalla del recorrido desborda horizontalmente y se naveg
     await expect(page.getByRole('heading', { name: titulo, level: 1 })).toBeVisible();
     await sinDesbordeHorizontal(page);
     // El menú se abre y se cierra con el teclado.
-    await page.getByRole('button', { name: 'Menú' }).focus();
+    await page.getByRole('button', { name: 'Menú', exact: true }).focus();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('link', { name: 'Mi cuenta' })).toBeVisible();
     await page.keyboard.press('Escape');

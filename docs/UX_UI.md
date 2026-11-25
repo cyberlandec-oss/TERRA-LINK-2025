@@ -845,6 +845,14 @@ En los reportes por entidad, un sujeto sin evaluar **aparece en la tabla** rotul
 
 ### 20.3 Importación Excel, P0-026
 
+**Ampliación solicitada 2026-11-24, en implementación: Importar parcelas.** Una entrada reúne GeoJSON, GeoPackage, Shapefile ZIP, KML/KMZ y CSV/XLSX. Selección explícita de capa/hoja, columnas, modalidad y CRS; después vista previa y confirmación. No confundir una carga preparada con parcelas guardadas. GeoPackage recomendado para QGIS; un proyecto QGIS no contiene necesariamente las capas.
+
+La vista previa distingue «Se creará», «Se actualizará», «Sin cambios» y «Por corregir». Punto = «Punto de referencia · Perímetro pendiente», sin superficie calculada. Polígono/multipolígono muestra superficie calculada en ha y procedencia, sin atribuir precisión GPS. Las líneas quedan identificadas como no admitidas; no se convierten en perímetro. Mostrar CRS de origen y destino WGS84 y X/longitud, Y/latitud; no deducir zona UTM ni intercambiar ejes silenciosamente.
+
+Tablas: «Punto por fila», «Geometría por fila (WKT/GeoJSON)» o «Vértices por parcela». La tercera exige código de parcela y orden de vértices; huecos y partes requieren sus identificadores. Mantener opciones al corregir un error. Los archivos originales y geometrías se consultan con permisos del servidor. Antes de confirmar cambios en geometrías existentes, mostrar revisión y pedir motivo. Si cambia el plan por concurrencia, invalidar confirmación y exigir nueva revisión. La asociación al productor nunca se resuelve por nombre; para Productor se obtiene del vínculo propio en el servidor.
+
+Mapa local de vista previa complementado por tabla accesible; si no hay cartografía o WebGL, no perder la revisión tabular. Pantalla usable con teclado y a 390 px, con estado de procesamiento y errores recuperables. Confirmación atómica: una fila bloqueante impide guardar todo el lote; explicar cómo corregir y repetir sin duplicados.
+
 | Paso | Comportamiento |
 |---|---|
 | Plantilla | Descargar formato versionado y reglas de campos. |

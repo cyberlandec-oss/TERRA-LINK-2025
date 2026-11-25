@@ -73,7 +73,9 @@ services:
   api:
     profiles: [app]
     image: terra-link-api:local
+    networks: [default, plot-reader-internal]
     environment:
+      PLOT_IMPORT_READER_URL: http://plot-import-reader:8091
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:?definir en .env}
@@ -205,6 +207,39 @@ services:
     image: ghcr.io/onthegomap/planetiler:0.10.2
     volumes:
       - map-data:/data
+  plot-import-reader:
+    build: ./infra/plot-imports
+    image: terra-link-plot-reader:local
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=128m"]
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 64
+    networks: [plot-reader-internal]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "/usr/bin/python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8091/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+  # Acceso del proceso de pruebas de Windows al lector aislado. Solo proxy de dos rutas fijas, no ejecuta GDAL.
+  plot-import-gateway:
+    image: nginx:1.27-alpine
+    entrypoint: ["nginx", "-g", "daemon off;"]
+    user: "101:101"
+    ports: ["127.0.0.1:8091:8091"]
+    networks: [default, plot-reader-internal]
+    volumes: ["./infra/plot-imports/gateway.conf:/etc/nginx/nginx.conf:ro"]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      plot-import-reader: { condition: service_healthy }
+networks:
+  plot-reader-internal:
+    internal: true
 volumes:
   postgres-data:
   object-data:

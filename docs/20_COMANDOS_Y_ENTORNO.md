@@ -1,5 +1,13 @@
 # Comandos y entorno comprobables
 
+## Cierre aislado de importación multiformato — 2026-11-24
+
+Solicitud expresa: preservar el árbol original y aislar el commit de importación. Worktree en `C:/Users/mario/AppData/Local/Temp/vscode-agent-codex-sandbox-bIHGJ5/tl-importacion-cierre`, rama `feat/importacion-done-local`, base `0b968c9`. Creado con `git worktree add -b feat/importacion-done-local <ruta> HEAD`. Copias mecánicas de los archivos del alcance; en los compartidos solo enlace/traducción de importación. No se copian cambios de estilos, iconos ni plegado de menú. Lockfile: únicamente el parche Next 16.4.2 → 16.4.6 y sus paquetes @next, prerrequisito del build. Se conserva la corrección de selector exacto del test de menú, sin modificar el comportamiento de la aplicación.
+
+Preparación prevista: copiar `.env` como archivo privado ignorado sin imprimir sus valores; `npm.cmd ci --offline --no-audit --no-fund` (si falta caché, repetir con acceso de red autorizado); `git diff --check`; revisión y commit de los cambios del alcance; `npm.cmd run validate` íntegro sobre ese SHA. El lector también se prueba con `docker run --rm --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=128m --memory 512m --cpus 1 terra-link-plot-reader:local /usr/bin/python3 /app/reader_test.py`. La validación usa bases `*_test`/`terra_link_e2e`; no borrar volúmenes, tocar producción ni enviar geometrías a proveedores. Registrar resultado real, omisiones y capturas PRODUCER en un commit documental posterior; no declarar DONE_LOCAL antes de aprobar.
+
+Histórico de las corridas sobre el árbol original y del recorrido PRODUCER: `docs/qa/EVIDENCIA_IMPORTAR_PARCELAS_2026-11-24.md` y `docs/qa/EVIDENCIA_IMPORTAR_PARCELAS_PRODUCER_2026-11-24.md`. No equivalen a validación integral del worktree; los resultados nuevos se añadirán después de ejecutarlos.
+
 Actualizado: 2026-10-12. Repositorio `cyberlandec-oss/TERRA-LINK-2025` (https://github.com/cyberlandec-oss/TERRA-LINK-2025.git), rama de trabajo `feat/tech-001-ci-p0-002`, en `D:\PROYECTOS CYBER LAND\TERRA LINK EUDR 2026\TERRA LINK 2025` (trasladado desde `C:\Users\mario\TERRA LINK 2025`, que ya no existe).
 
 > Corrección: la versión anterior de este documento registraba comandos de otro proyecto (`cyberlandec-oss/cacao`, `refactor/...`). Eran ajenos a Terra Link 2025 y se eliminaron.
