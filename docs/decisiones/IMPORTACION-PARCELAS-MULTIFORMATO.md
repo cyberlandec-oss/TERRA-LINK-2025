@@ -1,6 +1,6 @@
 # Importar parcelas desde distintas fuentes
 
-Solicitud del propietario: 2026-11-24. Ampliación de P0-026/P0-009; no migración de stack. Estado: IMPLEMENTADO Y DESPLEGADO LOCALMENTE, sin aceptación formal DONE_LOCAL sobre commit. [Evidencia y resultado exacto de validaciones](../qa/EVIDENCIA_IMPORTAR_PARCELAS_2026-11-24.md).
+Solicitud del propietario: 2026-11-24. Ampliación de P0-026/P0-009; no migración de stack. Estado: **DONE_LOCAL sobre `e4c3a93b13308e0eddbde65f801f10f82961ea1c`**, validación integral aprobada en worktree limpio, separando los cambios visuales previos del propietario. [Cierre reproducible, omisiones y evidencia PRODUCER](../qa/CIERRE_IMPORTACION_WORKTREE_2026-11-24.md). [Corridas históricas del árbol original](../qa/EVIDENCIA_IMPORTAR_PARCELAS_2026-11-24.md). La integración de la rama y un despliegue del SHA aislado siguen siendo acciones separadas.
 
 ## Alcance acordado
 

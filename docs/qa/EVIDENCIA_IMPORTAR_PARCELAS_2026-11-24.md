@@ -1,5 +1,6 @@
 # Importación multiformato de parcelas — evidencia local
 
+**Corte histórico del árbol original.** El cierre posterior sobre un commit separado está en [DONE_LOCAL de `e4c3a93`](CIERRE_IMPORTACION_WORKTREE_2026-11-24.md); no reemplaza ni reetiqueta las corridas fallidas registradas aquí.
 Ampliación de verificación por cuenta: [recorrido específico PRODUCER, punto → perímetro y rechazo explícito ajeno](EVIDENCIA_IMPORTAR_PARCELAS_PRODUCER_2026-11-24.md). Incluye ajuste posterior de autorización y distingue sus pruebas de las corridas históricas de este informe.
 
 Fecha: 2026-11-24. Rama: `feat/importar-parcelas-multiformato`, base `0b968c9`, árbol con cambios previos conservados. No se declara DONE_LOCAL sobre un commit.
