@@ -29,9 +29,18 @@ export interface RunResult {
   dead: number;
 }
 
-function sanitizeError(err: unknown): string {
-  const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-  return raw.replace(/\s+/g, ' ').slice(0, 300);
+/** Código controlado del error (nunca el mensaje: puede contener valores o datos personales). */
+export function errorCode(err: unknown): string {
+  const e = err as { code?: unknown };
+  if (err instanceof LeaseLostError) return 'LEASE_LOST';
+  if (e && typeof e.code === 'string' && /^[0-9A-Z]{5}$/.test(e.code)) return `DB_${e.code}`;
+  if (err instanceof Error && err.message.startsWith('Consumidor no registrado')) return 'CONSUMER_NOT_REGISTERED';
+  return err instanceof Error ? `ERROR_${err.name.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 40)}` : 'ERROR_UNKNOWN';
+}
+
+/** El arrendamiento ya no pertenece a este reclamo: se revierte la transacción del consumidor. */
+export class LeaseLostError extends Error {
+  constructor() { super('lease lost'); this.name = 'LeaseLostError'; }
 }
 
 export class OutboxWorker {
@@ -53,11 +62,12 @@ export class OutboxWorker {
 
   /** Reclama un lote de entregas vencidas (pendientes, fallidas o con arrendamiento expirado). */
   private async claim() {
-    const res = await sql<{ event_id: string; consumer: string; attempts: number }>`
+    const res = await sql<{ event_id: string; consumer: string; attempts: number; lease_token: string }>`
       UPDATE event_deliveries d
          SET status = 'PROCESSING',
              locked_by = ${this.workerId},
              locked_until = now() + make_interval(secs => ${this.opts.leaseSeconds}),
+             lease_token = gen_random_uuid(),
              attempts = d.attempts + 1
        WHERE (d.event_id, d.consumer) IN (
          SELECT event_id, consumer FROM event_deliveries
@@ -66,7 +76,7 @@ export class OutboxWorker {
           ORDER BY next_attempt_at
           LIMIT ${this.opts.batchSize}
           FOR UPDATE SKIP LOCKED)
-      RETURNING d.event_id, d.consumer, d.attempts`.execute(this.db);
+      RETURNING d.event_id, d.consumer, d.attempts, d.lease_token`.execute(this.db);
     return res.rows;
   }
 
@@ -87,34 +97,42 @@ export class OutboxWorker {
             .returning('event_id')
             .executeTakeFirst();
           if (receipt) await consumer.handle(trx, event);
-          // Solo confirma quien conserva el arrendamiento.
-          await trx
+          // Solo confirma quien conserva el token de arrendamiento vigente; si otro reclamo lo tomó, se revierte
+          // todo (efectos y recibo): el titular actual aplicará los efectos una sola vez.
+          const acked = await trx
             .updateTable('event_deliveries')
-            .set({ status: 'DONE', delivered_at: new Date(), locked_by: null, locked_until: null, last_error: null })
+            .set({ status: 'DONE', delivered_at: new Date(), locked_by: null, locked_until: null, lease_token: null, last_error: null })
             .where('event_id', '=', d.event_id)
             .where('consumer', '=', d.consumer)
-            .where('locked_by', '=', this.workerId)
-            .execute();
+            .where('lease_token', '=', d.lease_token)
+            .executeTakeFirst();
+          if (Number(acked.numUpdatedRows) !== 1) throw new LeaseLostError();
+          await trx.insertInto('event_delivery_attempts').values({ event_id: d.event_id, consumer: d.consumer, attempt: d.attempts, worker_id: this.workerId, lease_token: d.lease_token, outcome: receipt ? 'DONE' : 'DUPLICATE' }).execute();
           return !receipt;
         });
         if (duplicate) result.skippedDuplicate++;
         else result.done++;
       } catch (err) {
+        if (err instanceof LeaseLostError) {
+          await this.db.insertInto('event_delivery_attempts').values({ event_id: d.event_id, consumer: d.consumer, attempt: d.attempts, worker_id: this.workerId, lease_token: d.lease_token, outcome: 'LEASE_LOST', error_code: 'LEASE_LOST' }).execute().catch(() => undefined);
+          result.failed++;
+          continue;
+        }
         const dead = d.attempts >= this.opts.maxAttempts;
         const delayMs = Math.min(this.opts.backoffBaseMs * 2 ** (d.attempts - 1), 15 * 60_000);
-        await this.db
-          .updateTable('event_deliveries')
-          .set({
-            status: dead ? 'DEAD' : 'FAILED',
-            last_error: sanitizeError(err),
-            next_attempt_at: new Date(Date.now() + delayMs),
-            locked_by: null,
-            locked_until: null,
-          })
-          .where('event_id', '=', d.event_id)
-          .where('consumer', '=', d.consumer)
-          .where('locked_by', '=', this.workerId)
-          .execute();
+        const code = errorCode(err);
+        await this.db.transaction().execute(async (trx) => {
+          const r = await trx
+            .updateTable('event_deliveries')
+            .set({ status: dead ? 'DEAD' : 'FAILED', last_error: code, next_attempt_at: new Date(Date.now() + delayMs), locked_by: null, locked_until: null, lease_token: null })
+            .where('event_id', '=', d.event_id)
+            .where('consumer', '=', d.consumer)
+            .where('lease_token', '=', d.lease_token)
+            .executeTakeFirst();
+          // Con el arrendamiento perdido no se toca el estado de otro reclamo; solo queda el intento.
+          await trx.insertInto('event_delivery_attempts').values({ event_id: d.event_id, consumer: d.consumer, attempt: d.attempts, worker_id: this.workerId, lease_token: d.lease_token,
+            outcome: Number(r.numUpdatedRows) === 1 ? (dead ? 'DEAD' : 'FAILED') : 'LEASE_LOST', error_code: code }).execute();
+        });
         if (dead) result.dead++;
         else result.failed++;
       }

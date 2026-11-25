@@ -37,7 +37,10 @@ describeDb('Barrido de originales: solo huérfanos y descartados, sin carreras c
     const imp = await analyze();
     const key = await keyOf(imp.id);
     await sweeper().enqueue(key, 'ORPHAN'); // simula una detección equivocada
-    const r = await sweeper().process();
+    // Se barre SOLO esta clave. Sin acotarla, el lote (50) lo copan las tareas que `discover()` encola del
+    // bucket COMPARTIDO de pruebas —que crece con cada corrida—, y la tarea propia se queda sin reclamar:
+    // la prueba fallaría por el tamaño del bucket, no por el comportamiento que quiere proteger.
+    const r = await sweeper().process([key]);
     expect(r.skipped).toBeGreaterThanOrEqual(1);
     expect((await task(key))?.status).toBe('SKIPPED_REFERENCED');
     expect(await store.exists(key)).toBe(true);
@@ -52,11 +55,20 @@ describeDb('Barrido de originales: solo huérfanos y descartados, sin carreras c
     await sweeper().enqueue(key, 'ORPHAN');
     const [conf] = await Promise.all([
       http().post(`${org()}/geometry-imports/${imp.id}/confirm`).set(as('admin-a@test.local')).send({ operation_id: randomUUID(), plot_expected_version: await plotVersion() }),
-      sweeper().process(),
+      sweeper().process([key]),   // acotado a ESTA clave: ver la nota de la prueba anterior
     ]);
     expect(conf.status).toBe(201);
+    // Lo que de verdad se protege: la confirmación conserva su archivo, pase lo que pase con el orden.
     expect(await store.exists(key)).toBe(true);
-    expect((await task(key))?.status).toBe('SKIPPED_REFERENCED');
+    // El barrido puede haber llegado antes de que la confirmación cerrara; entonces la tarea queda
+    // PENDING y se resuelve en la pasada siguiente. Lo que NO puede ocurrir nunca es que se borre.
+    const tras = (await task(key))?.status;
+    expect(['SKIPPED_REFERENCED', 'PENDING']).toContain(tras);
+    if (tras === 'PENDING') {
+      await sweeper().process([key]);
+      expect((await task(key))?.status).toBe('SKIPPED_REFERENCED');
+    }
+    expect(await store.exists(key)).toBe(true);
   });
 
   it('una importación descartada no puede confirmarse después; su original se borra', async () => {

@@ -11,7 +11,7 @@
 // Resultados: validation-results/<fecha>/ (resumen.md, resumen.json y un .log por paso). Código de
 // salida distinto de 0 si falla cualquier paso.
 import { spawn } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync, createWriteStream } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, createWriteStream } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,6 +30,14 @@ if (existsSync(envFile)) {
     if (m && env[m[1]] === undefined) env[m[1]] = m[2];
   }
 }
+
+// La validación es HERMÉTICA frente a la configuración local de ejecución real: los interruptores y credenciales del `.env` privado (análisis satelital, ensayo local, EUDR-IS) NO deben
+// llegar a las pruebas. Las pruebas que los necesitan los fijan ellas mismas con transporte controlado. (2026-11-01: SATELLITE_LIVE_CALLS=enabled en el .env hizo fallar una prueba que
+// espera el interruptor apagado.)
+const INTERRUPTORES_DE_EJECUCION_REAL = ['SATELLITE_LIVE_CALLS', 'SATELLITE_TRIAL_PLOT_IDS', 'EUDR_IS_LIVE_CALLS', 'EUDR_IS_PRODUCTION_SUBMISSIONS',
+  'EUDR_IS_ACCEPTANCE_USERNAME', 'EUDR_IS_ACCEPTANCE_AUTH_KEY', 'EUDR_IS_ACCEPTANCE_CLIENT_ID', 'EUDR_IS_PRODUCTION_USERNAME', 'EUDR_IS_PRODUCTION_AUTH_KEY', 'EUDR_IS_PRODUCTION_CLIENT_ID'];
+// Se fijan VACÍAS (no se borran): los cargadores de Jest (apps/api/test/load-env.js) y de Playwright (e2e/env.ts) solo rellenan lo que está sin definir, y volverían a leerlas del .env.
+for (const k of INTERRUPTORES_DE_EJECUCION_REAL) env[k] = '';
 
 function dbName(url) {
   try {
@@ -88,7 +96,7 @@ const dirty = await new Promise((r) => {
 });
 
 const steps = [
-  ['servicios', 'docker', ['compose', 'up', '-d', '--wait', 'postgres', 'redis', 'object-storage']],
+  ['servicios', 'docker', ['compose', 'up', '-d', '--build', '--wait', 'postgres', 'redis', 'object-storage', 'scanner', 'plot-import-reader', 'plot-import-gateway']],
   ['typecheck', 'npm', ['run', 'typecheck']],
   ['lint', 'npm', ['run', 'lint']],
   ['build', 'npm', ['run', 'build']],
@@ -100,8 +108,16 @@ if (args.has('--docker')) steps.push(['imagenes-docker', 'docker', ['compose', '
 
 const results = [];
 for (const [name, cmd, a] of steps) {
+  if (name === 'pruebas-unitarias-integracion') {
+    // Diagnóstico de tiempos: se reinicia antes y se conserva después (aprobada o fallida).
+    rmSync(join(root, 'apps', 'api', 'test-results'), { recursive: true, force: true });
+  }
   const r = await run(name, cmd, a);
   results.push(r);
+  if (name === 'pruebas-unitarias-integracion') {
+    const src = join(root, 'apps', 'api', 'test-results');
+    if (existsSync(src)) cpSync(src, join(outDir, 'api-test-timings'), { recursive: true });
+  }
   if (r.code !== 0) {
     // Conserva la evidencia de E2E (trazas, capturas, reporte): Playwright la sobrescribe en cada corrida.
     if (name === 'e2e-navegador') {

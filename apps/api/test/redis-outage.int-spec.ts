@@ -53,7 +53,8 @@ describeDb('login con Redis no disponible (fail-closed controlado)', () => {
 
   it('con Redis disponible: ready 200 y login normal', async () => {
     const ready = await h.http().get('/health/ready').expect(200);
-    expect(ready.body.checks).toEqual({ database: 'ok', schema: 'ok', redis: 'ok' });
+    expect(ready.body.checks).toEqual({ database: 'ok', schema: 'ok', redis: 'ok', scanner: 'ok' });
+    expect(ready.body.status).toBe('ok');
     await login().expect(200);
   });
 

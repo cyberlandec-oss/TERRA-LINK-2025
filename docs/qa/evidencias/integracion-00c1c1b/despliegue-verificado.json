@@ -1,0 +1,28 @@
+{
+  "verificado_utc": "2026-11-25T05:48:39.5303318Z",
+  "version": {
+    "service": "terra-link-api",
+    "version": "0.1.0",
+    "commit": "00c1c1b",
+    "commit_source": "BUILD_ARG",
+    "schema": {
+      "known_by_code": "0080_plot_file_imports",
+      "applied": "0080_plot_file_imports"
+    },
+    "started_at": "2026-11-25T05:46:30.932Z"
+  },
+  "ready": {
+    "status": "ok",
+    "checks": {
+      "database": "ok",
+      "schema": "ok",
+      "redis": "ok",
+      "scanner": "ok"
+    },
+    "capabilities": {
+      "document_analysis": "AVAILABLE"
+    },
+    "migration": "0080_plot_file_imports"
+  },
+  "web_http": 200
+}

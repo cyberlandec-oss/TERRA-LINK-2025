@@ -58,6 +58,7 @@ Resumen/cantidad/estado; origen/parcelas/productores; proceso/inputs/outputs/mer
 1. Asociación: importar productores → resolver errores → capturar parcela → validar → activar operación.
 2. Campo: descargar asignación → capturar offline → guardar foto/GPS → sync → resolver conflicto → revisar en web.
 3. Acopio: buscar entrega/proveedor → pesar → clasificar → confirmar → generar lote/evento → consultar saldo.
+   - **Diferencia vigente (P0-012, instrucción de diseño MVP 2026-10-10, D-33):** buscar entrega → pesar → revisar → confirmar recepción física; la calidad se evalúa durante la recepción o después del pesaje y es un estado separado («Pendiente de evaluación» sin dato). Generar lote y consultar saldo llegan con P0-016/P0-017. El orden original se conserva arriba como referencia.
 4. Proceso: seleccionar inputs disponibles → registrar transformación/merma → cerrar una vez → ver outputs y grafo.
 5. EUDR: revisar evaluación → ver causa/soporte → asignar mitigación → aportar → verificar → reevaluar → preparar paquete.
 6. Exportación: reservar lote → revisar preflight → resolver faltantes → despachar → compartir información autorizada.
@@ -70,3 +71,10 @@ Fila: tipo de tarea, entidad, problema/impacto, responsable, plazo, prioridad, e
 ## Criterios UI
 
 Mobile en poca conectividad; botones/inputs con etiquetas; color acompañado de texto; cantidades y unidades legibles; guardar borrador antes de navegación; error conserva datos; foco y teclado; enlace seguro; confirmación de operación crítica con efecto claro. No llenar dashboards de cifras ficticias: placeholders de diseño deben estar etiquetados hasta conectar queries reales.
+
+## Actualización 2026-10-30: recorridos comprobados por cuenta
+- **Productor:** Mi finca → (si no tiene parcelas, «Registrar una parcela nueva») → Captura de campo → Mi ubicación/mapa → polígono → revisar → guardar → volver a consultar → adjuntar foto o documento; consulta el satélite de **sus** parcelas y no encarga ni autoriza.
+- **Administración de la propietaria:** autoriza parcelas concretas a otra organización (vigencia máxima provisional de 180 días, revocable) y concede una instantánea **con soportes** a una cuenta externa.
+- **Exportadora:** «Análisis autorizados»: ve solo las parcelas autorizadas, sin coordenadas ni productor; encargar depende de D-09 B.
+- **Comprador:** «Recursos compartidos contigo»: ve la vista limitada de la instantánea, la lista de soportes exactos con su huella y descarga cada versión; la pantalla advierte que no es el expediente completo.
+- Detalle y evidencia: `qa/EVIDENCIA_QA_INTEGRAL_CUENTAS_Y_CADENA_2026-10-30.md`.

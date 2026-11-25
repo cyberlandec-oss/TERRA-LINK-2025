@@ -13,6 +13,29 @@ export interface LoginRateLimitConfig {
   maxPerIp: number;
 }
 
+/**
+ * Acceso federado OIDC (P1-015 / D-54). Desactivado por defecto: sin `SSO_ENABLED=true` no existe ningún inicio
+ * de sesión federado. Los destinos de retorno son una lista cerrada: solo coincidencia exacta.
+ */
+export interface SsoConfig {
+  enabled: boolean;
+  /** Emisor tal como lo declara el proveedor (`iss` de los tokens). */
+  issuer: string;
+  /** Dirección del descubrimiento si difiere del emisor (p. ej. nombre de servicio dentro de Docker). */
+  discoveryUrl: string;
+  clientId: string;
+  /** Vacío = cliente público (solo PKCE). */
+  clientSecret: string;
+  redirectUris: string[];
+  scope: string;
+  /** Vigencia de un inicio de sesión en curso. */
+  flowTtlSeconds: number;
+  /** Etiqueta mostrada al usuario. */
+  label: string;
+  /** Reloj tolerado entre este servidor y el proveedor, en segundos. */
+  clockToleranceSeconds: number;
+}
+
 export interface AppConfig {
   port: number;
   databaseUrl: string;
@@ -33,6 +56,10 @@ export interface AppConfig {
   objectStore: ObjectStoreConfig;
   /** Perfil de importación GeoJSON (P0-009): límites configurables. */
   geojson: GeoJsonLimits;
+  /** P0-018: escáner antimalware (clamd) y límites de documentos. */
+  scanner: { host: string; port: number; timeoutMs: number };
+  documents: { maxBytes: number; orgQuotaBytes: number };
+  sso: SsoConfig;
 }
 
 export interface GeoJsonLimits {
@@ -55,6 +82,36 @@ function positiveInt(name: string, env: NodeJS.ProcessEnv, fallback: number): nu
   const n = Number(raw);
   if (!Number.isInteger(n) || n <= 0) throw new Error(`${name} debe ser un entero positivo`);
   return n;
+}
+
+export function loadSsoConfig(env: NodeJS.ProcessEnv): SsoConfig {
+  const enabled = env.SSO_ENABLED === 'true';
+  const redirectUris = (env.SSO_REDIRECT_URIS ?? '').split(',').map((u) => u.trim()).filter(Boolean);
+  const sso: SsoConfig = {
+    enabled,
+    issuer: env.SSO_OIDC_ISSUER ?? '',
+    discoveryUrl: env.SSO_OIDC_DISCOVERY_URL ?? env.SSO_OIDC_ISSUER ?? '',
+    clientId: env.SSO_OIDC_CLIENT_ID ?? '',
+    clientSecret: env.SSO_OIDC_CLIENT_SECRET ?? '',
+    redirectUris,
+    scope: env.SSO_OIDC_SCOPE ?? 'openid email profile',
+    flowTtlSeconds: positiveInt('SSO_FLOW_TTL_SECONDS', env, 600),
+    label: env.SSO_LABEL ?? 'Acceso corporativo',
+    clockToleranceSeconds: positiveInt('SSO_CLOCK_TOLERANCE_SECONDS', env, 30),
+  };
+  if (enabled) {
+    const faltan = [['SSO_OIDC_ISSUER', sso.issuer], ['SSO_OIDC_CLIENT_ID', sso.clientId]].filter(([, v]) => !v).map(([k]) => k);
+    if (faltan.length || redirectUris.length === 0) {
+      throw new Error(`SSO_ENABLED=true exige: ${[...faltan, ...(redirectUris.length === 0 ? ['SSO_REDIRECT_URIS'] : [])].join(', ')}`);
+    }
+    // Un destino de retorno comodín o con fragmento abriría la redirección a terceros.
+    for (const u of redirectUris) {
+      let p: URL;
+      try { p = new URL(u); } catch { throw new Error(`SSO_REDIRECT_URIS contiene una URL inválida: ${u}`); }
+      if (p.hash || u.includes('*')) throw new Error('SSO_REDIRECT_URIS no admite comodines ni fragmentos');
+    }
+  }
+  return sso;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -90,6 +147,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       maxComponents: positiveInt('GEOJSON_MAX_COMPONENTS', env, 50),
       maxRingsPerPolygon: positiveInt('GEOJSON_MAX_RINGS', env, 50),
     },
+    scanner: { host: env.SCANNER_HOST ?? 'localhost', port: positiveInt('SCANNER_PORT', env, 3310), timeoutMs: positiveInt('SCANNER_TIMEOUT_MS', env, 30_000) },
+    documents: { maxBytes: positiveInt('DOCUMENT_MAX_BYTES', env, 10 * 1024 * 1024), orgQuotaBytes: positiveInt('DOCUMENT_ORG_QUOTA_BYTES', env, 1024 * 1024 * 1024) },
+    sso: loadSsoConfig(env),
     pii: (() => {
       const pii = parsePiiConfig(env);
       if (!pii) throw new Error('Variables requeridas no definidas: PII_KEYS, PII_ACTIVE_KEY_ID, PII_INDEX_KEY');

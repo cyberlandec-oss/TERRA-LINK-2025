@@ -128,3 +128,163 @@ Defecto encontrado y corregido: `geometry_visible` llegaba como texto `"false"` 
 - coordinador.multi (responsable de trazabilidad en la exportadora): enlace «Hitos (CTE)» y catálogo completo, sin acciones.
 - productor.cooperativa: sin enlace; acceso directo denegado.
 - Capturas `cte--*.png`. Resultado: 27 entradas, 0 incidencias.
+
+## P0-014 Datos mínimos KDE (2026-10-10)
+- admin.cooperativa (390 px, teclado): «Ver datos mínimos de Entrega» → 7 datos con tipo, unidad (peso declarado en KG, masa), obligatoriedad, regla y responsable; sin formularios; sin desborde.
+- coordinador.multi (responsable de trazabilidad): datos mínimos de Recepción (6), incluida la causa de diferencia condicional.
+- productor.cooperativa: sin acceso al catálogo ni a los datos mínimos (mensaje de permiso).
+- Capturas `kde--*.png`. Resultado: 27 entradas, 0 incidencias.
+
+## P0-015 Eventos (2026-10-10)
+- admin.cooperativa (390 px): «Historial de eventos» en la ficha de DEMO-RV-001 (sin correo ni documento), página «Entregas de eventos fallidas» accesible (sin DEAD en DEMO).
+- tecnico1.cooperativa: historial de su productor asignado; sin enlace a entregas DEAD.
+- tecnico2.cooperativa: sin acceso al historial de un productor no asignado.
+- auditor.cooperativa: ve el historial, sin botones de corrección; entregas DEAD denegadas.
+- La corrección con teclado a 390 px se verifica en E2E (`productos.spec.ts`). Capturas `eventos--*.png`. Resultado: 28 entradas, 0 incidencias.
+
+## P0-018 Documentos (2026-10-10)
+- admin.cooperativa: centro con el soporte sintético DEMO «Disponible (análisis limpio)», formulario de carga, descarga `guia-demo.pdf` y acciones de revisión.
+- tecnico1.cooperativa (390 px, teclado): ve los documentos de sus productores; puede subir, no revisar; sin desborde.
+- tecnico2.cooperativa: no ve documentos de productores ajenos.
+- productor.cooperativa: sin enlace y acceso denegado.
+- Capturas `documentos--*.png`. Resultado: 29 entradas, 0 incidencias.
+
+## P0-019 Evidencias (2026-10-10)
+- admin.cooperativa: afirmación DEMO «Existe documentación de tenencia» en revisión; estados distintos visibles (archivo disponible / revisión documental / afirmación); botón «Verificar afirmación»; ningún estado «conforme».
+- tecnico1.cooperativa (390 px, teclado): ve la afirmación de su productor, no puede verificar; orden de tabulación correcto en el alta; sin desborde.
+- auditor.cooperativa: consulta sin acciones; el soporte de tenencia indica «contenido restringido para tu rol».
+- Capturas `evidencias--*.png`. Resultado: 30 entradas, 0 incidencias.
+
+## P0-025 Auditoría (2026-10-10, `node e2e/review/revision-por-rol.mjs`, datos DEMO en `terra_link`)
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| admin.cooperativa | 25 de 279 registros a su alcance; exportación CSV con metadatos `TL_AUDIT_CSV 0.1`, SHA-256 visible, sin secretos | `auditoria--admin.png` |
+| auditor.cooperativa | Consulta sin correos de actores; puede exportar; detalle «Qué cambió» sin acciones de edición | `auditoria--auditor-detalle.png` |
+| tecnico1.cooperativa (390 px, teclado) | Acceso denegado explícito (no «sin datos»); sin enlace en el menú; sin desborde; foco con Tab | `auditoria--tecnico1-390.png` |
+
+Resultado global de la revisión: 31 entradas, 0 incidencias.
+
+## P0-012 Entregas y recepción (2026-10-10, datos DEMO en `terra_link`, Cooperativa Río Verde)
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| admin.cooperativa | ENT-2026-00001: periodo «Mes: septiembre de 2026» sin días; nota de entrega vinculada (sin aprobar); recepción parcial 200 de 350 kg; calidad pendiente; aviso de no conformidad | `entregas--admin-detalle.png` |
+| tecnico1.cooperativa (390 px) | Solo entregas de productores asignados; su borrador visible; no puede recibir; sin desborde | `entregas--tecnico1-390.png` |
+| recepcion.acopio (membresía en la Cooperativa, teclado) | ENT-2026-00002: origen faltante y periodo desconocido visibles; sin identidad del productor; revisión previa con Enter (no se confirmó sobre datos DEMO) | `entregas--recepcion-revision.png` |
+
+Resultado global: 32 entradas, 0 incidencias.
+
+### P0-012 — revisión enfocada (2026-10-10)
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| recepcion.acopio (permisos por organización) | 2 organizaciones; RECEPTION_OPERATOR en Acopio y Cooperativa con los mismos permisos; tiene `reception:confirm`, `quality:record`; no tiene `quality:decide`, `document:read`, `producer:read_identity` | — |
+| calidad.acopio (permisos por organización) | 2 organizaciones; QUALITY_OPERATOR en ambas con los mismos permisos; tiene `quality:record`, `quality:decide`; no tiene `reception:confirm`, `delivery:create`, `document:read` | — |
+| calidad.acopio (390 px, teclado, cambio de organización) | En el Acopio no hay entregas; en la Cooperativa registra un resultado **sin decisión** sobre DEMO-M-001 (una sola vez); la recepción sigue «Pendiente de evaluación»; no puede recibir; ve la opción de decidir | `entregas--calidad-390.png` |
+
+Las segundas membresías existen **solo para la revisión DEMO** dentro de la Cooperativa: no son concesiones entre organizaciones ni prueban entregas entre empresas. Resultado global: 32 entradas, 0 incidencias.
+
+## P0-016 Lotes y procesos (2026-10-10, datos DEMO en `terra_link`, Cooperativa)
+
+DEMO: LOT-2026-00001 (150 kg de ENT-2026-00001, origen declarado), LOT-2026-00002 (120 kg de ENT-2026-00002, «Origen incompleto»), PRC-2026-00001 fermentación cerrada 150 → 140 + 10 kg → LOT-2026-00003 (cacao fermentado), PRC-2026-00002 secado en curso con cierre bloqueado. Cifras sintéticas.
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| admin.cooperativa | Lot Hub de LOT-2026-00003: origen hasta ENT-2026-00001 y DEMO-PAR-001; calidad pendiente conservada; saldo de procesamiento (no inventario); proceso cerrado con balance y rendimiento en masa 93,33 % | `lotes--admin-hub.png`, `lotes--admin-fermentacion.png` |
+| coordinador.multi (MANAGER, 390 px, teclado) | Puede formar lotes; no prepara procesos; foco con Tab; sin desborde | `lotes--gerente-390.png` |
+| calidad.acopio (QUALITY_OPERATOR) | Ve el secado en curso con el cierre bloqueado explicado; no puede cerrar | `lotes--calidad-secado.png` |
+| auditor.cooperativa | Consulta sin formularios | — |
+
+Resultado global: 33 entradas, 0 incidencias.
+
+## P0-017 Inventario (2026-10-10, datos DEMO en `terra_link`, Cooperativa)
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| admin.cooperativa | LOT-2026-00003 (fermentado): existencia 140, reservado 140 por el secado, disponible 0; LOT-2026-00002 «Origen incompleto» 120 disponible; material sin lote de ENT-2026-00001 (50 kg); conciliación sin diferencias | `inventario--admin.png` |
+| coordinador.multi (MANAGER, 390 px, teclado) | Lectura de existencias; sin formularios de movimiento; sin desborde | `inventario--gerente-390.png` |
+| recepcion.acopio · auditor.cooperativa | Consulta sin formularios ni conciliación | — |
+
+Resultado global: 34 entradas, 0 incidencias.
+
+## P0-020 Riesgo (2026-10-10, datos DEMO en `terra_link`, Cooperativa)
+
+DEMO: evaluaciones de LOT-2026-00001 y LOT-2026-00002 con reglas 0.1.0 sin aprobar; sin revisiones humanas.
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| admin.cooperativa | LOT-2026-00002 «Origen incompleto»: BLOCKED (MATERIAL_OF_UNKNOWN_ORIGIN, DATA_MISSING_ORIGIN) sin dilución; LOT-2026-00001: incompleto con reglas no evaluables visibles (D-05, satélite, mitigaciones); conclusión indeterminada; sin puntuación | `riesgo--admin-bloqueado.png` |
+| auditor.cooperativa (390 px, teclado) | Lectura sin evaluar ni revisar; sin desborde | `riesgo--auditor-390.png` |
+| coordinador.multi (MANAGER) | Sin enlace; acceso directo denegado | — |
+
+## P0-021 Mitigación (2026-10-10, datos DEMO en `terra_link`, Cooperativa)
+
+DEMO: mitigación ABIERTA «Completar el origen de ENT-2026-00002» (causa DATA_MISSING_ORIGIN de LOT-2026-00002), sin entregas ni decisiones (no se simula la resolución de la causa).
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| admin.cooperativa (responsable) | Causa y evaluación de origen; abierta; aviso de separación de funciones; puede aportar soporte | `mitigaciones--admin.png` |
+| auditor.cooperativa (390 px, teclado) | Lectura sin acciones; sin desborde | `mitigaciones--auditor-390.png` |
+| coordinador.multi (MANAGER) | Acceso denegado | — |
+
+E2E (cuenta administradora del entorno E2E): crear desde la causa, aportar soporte por versión, entregar y comprobar que el ejecutor no puede verificar. La verificación por un segundo usuario y la reevaluación por outbox se prueban en integración (dos verificadores, worker real).
+
+## P0-021 Mitigación — recorrido completo con segunda persona (2026-10-10)
+
+Cuenta DEMO nueva `eudr.cooperativa` (Diana Ponce, rol existente EUDR_MANAGER; sin permisos adicionales; el auditor no cambió). Credencial recuperable según docs/20.
+
+| Paso | Cuenta | Resultado | Captura |
+| --- | --- | --- | --- |
+| Aportar soporte (versión 1 de un documento DEMO) y entregar | admin.cooperativa (ejecutor) | Sigue abierta al adjuntar; luego «Entregada: pendiente de verificación» | `mitigaciones--admin.png` |
+| Verificar con motivo (teclado) | eudr.cooperativa | «Verificada (entrega 1) por Diana Ponce»; reevaluación por outbox → «Evaluación 2 registrada» | `mitigaciones--verificador.png` |
+| Riesgo tras reevaluar | eudr.cooperativa | Evaluación 2 vigente: DATA_MISSING_ORIGIN y MATERIAL_OF_UNKNOWN_ORIGIN siguen bloqueantes; conclusión Indeterminada; reglas 0.2.0 sin aprobar | `mitigaciones--riesgo-reevaluado.png` |
+
+No se inventaron datos de origen: la causa continúa visible. La evaluación 2 figura con la verificadora como actor (es quien disparó la reevaluación).
+
+## P0-022 Debida diligencia (2026-10-10, DEMO, Cooperativa)
+
+DEMO: expediente de LOT-2026-00002 con una instantánea (sin revisar, aprobar ni exportar en el seed).
+
+| Cuenta | Resultado | Captura |
+| --- | --- | --- |
+| eudr.cooperativa | Requisitos con estado y fuente; perfil/D-05/catálogo/conclusión/embarques no evaluables; DATA_MISSING_ORIGIN inválido; paquete deshabilitado con motivo; «no presentada» | `diligencia--eudr.png` |
+| auditor.cooperativa (390 px, teclado) | Lectura sin acciones; sin coordenadas (solo hash); sin desborde | `diligencia--auditor-390.png` |
+| coordinador.multi, tecnico1.cooperativa | Acceso denegado y sin enlace | — |
+
+E2E (390 px, teclado): crear expediente, capturar instantánea, requisitos no evaluables visibles, borrador interno generado y descargado, iniciar revisión, aprobar y paquete deshabilitados con explicación.
+
+## Revisión P0-021: corrección de la verificación DEMO (2026-10-10)
+
+El criterio «Parcela de origen identificada…» no se cumplía: el documento aportado no identifica la parcela. Con
+`eudr.cooperativa` (verificadora, no ejecutora) se registró por la interfaz una corrección: soporte aceptado, criterio no
+cumplido, causa persistente. La verificación original sigue en el historial. El worker creó la evaluación 3: «Desencadenada
+por Diana Ponce (demo) (corrección de una verificación)», «Ejecutada por proceso automático: worker de reevaluación»,
+«Resultado revisado por: nadie todavía». DATA_MISSING_ORIGIN y MITIGATION_UNVERIFIED visibles; conclusión Indeterminada.
+El expediente DEMO de P0-022 queda desactualizado por ese cambio (su instantánea no se modifica). Capturas:
+`mitigaciones--verificador.png`, `mitigaciones--riesgo-reevaluado.png`.
+
+## P0-023 móvil — revisión de interfaz (2026-10-10)
+
+Revisión de código frente a UX_UI §21 (no renderizada en dispositivo ni emulador): cinco destinos o menos (Inicio,
+Captura, Pendientes, Diagnóstico), controles ≥ 48 px, etiquetas y roles de accesibilidad nativos, estados con texto
+(«Borrador local», «Pendiente (en cola)», «Sincronización no disponible todavía»), precisión «no informada» cuando es
+nula, procedencia sin atribuir GPS, aviso de capturas pendientes al cerrar sesión. **Pendiente**: revisión visual y con
+lector de pantalla en un Android real.
+
+## P0-023/P0-024 móvil — revisión de interfaz (2026-10-11)
+
+Revisión de código frente a UX_UI §21.3 (no renderizada en dispositivo): «Entorno de prueba sin cifrado» en Expo Go;
+pantalla de bloqueo si el build nativo no inicializa el cifrado; sesión vigente/vencida sin ventana extra; «Sincronizar
+ahora» con resumen (confirmadas, conflictos, rechazadas, pendientes, fotos); en Pendientes, estados Pendiente / Enviando /
+Sincronizado / Rechazado / Conflicto / Bloqueado por acceso, foto con estado propio («archivo pendiente de subir»,
+«análisis pendiente», «disponible») y botón «Reenviar sobre la versión actual del servidor» que conserva la original.
+**Pendiente**: revisión visual, teclado/lector de pantalla y 390 px en Android real.
+
+## Escáner real por la API en contenedor (2026-10-11)
+
+Foto SINTÉTICA (fixture JPEG sin EXIF, generado por el script; no es una foto real) enviada por sincronización a la API
+del servicio `api` de docker compose con ClamAV real. Fases registradas en `docs/qa/evidencia-escaner-contenedor.json`:
+disponible (`AWAITING_CONTENT → AVAILABLE`), escáner detenido (`PENDING_SCAN`, análisis `FAILED`, nunca `CLEAN`) y
+reintento con el escáner activo (`SCAN_FAILED → AVAILABLE`). El primer intento de la fase «reintento» falló por un error
+del script después de ejecutar el reintento (registrado como «ya reintentado»); se repitió el ciclo completo limpio.

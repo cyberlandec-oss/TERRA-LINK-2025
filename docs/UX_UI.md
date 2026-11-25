@@ -2,7 +2,8 @@
 
 **Versión:** 1.0 de trabajo  
 **Fecha:** 9 de octubre de 2026, Ecuador  
-**Proyecto:** TERRA-LINK-2025  
+**Proyecto vigente:** TERRA-LINK-EUDR-2026
+
 **Mercado inicial:** cadena de cacao de Ecuador  
 **Audiencia:** Producto, Diseño, Frontend, Backend, Mobile, GIS y QA  
 **Estado:** especificación para implementación y revisión; no constituye una auditoría del código ni una aprobación regulatoria.
@@ -51,7 +52,7 @@ El objetivo es convertir la identidad de Terra Link en una experiencia operativa
 | F1 | `DOCUMENTACIÓN TÉCNICA MAESTRA.md`, v0.1, 05/10/2026 | Dominios, 12 roles, datos, relaciones, offline, riesgo y backlog P0/P1/P2. |
 | F2 | `workflows reales de la cadena de cacao.md` | Objetivos por rol, workspaces, Lot Hub, evidencia, trazabilidad y tareas. |
 | F3 | `Mapa competitivo EUDR.md` | Orientación estratégica: español primero, simplicidad, primera milla y explicación de riesgos. No se revalidaron sus precios o afirmaciones sobre competidores. |
-| C1 | Instrucciones y reportes compartidos en esta conversación | Repositorio exclusivo TERRA-LINK-2025; desarrollo y pruebas locales; límites de SUPER_ADMIN y decisiones pendientes. Los reportes no sustituyen una inspección del código. |
+| C1 | Instrucciones y reportes compartidos en esta conversación | Repositorio vigente TERRA-LINK-EUDR-2026 (TERRA-LINK-2025 es histórico); desarrollo y pruebas locales; límites de SUPER_ADMIN y decisiones pendientes. Los reportes no sustituyen una inspección del código. |
 | A1 | [W3C: referencia WCAG 2.2](https://www.w3.org/WAI/WCAG22/quickref/) | Objetivo de accesibilidad y criterios de comprobación. |
 
 M1 define identidad, F1/F2 orientan el dominio y C1 determina el alcance de esta etapa. El contrato vigente del repositorio debe confirmarse antes de implementar cada pantalla. Si una fuente contiene un ejemplo y el backend contiene otra regla aceptada, registrar la diferencia; no cambiar permisos o reglas de negocio desde la UI para hacer coincidir el ejemplo.
@@ -71,7 +72,7 @@ Los valores nuevos de espaciado, breakpoints, colores auxiliares y distribución
 
 Esta especificación cubre backoffice web y diseño móvil de campo. El portal comprador es una extensión P1 según F1. Sirve para implementar historias progresivamente, no para habilitar todo el menú antes de disponer de datos y operaciones reales.
 
-Se trabaja exclusivamente sobre `C:\Users\mario\TERRA LINK 2025` y `cyberlandec-oss/TERRA-LINK-2025`. La base técnica reportada es NestJS/Next.js/React y aplicación móvil Expo planificada; las versiones y rutas concretas se consultan en el repositorio. No importar decisiones, roles, resultados de pruebas o componentes del proyecto `cacao`.
+El repositorio vigente es `cyberlandec-oss/TERRA-LINK-EUDR-2026`, rama `fix/next-seguridad-16-4-2`; la carpeta local reportada por el propietario es `C:\Users\mario\PROYECTOS DEV\TERRA LINK 2025`. Las ubicaciones anteriores y TERRA-LINK-2025 son antecedentes históricos. La base existente es NestJS/Kysely, Next.js y aplicación móvil Expo/React Native; conservarla. No importar decisiones, roles ni resultados del proyecto `cacao`. Para capacidades, APK y despliegues actuales consultar `23_ESTADO_DESARROLLO.md`, bloque «Estado vigente».
 
 La plataforma se ejecuta y verifica localmente con los servicios del proyecto. GitHub puede conservar el código; GitHub Actions no es una dependencia UX ni una condición de esta especificación. Este documento no modifica por sí solo la definición global de DONE: la decisión de validar esta etapa en local debe reflejarse también en las instrucciones y el backlog del repositorio.
 
@@ -291,7 +292,7 @@ Los códigos de F1 y F2 son exactamente los siguientes 12. Estas fichas definen 
 | SUPER_ADMIN | ¿Qué necesita atención en la plataforma? | Administración de plataforma | Web. |
 | ORG_ADMIN | ¿Puede operar mi organización? | Configuración y pendientes de organización | Web. |
 | MANAGER | ¿Qué está pasando hoy? | Centro de operaciones | Web/tablet. |
-| FIELD_TECHNICIAN | ¿Qué debo registrar o revisar en campo? | Mi jornada | Móvil/offline futuro. |
+| FIELD_TECHNICIAN | ¿Qué debo registrar o revisar en campo? | Mi jornada | Móvil/offline implementado y demostrado en emulador dentro de su alcance asignado; teléfono físico pendiente. Ver `11_OFFLINE_Y_SINCRONIZACION.md`. |
 | RECEPTION_OPERATOR | ¿Qué recepción debo registrar? | Recepción | Web/tablet. |
 | QUALITY_OPERATOR | ¿Qué muestra o lote debo analizar? | Cola de calidad | Web/tablet. |
 | TRACEABILITY_MANAGER | ¿Puedo reconstruir origen y destino? | Explorador de trazabilidad | Web. |
@@ -446,7 +447,7 @@ Los códigos de F1 y F2 son exactamente los siguientes 12. Estas fichas definen 
 
 ### 7.13 PRODUCER
 
-- **Objetivo/portada:** «Mi finca»: parcelas, entregas, documentos y pendientes propios.
+- **Objetivo/portada:** «Mi finca»: parcelas, entregas, documentos y pendientes propios. **Implementada (2026-10-23, AJ-02/AJ-03)** en `/organizaciones/{id}/mi-finca`: productor, parcelas con su ubicación, pendientes derivados de lo registrado, «Documentos y soportes» con guía orientativa y «Mis entregas» (solo listado, `delivery:read_own`). Estados distintos: sin permiso, cuenta sin vínculo («Tu cuenta todavía no está vinculada a un productor»), vinculada sin parcelas y error. Vocabulario: «archivo recibido; comprobaciones técnicas completadas», «pendiente de revisión», «revisión humana: aceptada/rechazada por {persona}»; nunca «certificado» ni «validado» sin decir quién, qué y cuándo.
 - **Navegación:** pocos destinos, lenguaje claro y móvil primero.
 - **Consulta/captura:** sus datos autorizados; captura propia depende del alcance del portal y RBAC.
 - **Acciones:** consultar, completar o solicitar corrección cuando el backend lo permita.
@@ -660,6 +661,12 @@ La fuente inicial describe una regla de área para punto/polígono, pero no resu
 
 Análisis satelital: solicitado, en cola, en proceso, fallido o disponible según contrato de job. Resultado muestra fecha de análisis y del dataset, fuente y límites. Una alerta de cobertura requiere interpretación; no escribir «deforestación confirmada» por el solo resultado de un proveedor.
 
+**Análisis entre organizaciones (2026-10-30).** En la ficha de la parcela, quien tiene `satellite:authorize` ve «Autorizar el análisis a otra organización»: destinataria elegida entre las organizaciones **ya vinculadas** (no hay directorio), vigencia (30/90/180 días), motivo y, aparte, permitir descargar la respuesta original; la tabla muestra estado (Vigente/Vencida/Revocada con texto además de color) y revoca con motivo. En el menú **Operación**, «Análisis autorizados» aparece para quien tiene `satellite:read` y no captura parcelas propias: lista solo parcelas autorizadas (código, organización propietaria, vigencia; **sin coordenadas ni productor**), y por parcela permite solicitar, seguir, cancelar y descargar indicadores (CSV) u original (si se autorizó). Cuando el resultado lo pidió otra organización se rotula «Solicitado por … con autorización de la organización propietaria». Si la autorización se revoca o vence, la lista la omite y el servidor responde con el motivo. Estados separados: cargando, vacío («Ninguna parcela autorizada»), 403, error con reintento.
+
+**Orientación al agricultor (incidencia del Productor, 2026-10-30).** El encabezado de «Captura de campo» dice «Ubica tu parcela, registra su polígono y adjunta fotos o documentos. Revisa los datos antes de guardarlos.»; la explicación de lo que la pantalla no hace (no valida la parcela, no aprueba evidencias, no concluye riesgo) pasa a **ayuda secundaria plegable**. «Mi finca», con el productor vinculado y sin parcelas, ofrece el botón «Registrar una parcela nueva» (lleva a la ficha del productor, donde está el formulario); «Productores» le dice al Productor «Ves solo tu productor.» y no el texto del técnico («asignados a ti»). Una cuenta Productor sin vínculo sigue viendo «configuración pendiente»: se resuelve con el vínculo de la administración (Productores → ficha → acceso propio), nunca por semejanza de nombres.
+
+**Compartir soportes del expediente (2026-10-30).** En «Concesiones», al elegir «Instantánea de diligencia» aparece «Compartir soportes: los documentos que esa instantánea referencia» (apagado por omisión), con su ayuda (versiones exactas, nada posterior, sin datos personales ni geometrías, vista limitada) y se repite en la revisión previa y en la tabla de alcance. En «Recursos compartidos contigo», «Ver» sobre una concesión con soportes muestra «Soportes de la instantánea»: un aviso «Vista limitada, no el expediente completo» (cuántos documentos se excluyen, sin nombrarlos; qué hacer si faltan; Terra Link no certifica su autenticidad ni esto es una DDS) y una tabla con documento, versión y archivo, huella, estado y «Descargar esta versión» solo cuando es posible. Estados: sin soportes compartibles, escaneo pendiente/rechazado/fallido, sin descarga concedida; el texto acompaña al color.
+
 ## 14. Entregas, recepción y calidad
 
 ### 14.1 Entrega
@@ -822,7 +829,29 @@ Eventos operativos y auditoría son conceptos distintos: los primeros describen 
 
 Seleccionar alcance, filtros y formato soportado; previsualizar cuando sea posible; generar y descargar con estado real. Incluir organización, período, unidades, versión/fecha y autor autorizado. Respetar permisos de campos tanto en pantalla como en exportación.
 
+**Vocabulario de estados de un indicador (P0-030).** Un valor ausente no es un cero, y no todas las ausencias son iguales. La pantalla distingue cinco, con texto además de color:
+
+| Estado | En pantalla | Cuándo |
+|---|---|---|
+| `OK` | El valor | Calculado desde la base. **Un 0 es un cero observado** y se muestra como número, no como aviso. |
+| `NO_DENOMINATOR` | «Sin denominador» | El denominador es cero: el cociente no existe. Ni 0 % ni 100 %. |
+| `UNKNOWN` | «Desconocido» | El universo se conoce, pero la condición no ha sido evaluada en ningún sujeto. |
+| `CRITERION_UNDEFINED` | «Criterio sin definir» | El criterio carece de definición aprobada (p. ej. D-05) y aún no puede evaluarse. |
+| `RESTRICTED` | «Sin permiso» | El rol no tiene el permiso de ese dominio; no se muestra valor, conteo ni desglose. |
+
+Junto al estado se publica lo **observado**: los conteos que sí se pueden hacer aunque el indicador principal no sea un número (parcelas sin evaluar, sujetos sin severidad, expedientes bloqueados). Nunca se usan para rellenar el valor principal.
+
+En los reportes por entidad, un sujeto sin evaluar **aparece en la tabla** rotulado como tal; no se omite. Las cantidades se muestran y se totalizan **por unidad**. Una descarga declara si es la instantánea mostrada o un recálculo con nueva fecha.
+
 ### 20.3 Importación Excel, P0-026
+
+**Ampliación solicitada 2026-11-24, en implementación: Importar parcelas.** Una entrada reúne GeoJSON, GeoPackage, Shapefile ZIP, KML/KMZ y CSV/XLSX. Selección explícita de capa/hoja, columnas, modalidad y CRS; después vista previa y confirmación. No confundir una carga preparada con parcelas guardadas. GeoPackage recomendado para QGIS; un proyecto QGIS no contiene necesariamente las capas.
+
+La vista previa distingue «Se creará», «Se actualizará», «Sin cambios» y «Por corregir». Punto = «Punto de referencia · Perímetro pendiente», sin superficie calculada. Polígono/multipolígono muestra superficie calculada en ha y procedencia, sin atribuir precisión GPS. Las líneas quedan identificadas como no admitidas; no se convierten en perímetro. Mostrar CRS de origen y destino WGS84 y X/longitud, Y/latitud; no deducir zona UTM ni intercambiar ejes silenciosamente.
+
+Tablas: «Punto por fila», «Geometría por fila (WKT/GeoJSON)» o «Vértices por parcela». La tercera exige código de parcela y orden de vértices; huecos y partes requieren sus identificadores. Mantener opciones al corregir un error. Los archivos originales y geometrías se consultan con permisos del servidor. Antes de confirmar cambios en geometrías existentes, mostrar revisión y pedir motivo. Si cambia el plan por concurrencia, invalidar confirmación y exigir nueva revisión. La asociación al productor nunca se resuelve por nombre; para Productor se obtiene del vínculo propio en el servidor.
+
+Mapa local de vista previa complementado por tabla accesible; si no hay cartografía o WebGL, no perder la revisión tabular. Pantalla usable con teclado y a 390 px, con estado de procesamiento y errores recuperables. Confirmación atómica: una fila bloqueante impide guardar todo el lote; explicar cómo corregir y repetir sin duplicados.
 
 | Paso | Comportamiento |
 |---|---|
@@ -839,6 +868,8 @@ Atomicidad total o importación parcial debe decidirse en backend y explicarse a
 Datos faltantes permanecen como desconocidos/faltantes/no validados según modelo. No completar por imaginación para alcanzar 100 %.
 
 ## 21. Móvil, trabajo offline y sincronización
+
+**Implementación vigente (2026-10-29):** altas de productor/parcela, entrega declarada, ubicación, vértices, fotografías y soportes PDF/imagen mediante cola persistente, referencias locales, dependencias y revalidación del servidor; mapa con cartografía preparada. Las capacidades se muestran según permisos efectivos, sin ampliar roles. Las comprobaciones en emulador y el APK arm64 de teléfono constan en `23_ESTADO_DESARROLLO.md` y `apps/mobile/README.md` (desde este archivo: `../apps/mobile/README.md`). El teléfono físico sigue pendiente. La vista previa web 3001 usa un servidor simulado y no acredita Android, SQLCipher ni datos operativos.
 
 Offline es una capacidad de P0-023/P0-024, no una propiedad automática del responsive web. La UI web no anuncia «guardado local» sin almacenamiento y protección implementados.
 
@@ -876,6 +907,10 @@ Vista con campo/versión local, versión servidor, fechas y acciones permitidas.
 El benchmark F3 sugiere automatización de conflictos, pero F1 exige revisión explícita. UX-V1 adopta esa preservación: automatizar reintentos y reconocimiento de operaciones idénticas cuando el backend lo soporte, no decisiones que pierdan información.
 
 Cerrar la app y reiniciarla debe conservar la cola conforme a política. Logout/cambio de organización con pendientes explica efectos; eliminación de borradores requiere acción explícita y no revoca la historia ya aceptada por servidor.
+
+### 21.6 Estado implementado en la app Expo (2026-10-28)
+
+Cinco pestañas: Inicio, Captura, **Altas**, Pendientes, Diagnóstico (etiqueta a una línea, ajustable a 80 %). «Altas» muestra solo los formularios que los permisos efectivos permiten (productor, parcela, entrega); sin ninguno, dice que el rol no registra altas y que no falta descargar nada. Un rechazo se presenta con su código y una de dos salidas: *Puedes corregirlo* (campos corregibles + reenviar, el rechazo queda en el historial) o *Requiere una intervención externa* (sin reintento inútil). Estado vacío de productores: se explica que hay que sincronizar. La tarjeta **Mapa** de la captura declara si hay cartografía preparada, si la zona está fuera de ella o si falta; el mapa solo dibuja y no guarda. Los deslizamientos sobre el mapa lo mueven: la página se desplaza por los bordes (mejora pendiente). Evidencia: `docs/qa/EVIDENCIA_MOVIL_ALTAS_MAPA_2026-10-28.md`.
 
 ## 22. Contenido, localización y privacidad
 
@@ -1084,5 +1119,10 @@ Actualizar versión, fecha, fuente afectada, motivo y responsable cuando cambien
 | Versión | Fecha | Cambio |
 |---|---|---|
 | 1.0 de trabajo | 09/10/2026 | Especificación inicial basada en M1/F1/F2/F3 y alcance local de TERRA-LINK-2025. |
+| Conciliación documental | 29/10/2026 | Referencia operativa a TERRA-LINK-EUDR-2026 y móvil ya implementado; conserva los criterios, roles, identidad visual y fuentes históricas. |
 
 **Regla de entrega:** la pantalla debe permitir completar una tarea real con datos, autorización, feedback y evidencia coherentes. Una maqueta o un componente visual no acredita el flujo de negocio completo.
+
+### 13.x Mapa de captura de campo (A-01, 2026-10-20)
+Mapa enfocable con teclado (flechas desplazan, + y − acercan, Enter fija un vértice en la mira), botón «Fijar vértice en la mira», vértices arrastrables, coordenadas de la mira y del puntero a la vista y tabla de
+coordenadas siempre presente; 390 px sin desborde; atribución de OpenStreetMap visible; estado explícito si falta la cartografía. Español e inglés.

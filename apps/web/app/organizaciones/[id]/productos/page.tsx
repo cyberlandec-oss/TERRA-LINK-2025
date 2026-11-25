@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent, useRef } from 'react';
 import { ApiError, api } from '../../../../lib/api';
 import { useWorkspace } from '../../../../lib/workspace';
 import { Breadcrumb, EmptyState, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../lib/ui';
@@ -20,20 +20,24 @@ export default function ProductsPage() {
   const [applied, setApplied] = useState(filters);
   const [error, setError] = useState<ApiError | null>(null);
 
+  const seq = useRef(0);
   const load = useCallback(async (append = false, from: string | null = null, f = filters) => {
     if (!orgId || !canRead) return;
     setError(null);
+    const mine = ++seq.current; // una respuesta vieja no puede pisar a una más reciente (el listado inicial y la búsqueda del formulario pueden cruzarse)
     try {
       const params = new URLSearchParams({ limit: '50', status: f.status });
       if (f.q.trim()) params.set('q', f.q.trim());
       if (f.product_state) params.set('product_state', f.product_state);
       if (from) params.set('cursor', from);
       const res = await api<{ items: Product[]; next_cursor: string | null; can_manage: boolean }>(`/api/v1/organizations/${orgId}/products?${params}`);
+      if (mine !== seq.current) return;
       setItems((prev) => (append && prev ? [...prev, ...res.items] : res.items));
       setCursor(res.next_cursor);
       setCanManage(res.can_manage);
       setApplied(f);
     } catch (err) {
+      if (mine !== seq.current) return;
       setError(err as ApiError);
     }
   }, [orgId, canRead, filters]);
@@ -53,8 +57,8 @@ export default function ProductsPage() {
   return (
     <>
       <Breadcrumb items={[{ label: ws.activeOrg.name, href: `/organizaciones/${orgId}` }, { label: 'Productos' }]} />
-      <PageHeader title="Productos" meta="Catálogo de productos de la organización: estado o presentación del cacao y unidad de medida." />
-      {options && <p className="muted">{options.transformation_note} {options.conversions_note}</p>}
+      <PageHeader title="Productos" meta="Consulta los productos que utiliza tu organización, su presentación y unidad de medida." />
+      <p className="muted">Para registrar fermentación o secado de un lote, utiliza {ws.can('lot:read') ? <Link href={`/organizaciones/${orgId}/procesos`}>Procesos</Link> : 'Procesos'}. La presentación y la unidad de un producto no se editan: cambiar la mercancía física es un proceso con sus cantidades. No se aplican conversiones entre unidades (quintal, libra u otras) mientras no haya factores y redondeo adoptados.</p>
       <form className="card" role="search" aria-label="Buscar productos" onSubmit={(e) => { e.preventDefault(); void load(); }}>
         <div className="grid-3">
           <div>

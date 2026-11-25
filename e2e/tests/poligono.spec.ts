@@ -17,6 +17,8 @@ async function open(browser: Browser, viewport?: { width: number; height: number
   const page = await ctx.newPage();
   await page.goto(plotUrl);
   await expect(page.getByRole('heading', { name: 'PG-01' })).toBeVisible();
+  // A-01: los métodos de captura se eligen primero (la ficha ya no muestra todos a la vez).
+  await page.getByRole('button', { name: 'Polígono por vértices' }).click();
   return { ctx, page };
 }
 

@@ -1,11 +1,13 @@
-import { randomInt } from 'crypto';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { randomInt, randomUUID } from 'crypto';
+import { closeSync, existsSync, openSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import type { AddressInfo } from 'net';
 import { createApp } from '../bootstrap';
 import { loadConfig } from '../config';
 import { hashPassword } from '../auth/passwords';
 import { createDb } from './database';
+import { sql } from 'kysely';
+import { AuditService } from '../audit/audit.service';
 
 // Seed DEMO/QA para revisión visual local (npm run seed:demo -w apps/api).
 // - Solo desarrollo local: se niega a ejecutar contra bases *_test / *_e2e o con NODE_ENV=production.
@@ -17,7 +19,10 @@ import { createDb } from './database';
 //   nunca se regeneran ni se resetean cuentas existentes. No se imprimen.
 
 const ROOT = resolve(__dirname, '..', '..', '..', '..');
-const CSV_PATH = resolve(ROOT, 'CREDENCIALES.csv');
+// TL_CREDENTIALS_DIR: carpeta alternativa de los CSV de credenciales (solo para la comprobación del seed en una base
+// desechable: e2e/seed/comprobar-seed-demo.mjs). Por defecto, la raíz del repositorio.
+const CRED_DIR = process.env.TL_CREDENTIALS_DIR ? resolve(process.env.TL_CREDENTIALS_DIR) : ROOT;
+const CSV_PATH = resolve(CRED_DIR, 'CREDENCIALES.csv');
 const WEB_URL = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
 const DOMAIN = 'demo.terralink.local';
 
@@ -41,9 +46,17 @@ const USERS: UserSpec[] = [
     note: 'Cuenta sin vínculo con un registro de productor (UX-D08): «Mi finca» pendiente.' }] },
   { local: 'auditor.cooperativa', first: 'Silvia', last: 'Andrade (demo)', memberships: [{ org: 'coop', role: 'AUDITOR',
     note: 'Lee parcelas sin coordenadas exactas (clasificación de geometría, D-24).' }] },
+  { local: 'eudr.cooperativa', first: 'Diana', last: 'Ponce (demo)', memberships: [{ org: 'coop', role: 'EUDR_MANAGER',
+    note: 'Segunda persona del recorrido de mitigación (P0-021): verifica o rechaza lo que ejecuta la administración (separación de funciones). Rol existente; sin permisos adicionales.' }] },
   { local: 'admin.acopio', first: 'Patricia', last: 'Intriago (demo)', memberships: [{ org: 'acopio', role: 'ORG_ADMIN' }] },
-  { local: 'recepcion.acopio', first: 'Kevin', last: 'Macías (demo)', memberships: [{ org: 'acopio', role: 'RECEPTION_OPERATOR', note: 'Recepción y pesaje pendientes (P0-012).' }] },
-  { local: 'calidad.acopio', first: 'Diana', last: 'Pinargote (demo)', memberships: [{ org: 'acopio', role: 'QUALITY_OPERATOR', note: 'Cola de calidad pendiente (UX-D12).' }] },
+  { local: 'recepcion.acopio', first: 'Kevin', last: 'Macías (demo)', memberships: [
+    { org: 'acopio', role: 'RECEPTION_OPERATOR', note: 'El acopio aún no tiene productores DEMO: el recorrido de recepción está en la Cooperativa.' },
+    { org: 'coop', role: 'RECEPTION_OPERATOR', note: 'Recorrido P0-012 (misma cuenta, segunda membresía): recibir, pesar y registrar muestra.' },
+  ] },
+  { local: 'calidad.acopio', first: 'Diana', last: 'Pinargote (demo)', memberships: [
+    { org: 'acopio', role: 'QUALITY_OPERATOR', note: 'El acopio aún no tiene productores DEMO: el recorrido de calidad está en la Cooperativa.' },
+    { org: 'coop', role: 'QUALITY_OPERATOR', note: 'Recorrido P0-012 (misma cuenta, segunda membresía): resultados y decisión de calidad.' },
+  ] },
   { local: 'admin.exportadora', first: 'Fernando', last: 'Alcívar (demo)', memberships: [{ org: 'export', role: 'ORG_ADMIN' }] },
   { local: 'trazabilidad.exportadora', first: 'Gabriela', last: 'Moreira (demo)', memberships: [{ org: 'export', role: 'TRACEABILITY_MANAGER', note: 'Lotes y explorador de trazabilidad pendientes (P0-013 a P0-017).' }] },
   { local: 'eudr.exportadora', first: 'Andrés', last: 'Vera (demo)', memberships: [{ org: 'export', role: 'EUDR_MANAGER', note: 'Riesgo, evidencias y debida diligencia pendientes (P0-018 a P0-022).' }] },
@@ -133,18 +146,58 @@ const esc = (v: string) => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : 
 const HEADER = ['nombre_usuario', 'email', 'contrasena', 'rol', 'organizacion', 'tipo_organizacion', 'perfil_cadena',
   'es_admin_empresa', 'es_admin_plataforma', 'url_acceso', 'estado_acceso', 'observaciones'];
 
+/**
+ * Archivos de credenciales que existen, **del más reciente al más antiguo**.
+ *
+ * El orden importa: `CREDENCIALES.pendiente.csv` se escribe cuando `CREDENCIALES.csv` está abierto en otro
+ * programa, y entonces el principal se queda **obsoleto**. Leerlo primero devolvería una contraseña muerta. Es
+ * la misma regla que ya usa `e2e/review/revision-por-rol.mjs`: manda el más reciente.
+ */
+function credentialFiles(): string[] {
+  return [CSV_PATH, resolve(CRED_DIR, 'CREDENCIALES.pendiente.csv')]
+    .filter((f) => existsSync(f))
+    .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+}
+
+/** Lee una columna del CSV por email, en orden de archivo. Nunca devuelve nada a la consola. */
+function readColumn(path: string, column: string): Array<[string, string]> {
+  const rows = parseCsv(readFileSync(path, 'utf8'));
+  const head = rows.shift() ?? [];
+  const iEmail = head.indexOf('email');
+  const iCol = head.indexOf(column);
+  const out: Array<[string, string]> = [];
+  for (const r of rows) if (r[iEmail] && r[iCol]) out.push([r[iEmail], r[iCol]]);
+  return out;
+}
+
 function loadKnownPasswords(): Map<string, string> {
   const known = new Map<string, string>();
-  // También el archivo pendiente (escrito cuando CREDENCIALES.csv estaba abierto en otro programa).
-  for (const path of [CSV_PATH, resolve(ROOT, 'CREDENCIALES.pendiente.csv')]) {
-    if (!existsSync(path)) continue;
-    const rows = parseCsv(readFileSync(path, 'utf8'));
-    const head = rows.shift() ?? [];
-    const iEmail = head.indexOf('email');
-    const iPass = head.indexOf('contrasena');
-    for (const r of rows) if (r[iEmail] && r[iPass] && !known.has(r[iEmail])) known.set(r[iEmail], r[iPass]);
+  for (const path of credentialFiles()) {
+    for (const [mail, pass] of readColumn(path, 'contrasena')) if (!known.has(mail)) known.set(mail, pass);
   }
   return known;
+}
+
+/**
+ * TODAS las contraseñas que algún archivo atribuye a esa cuenta, sin repetir.
+ *
+ * Al rotar hay que comprobar que la anterior **deja de servir**, y si los dos archivos discrepan —porque uno
+ * quedó bloqueado y se quedó atrás— la única comprobación honesta es que **ninguna** de las dos abra sesión.
+ */
+function knownPasswordsFor(mail: string): string[] {
+  const out: string[] = [];
+  for (const path of credentialFiles()) {
+    for (const [m, pass] of readColumn(path, 'contrasena')) if (m === mail && !out.includes(pass)) out.push(pass);
+  }
+  return out;
+}
+
+/** ¿Se puede escribir CREDENCIALES.csv o CREDENCIALES.pendiente.csv? (abre sin escribir; no altera su contenido). */
+function canPersistCredentials(): boolean {
+  for (const path of [CSV_PATH, resolve(CRED_DIR, 'CREDENCIALES.pendiente.csv')]) {
+    try { if (existsSync(path)) closeSync(openSync(path, 'r+')); return true; } catch { /* abierto en otro programa */ }
+  }
+  return false;
 }
 
 async function main(): Promise<void> {
@@ -180,6 +233,61 @@ async function main(): Promise<void> {
   const userExists = async (mail: string) => !!(await db.selectFrom('users').select('id').where('email', '=', mail).executeTakeFirst());
 
   try {
+    // Rotación de la contraseña de UNA cuenta DEMO (`-- --rotar=<cuenta>`), p. ej. tras exponerse en una captura.
+    // Orden seguro: 1) se guarda primero la nueva credencial en los CSV locales (si no se pueden escribir, no se rota);
+    // 2) se activa en la base y se invalidan las sesiones (token_version + 1); 3) se verifica el login nuevo y el rechazo
+    // del anterior. Si falla el paso 2, se restauran los CSV. No se imprime ninguna contraseña. Las demás cuentas no cambian.
+    const rotateArg = process.argv.find((a) => a.startsWith('--rotar='));
+    if (rotateArg) {
+      const local = rotateArg.slice('--rotar='.length);
+      // Incluye la cuenta de plataforma: si su credencial se expone, es la que más urge rotar.
+      const spec = USERS.find((x) => x.local === local);
+      if (!spec) throw new Error('Cuenta DEMO desconocida para rotar.');
+      const mail = email(spec);
+      const user = await db.selectFrom('users').select(['id']).where('email', '=', mail).executeTakeFirst();
+      const previousPasswords = knownPasswordsFor(mail);
+      if (!user || !previousPasswords.length) throw new Error('La cuenta no existe o no tiene credencial conocida: no se rota.');
+      // Se escribe en los archivos que SE PUEDAN escribir. Antes se escribía en todos los que existieran, de modo
+      // que un `CREDENCIALES.csv` abierto en Excel abortaba la rotación entera: justo cuando más urge rotar. Si no
+      // se puede escribir ninguno, no se rota nada. Un archivo bloqueado se declara después, porque se queda con
+      // una credencial que ya no sirve.
+      const writable = (f: string) => { try { closeSync(openSync(f, 'r+')); return true; } catch { return false; } };
+      const existing = [CSV_PATH, resolve(CRED_DIR, 'CREDENCIALES.pendiente.csv')].filter((f) => existsSync(f));
+      const locked = existing.filter((f) => !writable(f));
+      const files = existing.filter(writable).map((f) => ({ f, text: readFileSync(f, 'utf8') }));
+      if (!files.length) throw new Error('Ningún archivo de credenciales se puede escribir: no se rota nada.');
+      const rewrite = (text: string, pwd: string, estado: string) => {
+        const rows = parseCsv(text); const head = rows.shift() ?? [];
+        const iE = head.indexOf('email'); const iP = head.indexOf('contrasena'); const iS = head.indexOf('estado_acceso');
+        for (const r of rows) if (r[iE] === mail) { r[iP] = pwd; r[iS] = estado; }
+        return '\uFEFF' + [head, ...rows].map((r) => r.map(esc).join(',')).join('\r\n') + '\r\n';
+      };
+      const fresh = newPassword();
+      for (const c of files) writeFileSync(c.f, rewrite(c.text, fresh, 'ROTACION_EN_CURSO')); // lanza si está bloqueado: nada se activa
+      try {
+        await db.updateTable('users').set({ password_hash: await hashPassword(fresh), token_version: sql`token_version + 1` } as never).where('id', '=', user.id).execute();
+      } catch (err) {
+        for (const c of files) writeFileSync(c.f, c.text);
+        throw err;
+      }
+      const status = async (pwd: string) => (await fetch(`${base}/api/v1/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: mail, password: pwd }) })).status;
+      const okNew = (await status(fresh)) === 200;
+      // Se comprueban TODAS las anteriores conocidas, no solo la que ganó la precedencia: si los dos archivos
+      // discrepaban, dar por buena una sola dejaría la otra sin verificar.
+      const previas = previousPasswords.filter((x) => x !== fresh);
+      const oldRejected = (await Promise.all(previas.map(status))).every((c) => c === 401);
+      for (const c of files) writeFileSync(c.f, rewrite(c.text, fresh, okNew ? 'LOGIN_VERIFICADO (rotada)' : 'FALLO_LOGIN'));
+      const superId = (await db.selectFrom('users').select('id').where('platform_role', '=', 'SUPER_ADMIN').executeTakeFirst())?.id ?? null;
+      await app.get(AuditService).record(db, { organizationId: null, actorUserId: superId, action: 'user.password_rotated', entityType: 'user', entityId: user.id, result: 'SUCCESS',
+        after: { reason: 'Rotación de cuenta DEMO por exposición de la credencial (consola, captura o transcripción); sesiones anteriores invalidadas' } });
+      const vigente = files.map((c) => c.f.split(/[\\/]/).pop()).join(', ');
+      const obsoleto = locked.map((f) => f.split(/[\\/]/).pop()).join(', ');
+      console.log(`Rotación de ${local}: credencial nueva guardada en ${vigente} (vigente); login nuevo=${okNew}; anteriores rechazadas=${oldRejected} (${previas.length} comprobada(s)); sesiones previas invalidadas.`);
+      if (locked.length) console.error(`AVISO: ${obsoleto} está bloqueado y conserva una credencial que YA NO SIRVE. El archivo vigente es ${vigente}.`);
+      if (!okNew || !oldRejected) process.exitCode = 1;
+      return;
+    }
+
     // 1) Cuenta de revisión de plataforma (SUPER_ADMIN).
     const superUser = USERS.find((u) => u.platform)!;
     const superMail = email(superUser);
@@ -233,6 +341,8 @@ async function main(): Promise<void> {
         if (!passwords.has(mail)) passwords.set(mail, known.get(mail)!);
         await call('POST', '/api/v1/invitations/accept', await tokenOf(mail), { token: inv.token });
       } else {
+        // Una cuenta nueva solo se crea si su contraseña podrá guardarse (CSV principal o pendiente escribible).
+        if (!known.has(mail) && !canPersistCredentials()) { withoutCredential.add(mail); return; }
         const pwd = known.get(mail) ?? newPassword();
         await call('POST', '/api/v1/invitations/accept', undefined, { token: inv.token, first_name: u.first, last_name: u.last, password: pwd });
         passwords.set(mail, pwd);
@@ -314,6 +424,192 @@ async function main(): Promise<void> {
       }
     }
 
+    // 4d) Documento DEMO (P0-018): soporte de entrega SINTÉTICO para DEMO-RV-001, subido por la API (pasa por el
+    // análisis antimalware real). Idempotente por título. No es un documento real ni evidencia aprobada.
+    if (passwords.has(coopAdmin)) {
+      const t = await tokenOf(coopAdmin);
+      const coopId = orgIds.get('coop')!;
+      const title = 'Guía de entrega DEMO-RV-001 (sintética)';
+      const docs = (await call<Array<{ title: string }>>('GET', `/api/v1/organizations/${coopId}/documents?document_type=DELIVERY_SUPPORT`, t)).data;
+      const producer = (await call<{ items: Array<{ id: string; producer_code: string }> }>('GET', `/api/v1/organizations/${coopId}/producers?status=ALL&q=DEMO-RV-001`, t)).data.items.find((x) => x.producer_code === 'DEMO-RV-001');
+      if (producer && !docs.some((d) => d.title === title)) {
+        const form = new FormData();
+        form.append('operation_id', randomUUID());
+        form.append('document_type', 'DELIVERY_SUPPORT');
+        form.append('owner_type', 'producer');
+        form.append('owner_id', producer.id);
+        form.append('title', title);
+        form.append('issuer', 'Centro de acopio (ficticio)');
+        form.append('file', new Blob([Buffer.from(['%PDF-1.4', '% Documento SINTETICO de demostracion Terra Link', '%%EOF', ''].join('\n'))], { type: 'application/pdf' }), 'guia-demo.pdf');
+        const res = await fetch(`${base}/api/v1/organizations/${coopId}/documents`, { method: 'POST', headers: { authorization: `Bearer ${t}` }, body: form });
+        if (res.status !== 201 && res.status !== 200) throw new Error(`POST documento DEMO → ${res.status}`);
+      }
+    }
+
+    // 4e) Recorrido DEMO de evidencias (P0-019): documento de tenencia SINTÉTICO de DEMO-RV-002 y una
+    // afirmación «Existe documentación de tenencia» con ese soporte, ENVIADA a revisión (sin verificar).
+    // Idempotente: si ya existe una afirmación para ese productor, no se crea otra.
+    if (passwords.has(coopAdmin)) {
+      const t = await tokenOf(coopAdmin);
+      const coopId = orgIds.get('coop')!;
+      const producer = (await call<{ items: Array<{ id: string; producer_code: string }> }>('GET', `/api/v1/organizations/${coopId}/producers?status=ALL&q=DEMO-RV-002`, t)).data.items.find((x) => x.producer_code === 'DEMO-RV-002');
+      if (producer) {
+        const claims = (await call<Array<{ id: string }>>('GET', `/api/v1/organizations/${coopId}/evidence?entity_type=producer&entity_id=${producer.id}`, t)).data;
+        if (claims.length === 0) {
+          const title = 'Constancia de tenencia DEMO-RV-002 (sintética)';
+          const docs = (await call<Array<{ id: string; title: string; versions: Array<{ id: string }> }>>('GET', `/api/v1/organizations/${coopId}/documents?document_type=LAND_TENURE`, t)).data;
+          let version = docs.find((d) => d.title === title)?.versions[0]?.id;
+          if (!version) {
+            const form = new FormData();
+            form.append('operation_id', randomUUID());
+            form.append('document_type', 'LAND_TENURE');
+            form.append('owner_type', 'producer');
+            form.append('owner_id', producer.id);
+            form.append('title', title);
+            form.append('issuer', 'Junta parroquial (ficticia)');
+            form.append('file', new Blob([Buffer.from(['%PDF-1.4', '% Documento SINTETICO de demostracion: tenencia', '%%EOF', ''].join(String.fromCharCode(10)))], { type: 'application/pdf' }), 'tenencia-demo.pdf');
+            const res = await fetch(`${base}/api/v1/organizations/${coopId}/documents`, { method: 'POST', headers: { authorization: `Bearer ${t}` }, body: form });
+            if (res.status !== 201 && res.status !== 200) throw new Error(`POST documento de tenencia DEMO → ${res.status}`);
+            version = ((await res.json()) as { document: { versions: Array<{ id: string }> } }).document.versions[0].id;
+          }
+          let ev = (await call<{ evidence: { id: string; row_version: number } }>('POST', `/api/v1/organizations/${coopId}/evidence`, t, { operation_id: randomUUID(), claim_type: 'LAND_TENURE_DOCUMENTED', entity_type: 'producer', entity_id: producer.id })).data.evidence;
+          ev = (await call<{ evidence: { id: string; row_version: number } }>('POST', `/api/v1/organizations/${coopId}/evidence/${ev.id}/sources`, t, { operation_id: randomUUID(), expected_version: ev.row_version, document_version_id: version, relationship: 'SUPPORTS' })).data.evidence;
+          await call('POST', `/api/v1/organizations/${coopId}/evidence/${ev.id}/submit`, t, { expected_version: ev.row_version, reason: 'Recorrido DEMO: enviada a revisión' });
+        }
+      }
+    }
+
+    // 4f) Recorrido DEMO de entregas (P0-012) dentro de la Cooperativa: centro, una entrega con soporte y una
+    // recepción parcial con muestra (calidad pendiente), una entrega sin documento ni origen con periodo
+    // desconocido recibida completa, y un borrador del técnico. Datos SINTÉTICOS; sin decisiones de calidad.
+    // Idempotente por la marca «DEMO-ENT» en las observaciones.
+    const recEmail = `recepcion.acopio@${DOMAIN}`;
+    if (passwords.has(coopAdmin) && passwords.has(recEmail)) {
+      const t = await tokenOf(coopAdmin);
+      const tr = await tokenOf(recEmail);
+      const coopId = orgIds.get('coop')!;
+      const o = `/api/v1/organizations/${coopId}`;
+      const existing = (await call<Array<{ id: string; delivery_code: string }>>('GET', `${o}/deliveries?q=ENT-`, t)).data;
+      const marked = existing.length ? (await Promise.all(existing.map((d) => call<{ notes: string | null }>('GET', `${o}/deliveries/${d.id}`, t)))).some((r) => r.data.notes?.includes('DEMO-ENT')) : false;
+      if (!marked) {
+        let centers = (await call<Array<{ id: string; code: string }>>('GET', `${o}/locations`, t)).data;
+        if (!centers.some((c) => c.code === 'DEMO-CA-01')) await call('POST', `${o}/locations`, t, { code: 'DEMO-CA-01', name: 'Centro de acopio Calceta (demo)', location_type: 'COLLECTION_CENTER' });
+        centers = (await call<Array<{ id: string; code: string }>>('GET', `${o}/locations`, t)).data;
+        const center = centers.find((c) => c.code === 'DEMO-CA-01')!.id;
+        const prods = (await call<{ items: Array<{ id: string; code: string }> }>('GET', `${o}/products?limit=100`, t)).data.items;
+        const baba = prods.find((p) => p.code === 'CACAO_BABA')!.id;
+        const producer = async (code: string) => (await call<{ items: Array<{ id: string; producer_code: string }> }>('GET', `${o}/producers?status=ALL&q=${code}`, t)).data.items.find((x) => x.producer_code === code)!.id;
+        const p1 = await producer('DEMO-RV-001');
+        const plots = (await call<{ items: Array<{ id: string; plot_code: string }> }>('GET', `${o}/plots?limit=100`, t)).data.items;
+        const today = new Date().toISOString().slice(0, 10);
+        // A) con origen, periodo por mes y soporte; recepción parcial con muestra durante la recepción
+        const a = (await call<{ delivery: { id: string } }>('POST', `${o}/deliveries`, t, { operation_id: randomUUID(), producer_id: p1, product_id: baba, location_id: center, delivery_date: today,
+          quantity_declared: '350', unit: 'KG', harvest_period: { precision: 'MONTH', start: '2026-09', end: '2026-09' }, origins: [{ plot_id: plots.find((x) => x.plot_code === 'DEMO-PAR-001')!.id }],
+          notes: 'DEMO-ENT · entrega sintética con soporte', register: true })).data.delivery;
+        const cands = (await call<Array<{ version_id: string; title: string; availability: string }>>('GET', `${o}/deliveries/${a.id}/support-candidates`, t)).data;
+        const guide = cands.find((c) => c.title === 'Guía de entrega DEMO-RV-001 (sintética)');
+        if (guide) await call('POST', `${o}/deliveries/${a.id}/supports`, t, { operation_id: randomUUID(), document_version_id: guide.version_id, support_kind: 'DELIVERY_NOTE' });
+        await call('POST', `${o}/deliveries/${a.id}/receptions`, tr, { operation_id: randomUUID(), location_id: center, received_at: new Date().toISOString(),
+          weighing: { method: 'Báscula de plataforma (demo)', quantity: '200', unit: 'KG', weighed_on: today },
+          quality_sample: { sample_reference: 'DEMO-M-001', result: { method: 'Prueba de corte (demo)', measurements: [{ parameter: 'MOISTURE', value: '7.5', unit: '%' }] } } });
+        // B) sin origen ni documento, periodo desconocido; recepción completa
+        const p5 = await producer('DEMO-RV-005');
+        const b = (await call<{ delivery: { id: string } }>('POST', `${o}/deliveries`, t, { operation_id: randomUUID(), producer_id: p5, product_id: baba, location_id: center, delivery_date: today,
+          quantity_declared: '120', unit: 'KG', harvest_period: { precision: 'UNKNOWN' }, notes: 'DEMO-ENT · sin documento ni origen; periodo desconocido', register: true })).data.delivery;
+        await call('POST', `${o}/deliveries/${b.id}/receptions`, tr, { operation_id: randomUUID(), location_id: center, received_at: new Date().toISOString(),
+          weighing: { method: 'Báscula de plataforma (demo)', quantity: '120', unit: 'KG', weighed_on: today } });
+        // C) borrador del técnico (sin cantidad)
+        const tech = `tecnico1.cooperativa@${DOMAIN}`;
+        if (passwords.has(tech)) await call('POST', `${o}/deliveries`, await tokenOf(tech), { operation_id: randomUUID(), producer_id: await producer('DEMO-RV-002'), notes: 'DEMO-ENT · borrador del técnico' });
+      }
+    }
+
+    // 4g) Recorrido DEMO de lotes y procesos (P0-016) en la Cooperativa: lote con origen declarado (150 kg de la
+    // recepción de ENT-2026-00001), lote «Origen incompleto» (120 kg de ENT-2026-00002), una fermentación cerrada
+    // 150 → 140 + 10 kg (cifras sintéticas) y un secado iniciado cuyo cierre queda bloqueado (D-32).
+    // Idempotente: solo si la Cooperativa no tiene lotes. Datos SINTÉTICOS.
+    if (passwords.has(coopAdmin)) {
+      const t = await tokenOf(coopAdmin);
+      const coopId = orgIds.get('coop')!;
+      const o = `/api/v1/organizations/${coopId}`;
+      const lots = (await call<Array<{ id: string }>>('GET', `${o}/lots`, t)).data;
+      if (!lots.length) {
+        const opts = (await call<{ receptions: Array<{ id: string; delivery_code: string; available: string }>; products: Array<{ id: string; code: string }> }>('GET', `${o}/lot-options`, t)).data;
+        const prod = (code: string) => opts.products.find((p) => p.code === code)?.id;
+        const r1 = opts.receptions.find((r) => r.delivery_code === 'ENT-2026-00001');
+        const r2 = opts.receptions.find((r) => r.delivery_code === 'ENT-2026-00002');
+        if (r1 && r2 && prod('CACAO_FERMENTADO') && prod('CACAO_SECO')) {
+          const known = (await call<{ lot: { id: string } }>('POST', `${o}/lots`, t, { operation_id: randomUUID(), inputs: [{ reception_id: r1.id, quantity: '150' }] })).data.lot;
+          await call('POST', `${o}/lots`, t, { operation_id: randomUUID(), inputs: [{ reception_id: r2.id, quantity: '120' }] });
+          const ferm = (await call<{ run: { id: string } }>('POST', `${o}/process-runs`, t, { operation_id: randomUUID(), process_type: 'FERMENTATION', output_product_id: prod('CACAO_FERMENTADO'), notes: 'DEMO-LOT · fermentación sintética' })).data.run;
+          const startAt = new Date(Date.now() - 6 * 86_400_000).toISOString();
+          await call('POST', `${o}/process-runs/${ferm.id}/start`, t, { operation_id: randomUUID(), started_at: startAt, inputs: [{ lot_id: known.id, quantity: '150' }] });
+          const closed = (await call<{ run: { outputs: Array<{ lot_id: string }> } }>('POST', `${o}/process-runs/${ferm.id}/close`, t, { operation_id: randomUUID(), closed_at: new Date().toISOString(), outputs: [{ quantity: '140' }], loss_quantity: '10' })).data.run;
+          const dry = (await call<{ run: { id: string } }>('POST', `${o}/process-runs`, t, { operation_id: randomUUID(), process_type: 'DRYING', output_product_id: prod('CACAO_SECO'), notes: 'DEMO-LOT · secado sintético (cierre bloqueado por D-32)' })).data.run;
+          await call('POST', `${o}/process-runs/${dry.id}/start`, t, { operation_id: randomUUID(), started_at: new Date().toISOString(), inputs: [{ lot_id: closed.outputs[0].lot_id, quantity: '140' }] });
+        }
+      }
+    }
+
+    // 4h) Riesgo DEMO (P0-020 + D-07). Dos pasos deliberados, en este orden:
+    //
+    //   1. **Adoptar el catálogo `1.0.0` SOLO en la Cooperativa DEMO**, rotulado como ensayo local. Es lo que
+    //      permite que la revisión por rol vea una severidad de verdad —incluido un lote CRÍTICO— en vez de un
+    //      «sin clasificar» permanente. La adopción es **de esta organización**: no toca a ninguna otra, ni
+    //      siquiera a las demás del propio seed, y el administrador de cada una decide la suya (D-07.1).
+    //   2. Evaluar los lotes de recepciones. Sin revisión humana y sin conclusión: sigue `UNDETERMINED`.
+    //
+    // Lo que esto NO significa: el catálogo no está aprobado bajo ningún perfil jurídico (D-07.5), así que el
+    // expediente sigue BLOCKED y nada de esto acerca a `READY` ni a un despacho.
+    if (passwords.has(coopAdmin)) {
+      const t = await tokenOf(coopAdmin);
+      const o = `/api/v1/organizations/${orgIds.get('coop')!}`;
+      const adopciones = (await call<{ adopted: boolean }>('GET', `${o}/risk/rule-sets/adoptions`, t)).data;
+      if (!adopciones.adopted) {
+        await call('POST', `${o}/risk/rule-sets/adoptions`, t, { operation_id: randomUUID(), rule_set_version: '1.0.0', decision: 'ADOPT',
+          reason: 'Ensayo local del MVP en la Cooperativa DEMO: clasificar hallazgos para revisión por rol. No es aprobación regulatoria.' });
+      }
+      // Idempotente: evalúa los lotes sin evaluación y **reevalúa** los que quedaron `STALE` al adoptar el
+      // catálogo. Adoptar NO recalcula nada por sí solo (D-07.4): hay que pedir la evaluación nueva, y esa crea un
+      // registro aparte sin tocar el anterior. Sin este paso, un DEMO ya sembrado nunca mostraría una severidad.
+      const risk = (await call<Array<{ lot_id: string; lot_code: string; evaluation_id: string | null; freshness: string | null }>>('GET', `${o}/risk/lots`, t)).data;
+      for (const r of risk.filter((x) => (!x.evaluation_id || x.freshness === 'STALE') && ['LOT-2026-00001', 'LOT-2026-00002'].includes(x.lot_code))) {
+        await call('POST', `${o}/risk/lots/${r.lot_id}/evaluations`, t, { operation_id: randomUUID() });
+      }
+    }
+
+    // 4i) Mitigación DEMO (P0-021): para la causa «origen faltante» de LOT-2026-00002, creada por la administración y asignada a
+    // la administración (responsable que aportará el soporte). Queda ABIERTA: sin entregas ni decisiones (no se simula
+    // la resolución de la causa). Idempotente: solo si el lote no tiene mitigaciones.
+    if (passwords.has(coopAdmin)) {
+      const t = await tokenOf(coopAdmin);
+      const o = `/api/v1/organizations/${orgIds.get('coop')!}`;
+      const lot2 = (await call<Array<{ lot_id: string; lot_code: string; evaluation_id: string | null }>>('GET', `${o}/risk/lots`, t)).data.find((x) => x.lot_code === 'LOT-2026-00002');
+      if (lot2?.evaluation_id) {
+        const existing = (await call<unknown[]>('GET', `${o}/mitigations?lot_id=${lot2.lot_id}`, t)).data;
+        if (!existing.length) {
+          const opts = (await call<{ assignees: Array<{ membership_id: string; name: string }> }>('GET', `${o}/mitigation-options?evaluation_id=${lot2.evaluation_id}`, t)).data;
+          const assignee = opts.assignees.find((a) => a.name.includes('demo'));
+          if (assignee) await call('POST', `${o}/mitigations`, t, { operation_id: randomUUID(), evaluation_id: lot2.evaluation_id, factor_code: 'DATA_MISSING_ORIGIN', title: 'Completar el origen de ENT-2026-00002 (DEMO)',
+            acceptance_criteria: 'Parcela de origen identificada con un soporte vigente y disponible (DEMO)', assignee_membership_id: assignee.membership_id, due_date: '2026-12-31' });
+        }
+      }
+    }
+
+    // 4j) Expediente DEMO (P0-022) de LOT-2026-00002 con una instantánea: queda BLOCKED (catálogo de riesgo sin
+    // aprobación bajo perfil jurídico aunque esté adoptado, conclusión UNDETERMINED, perfil jurídico/D-05/satélite/embarques no evaluables). No se revisa, aprueba ni exporta en el
+    // seed; no se inventan datos para alcanzar READY. Idempotente: solo si el lote no tiene expediente.
+    if (passwords.has(coopAdmin)) {
+      const t = await tokenOf(coopAdmin);
+      const o = `/api/v1/organizations/${orgIds.get('coop')!}`;
+      const list = (await call<{ cases: Array<{ lot_code: string }>; lots_without_case: Array<{ id: string; lot_code: string }> }>('GET', `${o}/dd-cases`, t)).data;
+      const lot2 = list.lots_without_case.find((l) => l.lot_code === 'LOT-2026-00002');
+      if (lot2 && !list.cases.some((c) => c.lot_code === 'LOT-2026-00002')) {
+        const c = (await call<{ case: { id: string } }>('POST', `${o}/dd-cases`, t, { operation_id: randomUUID(), lot_id: lot2.id, scope_note: 'Expediente DEMO de LOT-2026-00002 (datos sintéticos): preparación interna, no DDS.' })).data.case;
+        await call('POST', `${o}/dd-cases/${c.id}/snapshots`, t, { operation_id: randomUUID() });
+      }
+    }
+
     // 5) Verificación: login real de cada cuenta con contraseña conocida.
     const verified = new Map<string, boolean>();
     for (const [mail, pwd] of passwords) {
@@ -346,10 +642,14 @@ async function main(): Promise<void> {
         writeFileSync(CSV_PATH, csv, { encoding: 'utf8' });
       } catch (err) {
         // Archivo abierto en otro programa (p. ej. Excel): no se pierden credenciales nuevas.
-        const pending = resolve(ROOT, 'CREDENCIALES.pendiente.csv');
+        const pending = resolve(CRED_DIR, 'CREDENCIALES.pendiente.csv');
         // Si el pendiente ya tiene exactamente este contenido, no se reescribe (puede estar abierto en Excel).
         const pendingCurrent = existsSync(pending) ? readFileSync(pending, 'utf8') : null;
-        if (pendingCurrent !== csv) writeFileSync(pending, csv, { encoding: 'utf8' });
+        try {
+          if (pendingCurrent !== csv) writeFileSync(pending, csv, { encoding: 'utf8' });
+        } catch {
+          console.error('CREDENCIALES.pendiente.csv también está abierto: las contraseñas no cambiaron; solo cambian las filas de membresías.');
+        }
         console.error(`No se pudo escribir CREDENCIALES.csv (${(err as NodeJS.ErrnoException).code ?? 'error'}): ciérralo y renombra CREDENCIALES.pendiente.csv.`);
         process.exitCode = 1;
       }

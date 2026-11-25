@@ -13,7 +13,7 @@ interface Definition {
   id: string; code: string; version: number; reference: string; name: string; description: string; stage: string; stage_label: string;
   source: string; published_in: string; status: 'ACTIVE' | 'RETIRED';
   retirement: { release: string; reason: string; at: string; superseded_by: string | null } | null;
-  operations: Operation[]; kde: { status: string; story: string; note: string };
+  operations: Operation[]; kde?: unknown;
 }
 interface Catalog {
   scope_note: string; not_milestones: string;
@@ -50,6 +50,10 @@ export default function CtePage() {
           <section className="card">
             <p>{data.scope_note}</p>
             <p className="muted">Situación de integración: {data.summary.integrated_operations} operación(es) integrada(s) y {data.summary.pending_operations} pendiente(s). Un hito pendiente está definido, pero la operación que lo registra todavía no existe en la plataforma.</p>
+            {/* El contrato del catálogo (cte-release.ts) define INTEGRATED como «la operación y su evento existen». No
+                significa que la operación se haya ejercitado de extremo a extremo ni que sus compuertas permitan hoy
+                ejecutarla: eso se lee en la nota de cada vínculo. Hacerlo explícito evita leer «Integrada» como acreditada. */}
+            <p className="muted"><strong>Integrada</strong> significa que la operación y su evento existen en la plataforma. No significa que se haya ejercitado de extremo a extremo ni que sus compuertas la permitan hoy: cada vínculo indica en su nota qué la bloquea.</p>
             <p className="muted">{data.not_milestones}</p>
             <label><input type="checkbox" checked={retired} onChange={(e) => setRetired(e.target.checked)} /> Mostrar definiciones retiradas o sustituidas</label>
           </section>
@@ -73,7 +77,7 @@ export default function CtePage() {
                         <div className="muted">{o.note}</div>
                       </div>
                     ))}</td>
-                    <td><span className="muted">{d.kde.note}</span></td>
+                    <td>{d.status === 'ACTIVE' ? <a href={`/organizaciones/${orgId}/trazabilidad/hitos/${d.id}`} aria-label={`Ver datos mínimos de ${d.name}`}>Ver datos mínimos</a> : <span className="muted">—</span>}</td>
                   </tr>
                 ))}
               </tbody>

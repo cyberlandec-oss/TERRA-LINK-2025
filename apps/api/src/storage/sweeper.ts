@@ -16,6 +16,9 @@ import type { ObjectStore } from './object-store';
 // reintento con espera exponencial.
 
 export const IMPORT_KEY = /^organizations\/[0-9a-f-]{36}\/geometry-imports\/[0-9a-f-]{36}\.geojson$/;
+/** P0-018: originales de documentos. Una versión registrada nunca se borra (retención según política). */
+export const DOCUMENT_KEY = /^organizations\/[0-9a-f-]{36}\/documents\/[0-9a-f-]{36}\.bin$/;
+const MANAGED = (k: string) => IMPORT_KEY.test(k) || DOCUMENT_KEY.test(k);
 
 export interface SweeperOptions {
   orphanGraceSeconds: number;
@@ -34,18 +37,20 @@ export class StorageSweeper {
 
   /** Registra una tarea (idempotente). */
   async enqueue(key: string, reason: 'DISCARDED' | 'ORPHAN', db: Kysely<Database> = this.db) {
-    if (!IMPORT_KEY.test(key)) return;
+    if (!MANAGED(key)) return;
     await db.insertInto('object_deletions').values({ object_key: key, reason, status: 'PENDING' }).onConflict((c) => c.column('object_key').doNothing()).execute();
   }
 
   /** Descubre huérfanos antiguos y descartados sin tarea. Solo lista el prefijo de importaciones. */
   async discover(now = new Date()): Promise<number> {
-    const objects = (await this.store.list('organizations/')).filter((o) => IMPORT_KEY.test(o.key));
+    const objects = (await this.store.list('organizations/')).filter((o) => MANAGED(o.key));
     const old = objects.filter((o) => o.lastModified && now.getTime() - o.lastModified.getTime() > this.opts.orphanGraceSeconds * 1000);
     if (old.length === 0) return 0;
     const keys = old.map((o) => o.key);
     const rows = await this.db.selectFrom('geometry_imports').select(['object_key', 'status']).where('object_key', 'in', keys).execute();
-    const byKey = new Map(rows.map((r) => [r.object_key, r.status]));
+    const byKey = new Map<string, string>(rows.map((r) => [r.object_key, r.status]));
+    const docs = await this.db.selectFrom('document_versions').select('object_key').where('object_key', 'in', keys).execute();
+    for (const d of docs) byKey.set(d.object_key, 'CONFIRMED');
     let n = 0;
     for (const key of keys) {
       const status = byKey.get(key);
@@ -73,7 +78,8 @@ export class StorageSweeper {
       try {
         const outcome = await this.db.transaction().execute(async (trx) => {
           const ref = await sql<{ status: string }>`SELECT status FROM geometry_imports WHERE object_key = ${task.object_key} FOR UPDATE`.execute(trx);
-          const status = ref.rows[0]?.status;
+          const docRef = await sql<{ id: string }>`SELECT id FROM document_versions WHERE object_key = ${task.object_key}`.execute(trx);
+          const status = docRef.rows[0] ? 'CONFIRMED' : ref.rows[0]?.status;
           if (status === 'ANALYZED' || status === 'CONFIRMED') {
             await trx.updateTable('object_deletions').set({ status: 'SKIPPED_REFERENCED', completed_at: new Date(), leased_by: null, lease_until: null })
               .where('object_key', '=', task.object_key).where('leased_by', '=', this.workerId).execute();
