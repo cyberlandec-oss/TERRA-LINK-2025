@@ -1,0 +1,51 @@
+{
+  "fecha": "2026-11-25T01:56:29.922Z",
+  "commit": "e4c3a93",
+  "cambios_locales_sin_commit": 0,
+  "resultado": "APROBADA",
+  "pasos": [
+    {
+      "paso": "servicios",
+      "comando": "docker compose up -d --build --wait postgres redis object-storage scanner plot-import-reader plot-import-gateway",
+      "codigo": 0,
+      "segundos": 24.9
+    },
+    {
+      "paso": "typecheck",
+      "comando": "npm run typecheck",
+      "codigo": 0,
+      "segundos": 28.7
+    },
+    {
+      "paso": "lint",
+      "comando": "npm run lint",
+      "codigo": 0,
+      "segundos": 17.2
+    },
+    {
+      "paso": "build",
+      "comando": "npm run build",
+      "codigo": 0,
+      "segundos": 40.2
+    },
+    {
+      "paso": "openapi-validado",
+      "comando": "npm run openapi -w apps/api",
+      "codigo": 0,
+      "segundos": 19.9
+    },
+    {
+      "paso": "pruebas-unitarias-integracion",
+      "comando": "npm test",
+      "codigo": 0,
+      "segundos": 1168.8
+    },
+    {
+      "paso": "e2e-navegador",
+      "comando": "npm run test:e2e",
+      "codigo": 0,
+      "segundos": 301.7
+    }
+  ],
+  "no_ejecutados": []
+}

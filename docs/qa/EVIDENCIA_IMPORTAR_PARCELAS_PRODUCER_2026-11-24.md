@@ -1,5 +1,7 @@
 # Importar parcelas con PRODUCER — comprobación específica
 
+**Corte histórico del árbol original.** El cierre posterior se hizo en worktree aislado, con nuevos resultados y capturas sobre commit: [DONE_LOCAL de `e4c3a93`](CIERRE_IMPORTACION_WORKTREE_2026-11-24.md). Los pendientes descritos abajo corresponden a este corte previo, no al estado final de la rama aislada.
+
 Fecha: 2026-11-24. Rama `feat/importar-parcelas-multiformato`, base `0b968c9`, cambios sin commit. **Recorrido funcional verificado; DONE_LOCAL pendiente de commit y validación integral sobre ese SHA.** No atribuir estas pruebas al commit base sin los cambios.
 
 ## Hallazgo y corrección
