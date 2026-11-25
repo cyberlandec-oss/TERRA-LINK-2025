@@ -63,7 +63,7 @@ usar `http://localhost:4000` como servidor. Lista del ensayo: `docs/qa/EVIDENCIA
 | Compilación | 9 m 41 s bajo guardia (mín. 24,2 GB), con el emulador apagado |
 
 Resultado en emulador: la app se bloquea **antes del inicio de sesión** con «Almacenamiento protegido no disponible»
-(`docs/qa/capturas/prueba-negativa/01-bloqueo-antes-de-login.png`). `TL_NEGATIVE` (`docs/qa/prueba-negativa/tl-negative.log`):
+(`docs/qa/capturas/prueba-negativa/01-bloqueo-antes-de-login.png`). Resumen de la sonda sintética `TL_NEGATIVE` (el log crudo se retiró del árbol en la revisión del PR #4, sin reescribir el historial):
 sonda inactiva, sin documentos ni bases, ningún secreto presente (token, sesión, dispositivo, URL). Inventario como root
 (`docs/qa/prueba-negativa/inventario-root.txt`): solo dos archivos del framework (preferencias de Expo y profile
 installer); ninguna base, token ni foto. La app se desinstaló después.

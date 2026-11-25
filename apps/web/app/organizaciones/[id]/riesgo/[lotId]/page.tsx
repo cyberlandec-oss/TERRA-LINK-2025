@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ApiError, api } from '../../../../../lib/api';
 import { useWorkspace } from '../../../../../lib/workspace';
 import { Alert, Breadcrumb, ErrorPanel, Loading, PageHeader, StatusBadge } from '../../../../../lib/ui';
-import { CATEGORY, CATEGORY_STATUS, EFFECT, FACTOR_RESULT, PROCESS, RESULT_TONE, type RiskEvaluation, type RiskFactor } from '../../../../../lib/risk';
+import { CATEGORY, CATEGORY_STATUS, EFFECT, FACTOR_RESULT, PROCESS, RESULT_TONE, SAT_REF_COVERAGE, type RiskEvaluation, type RiskFactor } from '../../../../../lib/risk';
 
 interface LotRisk { lot: { id: string; lot_code: string }; latest: RiskEvaluation | null; history: Array<{ id: string; evaluation_number: number; technical_result: { status: string; label: string }; freshness: { status: string }; evaluated_at: string; evaluated_by: string; process_status: string }>; rule_set: { version: string; approval_status: string; notes: string }; can_evaluate: boolean }
 
@@ -94,6 +94,28 @@ export default function LotRiskPage() {
             <dt>Instantánea</dt><dd><code className="hash">{e.snapshot.hash}</code></dd>
           </dl>
         </section>
+        {e.satellite_inputs && (e.satellite_inputs.in_evaluation.length > 0 || e.satellite_inputs.now.length > 0) && (
+          <section className="card" aria-labelledby="rk-sat">
+            <h2 id="rk-sat">Análisis satelitales de origen</h2>
+            <p className="muted">{e.satellite_inputs.note}</p>
+            {e.satellite_inputs.changed_since_evaluation && <Alert tone="review" title="Hay análisis satelitales que esta evaluación no incluye">Llegó o cambió un análisis después de evaluar: reevalúa para incorporarlo. Esta evaluación no se modifica.</Alert>}
+            {([['Incluidos en esta evaluación', e.satellite_inputs.in_evaluation], ['Disponibles ahora', e.satellite_inputs.now]] as const).map(([titulo, lista]) => (
+              <div key={titulo}>
+                <h3>{titulo}</h3>
+                {lista.length === 0 ? <p className="muted">Ninguno.</p> : (
+                  <ul className="plain" aria-label={titulo}>
+                    {lista.map((a, i) => (
+                      <li key={i}>
+                        {a.is_synthetic && <StatusBadge tone="review">ENSAYO (sintético)</StatusBadge>} {a.plot_code ?? 'Parcela'} · {a.provider_code} · {SAT_REF_COVERAGE[a.coverage_status]}
+                        {a.analysis_date ? ` · fecha declarada ${a.analysis_date.slice(0, 10)}` : ' · fecha no declarada'}{a.raw_sha256 ? <> · original <code className="hash">{a.raw_sha256.slice(0, 12)}…</code></> : ''}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </section>
+        )}
         <section className="card" aria-labelledby="rk-find"><h2 id="rk-find">Hallazgos técnicos</h2><FactorList items={e.technical_findings} label="Hallazgos técnicos" /></section>
         <section className="card" aria-labelledby="rk-dq"><h2 id="rk-dq">Calidad de datos: no evaluable o faltante</h2><p className="muted">Lo no evaluable nunca cuenta como favorable.</p><FactorList items={e.data_quality} label="No evaluable o faltante" /></section>
         <section className="card" aria-labelledby="rk-cat"><h2 id="rk-cat">Categorías</h2>
