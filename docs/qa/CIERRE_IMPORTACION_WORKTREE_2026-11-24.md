@@ -1,5 +1,7 @@
 # Cierre reproducible de importación multiformato
 
+**Integración posterior (2026-11-25):** el cierre aislado de este informe se integró después con los cambios visuales locales, se validó de nuevo y se desplegó como `00c1c1b`. En esa nueva corrida las **55 TLS sí se ejecutaron y aprobaron**, sin omisiones. [Evidencia integrada](INTEGRACION_IMPORTACION_2026-11-25.md). Este informe conserva el resultado original sin reetiquetarlo.
+
 ## Candidato aislado
 
 Solicitud del propietario de 2026-11-24: conservar su carpeta actual y separar la importación en un worktree. Base `0b968c9`; rama `feat/importacion-done-local`; ubicación `C:/Users/mario/AppData/Local/Temp/vscode-agent-codex-sandbox-bIHGJ5/tl-importacion-cierre`.

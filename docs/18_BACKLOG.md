@@ -175,6 +175,8 @@ Aceptación: creación/corrección/aprobación/rechazo/descarga/export/permisos/
 
 ### P0-026 — Excel import
 
+Integración y despliegue local (2026-11-25): ampliación **DONE_LOCAL sobre `00c1c1b`**, con menú/estilos/idioma conservados. Validación integral limpia: API 1.269, web 27 y Chromium 180; TLS 55 ejecutadas/aprobadas y 0 omitidas. [Evidencia vigente y PRODUCER a 390 px](qa/INTEGRACION_IMPORTACION_2026-11-25.md). El cierre aislado siguiente se conserva como antecedente.
+
 Ampliación solicitada 2026-11-24 — **DONE_LOCAL** sobre código `e4c3a93b13308e0eddbde65f801f10f82961ea1c`, validado íntegramente en worktree limpio: «Importar parcelas» GeoJSON/GeoPackage/Shapefile ZIP/KML-KMZ/CSV-XLSX con geometrías, CRS y mapeo, preservando el cierre histórico de la plantilla Excel sin geometría. Incluye PRODUCER punto → perímetro en la misma parcela y rechazo ajeno. [Decisión multiformato](decisiones/IMPORTACION-PARCELAS-MULTIFORMATO.md) · [corrida, omisiones y capturas](qa/CIERRE_IMPORTACION_WORKTREE_2026-11-24.md). No incluye cambios visuales previos ni acredita producción/EUDR.
 Depende P0-004/005/006/011/012 según plantilla. Como asociación, necesito migrar registros.
 Aceptación: plantilla/mapeo/preview/errores por fila/commit controlado; IDs no cruzan tenant; reimport no duplica ni borra campos fuera de mapping; legacy/missing explícitos. RF-26; QA-03.

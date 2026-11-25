@@ -1,0 +1,22 @@
+{
+  "codigo_validado_y_desplegado": "00c1c1b84e3f626fdd20a877802b4e6acdfdfe69",
+  "snapshot_conservado": "e82411f623fa9e93d6b14a2d3dd4f9cb7c5bde21",
+  "identicos_byte_por_byte": true,
+  "archivos": [
+    {
+      "archivo": "apps/web/app/globals.css",
+      "sha256_antes": "C3CA02DBE46EA20D6FC91514E21784830B83DA07E384EF24C6887A3B206CD991",
+      "sha256_despues": "C3CA02DBE46EA20D6FC91514E21784830B83DA07E384EF24C6887A3B206CD991"
+    },
+    {
+      "archivo": "apps/web/lib/workspace.tsx",
+      "sha256_antes": "4C2BEE00515C3D3745A4E41361A230DED92CD130AFAAD90DBB8D4DB4881DD4CB",
+      "sha256_despues": "4C2BEE00515C3D3745A4E41361A230DED92CD130AFAAD90DBB8D4DB4881DD4CB"
+    },
+    {
+      "archivo": "apps/web/lib/i18n-en.ts",
+      "sha256_antes": "B0F00BCDD26AA662817A10FA01AC77F1C1D83230E04276662CC0DA5C0DCB2E8A",
+      "sha256_despues": "B0F00BCDD26AA662817A10FA01AC77F1C1D83230E04276662CC0DA5C0DCB2E8A"
+    }
+  ]
+}

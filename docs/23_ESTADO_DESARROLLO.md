@@ -1,5 +1,9 @@
 # Estado compartido de desarrollo
 
+## Integración y despliegue local vigentes (2026-11-25)
+
+Rama `feat/integracion-importacion-local`, merge de `a56f020` con la versión local preservada en `e82411f`. Código combinado **`00c1c1b84e3f626fdd20a877802b4e6acdfdfe69` VALIDADO Y DESPLEGADO LOCALMENTE**; menú/estilos/idioma conservados byte por byte. Validación integral limpia aprobada: API 1.269, web 27, navegador 180, lector 11; **55 TLS ejecutadas/aprobadas y 0 omitidas** usando OpenSSL de Git solo en PATH de sesión. `/version = 00c1c1b`, ready ok, web 200. [Evidencia, TLS y recorrido PRODUCER a 390 px](qa/INTEGRACION_IMPORTACION_2026-11-25.md). El commit posterior solo documenta; no es la revisión que corre. Sin push, producción ni conformidad EUDR acreditadas. El cierre aislado siguiente se conserva como histórico.
+
 ## Cierre local de importación multiformato (2026-11-24)
 
 **DONE_LOCAL** para la ampliación P0-026/P0-009 y el recorrido PRODUCER sobre `e4c3a93b13308e0eddbde65f801f10f82961ea1c`, rama aislada `feat/importacion-done-local`. `npm.cmd run validate` íntegro, árbol limpio: 115 suites/1.214 pruebas API aprobadas, 27 web y 180 Chromium; lector 11/11 adicional. **55 casos TLS omitidos** por falta de OpenSSL, no acreditados. [Evidencia reproducible](qa/CIERRE_IMPORTACION_WORKTREE_2026-11-24.md). No cambia los porcentajes históricos ni acredita producción, Android o conformidad EUDR. No se fusionó ni desplegó este SHA; el árbol original y sus cambios visuales se conservan intactos.

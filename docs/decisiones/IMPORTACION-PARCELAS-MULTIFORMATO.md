@@ -1,8 +1,10 @@
 # Importar parcelas desde distintas fuentes
 
-Solicitud del propietario: 2026-11-24. Ampliación de P0-026/P0-009; no migración de stack. Estado: **DONE_LOCAL sobre `e4c3a93b13308e0eddbde65f801f10f82961ea1c`**, validación integral aprobada en worktree limpio, separando los cambios visuales previos del propietario. [Cierre reproducible, omisiones y evidencia PRODUCER](../qa/CIERRE_IMPORTACION_WORKTREE_2026-11-24.md). [Corridas históricas del árbol original](../qa/EVIDENCIA_IMPORTAR_PARCELAS_2026-11-24.md). La integración de la rama y un despliegue del SHA aislado siguen siendo acciones separadas.
+Solicitud del propietario: 2026-11-24. Ampliación de P0-026/P0-009; no migración de stack. Estado vigente (2026-11-25): **DONE_LOCAL, INTEGRADO Y DESPLEGADO LOCALMENTE sobre `00c1c1b84e3f626fdd20a877802b4e6acdfdfe69`**, conservando los cambios visuales del propietario y con validación integral limpia. [Evidencia vigente de integración, TLS y despliegue](../qa/INTEGRACION_IMPORTACION_2026-11-25.md). Históricos: [cierre aislado e4c3a93](../qa/CIERRE_IMPORTACION_WORKTREE_2026-11-24.md) y [corridas previas](../qa/EVIDENCIA_IMPORTAR_PARCELAS_2026-11-24.md).
 
 ## Alcance acordado
+
+Integración (2026-11-25): **`00c1c1b` validado íntegramente y desplegado localmente**, incorporando `a56f020` y preservando menú/estilos/idioma. TLS 55/55 ejecutadas y aprobadas, 0 omitidas. [Resultado combinado y comprobaciones de despliegue](../qa/INTEGRACION_IMPORTACION_2026-11-25.md).
 
 Primera entrega: GeoJSON, GeoPackage, Shapefile ZIP, KML/KMZ y CSV/XLSX desde «Importar parcelas». GPX, GML, FileGDB, MapInfo y DXF no pertenecen a esta primera entrega. Los proyectos QGIS `.qgs`/`.qgz` no sustituyen las capas exportadas. GeoPackage es preferido para entrega desde QGIS; GeoJSON RFC 7946 para intercambiar una capa en WGS84.
 

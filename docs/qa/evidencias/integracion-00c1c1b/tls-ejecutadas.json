@@ -1,0 +1,301 @@
+{
+  "commit": "00c1c1b84e3f626fdd20a877802b4e6acdfdfe69",
+  "corrida": "2026-11-25T05-21-10-573Z",
+  "openssl": "OpenSSL 3.5.9 29 Sep 2026; PATH solo de sesión: C:/Program Files/Git/usr/bin",
+  "ejecutadas": 55,
+  "aprobadas": 55,
+  "fallidas": 0,
+  "omitidas": 0,
+  "suites": [
+    {
+      "suite": "src/satellite/whisp.spec.ts",
+      "casos": [
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) sin el interruptor de llamadas reales no abre NINGUNA conexión",
+          "status": "passed",
+          "duration_ms": 6
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) tener credencial no activa las llamadas: el interruptor es lo único que las habilita",
+          "status": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) con el interruptor pero sin credencial no se envía la geometría",
+          "status": "passed",
+          "duration_ms": 1
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) envío síncrono: consulta los límites publicados ANTES de enviar y conserva los indicadores sin interpretar",
+          "status": "passed",
+          "duration_ms": 37
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) trabajo asíncrono: 202 con token, sondeo del estado y resultado al completarse",
+          "status": "passed",
+          "duration_ms": 12
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) si el estado termina sin resultado, se descarga por el endpoint publicado para eso",
+          "status": "passed",
+          "duration_ms": 7
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) el `statusUrl` que devuelve el proveedor no se sigue a ciegas: la ruta se construye aquí",
+          "status": "passed",
+          "duration_ms": 6
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) datasets no disponibles: el resultado es PARCIAL y conserva la lista de lo que faltó",
+          "status": "passed",
+          "duration_ms": 4
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) sin incidencias declaradas la cobertura es DESCONOCIDA, nunca COMPLETA: un 200 no es cobertura",
+          "status": "passed",
+          "duration_ms": 3
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) los códigos de error del contrato se traducen a desenlaces no favorables",
+          "status": "passed",
+          "duration_ms": 39
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) un HTTP de error del proveedor no produce resultado; 429 es cupo agotado",
+          "status": "passed",
+          "duration_ms": 11
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) un formato inesperado no se interpreta: ni HTML, ni JSON fuera de contrato, ni resultado vacío",
+          "status": "passed",
+          "duration_ms": 5
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) si no se pueden leer los límites publicados, no se envía la geometría",
+          "status": "passed",
+          "duration_ms": 1
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) el tamaño máximo que declara el proveedor se respeta antes de enviar",
+          "status": "passed",
+          "duration_ms": 2
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) el sondeo está acotado: un trabajo que nunca termina vence sin resultado",
+          "status": "passed",
+          "duration_ms": 2
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) la fecha y la versión de análisis son las que el PROVEEDOR declara en whisp_processing_metadata; si no son válidas, nulo",
+          "status": "passed",
+          "duration_ms": 2
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) un 202 trae `data.token`, no un resultado: no se confunde su `data` con un FeatureCollection",
+          "status": "passed",
+          "duration_ms": 2
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) 408 es plazo vencido y los rechazos de validación del proveedor son geometría no soportada, con su código",
+          "status": "passed",
+          "duration_ms": 3
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) ni un error ni un trabajo sin terminar se traducen en un resultado sin hallazgos",
+          "status": "passed",
+          "duration_ms": 3
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) el avance DECLARADO por el proveedor y el identificador del trabajo llegan al corredor (el porcentaje solo si lo informó)",
+          "status": "passed",
+          "duration_ms": 4
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) reintento con identificador: retoma la consulta SIN volver a enviar la geometría",
+          "status": "passed",
+          "duration_ms": 1
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) si el proveedor ya no reconoce el trabajo (sus resultados son temporales), se envía de nuevo y se conserva el identificador nuevo",
+          "status": "passed",
+          "duration_ms": 2
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) si el envío pierde su respuesta, el desenlace es INCIERTO: se anota que se estaba enviando, no se confirma ni se reenvía",
+          "status": "passed",
+          "duration_ms": 2
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) un HTTP de error al enviar SÍ es una respuesta: no hay incertidumbre sobre si el proveedor lo recibió",
+          "status": "passed",
+          "duration_ms": 5
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) un 202 SIN identificador deja el envío INCIERTO: el proveedor pudo crear el trabajo, así que no es un error reintentable y la marca se conserva",
+          "status": "passed",
+          "duration_ms": 2
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) si NO se puede guardar el identificador, la marca de envío no se limpia (el siguiente intento no reenvía)",
+          "status": "passed",
+          "duration_ms": 2
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) una respuesta síncrona con resultado cierra la incertidumbre sin identificador",
+          "status": "passed",
+          "duration_ms": 2
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) un 404 al cancelar NO confirma la cancelación: se declara no confirmada, sin resultado y sin inventar uno favorable",
+          "status": "passed",
+          "duration_ms": 2
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) con una cancelación pedida y un trabajo que el proveedor ya no reconoce, NO se envía otro análisis",
+          "status": "passed",
+          "duration_ms": 2
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) cancelación pedida: se cancela EN EL PROVEEDOR (POST /api/status/{token}/cancel) y no queda resultado",
+          "status": "passed",
+          "duration_ms": 3
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) si el trabajo ya había terminado (409 analysis_cancel_invalid), se recoge su resultado en vez de darlo por cancelado",
+          "status": "passed",
+          "duration_ms": 5
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) la descarga pasa por la misma política de salida: una redirección no se sigue",
+          "status": "passed",
+          "duration_ms": 3
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) un destino fuera de la lista blanca del proveedor no se llama",
+          "status": "passed",
+          "duration_ms": 0
+        },
+        {
+          "name": "P0-028 · adaptador Whisp (servidor controlado; evidencia SINTÉTICA) ni la credencial ni las coordenadas aparecen en lo que se conserva del fallo",
+          "status": "passed",
+          "duration_ms": 9
+        }
+      ]
+    },
+    {
+      "suite": "src/satellite/egress-transporte.spec.ts",
+      "casos": [
+        {
+          "name": "P0-028 · QA-15 nivel 2: el transporte aplica la política (servidores controlados) una respuesta conforme llega completa y la credencial solo viaja al destino autorizado",
+          "status": "passed",
+          "duration_ms": 14
+        },
+        {
+          "name": "P0-028 · QA-15 nivel 2: el transporte aplica la política (servidores controlados) un host fuera de la lista NO abre ninguna conexión: el servidor prohibido no registra nada",
+          "status": "passed",
+          "duration_ms": 1
+        },
+        {
+          "name": "P0-028 · QA-15 nivel 2: el transporte aplica la política (servidores controlados) el mismo host en otro puerto tampoco conecta: el puerto forma parte de la entrada de la lista",
+          "status": "passed",
+          "duration_ms": 1
+        },
+        {
+          "name": "P0-028 · QA-15 nivel 2: el transporte aplica la política (servidores controlados) la comprobación de direcciones la aplica el TRANSPORTE: un host de la lista que resuelve a loopback no conecta",
+          "status": "passed",
+          "duration_ms": 27
+        },
+        {
+          "name": "P0-028 · QA-15 nivel 2: el transporte aplica la política (servidores controlados) una redirección no se sigue y su destino NO recibe la credencial",
+          "status": "passed",
+          "duration_ms": 2
+        },
+        {
+          "name": "P0-028 · QA-15 nivel 2: el transporte aplica la política (servidores controlados) una respuesta mayor que el tope se corta en vez de cargarse entera",
+          "status": "passed",
+          "duration_ms": 5
+        },
+        {
+          "name": "P0-028 · QA-15 nivel 2: el transporte aplica la política (servidores controlados) un destino que no responde vence por plazo y no deja la llamada abierta",
+          "status": "passed",
+          "duration_ms": 816
+        }
+      ]
+    },
+    {
+      "suite": "test/satellite.int-spec.ts",
+      "casos": [
+        {
+          "name": "P0-028 satélite: contrato, desenlaces y candados Whisp 2.3.1 · servidor controlado encargo asíncrono (202 → estado → resultado): se guarda con proveedor, versión geométrica, fecha DECLARADA y respuesta original, y se consulta después",
+          "status": "passed",
+          "duration_ms": 136
+        },
+        {
+          "name": "P0-028 satélite: contrato, desenlaces y candados Whisp 2.3.1 · servidor controlado un error del proveedor NO guarda resultado ni lo presenta como cero: el trabajo falla y la parcela sigue sin evaluar",
+          "status": "passed",
+          "duration_ms": 81
+        },
+        {
+          "name": "P0-028 satélite: contrato, desenlaces y candados Whisp 2.3.1 · servidor controlado el avance declarado por el proveedor queda en el trabajo y se ve por la API; el identificador del trabajo del proveedor NO se expone",
+          "status": "passed",
+          "duration_ms": 98
+        },
+        {
+          "name": "P0-028 satélite: contrato, desenlaces y candados Whisp 2.3.1 · servidor controlado un reintento con el identificador guardado retoma la consulta y NO vuelve a enviar la geometría",
+          "status": "passed",
+          "duration_ms": 61
+        },
+        {
+          "name": "P0-028 satélite: contrato, desenlaces y candados Whisp 2.3.1 · servidor controlado cancelar un trabajo en curso registra la petición (con su responsable) y el corredor lo cancela también en el proveedor",
+          "status": "passed",
+          "duration_ms": 137
+        },
+        {
+          "name": "P0-028 satélite: contrato, desenlaces y candados Whisp 2.3.1 · servidor controlado credencial por organización: la registra quien administra integraciones, se cifra con su contexto, no se devuelve y no cruza organizaciones",
+          "status": "passed",
+          "duration_ms": 208
+        },
+        {
+          "name": "P0-028 satélite: contrato, desenlaces y candados Whisp 2.3.1 · servidor controlado envío incierto: si se perdió la respuesta del POST no se reenvía ni se reintenta; termina con un error explícito",
+          "status": "passed",
+          "duration_ms": 59
+        },
+        {
+          "name": "P0-028 satélite: contrato, desenlaces y candados Whisp 2.3.1 · servidor controlado un trabajo cuyo envío quedó sin respuesta y sin identificador (p. ej. reinicio del corredor) NO se vuelve a enviar",
+          "status": "passed",
+          "duration_ms": 31
+        },
+        {
+          "name": "P0-028 satélite: contrato, desenlaces y candados Whisp 2.3.1 · servidor controlado un HTTP de error al enviar NO deja el envío incierto: el reintento sí puede enviar de nuevo",
+          "status": "passed",
+          "duration_ms": 54
+        },
+        {
+          "name": "P0-028 satélite: contrato, desenlaces y candados Whisp 2.3.1 · servidor controlado la reserva se toma de a un trabajo: el que espera detrás de otro sigue sin reservar mientras el primero se procesa",
+          "status": "passed",
+          "duration_ms": 61
+        },
+        {
+          "name": "P0-028 satélite: contrato, desenlaces y candados Whisp 2.3.1 · servidor controlado un corredor atrasado no altera los bytes de un resultado ya confirmado: cada cierre escribe su propio objeto y el resultado cita el del cierre autorizado",
+          "status": "passed",
+          "duration_ms": 55
+        },
+        {
+          "name": "P0-028 satélite: contrato, desenlaces y candados Whisp 2.3.1 · servidor controlado la respuesta original se descarga solo con acceso a coordenadas, con su huella verificada, auditada y sin cruzar organizaciones",
+          "status": "passed",
+          "duration_ms": 306
+        },
+        {
+          "name": "P0-028 satélite: contrato, desenlaces y candados Whisp 2.3.1 · servidor controlado si falla la escritura del identificador, el reintento NO reenvía: queda incierto aunque el proveedor aceptó",
+          "status": "passed",
+          "duration_ms": 111
+        },
+        {
+          "name": "P0-028 satélite: contrato, desenlaces y candados Whisp 2.3.1 · servidor controlado un corredor que perdió su reserva antes de enviar no envía nada",
+          "status": "passed",
+          "duration_ms": 61
+        }
+      ]
+    }
+  ]
+}
