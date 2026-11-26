@@ -101,6 +101,7 @@ const steps = [
   ['lint', 'npm', ['run', 'lint']],
   ['build', 'npm', ['run', 'build']],
   ['openapi-validado', 'npm', ['run', 'openapi', '-w', 'apps/api']],
+  ['campo-shell-offline', 'node', ['--test', 'scripts/field-shell.test.mjs']],
   ['pruebas-unitarias-integracion', 'npm', ['test']],
 ];
 if (!args.has('--skip-e2e')) steps.push(['e2e-navegador', 'npm', ['run', 'test:e2e']]);

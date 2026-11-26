@@ -13,5 +13,6 @@ Los ADR de este paquete empiezan PROPUESTOS. No son decisiones aceptadas del rep
 | [0007](0007-multilenguaje.md) | Extensión multilenguaje, con el español primero (P1-015) | PROPUESTO |
 | [0008](0008-sso-identidad-federada.md) | Inicio de sesión federado (P1-015) | PROPUESTO — bloqueado por decisión de negocio |
 | [0009](0009-consumo-limites-y-coste.md) | Consumo, límites y coste (P1-015) | PARCIALMENTE ADOPTADO — límites sí, coste abierto |
+| [0010](0010-campo-offline-web.md) | Campo offline PWA, cierre exclusivamente web | ALCANCE AUTORIZADO — implementación/validación pendientes |
 
 Para nueva decisión usar [plantilla ADR](../templates/ADR.md). Registrar alcance, alternativas, motivo, impactos, evidencia, responsable, aceptación y pruebas. Decisión de framework no cambia por preferencia del agente; cambio requiere caso concreto y transición revisada.

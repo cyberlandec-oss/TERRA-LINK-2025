@@ -82,6 +82,7 @@ import * as m0077 from './migrations/0077_eudr_is_credenciales';
 import * as m0078 from './migrations/0078_eudr_is_presentaciones';
 import * as m0079 from './migrations/0079_satelite_alcance_ensayo';
 import * as m0080 from './migrations/0080_plot_file_imports';
+import * as m0081 from './migrations/0081_field_offline';
 
 // Las migraciones se registran explícitamente (orden por nombre). Nunca editar una ya publicada.
 const MIGRATIONS: Record<string, Migration> = {
@@ -165,6 +166,7 @@ const MIGRATIONS: Record<string, Migration> = {
   '0078_eudr_is_presentaciones': m0078,
   '0079_satelite_alcance_ensayo': m0079,
   '0080_plot_file_imports': m0080,
+  '0081_field_offline': m0081,
 };
 
 class StaticMigrationProvider implements MigrationProvider {

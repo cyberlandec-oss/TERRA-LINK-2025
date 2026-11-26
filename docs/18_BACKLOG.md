@@ -1,5 +1,9 @@
 # Backlog ejecutable
 
+## Ajuste autorizado 2026-11-25 — P0-023/P0-024, cierre web PWA
+
+El propietario sustituye el gate Android/teléfono por navegador persistente y origen seguro. Se desarrolla primero PRODUCER: preparación online, autorización 24 h independiente del JWT, mapa descargado, punto/perímetro/evidencia cifrados y recuperables, sync idempotente y revisión explícita de conflictos. El importador multiformato permanece conectado. Los antecedentes móviles siguientes se conservan como historia, no como gate de esta entrega. Estado: EN DESARROLLO, pendiente de validación integral sobre commit; ver [ADR-0010](adr/0010-campo-offline-web.md).
+
 Estado inicial histórico para todas las historias: `PENDIENTE_DE_VERIFICAR`. El estado vigente se contrasta con `23_ESTADO_DESARROLLO.md` y `24_TRAZABILIDAD_REQUISITOS.md`; los cortes fechados anteriores se conservan como evidencia histórica. P0-001–026 conservan IDs y temas de S1 §100. Las historias 027–031 hacen explícitas capacidades incluidas en otras secciones de las fuentes. Criterios son propuesta de ingeniería. Antes de implementar, acreditar lo que ya existe y abrir solo gaps.
 
 ## TECH-001 — Foundation y auditoría del repositorio

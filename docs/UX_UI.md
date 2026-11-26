@@ -1,5 +1,7 @@
 # Terra Link — Especificación UX/UI de plataforma
 
+> Ajuste autorizado 2026-11-25: cierre exclusivamente web/PWA. El recorrido autónomo `/campo-offline` separa preparar, capturar y sincronizar; muestra autorización, shell, persistencia e imagen por separado. «Listo para trabajar sin conexión» exige los cuatro. Falta de fondo no impide guardar. PIN local protege el almacén cifrado; conflictos requieren revisión y confirmación explícita de una nueva propuesta, conservando el original. El importador multiformato sigue conectado. No se exige Android ni teléfono físico para este alcance; detalles en [ADR-0010](adr/0010-campo-offline-web.md).
+
 **Versión:** 1.0 de trabajo  
 **Fecha:** 9 de octubre de 2026, Ecuador  
 **Proyecto vigente:** TERRA-LINK-EUDR-2026

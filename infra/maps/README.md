@@ -1,5 +1,15 @@
 # Cartografía local de Terra Link (A-01)
 
+## Paquetes satelitales de campo PWA
+
+Además del mapa vectorial, `maps` sirve únicamente `/offline/manifest.json` y `/offline/<id>.png` preparados localmente. La PWA descarga la zona completa, verifica tamaño y SHA-256 y cifra la imagen en IndexedDB. El campo no consulta al proveedor. No se cambia el mapa vectorial de otras pantallas.
+
+Fuente inicial abierta: [Sentinel-2 L2A COG / AWS Open Data](https://registry.opendata.aws/sentinel-2-l2a-cogs/), catálogo [Earth Search de Element 84](https://earth-search.aws.element84.com/v1/). Sentinel-2/Copernicus, resolución nativa 10 m: no sirve como levantamiento catastral ni prueba EUDR. No es imagen en tiempo real; la fecha se conserva. Se consultan solo un rectángulo de zona y capas públicas, no identidades ni geometrías de productores. La preparación evalúa máscara SCL local y rechaza zonas con >15 % nubes/sombras/nodata; no garantiza ausencia total de nubes.
+
+Preparar fuera de campo: ejecutar `preparar-imagen-campo.py --bbox=W,S,E,N --id=<zona> --until=AAAA-MM-DD` en la imagen GDAL existente `terra-link-plot-reader:local`, montando este directorio como `/scripts` de solo lectura y un directorio nuevo como `/salida`. Límite 0,1 grados por eje. No sobrescribe una salida existente. Publicar con `node infra/maps/publicar-imagen-campo.mjs infra/maps/prepared/<salida>` y recargar nginx si se acaba de actualizar su configuración. Los comandos exactos ejecutados y el paquete de ejemplo se documentan en el reporte de QA de campo. Las imágenes generadas se excluyen de Git, no contienen datos reales de productores; conservar y respaldar el volumen derivado cuando corresponda.
+
+Primera entrega: catálogo de zonas preparado por el administrador, no descarga arbitraria desde el navegador. Para otra finca hay que preparar su zona antes de salir. No hay Google Maps, credenciales GEE, WhispMap incrustado ni llamadas automáticas WHISP.
+
 Mapa base **real** para dibujar parcelas desde la web, servido **desde este mismo despliegue**. Nada de Terra Link (parcelas, coordenadas,
 fotografías, identidades) sale hacia el mapa: el navegador solo pide teselas, estilo y tipografías al servicio local `maps`.
 

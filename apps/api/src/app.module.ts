@@ -82,6 +82,7 @@ import { LegalAssessmentsController, LegalProfileController, LegalProfileService
 import { PlatformElevationController, PlatformElevationService } from './authz/platform-elevation';
 import { EventHistoryController, EventHistoryService } from './events/event-history';
 import { DocumentsController, DocumentsService } from './documents/documents';
+import { FieldOfflineController, FieldOfflineService } from './sync/field-offline';
 import { EvidenceController, EvidenceService } from './evidence/evidence';
 import { ClamdScanner, MALWARE_SCANNER, type MalwareScanner } from './storage/scanner';
 import { consumidoresDeProduccion } from './events/consumers';
@@ -210,12 +211,13 @@ export class AppModule implements NestModule {
   static forRoot(config: AppConfig, db: Kysely<Database>): DynamicModule {
     return {
       module: AppModule,
-      controllers: [PlotFileImportsController,
+      controllers: [FieldOfflineController, PlotFileImportsController,
         HealthController, VersionController, ObservabilityController, OperationsAlertsController, OperationsOrgAlertsController,
         RiskConclusionController, GeoConfigPlatformController, GeoConfigOrgController, RiskProfileLinkController, LegalProfileReviewController, LegalProfileController, LegalAssessmentsController, AuthController, MeController, OrganizationsController, CatalogController, RbacController,
         MembersController, InvitationsController, UsersController, ProducersController, ProducerMatchingController, PlotsController, PlotProductionCountryController, PolygonDraftsController, GeometryImportsController, GisEvaluationController, GeoProfileController, ProductsController, CteController, KdeController, PublicReferencesController, AccessGrantsController, GrantedController, PlatformElevationController, EventHistoryController, DocumentsController, EvidenceController, AuditController, DeliveriesController, LotsController, InventoryController, RiskController, MitigationsController, DdController, SyncController, ImportsController, MyWorkController, OnboardingController, ExchangeController, SimulationController, CostController, HistoryController, EconomicsController, AnalyticsController, ExtractionController, LimitsController, PlatformCostController, SsoController, WebhookController, ShipmentsController, CustodyTransfersController, SatelliteController, EudrIsController, EudrIsSubmissionsController, ReportsController, EntityReportsController,
       ],
       providers: [
+        FieldOfflineService,
         { provide: APP_CONFIG, useValue: config },
         { provide: DB, useValue: db },
         {

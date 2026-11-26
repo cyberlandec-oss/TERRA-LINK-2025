@@ -1,5 +1,9 @@
 # Offline y sincronización
 
+## Cambio de alcance autorizado — 2026-11-25
+
+El cierre de la plataforma es exclusivamente **web/PWA**. El propietario reemplaza el gate Android físico por pruebas de navegador persistente: preparación online, imagen satelital local, autorización de campo independiente del JWT, captura/evidencia recuperable sin servidor, sincronización idempotente y conflictos/rechazos sin pérdida. Ver [ADR-0010](adr/0010-campo-offline-web.md). La política histórica D-40 de una hora queda reabierta para esta nueva autorización de jornada; no se extiende la sesión online. Los bloques móviles siguientes se conservan como antecedentes, no como promesa de capacidad PWA. Implementación y validación del recorrido web están **pendientes** hasta registrar resultados sobre SHA. El importador multiformato mantiene su flujo conectado.
+
 FUENTE: S1 §§45–48 y S3 §18. La arquitectura móvil y sus librerías se confirman en repo. SQLite es propuesta de la fuente; preservar almacenamiento real si ofrece las garantías y hay ADR.
 
 ## Flujo

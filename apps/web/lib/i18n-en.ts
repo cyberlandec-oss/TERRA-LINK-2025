@@ -309,7 +309,7 @@ Object.assign(EN, EN_MIFINCA); // A-05: Mi finca y documentos en contexto
 Object.assign(EN, EN_LEGALIDAD); // Legalidad y soportes
 Object.assign(EN, EN_SATELITE); // Procedencia y valores del análisis satelital
 
-Object.assign(EN, { 'Importar parcelas': 'Import plots' });
+Object.assign(EN, { 'Importar parcelas': 'Import plots', 'Campo sin conexión': 'Offline fieldwork' });
 
 /** Mensajes con cifras: no pueden ser claves exactas, así que se traducen por patrón. */
 export const EN_PATTERNS: Array<[RegExp, string]> = [

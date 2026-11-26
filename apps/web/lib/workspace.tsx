@@ -78,6 +78,7 @@ function navFor(ws: Workspace, orgId: string | null, t: (es: string) => string):
     if (ws.can('organization:read')) inicio.push({ href: `${base}/onboarding`, label: t('Puesta en marcha'), match: (p) => p.startsWith(`${base}/onboarding`) });
     groups.push({ title: t('Inicio'), items: inicio });
     const origen: NavItem[] = [];
+    if (ws.can('plot:create_own') && ws.can('plot:update_own') && ws.can('plot:read_geometry')) origen.push({href:`/campo-offline?org=${orgId}`,label:t('Campo sin conexión'),match:p=>p==='/campo-offline'});
     if (ws.can('producer:read') || ws.can('producer:read_assigned') || ws.can('producer:read_own')) {
       origen.push({ href: `${base}/productores`, label: t('Productores'), match: (p) => p.startsWith(`${base}/productores`) && !p.endsWith('/coincidencias') });
     }

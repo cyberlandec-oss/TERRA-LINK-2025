@@ -2,6 +2,10 @@
 
 Base: S1 §§70–74, 98–99, 115; todas las pruebas de esta entrega están especificadas, NO EJECUTADAS. No inferir números históricos de suites ni aprobación del repositorio.
 
+## Gate PWA exclusivamente web — alcance autorizado 2026-11-25
+
+P0-023/024 se verifican primero como PRODUCER en Chromium persistente, localhost seguro, 390 px. Preparar shell, persistencia concedida realmente, autorización de campo y mapa; JWT de prueba vencido (producción sin modificar), servidor inaccesible por contexto offline, punto/evidencia y perímetro, cierres/reaperturas del proceso Chromium y desbloqueo por PIN. Reintento tras respuesta abortada **después** de confirmación real del servidor: una parcela/dos versiones. Repetir sin fondo, con fallo de cuota inyectado y recuperación; conflictos/versiones divergentes requieren revisión y nueva propuesta confirmada sin borrar original. Datos e imagen E2E sintéticos etiquetados; paquete Sentinel real se verifica aparte. API: alcance propio, firma, caducidad, dispositivo revocado e idempotencia. Node: shell incompleto y API nunca cacheada. Vitest: integridad/descarga parcial/URL externa. `npm run validate` incluye pruebas del shell y E2E; SHA y evidencia en el reporte de cierre. No sustituirlo por Android ni afirmar DONE_LOCAL antes de aprobar.
+
 ## Orden de trabajo para un cambio funcional (acordado el 2026-10-15)
 
 **Código terminado → commit → `npm run validate` sobre ESE SHA → documentación de resultados en un commit

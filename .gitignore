@@ -19,3 +19,4 @@ apps/web/public/maplibre/
 # Credenciales locales DEMO/QA y cualquier variante (pendiente, copias, exportaciones)
 CREDENCIALES*.csv
 CREDENCIALES*
+infra/maps/prepared/
