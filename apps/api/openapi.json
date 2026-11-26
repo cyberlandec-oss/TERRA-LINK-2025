@@ -1,6 +1,82 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/api/v1/organizations/{orgId}/field-offline/prepare": {
+      "post": {
+        "operationId": "FieldOfflineController_prepare",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareFieldDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "field-offline"
+        ]
+      }
+    },
+    "/api/v1/organizations/{orgId}/field-offline/sync": {
+      "post": {
+        "operationId": "FieldOfflineController_sync",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FieldSyncDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "field-offline"
+        ]
+      }
+    },
     "/api/v1/organizations/{orgId}/plot-imports": {
       "post": {
         "operationId": "PlotFileImportsController_upload",
@@ -13874,6 +13950,108 @@
       }
     },
     "schemas": {
+      "PrepareFieldDto": {
+        "type": "object",
+        "properties": {
+          "device_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id"
+        ]
+      },
+      "FieldSampleDto": {
+        "type": "object",
+        "properties": {
+          "longitude": {
+            "type": "number"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "accuracy_m": {
+            "type": "object",
+            "nullable": true
+          },
+          "captured_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "longitude",
+          "latitude",
+          "accuracy_m",
+          "captured_at"
+        ]
+      },
+      "FieldOperation": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "grant_id": {
+            "type": "string"
+          },
+          "plot_code": {
+            "type": "string"
+          },
+          "crop": {
+            "type": "string"
+          },
+          "base_version": {
+            "type": "object",
+            "nullable": true
+          },
+          "previous_operation_id": {
+            "type": "string"
+          },
+          "geometry": {
+            "type": "object"
+          },
+          "captured_at": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "samples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldSampleDto"
+            }
+          }
+        },
+        "required": [
+          "operation_id",
+          "grant_id",
+          "plot_code",
+          "crop",
+          "base_version",
+          "geometry",
+          "captured_at",
+          "reason"
+        ]
+      },
+      "FieldSyncDto": {
+        "type": "object",
+        "properties": {
+          "device_id": {
+            "type": "string"
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldOperation"
+            }
+          }
+        },
+        "required": [
+          "device_id",
+          "operations"
+        ]
+      },
       "PreviewDto": {
         "type": "object",
         "properties": {
