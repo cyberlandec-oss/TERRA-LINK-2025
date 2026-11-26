@@ -1,5 +1,9 @@
 # Estado compartido de desarrollo
 
+## Estado vigente — cierre PRODUCER PWA exclusivamente web (2026-11-25)
+
+**DONE_LOCAL** del recorrido autorizado de parcelas/evidencias web sobre `742b0da859126c23fe7797c9e68aa66c1655893a`, rama `feat/campo-offline-jornada`, publicada en GitHub. Validación integral limpia APROBADA: API 1.273, web 31, Chromium 184, shell 3; lector 11 adicional. Cero fallidas/omitidas, TLS ejecutadas con OpenSSL. Preparación online, autorización de campo 24 h distinta del JWT, PNG satelital descargado, captura/persistencia cifrada, reapertura offline y sync idempotente; mismo ID punto/perímetro, evidencia recuperada, cuota, PIN, conflictos y pestañas comprobados. Desplegado localmente ese mismo SHA: `/version=742b0da`, esquema `0081_field_offline`, ready ok, web 200. [Evidencia y limitaciones](qa/CAMPO_PWA_2026-11-25.md). Importador conectado separado; Android ya no es gate de este alcance. No cierra todos los criterios históricos de RF-23/24 ni acredita producción o EUDR. `main` sin fusionar; PR borrador no creado por 403 del conector. Los bloques siguientes son históricos.
+
 ## Integración y despliegue local vigentes (2026-11-25)
 
 Rama `feat/integracion-importacion-local`, merge de `a56f020` con la versión local preservada en `e82411f`. Código combinado **`00c1c1b84e3f626fdd20a877802b4e6acdfdfe69` VALIDADO Y DESPLEGADO LOCALMENTE**; menú/estilos/idioma conservados byte por byte. Validación integral limpia aprobada: API 1.269, web 27, navegador 180, lector 11; **55 TLS ejecutadas/aprobadas y 0 omitidas** usando OpenSSL de Git solo en PATH de sesión. `/version = 00c1c1b`, ready ok, web 200. [Evidencia, TLS y recorrido PRODUCER a 390 px](qa/INTEGRACION_IMPORTACION_2026-11-25.md). El commit posterior solo documenta; no es la revisión que corre. Sin push, producción ni conformidad EUDR acreditadas. El cierre aislado siguiente se conserva como histórico.

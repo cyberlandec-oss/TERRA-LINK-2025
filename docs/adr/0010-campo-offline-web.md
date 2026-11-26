@@ -1,6 +1,6 @@
 # ADR-0010 — Campo offline exclusivamente web
 
-Estado: ALCANCE AUTORIZADO; implementación y cierre pendientes de validación. Fecha: 2026-11-25.
+Estado: ACEPTADA e implementada; recorrido PRODUCER de parcelas/evidencias **DONE_LOCAL** sobre `742b0da`, validación integral y despliegue locales aprobados. Fecha: 2026-11-25. [Evidencia y límites](../qa/CAMPO_PWA_2026-11-25.md).
 
 ## Autoridad y alcance
 

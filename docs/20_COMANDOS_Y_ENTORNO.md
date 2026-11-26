@@ -1,6 +1,10 @@
 # Comandos y entorno comprobables
 
-## Campo offline PWA web — 2026-11-25 (en desarrollo)
+## Campo offline PWA web — 2026-11-25 (DONE_LOCAL del recorrido PRODUCER)
+
+**Resultado final ejecutado:** `742b0da`, `npm.cmd run validate` APROBADA, corrida `2026-11-26T03-11-59-008Z`, árbol limpio; API 1.273, web 31, Chromium 184, shell 3, cero fallidas/omitidas. OpenSSL disponible por PATH; TLS ejecutadas. Lector GDAL adicional 11/11 con `docker run --rm --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=128m --memory 512m --cpus 1 terra-link-plot-reader:local /usr/bin/python3 /app/reader_test.py`. `node scripts/desplegar.mjs` aprobado: `/version=742b0da`, esquema `0081_field_offline`, ready ok y `/campo-offline` HTTP 200. Respaldo previo ejecutado con `docker compose exec -T postgres pg_dump -U terra_link -d terra_link -Fc -f /tmp/terra-link-before-0081.dump` y `docker cp` a la carpeta temporal detallada en el reporte. SHA código/contrato publicados en `feat/campo-offline-jornada`; commit documental posterior no modifica código desplegado. Intento de PR borrador bloqueado por 403 del conector, no el push. [Evidencia final y captura](qa/CAMPO_PWA_2026-11-25.md).
+
+### Registro previo a la corrida definitiva (histórico)
 
 Ejecutados en esta rama: `npm.cmd run typecheck`, `npm.cmd run lint`, `npm.cmd test -w apps/web` (31/31), `node --test scripts/field-shell.test.mjs` (3/3), `npm.cmd test -w apps/api -- --runInBand test/field-offline.int-spec.ts --silent` (4/4), `npm.cmd run build -w apps/api`, `npm.cmd run test -w e2e -- tests/campo-offline.spec.ts` (recorrido aprobado, ampliado después con PIN erróneo/pestañas para validación final). Comandos y evidencia del paquete Sentinel real, fallos iniciales y límites: [reporte de campo](qa/CAMPO_PWA_2026-11-25.md). Siguiente gate: commit candidato limpio y `$env:Path = 'C:/Program Files/Git/usr/bin;' + $env:Path; npm.cmd run validate` íntegro, sin omitir E2E/TLS. Tras aprobar, registrar resultados; despliegue local mediante `node scripts/desplegar.mjs` con respaldo aditivo previo a 0081 y verificar `/version`, `/health/ready` y web. No ejecutar suites API concurrentes que recrean *_test.
 
